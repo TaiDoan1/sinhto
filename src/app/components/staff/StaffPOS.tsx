@@ -1,4 +1,4 @@
-import { Search, Plus, ShoppingCart } from 'lucide-react';
+import { Search, Plus, ShoppingCart, RefreshCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { StaffModifierModal } from './StaffModifierModal';
 import { ComboSubscriptionModal } from './ComboSubscriptionModal';
@@ -12,7 +12,15 @@ interface Product {
   image: string;
 }
 
-const products: Product[] = [
+// Normalize category từ format Admin ('smoothies','toppings') sang Staff ('smoothie','topping')
+function normalizeCategory(cat: string): Product['category'] {
+  if (cat === 'smoothies' || cat === 'smoothie') return 'smoothie';
+  if (cat === 'toppings' || cat === 'topping') return 'topping';
+  if (cat === 'combo') return 'combo';
+  return 'smoothie';
+}
+
+const fallbackProducts: Product[] = [
   { id: 'SM-001', name: 'Strawberry Blast', category: 'smoothie', basePrice: 45000, image: '🍓' },
   { id: 'SM-002', name: 'Mango Tango', category: 'smoothie', basePrice: 48000, image: '🥭' },
   { id: 'SM-003', name: 'Green Power', category: 'smoothie', basePrice: 52000, image: '🥬' },
@@ -29,6 +37,25 @@ const products: Product[] = [
   { id: 'TP-004', name: 'Mật Ong', category: 'topping', basePrice: 15000, image: '🍯' },
 ];
 
+function loadProductsFromStorage(): Product[] {
+  try {
+    const saved = localStorage.getItem('menuProducts');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: normalizeCategory(p.category),
+          basePrice: p.basePrice ?? p.price ?? 0,
+          image: p.image ?? '🥤',
+        }));
+      }
+    }
+  } catch (_) {}
+  return fallbackProducts;
+}
+
 interface StaffPOSProps {
   onCheckout: (cart: CartItem[]) => void;
   clearCartTrigger: number;
@@ -37,6 +64,25 @@ interface StaffPOSProps {
 export function StaffPOS({ onCheckout, clearCartTrigger }: StaffPOSProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'smoothie' | 'combo' | 'topping'>('all');
+  const [products, setProducts] = useState<Product[]>(() => loadProductsFromStorage());
+  const [lastSync, setLastSync] = useState<string>(() => {
+    const ts = localStorage.getItem('menuLastSync');
+    return ts ? new Date(ts).toLocaleString('vi-VN') : '';
+  });
+
+  // Reload khi Admin cập nhật menu
+  useEffect(() => {
+    const handleMenuUpdate = () => {
+      setProducts(loadProductsFromStorage());
+      const now = new Date().toLocaleString('vi-VN');
+      setLastSync(now);
+    };
+    window.addEventListener('menuUpdated', handleMenuUpdate);
+    // Also load on mount in case storage was updated in another tab
+    handleMenuUpdate();
+    return () => window.removeEventListener('menuUpdated', handleMenuUpdate);
+  }, []);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCombo, setSelectedCombo] = useState<{ type: 'weekly' | 'monthly', price: number } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -64,7 +110,20 @@ export function StaffPOS({ onCheckout, clearCartTrigger }: StaffPOSProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-4 pb-3 shadow-lg">
-        <h1 className="text-xl font-bold mb-3">Bán Hàng</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold">Bán Hàng</h1>
+          {lastSync ? (
+            <div className="flex items-center gap-1.5 bg-white/20 rounded-full px-2.5 py-1">
+              <RefreshCw className="w-3 h-3 text-white/80" />
+              <span className="text-[10px] text-white/90 font-medium">Đồng bộ {lastSync}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-yellow-400/30 rounded-full px-2.5 py-1">
+              <RefreshCw className="w-3 h-3 text-yellow-200" />
+              <span className="text-[10px] text-yellow-100 font-medium">Menu mặc định</span>
+            </div>
+          )}
+        </div>
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
@@ -120,7 +179,13 @@ export function StaffPOS({ onCheckout, clearCartTrigger }: StaffPOSProps) {
               }}
               className="bg-white rounded-2xl shadow-md hover:shadow-lg p-5 active:scale-95 transition-all border-2 border-gray-100"
             >
-              <div className="text-6xl mb-4 text-center">{product.image}</div>
+              <div className="w-20 h-20 mx-auto mb-4 overflow-hidden rounded-xl bg-gray-50 flex items-center justify-center border">
+                {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-5xl">{product.image}</span>
+                )}
+              </div>
               <div className="text-base font-bold text-gray-800 mb-2 text-center line-clamp-2 min-h-[48px]">
                 {product.name}
               </div>

@@ -47,9 +47,13 @@ interface CheckInRecord {
 
 type PayrollTab = 'payroll' | 'salary-settings' | 'ot-settings' | 'checkin-history';
 
+import * as api from '../../utils/api';
+
 export function HRPayroll() {
   const [activeTab, setActiveTab] = useState<PayrollTab>('payroll');
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>(() => {
     const saved = localStorage.getItem('salarySettings');
@@ -71,49 +75,61 @@ export function HRPayroll() {
     };
   });
 
-  const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>(() => {
+  const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
+
+  // Load employees and shifts from backend
+  useEffect(() => {
+    Promise.all([api.fetchEmployees(), api.fetchShifts()])
+      .then(([empData, shiftData]) => {
+        setEmployees(empData);
+        setShifts(shiftData);
+      })
+      .catch(err => console.error('Failed to fetch employees and shifts:', err));
+  }, []);
+
+  // Generate checkin records once employees are loaded
+  useEffect(() => {
     const saved = localStorage.getItem('checkinRecords');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      setCheckinRecords(JSON.parse(saved));
+    } else if (employees.length > 0) {
+      const sampleRecords: CheckInRecord[] = [];
+      const today = new Date();
 
-    // Generate sample check-in records
-    const employees: Employee[] = JSON.parse(localStorage.getItem('employees') || '[]');
-    const sampleRecords: CheckInRecord[] = [];
-    const today = new Date();
+      employees.forEach(emp => {
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
 
-    employees.forEach(emp => {
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
+          const checkInHour = 8 + Math.floor(Math.random() * 2);
+          const checkInMinute = Math.floor(Math.random() * 60);
+          const checkOutHour = 17 + Math.floor(Math.random() * 2);
+          const checkOutMinute = Math.floor(Math.random() * 60);
 
-        const checkInHour = 8 + Math.floor(Math.random() * 2);
-        const checkInMinute = Math.floor(Math.random() * 60);
-        const checkOutHour = 17 + Math.floor(Math.random() * 2);
-        const checkOutMinute = Math.floor(Math.random() * 60);
+          sampleRecords.push({
+            id: `${emp.id}-${i}`,
+            employeeId: emp.employeeId,
+            employeeName: emp.fullName,
+            date: date.toISOString().split('T')[0],
+            checkInTime: `${checkInHour.toString().padStart(2, '0')}:${checkInMinute.toString().padStart(2, '0')}`,
+            checkOutTime: `${checkOutHour.toString().padStart(2, '0')}:${checkOutMinute.toString().padStart(2, '0')}`,
+            location: emp.branch,
+            status: checkInHour > 8 || (checkInHour === 8 && checkInMinute > 30) ? 'late' : 'on-time',
+          });
+        }
+      });
 
-        sampleRecords.push({
-          id: `${emp.id}-${i}`,
-          employeeId: emp.employeeId,
-          employeeName: emp.fullName,
-          date: date.toISOString().split('T')[0],
-          checkInTime: `${checkInHour.toString().padStart(2, '0')}:${checkInMinute.toString().padStart(2, '0')}`,
-          checkOutTime: `${checkOutHour.toString().padStart(2, '0')}:${checkOutMinute.toString().padStart(2, '0')}`,
-          location: emp.branch,
-          status: checkInHour > 8 || (checkInHour === 8 && checkInMinute > 30) ? 'late' : 'on-time',
-        });
-      }
-    });
-
-    return sampleRecords.sort((a, b) => b.date.localeCompare(a.date));
-  });
+      setCheckinRecords(sampleRecords.sort((a, b) => b.date.localeCompare(a.date)));
+    }
+  }, [employees]);
 
   useEffect(() => {
-    calculatePayroll();
-  }, [otSettings]);
+    if (employees.length > 0) {
+      calculatePayroll();
+    }
+  }, [employees, shifts, otSettings]);
 
   const calculatePayroll = () => {
-    const employees: Employee[] = JSON.parse(localStorage.getItem('employees') || '[]');
-    const shifts: Shift[] = JSON.parse(localStorage.getItem('shifts') || '[]');
-
     const records: EmployeeRecord[] = employees.map(emp => {
       const employeeShifts = shifts.filter(s => s.employeeId === emp.id);
 
@@ -152,6 +168,7 @@ export function HRPayroll() {
 
     setEmployeeRecords(records);
   };
+
 
   const saveSalarySettings = () => {
     localStorage.setItem('salarySettings', JSON.stringify(salarySettings));

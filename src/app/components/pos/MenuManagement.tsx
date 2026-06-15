@@ -26,6 +26,9 @@ const availableImages = [
   { path: '/images/fitblend_combo_bottles.png', label: 'Combo/Chai' },
 ];
 
+import * as api from '../../utils/api';
+import { useSSE } from '../../contexts/SSEContext';
+
 export function MenuManagement() {
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'prices' | 'toppings'>('products');
   const [products, setProducts] = useState<Product[]>([]);
@@ -37,24 +40,100 @@ export function MenuManagement() {
     image: '/images/strawberry_smoothie.png',
     basePrice: 79000
   });
+  const [comboToppings, setComboToppings] = useState<any[]>([]);
+  const { subscribe } = useSSE();
 
   useEffect(() => {
-    const savedProducts = localStorage.getItem('menuProducts');
-    if (savedProducts) setProducts(JSON.parse(savedProducts));
+    // Load products from API
+    api.fetchProducts()
+      .then(data => setProducts(data))
+      .catch(err => console.error('Failed to load products:', err));
 
-    const savedPrices = localStorage.getItem('menuPriceTable');
-    if (savedPrices) setPriceTable(JSON.parse(savedPrices));
-  }, []);
+    // Load price table from API, fallback to localStorage/default
+    api.fetchSetting('menuPriceTable')
+      .then(data => {
+        setPriceTable(data);
+        localStorage.setItem('menuPriceTable', JSON.stringify(data));
+      })
+      .catch(() => {
+        const savedPrices = localStorage.getItem('menuPriceTable');
+        if (savedPrices) setPriceTable(JSON.parse(savedPrices));
+      });
 
-  const saveProducts = (updated: Product[]) => {
-    localStorage.setItem('menuProducts', JSON.stringify(updated));
+    // Load combos from API, fallback to localStorage/default
+    const defaultCombos = [
+      { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
+      { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
+      { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
+      { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
+    ];
+
+    api.fetchSetting('menuComboToppings')
+      .then(data => {
+        setComboToppings(data);
+        localStorage.setItem('menuComboToppings', JSON.stringify(data));
+      })
+      .catch(() => {
+        const savedCombos = localStorage.getItem('menuComboToppings');
+        if (savedCombos) {
+          setComboToppings(JSON.parse(savedCombos));
+        } else {
+          localStorage.setItem('menuComboToppings', JSON.stringify(defaultCombos));
+          setComboToppings(defaultCombos);
+        }
+      });
+
+    const unsubCreate = subscribe('PRODUCT_CREATED', (data) => {
+      setProducts(prev => {
+        if (prev.some(p => p.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
+
+    const unsubUpdate = subscribe('PRODUCT_UPDATED', (data) => {
+      setProducts(prev => prev.map(p => p.id === data.id ? data : p));
+    });
+
+    const unsubDelete = subscribe('PRODUCT_DELETED', (data) => {
+      setProducts(prev => prev.filter(p => p.id !== data.id));
+    });
+
+    const unsubSetting = subscribe('SETTING_UPDATED', (data: any) => {
+      if (data.key === 'menuPriceTable') {
+        setPriceTable(data.value);
+        localStorage.setItem('menuPriceTable', JSON.stringify(data.value));
+        window.dispatchEvent(new Event('menuUpdated'));
+      } else if (data.key === 'menuComboToppings') {
+        setComboToppings(data.value);
+        localStorage.setItem('menuComboToppings', JSON.stringify(data.value));
+        window.dispatchEvent(new Event('menuUpdated'));
+      }
+    });
+
+    return () => {
+      unsubCreate();
+      unsubUpdate();
+      unsubDelete();
+      unsubSetting();
+    };
+  }, [subscribe]);
+
+  const saveProducts = async (updated: Product[]) => {
+    // Legacy support, but we recommend direct API calls
     setProducts(updated);
+  };
+
+  const saveComboToppings = (updated: any[]) => {
+    localStorage.setItem('menuComboToppings', JSON.stringify(updated));
+    setComboToppings(updated);
+    api.saveSetting('menuComboToppings', updated).catch(err => console.error('Failed to save settings:', err));
     window.dispatchEvent(new Event('menuUpdated'));
   };
 
   const savePrices = (updated: any) => {
     localStorage.setItem('menuPriceTable', JSON.stringify(updated));
     setPriceTable(updated);
+    api.saveSetting('menuPriceTable', updated).catch(err => console.error('Failed to save settings:', err));
     window.dispatchEvent(new Event('menuUpdated'));
   };
 
@@ -122,9 +201,15 @@ export function MenuManagement() {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setEditingProduct(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => {
-                        const newList = products.filter(p => p.id !== product.id);
-                        saveProducts(newList);
+                      <button onClick={async () => {
+                        if (confirm(`Xóa món "${product.name}"?`)) {
+                          try {
+                            await api.deleteProduct(product.id);
+                          } catch (err) {
+                            console.error(err);
+                            alert('Lỗi xóa sản phẩm');
+                          }
+                        }
                       }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
@@ -165,41 +250,184 @@ export function MenuManagement() {
               <Settings className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-800">
                 Lưu ý: Thay đổi giá ở đây sẽ cập nhật lập tức cho tất cả các vị Smoothies có trên hệ thống. 
-                Đảm bảo mức giá khớp với menu giấy tại cửa hàng.
+                Đảm bảo mức giá khớp với menu giấy tại chi nhánh.
               </p>
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {products.filter(p => p.category === 'toppings').map(topping => (
-              <div key={topping.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center text-2xl">{topping.image}</div>
-                  <div>
-                    <h3 className="font-bold text-gray-800">{topping.name}</h3>
-                    <input
-                      type="number"
-                      value={topping.basePrice}
-                      onChange={(e) => {
-                        const newList = products.map(p => p.id === topping.id ? {...p, basePrice: parseInt(e.target.value)} : p);
-                        saveProducts(newList);
-                      }}
-                      className="w-24 p-1 text-emerald-700 font-extrabold bg-transparent border-b border-transparent focus:border-emerald-500 outline-none"
-                    />
-                    <span className="text-emerald-700 font-extrabold text-sm">đ</span>
-                  </div>
+                ) : (
+          <div className="space-y-8">
+            {/* 1. Topping Lẻ Section */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Topping Lẻ</h3>
+                  <p className="text-xs text-gray-500">Quản lý giá và thêm topping lẻ trên hệ thống</p>
                 </div>
-                <button onClick={() => {
-                  const newList = products.filter(p => p.id !== topping.id);
-                  saveProducts(newList);
-                }} className="p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                <button
+                  onClick={async () => {
+                    const name = prompt('Nhập tên Topping lẻ mới:');
+                    if (!name) return;
+                    const priceStr = prompt('Nhập giá bán (đ):', '10000');
+                    const price = parseInt(priceStr || '0') || 10000;
+                    const emoji = prompt('Nhập biểu tượng đại diện (emoji):', '🍬');
+                    const newItem = {
+                      id: `TP-${Date.now()}`,
+                      name,
+                      category: 'toppings' as const,
+                      basePrice: price,
+                      image: emoji || '🍬'
+                    };
+                    try {
+                      await api.saveProduct(newItem);
+                    } catch (err) {
+                      console.error(err);
+                      alert('Lỗi thêm topping');
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Thêm Topping lẻ
+                </button>
               </div>
-            ))}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {products.filter(p => p.category === 'toppings').map(topping => (
+                  <div key={topping.id} className="bg-gray-50 p-4 rounded-xl border border-gray-150 flex justify-between items-center group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-lg border border-gray-250 flex items-center justify-center text-2xl">{topping.image}</div>
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm">{topping.name}</h3>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={topping.basePrice}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              setProducts(prev => prev.map(p => p.id === topping.id ? {...p, basePrice: val} : p));
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              api.saveProduct({...topping, basePrice: val}).catch(err => console.error(err));
+                            }}
+                            className="w-20 p-1 text-xs text-emerald-700 font-extrabold bg-white border border-gray-200 rounded outline-none focus:border-emerald-500"
+                          />
+                          <span className="text-emerald-700 font-extrabold text-xs">đ</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={async () => {
+                      if (confirm(`Xóa topping lẻ "${topping.name}"?`)) {
+                        try {
+                          await api.deleteProduct(topping.id);
+                        } catch (err) {
+                          console.error(err);
+                          alert('Lỗi khi xóa topping.');
+                        }
+                      }
+                    }} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Combo Toppings Section */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Combo Topping</h3>
+                  <p className="text-xs text-gray-500">Admin cấu hình combo topping bán chạy giá ưu đãi</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const name = prompt('Nhập tên Combo Topping mới (ví dụ: Healthy Boost):');
+                    if (!name) return;
+                    const items = prompt('Nhập danh sách nguyên liệu (ví dụ: Yến mạch + Hạt chia + Cỏ ngọt):');
+                    if (!items) return;
+                    const priceStr = prompt('Nhập giá ưu đãi combo (đ):', '25000');
+                    const price = parseInt(priceStr || '0') || 25000;
+                    const oPriceStr = prompt('Nhập giá gốc trước khi giảm (đ):', '30000');
+                    const oPrice = parseInt(oPriceStr || '0') || 30000;
+
+                    const newCombos = [...comboToppings, {
+                      id: `combo-${Date.now()}`,
+                      name,
+                      items,
+                      price,
+                      originalPrice: oPrice,
+                      save: Math.max(0, oPrice - price)
+                    }];
+                    saveComboToppings(newCombos);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Thêm Combo mới
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {comboToppings.map(combo => (
+                  <div key={combo.id} className="bg-gradient-to-br from-emerald-50/40 to-teal-50/40 p-4 rounded-xl border border-emerald-150/60 flex justify-between items-start group">
+                    <div className="space-y-2 flex-1 mr-4">
+                      <div>
+                        <h4 className="font-extrabold text-gray-900 text-sm">{combo.name}</h4>
+                        <p className="text-xs text-gray-500 font-bold mt-0.5">{combo.items}</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Giá bán</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={combo.price}
+                              onChange={(e) => {
+                                const newPrice = parseInt(e.target.value) || 0;
+                                const updated = comboToppings.map(c => c.id === combo.id ? { ...c, price: newPrice, save: Math.max(0, c.originalPrice - newPrice) } : c);
+                                saveComboToppings(updated);
+                              }}
+                              className="w-16 p-1 text-xs text-emerald-700 font-extrabold bg-white border border-gray-200 rounded outline-none"
+                            />
+                            <span className="text-emerald-700 font-extrabold text-xs">đ</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Giá gốc</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={combo.originalPrice}
+                              onChange={(e) => {
+                                const newOPrice = parseInt(e.target.value) || 0;
+                                const updated = comboToppings.map(c => c.id === combo.id ? { ...c, originalPrice: newOPrice, save: Math.max(0, newOPrice - c.price) } : c);
+                                saveComboToppings(updated);
+                              }}
+                              className="w-16 p-1 text-xs text-gray-500 font-extrabold bg-white border border-gray-200 rounded outline-none"
+                            />
+                            <span className="text-gray-500 font-extrabold text-xs">đ</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Xóa combo topping "${combo.name}"?`)) {
+                          const updated = comboToppings.filter(c => c.id !== combo.id);
+                          saveComboToppings(updated);
+                        }
+                      }}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Edit Product Modal (Keep as before, but with image selection) */}
+      {/* Edit Product Modal */}
       {(editingProduct || showAddModal) && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
@@ -239,15 +467,19 @@ export function MenuManagement() {
             </div>
             <div className="p-6 bg-gray-50 border-t flex gap-3">
               <button onClick={() => { setEditingProduct(null); setShowAddModal(false); }} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-600">Hủy</button>
-              <button onClick={() => {
-                if (editingProduct) {
-                  const newList = products.map(p => p.id === editingProduct.id ? editingProduct : p);
-                  saveProducts(newList);
-                  setEditingProduct(null);
-                } else if (newProduct.name) {
-                  const item = { ...newProduct, id: `SM-${Date.now()}` } as Product;
-                  saveProducts([...products, item]);
-                  setShowAddModal(false);
+              <button onClick={async () => {
+                try {
+                  if (editingProduct) {
+                    await api.saveProduct(editingProduct);
+                    setEditingProduct(null);
+                  } else if (newProduct.name) {
+                    const item = { ...newProduct } as Product;
+                    await api.saveProduct(item);
+                    setShowAddModal(false);
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert('Lỗi khi lưu sản phẩm.');
                 }
               }} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold">Lưu</button>
             </div>

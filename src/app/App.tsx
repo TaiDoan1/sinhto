@@ -9,13 +9,14 @@ import { StaffApp } from './components/staff/StaffApp';
 import { CustomerApp } from './components/customer/CustomerApp';
 import { ShipperApp } from './components/shipper/ShipperApp';
 import { PartnerDashboard } from './components/customer/PartnerDashboard';
-import { PTManagement } from './components/admin/PTManagement';
+import { ProductManagement } from './components/admin/ProductManagement';
+import { ComboManagement } from './components/admin/ComboManagement';
 import { OrderProvider } from './contexts/OrderContext';
 import { ComboProvider } from './contexts/ComboContext';
 import { InventoryProvider } from './contexts/InventoryContext';
 import { AffiliateProvider, useAffiliate } from './contexts/AffiliateContext';
-import { initializeSampleEmployees } from './utils/sampleEmployees';
-import { initializeSampleShifts } from './utils/sampleShifts';
+import { SSEProvider } from './contexts/SSEContext';
+import { MenuProvider } from './contexts/MenuContext';
 
 function AppContent() {
   const { resolveCode } = useAffiliate();
@@ -24,9 +25,6 @@ function AppContent() {
   const [showNav, setShowNav] = useState(true);
 
   useEffect(() => {
-    initializeSampleEmployees();
-    initializeSampleShifts();
-
     // Capture PT referral code from URL
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref') || params.get('pt');
@@ -53,26 +51,6 @@ function AppContent() {
             }`}
           >
             🛒 Khách Hàng
-          </button>
-          <button
-            onClick={() => setMode('partner')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-              mode === 'partner'
-                ? 'bg-emerald-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            💪 Đối tác PT
-          </button>
-          <button
-            onClick={() => setMode('shipper')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-              mode === 'shipper'
-                ? 'bg-green-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            🏍️ Shipper
           </button>
           <button
             onClick={() => setMode('staff')}
@@ -127,30 +105,6 @@ function AppContent() {
     );
   }
 
-  // Shipper Mode
-  if (mode === 'shipper') {
-    return (
-      <>
-        {showNav && <ModeNavigation />}
-        <div className={showNav ? 'pt-16' : ''}>
-          <ShipperApp />
-        </div>
-      </>
-    );
-  }
-
-  // Partner Mode (PT Dashboard)
-  if (mode === 'partner') {
-    return (
-      <>
-        {showNav && <ModeNavigation />}
-        <div className={showNav ? 'pt-16' : ''}>
-          <PartnerDashboard />
-        </div>
-      </>
-    );
-  }
-
   // Staff Mode - Mobile App
   if (mode === 'staff') {
     return (
@@ -186,8 +140,10 @@ function AppContent() {
         return <HRManagement />;
       case 'inventory':
         return <InventoryDashboard />;
-      case 'affiliate':
-        return <PTManagement />;
+      case 'products':
+        return <ProductManagement />;
+      case 'combos':
+        return <ComboManagement />;
       default:
         return <BranchOverview />;
     }
@@ -209,14 +165,18 @@ function AppContent() {
 
 export default function App() {
   return (
-    <InventoryProvider>
-      <OrderProvider>
-        <ComboProvider>
-          <AffiliateProvider>
-            <AppContent />
-          </AffiliateProvider>
-        </ComboProvider>
-      </OrderProvider>
-    </InventoryProvider>
+    <SSEProvider>
+      <MenuProvider>
+        <InventoryProvider>
+          <OrderProvider>
+            <ComboProvider>
+              <AffiliateProvider>
+                <AppContent />
+              </AffiliateProvider>
+            </ComboProvider>
+          </OrderProvider>
+        </InventoryProvider>
+      </MenuProvider>
+    </SSEProvider>
   );
 }

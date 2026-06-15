@@ -76,7 +76,13 @@ export function StaffModifierModal({ product, onClose, onAddToCart }: StaffModif
         <div className="sticky top-0 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-5">
           <div className="flex justify-between items-start mb-3">
             <div className="flex items-center gap-3">
-              <div className="text-5xl">{product.image}</div>
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/20 flex items-center justify-center border border-white/10">
+                {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl">{product.image}</span>
+                )}
+              </div>
               <div>
                 <h2 className="text-xl font-bold">{product.name}</h2>
                 <p className="text-sm opacity-90">Tùy chỉnh sản phẩm</p>

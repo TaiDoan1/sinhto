@@ -13,7 +13,7 @@ const sourceColors = {
 
 const sourceLabels = {
   counter: 'Tại Quầy',
-  mobile: 'App/Online',
+  mobile: 'Đặt Online',
   web: 'Web'
 };
 

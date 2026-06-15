@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { UserPlus, Save, X, CheckCircle, Upload, Camera } from 'lucide-react';
+import * as api from '../../utils/api';
 
 export interface Employee {
   id: string;
@@ -58,7 +59,7 @@ const branches = [
 ];
 
 const positions = [
-  { id: 'manager', name: 'Quản Lý Cửa Hàng' },
+  { id: 'manager', name: 'Quản Lý Chi Nhánh' },
   { id: 'cashier', name: 'Thu Ngân' },
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
@@ -86,7 +87,7 @@ export function EmployeeRegistration() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const newEmployee: Employee = {
@@ -96,15 +97,18 @@ export function EmployeeRegistration() {
       photo: photoPreview,
     };
 
-    const existingEmployees = JSON.parse(localStorage.getItem('employees') || '[]');
-    localStorage.setItem('employees', JSON.stringify([...existingEmployees, newEmployee]));
-
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setFormData(initialFormData);
-      setPhotoPreview('');
-    }, 3000);
+    try {
+      await api.saveEmployee(newEmployee);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setFormData(initialFormData);
+        setPhotoPreview('');
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to save employee:', err);
+      alert('Lỗi lưu nhân viên. Vui lòng thử lại.');
+    }
   };
 
   const handleReset = () => {

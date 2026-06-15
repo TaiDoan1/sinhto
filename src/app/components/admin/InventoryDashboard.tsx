@@ -1,11 +1,43 @@
 import { useState } from 'react';
-import { Package, AlertTriangle, TrendingDown, DollarSign, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, AlertTriangle, TrendingDown, DollarSign, History, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 
 export function InventoryDashboard() {
-  const { inventory, movements, getLowStockItems, getOutOfStockItems, getTodayStats } = useInventory();
+  const { inventory, movements, getLowStockItems, getOutOfStockItems, getTodayStats, addInventoryItem, updateInventoryStock } = useInventory();
   const [activeTab, setActiveTab] = useState<'stock' | 'movements'>('stock');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  
+  // Add modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newUnit, setNewUnit] = useState<'kg' | 'lít' | 'gói' | 'cái'>('kg');
+  const [newCurrentStock, setNewCurrentStock] = useState(0);
+  const [newMinStock, setNewMinStock] = useState(1);
+  const [newCost, setNewCost] = useState(0);
+  const [newCategory, setNewCategory] = useState<'fruit' | 'dairy' | 'protein' | 'topping' | 'other'>('fruit');
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return alert('Vui lòng nhập tên nguyên liệu');
+    const success = await addInventoryItem({
+      name: newName.trim(),
+      unit: newUnit,
+      currentStock: Number(newCurrentStock),
+      minStock: Number(newMinStock),
+      cost: Number(newCost),
+      category: newCategory
+    });
+    if (success) {
+      alert('Thêm nguyên liệu thành công!');
+      setShowAddModal(false);
+      setNewName('');
+      setNewCurrentStock(0);
+      setNewMinStock(1);
+      setNewCost(0);
+    } else {
+      alert('Có lỗi xảy ra khi thêm nguyên liệu.');
+    }
+  };
 
   const lowStockItems = getLowStockItems();
   const outOfStockItems = getOutOfStockItems();
@@ -66,9 +98,18 @@ export function InventoryDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Quản Lý Tồn Kho</h1>
-        <p className="text-gray-600">Theo dõi nguyên liệu và chi phí hoạt động</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Quản Lý Tồn Kho</h1>
+          <p className="text-gray-600">Theo dõi nguyên liệu và chi phí hoạt động</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Thêm nguyên liệu mới</span>
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -203,6 +244,7 @@ export function InventoryDashboard() {
                           <th className="text-center p-3 text-sm font-semibold text-gray-600">Tối Thiểu</th>
                           <th className="text-right p-3 text-sm font-semibold text-gray-600">Giá Vốn</th>
                           <th className="text-center p-3 text-sm font-semibold text-gray-600">Trạng Thái</th>
+                          <th className="text-center p-3 text-sm font-semibold text-gray-600">Điều chỉnh nhanh</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -212,7 +254,7 @@ export function InventoryDashboard() {
                             <tr key={item.id} className="border-t border-gray-100 hover:bg-gray-50">
                               <td className="p-3 text-sm font-medium text-gray-800">{item.name}</td>
                               <td className="p-3 text-sm text-center text-gray-700">
-                                {item.currentStock} {item.unit}
+                                <span className="font-semibold">{item.currentStock}</span> {item.unit}
                               </td>
                               <td className="p-3 text-sm text-center text-gray-600">
                                 {item.minStock} {item.unit}
@@ -224,6 +266,21 @@ export function InventoryDashboard() {
                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${status.color}`}>
                                   {status.label}
                                 </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      const diff = Number(prompt(`Nhập số lượng tồn kho mới cho ${item.name}:`, String(item.currentStock)));
+                                      if (!isNaN(diff)) {
+                                        updateInventoryStock(item.id, diff, 'Admin', 'Điều chỉnh tồn kho bởi Admin');
+                                      }
+                                    }}
+                                    className="bg-emerald-100 hover:bg-emerald-250 text-emerald-700 px-2 py-1 rounded text-xs font-bold transition-all"
+                                  >
+                                    Sửa số lượng
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -284,6 +341,107 @@ export function InventoryDashboard() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ADD INVENTORY ITEM */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 relative">
+            <button onClick={() => setShowAddModal(false)} className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-100 text-gray-400 hover:bg-gray-200">
+              <X className="w-5 h-5" />
+            </button>
+            
+            <h2 className="text-xl font-bold text-gray-800 mb-6">Thêm nguyên liệu mới</h2>
+            
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tên nguyên liệu</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Dâu tây Đà Lạt, Sữa đặc..."
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Đơn vị tính</label>
+                  <select
+                    value={newUnit}
+                    onChange={e => setNewUnit(e.target.value as any)}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="lít">lít</option>
+                    <option value="gói">gói</option>
+                    <option value="cái">cái</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Danh mục</label>
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value as any)}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                  >
+                    <option value="fruit">Trái Cây</option>
+                    <option value="dairy">Sữa</option>
+                    <option value="protein">Protein</option>
+                    <option value="topping">Topping</option>
+                    <option value="other">Khác</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tồn kho đầu</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={newCurrentStock}
+                    onChange={e => setNewCurrentStock(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Tồn tối thiểu</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.1"
+                    required
+                    value={newMinStock}
+                    onChange={e => setNewMinStock(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Giá vốn (VND)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newCost}
+                    onChange={e => setNewCost(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-emerald-700 focus:outline-none font-medium text-gray-800"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-xl font-bold mt-4 shadow-lg flex items-center justify-center gap-1 active:scale-95 transition-transform"
+              >
+                Thêm nguyên liệu
+              </button>
+            </form>
           </div>
         </div>
       )}

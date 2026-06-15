@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, X, Save, User } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import { EmployeeCredentials } from './EmployeeCredentials';
+import * as api from '../../utils/api';
+import { useSSE } from '../../contexts/SSEContext';
 
 const branches = [
   { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
@@ -10,7 +12,7 @@ const branches = [
 ];
 
 const positions = [
-  { id: 'manager', name: 'Quản Lý Cửa Hàng' },
+  { id: 'manager', name: 'Quản Lý Chi Nhánh' },
   { id: 'cashier', name: 'Thu Ngân' },
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
@@ -22,23 +24,43 @@ export function EmployeeList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Employee | null>(null);
+  const { subscribe } = useSSE();
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    // Load employees from backend
+    api.fetchEmployees()
+      .then(data => setEmployees(data))
+      .catch(err => console.error('Failed to load employees:', err));
 
-  const loadEmployees = () => {
-    const stored = localStorage.getItem('employees');
-    if (stored) {
-      setEmployees(JSON.parse(stored));
-    }
-  };
+    const unsubCreate = subscribe('EMPLOYEE_CREATED', (data) => {
+      setEmployees(prev => {
+        if (prev.some(e => e.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
 
-  const handleDelete = (id: string) => {
-    if (confirm('Bạn có chắc muốn xóa nhân viên này?')) {
-      const updated = employees.filter(emp => emp.id !== id);
-      setEmployees(updated);
-      localStorage.setItem('employees', JSON.stringify(updated));
+    const unsubUpdate = subscribe('EMPLOYEE_UPDATED', (data) => {
+      setEmployees(prev => prev.map(e => e.id === data.id ? data : e));
+    });
+
+    const unsubDelete = subscribe('EMPLOYEE_DELETED', (data) => {
+      setEmployees(prev => prev.filter(e => e.id !== data.id));
+    });
+
+    return () => {
+      unsubCreate();
+      unsubUpdate();
+      unsubDelete();
+    };
+  }, [subscribe]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bạn có chắc muốn xóa nhân viên này?')) return;
+    try {
+      await api.deleteEmployee(id);
+    } catch (err) {
+      console.error('Failed to delete employee:', err);
+      alert('Lỗi xóa nhân viên.');
     }
   };
 
@@ -47,16 +69,16 @@ export function EmployeeList() {
     setEditForm({ ...employee });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editForm) return;
-
-    const updated = employees.map(emp =>
-      emp.id === editForm.id ? editForm : emp
-    );
-    setEmployees(updated);
-    localStorage.setItem('employees', JSON.stringify(updated));
-    setEditingId(null);
-    setEditForm(null);
+    try {
+      await api.saveEmployee(editForm);
+      setEditingId(null);
+      setEditForm(null);
+    } catch (err) {
+      console.error('Failed to update employee:', err);
+      alert('Lỗi cập nhật nhân viên.');
+    }
   };
 
   const handleCancelEdit = () => {

@@ -238,7 +238,7 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
           {[
             { label: 'Chọn Gói Sỉ', num: 0 },
             { label: 'Chọn Vị Yêu Thích', num: 1 },
-            { label: 'Chọn Cửa Hàng', num: 2 },
+            { label: 'Chọn Chi Nhánh', num: 2 },
             { label: 'Thông Tin Đăng Ký', num: 3 },
           ].map((st) => (
             <div key={st.num} className="flex items-center gap-2 flex-shrink-0">
@@ -319,47 +319,11 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
 
           {/* STEP 1: CHỌN VỊ SẢN PHẨM YÊU THÍCH */}
           {currentStep === 1 && (
-            <div className="space-y-4 animate-in fade-in duration-300">
-              <div>
-                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest block ml-1">Chọn sản phẩm ưa thích làm mặc định</h3>
-                <p className="text-xs text-white/45 mt-1 font-medium ml-1">Đây là vị smoothie mặc định trong tài khoản của bạn, bạn vẫn có thể đổi vị tự do khi rút ly tại cửa hàng.</p>
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {products.map((product) => {
-                  const isSelected = selectedProductId === product.id;
-                  return (
-                    <button
-                      key={product.id}
-                      onClick={() => setSelectedProductId(product.id)}
-                      className={`p-4 rounded-2xl border-2 text-left flex items-center justify-between transition-all ${
-                        isSelected 
-                          ? 'border-emerald-500 bg-emerald-500/10' 
-                          : 'border-white/5 bg-[#071309] hover:bg-[#0d2212]/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-2xl shrink-0">{product.image}</span>
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-white text-xs block truncate leading-tight">{product.name}</span>
-                        </div>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border shrink-0 flex items-center justify-center transition-all ${
-                        isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-white/15'
-                      }`}>
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <hr className="border-white/5" />
-
-              {/* Added size and protein level options */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Added size and protein level options - placed FIRST */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white/5 p-5 rounded-3xl border border-white/5">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block ml-1">Kích cỡ ly</label>
+                  <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block ml-1">Kích cỡ ly (ml)</label>
                   <div className="grid grid-cols-4 gap-2 bg-[#061108] p-1 rounded-2xl border border-white/5">
                     {Object.keys(proteinLevelsBySize).map(s => (
                       <button 
@@ -398,14 +362,48 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
                   </div>
                 </div>
               </div>
+
+              <div>
+                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest block ml-1">Chọn sản phẩm ưa thích làm mặc định (Vị)</h3>
+                <p className="text-xs text-white/45 mt-1 font-medium ml-1">Đây là vị smoothie mặc định trong tài khoản của bạn, bạn vẫn có thể đổi vị tự do khi rút ly tại chi nhánh.</p>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {products.map((product) => {
+                  const isSelected = selectedProductId === product.id;
+                  return (
+                    <button
+                      key={product.id}
+                      onClick={() => setSelectedProductId(product.id)}
+                      className={`p-4 rounded-2xl border-2 text-left flex items-center justify-between transition-all ${
+                        isSelected 
+                          ? 'border-emerald-500 bg-emerald-500/10' 
+                          : 'border-white/5 bg-[#071309] hover:bg-[#0d2212]/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-2xl shrink-0">{product.image}</span>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-white text-xs block truncate leading-tight">{product.name}</span>
+                        </div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border shrink-0 flex items-center justify-center transition-all ${
+                        isSelected ? 'bg-emerald-500 border-emerald-500 text-black' : 'border-white/15'
+                      }`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* STEP 2: CHỌN CỬA HÀNG/CHI NHÁNH */}
+          {/* STEP 2: CHỌN CHI NHÁNH */}
           {currentStep === 2 && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <div>
-                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest block ml-1">Chọn cửa hàng lấy nước chính</h3>
+                <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest block ml-1">Chọn chi nhánh lấy nước chính</h3>
                 <p className="text-xs text-white/45 mt-1 font-medium ml-1">Bạn sẽ ưu tiên rút ly tại chi nhánh này, tuy nhiên hệ thống vẫn hỗ trợ rút ly trên toàn hệ thống chi nhánh FitBlend.</p>
               </div>
 
@@ -492,7 +490,7 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline text-sm">
-                  <span className="text-white/45 font-bold">Cửa hàng lấy nước:</span>
+                  <span className="text-white/45 font-bold">Chi nhánh lấy nước:</span>
                   <span className="text-white font-extrabold">{selectedBranch.name}</span>
                 </div>
                 <div className="flex justify-between items-baseline text-sm">
@@ -539,7 +537,7 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
                     return;
                   }
                   if (currentStep === 2 && !selectedBranchId) {
-                    alert('Vui lòng chọn cửa hàng!');
+                    alert('Vui lòng chọn chi nhánh!');
                     return;
                   }
                   setCurrentStep(prev => prev + 1);

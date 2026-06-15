@@ -144,6 +144,18 @@ function WholesalePanel() {
     totalCups: 10, durationMonths: 1,
   });
 
+  const [regSize, setRegSize] = useState('360ml');
+  const [regProtein, setRegProtein] = useState(40);
+  const [regProductId, setRegProductId] = useState('SM-13'); // Default Avocado
+  const [menuProductsList, setMenuProductsList] = useState<any[]>([]);
+
+  const proteinLevelsBySize: Record<string, number[]> = {
+    '250ml': [20, 40],
+    '360ml': [20, 40, 60],
+    '500ml': [20, 40, 60],
+    '700ml': [60, 90],
+  };
+
   const PACKAGES = [
     { name: 'Combo Sỉ 10 Ly', cups: 10, months: 1, price: 590000 },
     { name: 'Combo Sỉ 30 Ly', cups: 30, months: 2, price: 1590000 },
@@ -152,7 +164,19 @@ function WholesalePanel() {
 
   const refreshAll = () => setAllAccounts(getWholesaleAccounts());
 
-  useEffect(() => { refreshAll(); }, []);
+  useEffect(() => { 
+    refreshAll(); 
+    try {
+      const saved = localStorage.getItem('menuProducts');
+      if (saved) {
+        const parsed = JSON.parse(saved).filter((p: any) => p.category === 'smoothies');
+        setMenuProductsList(parsed);
+        if (parsed.length > 0) {
+          setRegProductId(parsed[0].id);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const handleSearch = () => {
     const accounts = getWholesaleAccounts();
@@ -162,7 +186,6 @@ function WholesalePanel() {
     setRedeemQty(1);
     if (found) {
       if (found.preferredProduct?.name) {
-        // If preferred flavor exists, check if it matches any of the FLAVOR_OPTIONS (case insensitive) or just set it
         const matchedFlavor = FLAVOR_OPTIONS.find(f => f.toLowerCase() === found.preferredProduct?.name.toLowerCase());
         setSelectedFlavor(matchedFlavor || found.preferredProduct.name);
       } else {
@@ -209,6 +232,7 @@ function WholesalePanel() {
     const now = new Date();
     const expires = new Date(now);
     expires.setMonth(expires.getMonth() + regForm.durationMonths);
+    const selectedProd = menuProductsList.find(p => p.id === regProductId) || { name: 'Bơ', image: '🥑', id: 'SM-13' };
     const newAcc: WholesaleAccount = {
       id: `WS-${Date.now()}`,
       customerName: regForm.customerName,
@@ -220,6 +244,13 @@ function WholesalePanel() {
       purchasedAt: now.toISOString(),
       expiresAt: expires.toISOString(),
       redemptions: [],
+      preferredProduct: {
+        id: selectedProd.id,
+        name: selectedProd.name,
+        image: selectedProd.image?.startsWith('/') ? '🥤' : selectedProd.image || '🥤',
+      },
+      preferredProductSize: regSize,
+      preferredProductProtein: regProtein,
     };
     saveWholesaleAccounts([...accounts, newAcc]);
     refreshAll();
@@ -260,7 +291,7 @@ function WholesalePanel() {
 
       {/* Registration Form */}
       {showRegForm && (
-        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 space-y-3">
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 space-y-3 text-gray-800">
           <h4 className="text-sm font-black text-yellow-800 uppercase tracking-wider">📝 Đăng ký gói sỉ cho khách</h4>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -289,10 +320,11 @@ function WholesalePanel() {
               {PACKAGES.map(pkg => (
                 <button
                   key={pkg.name}
+                  type="button"
                   onClick={() => setRegForm(p => ({ ...p, packageName: pkg.name, totalCups: pkg.cups, durationMonths: pkg.months }))}
                   className={`p-2.5 rounded-xl border-2 text-center transition-all text-xs ${
                     regForm.packageName === pkg.name
-                      ? 'border-yellow-500 bg-yellow-100 text-yellow-800'
+                      ? 'border-yellow-500 bg-yellow-100 text-yellow-800 font-bold'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-yellow-300'
                   }`}
                 >
@@ -302,6 +334,59 @@ function WholesalePanel() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Size (ml) first, then Protein, then favorite Smoothie Flavor (vị) */}
+          <div className="grid grid-cols-2 gap-3 bg-white/50 p-3 rounded-xl border border-yellow-100">
+            <div>
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">1. Kích cỡ ly (ml)</label>
+              <select
+                value={regSize}
+                onChange={e => {
+                  const size = e.target.value;
+                  setRegSize(size);
+                  const available = proteinLevelsBySize[size] || [20, 40];
+                  if (!available.includes(regProtein)) {
+                    setRegProtein(available[0]);
+                  }
+                }}
+                className="w-full bg-white border border-yellow-200 rounded-lg px-2.5 py-2 text-xs font-semibold focus:ring-2 focus:ring-yellow-400 outline-none"
+              >
+                <option value="250ml">250ml</option>
+                <option value="360ml">360ml</option>
+                <option value="500ml">500ml</option>
+                <option value="700ml">700ml</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">2. Mức Protein</label>
+              <select
+                value={regProtein}
+                onChange={e => setRegProtein(Number(e.target.value))}
+                className="w-full bg-white border border-yellow-200 rounded-lg px-2.5 py-2 text-xs font-semibold focus:ring-2 focus:ring-yellow-400 outline-none"
+              >
+                {(proteinLevelsBySize[regSize] || [20, 40]).map(l => (
+                  <option key={l} value={l}>{l}g Protein</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">3. Chọn Vị Smoothie (Mặc định)</label>
+            <select
+              value={regProductId}
+              onChange={e => setRegProductId(e.target.value)}
+              className="w-full bg-white border border-yellow-200 rounded-lg px-2.5 py-2 text-xs font-semibold focus:ring-2 focus:ring-yellow-400 outline-none"
+            >
+              {menuProductsList.length > 0 ? (
+                menuProductsList.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))
+              ) : (
+                <option value="SM-13">Bơ</option>
+              )}
+            </select>
           </div>
 
           <button
@@ -464,7 +549,7 @@ function WholesalePanel() {
                               </div>
                             )}
                             {acc.branchName && (
-                              <span className="mt-0.5">Cửa hàng: {acc.branchName}</span>
+                              <span className="mt-0.5">Chi nhánh: {acc.branchName}</span>
                             )}
                           </div>
                         )}

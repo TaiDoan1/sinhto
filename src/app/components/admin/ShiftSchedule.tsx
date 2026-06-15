@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
+import * as api from '../../utils/api';
+import { useSSE } from '../../contexts/SSEContext';
 
 export interface Shift {
   id: string;
@@ -37,10 +39,39 @@ export function ShiftSchedule() {
   const [selectedCell, setSelectedCell] = useState<{employeeId: string, date: string} | null>(null);
   const [substituteModal, setSubstituteModal] = useState<{shift: Shift} | null>(null);
 
+  const { subscribe } = useSSE();
+
   useEffect(() => {
-    loadEmployees();
-    loadShifts();
-  }, []);
+    // Load initial data
+    api.fetchEmployees()
+      .then(data => setEmployees(data))
+      .catch(err => console.error('Failed to load employees:', err));
+
+    api.fetchShifts()
+      .then(data => setShifts(data))
+      .catch(err => console.error('Failed to load shifts:', err));
+
+    const unsubCreate = subscribe('SHIFT_CREATED', (data) => {
+      setShifts(prev => {
+        if (prev.some(s => s.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
+
+    const unsubUpdate = subscribe('SHIFT_UPDATED', (data) => {
+      setShifts(prev => prev.map(s => s.id === data.id ? data : s));
+    });
+
+    const unsubDelete = subscribe('SHIFT_DELETED', (data) => {
+      setShifts(prev => prev.filter(s => s.id !== data.id));
+    });
+
+    return () => {
+      unsubCreate();
+      unsubUpdate();
+      unsubDelete();
+    };
+  }, [subscribe]);
 
   function getMonday(date: Date): Date {
     const d = new Date(date);
@@ -48,21 +79,6 @@ export function ShiftSchedule() {
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
   }
-
-  const loadEmployees = () => {
-    const stored = localStorage.getItem('employees');
-    if (stored) setEmployees(JSON.parse(stored));
-  };
-
-  const loadShifts = () => {
-    const stored = localStorage.getItem('shifts');
-    if (stored) setShifts(JSON.parse(stored));
-  };
-
-  const saveShifts = (newShifts: Shift[]) => {
-    setShifts(newShifts);
-    localStorage.setItem('shifts', JSON.stringify(newShifts));
-  };
 
   const getWeekDays = () => {
     const days = [];
@@ -74,7 +90,7 @@ export function ShiftSchedule() {
     return days;
   };
 
-  const handleAddShift = (employeeId: string, date: string, template: typeof shiftTemplates[0]) => {
+  const handleAddShift = async (employeeId: string, date: string, template: typeof shiftTemplates[0]) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
@@ -96,19 +112,35 @@ export function ShiftSchedule() {
       shiftType,
     };
 
-    saveShifts([...shifts, newShift]);
-    setSelectedCell(null);
+    try {
+      await api.saveShift(newShift);
+      setSelectedCell(null);
+    } catch (err) {
+      console.error('Failed to add shift:', err);
+      alert('Lỗi lưu ca làm việc.');
+    }
   };
 
-  const handleDeleteShift = (id: string) => {
-    saveShifts(shifts.filter(s => s.id !== id));
+  const handleDeleteShift = async (id: string) => {
+    try {
+      await api.deleteShift(id);
+    } catch (err) {
+      console.error('Failed to delete shift:', err);
+      alert('Lỗi xóa ca làm việc.');
+    }
   };
 
-  const handleTogglePin = (id: string) => {
-    saveShifts(shifts.map(s => s.id === id ? { ...s, isPinned: !s.isPinned } : s));
+  const handleTogglePin = async (id: string) => {
+    const shift = shifts.find(s => s.id === id);
+    if (!shift) return;
+    try {
+      await api.saveShift({ ...shift, isPinned: !shift.isPinned });
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+    }
   };
 
-  const handleSubstitute = (substituteEmployeeId: string) => {
+  const handleSubstitute = async (substituteEmployeeId: string) => {
     if (!substituteModal) return;
 
     const substituteEmployee = employees.find(e => e.id === substituteEmployeeId);
@@ -127,11 +159,16 @@ export function ShiftSchedule() {
       isSubstitute: true,
     };
 
-    saveShifts(shifts.map(s => s.id === substituteModal.shift.id ? updatedShift : s));
-    setSubstituteModal(null);
+    try {
+      await api.saveShift(updatedShift);
+      setSubstituteModal(null);
+    } catch (err) {
+      console.error('Failed to update substitute:', err);
+      alert('Lỗi thay ca.');
+    }
   };
 
-  const handleCancelSubstitute = (shiftId: string) => {
+  const handleCancelSubstitute = async (shiftId: string) => {
     const shift = shifts.find(s => s.id === shiftId);
     if (!shift || !shift.isSubstitute || !shift.originalEmployeeId) return;
 
@@ -144,10 +181,14 @@ export function ShiftSchedule() {
       isSubstitute: false,
     };
 
-    saveShifts(shifts.map(s => s.id === shiftId ? restoredShift : s));
+    try {
+      await api.saveShift(restoredShift);
+    } catch (err) {
+      console.error('Failed to cancel substitute:', err);
+    }
   };
 
-  const handleRotateShifts = () => {
+  const handleRotateShifts = async () => {
     if (!confirm('Xoay ca tự động? (Ca đã ghim sẽ giữ nguyên)')) return;
 
     const weekDays = getWeekDays();
@@ -159,61 +200,83 @@ export function ShiftSchedule() {
       s.branch !== selectedBranch || !weekDates.includes(s.date) || s.isPinned
     );
 
-    const newShifts: Shift[] = [...otherShifts];
+    // Filter out shifts that will be replaced
+    const shiftsToKeep = otherShifts;
+    
+    // We will save new shifts to database
     let empIndex = 0;
-
-    weekDays.forEach((day) => {
-      const dateStr = day.toISOString().split('T')[0];
-      const pinnedIds = otherShifts.filter(s => s.date === dateStr).map(s => s.employeeId);
-
-      // Morning
-      let morningEmp = availableEmployees[empIndex % availableEmployees.length];
-      while (pinnedIds.includes(morningEmp.id)) {
-        empIndex++;
-        morningEmp = availableEmployees[empIndex % availableEmployees.length];
+    try {
+      // First clean up unpinned shifts for this week on this branch
+      const unpinnedThisWeek = shifts.filter(s =>
+        s.branch === selectedBranch && weekDates.includes(s.date) && !s.isPinned
+      );
+      for (const sh of unpinnedThisWeek) {
+        await api.deleteShift(sh.id);
       }
-      newShifts.push({
-        id: `r-${dateStr}-${morningEmp.id}-m`,
-        employeeId: morningEmp.id,
-        employeeName: morningEmp.fullName,
-        branch: selectedBranch,
-        date: dateStr,
-        startTime: '06:00',
-        endTime: '14:00',
-        isPinned: false,
-        shiftType: 'morning',
-      });
-      empIndex++;
 
-      // Afternoon
-      let afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
-      while (pinnedIds.includes(afternoonEmp.id)) {
+      // Create new shifts
+      for (const day of weekDays) {
+        const dateStr = day.toISOString().split('T')[0];
+        const pinnedIds = shiftsToKeep.filter(s => s.date === dateStr).map(s => s.employeeId);
+
+        // Morning
+        let morningEmp = availableEmployees[empIndex % availableEmployees.length];
+        while (pinnedIds.includes(morningEmp.id)) {
+          empIndex++;
+          morningEmp = availableEmployees[empIndex % availableEmployees.length];
+        }
+        await api.saveShift({
+          id: `r-${dateStr}-${morningEmp.id}-m`,
+          employeeId: morningEmp.id,
+          employeeName: morningEmp.fullName,
+          branch: selectedBranch,
+          date: dateStr,
+          startTime: '06:00',
+          endTime: '14:00',
+          isPinned: false,
+          shiftType: 'morning',
+        });
         empIndex++;
-        afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
-      }
-      newShifts.push({
-        id: `r-${dateStr}-${afternoonEmp.id}-a`,
-        employeeId: afternoonEmp.id,
-        employeeName: afternoonEmp.fullName,
-        branch: selectedBranch,
-        date: dateStr,
-        startTime: '14:00',
-        endTime: '22:00',
-        isPinned: false,
-        shiftType: 'afternoon',
-      });
-      empIndex++;
-    });
 
-    saveShifts(newShifts);
+        // Afternoon
+        let afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
+        while (pinnedIds.includes(afternoonEmp.id)) {
+          empIndex++;
+          afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
+        }
+        await api.saveShift({
+          id: `r-${dateStr}-${afternoonEmp.id}-a`,
+          employeeId: afternoonEmp.id,
+          employeeName: afternoonEmp.fullName,
+          branch: selectedBranch,
+          date: dateStr,
+          startTime: '14:00',
+          endTime: '22:00',
+          isPinned: false,
+          shiftType: 'afternoon',
+        });
+        empIndex++;
+      }
+    } catch (err) {
+      console.error('Failed during auto shift rotation:', err);
+      alert('Lỗi khi xoay ca tự động.');
+    }
   };
 
-  const handleClearWeek = () => {
+  const handleClearWeek = async () => {
     if (!confirm('Xóa lịch tuần này? (Trừ ca ghim)')) return;
     const weekDates = getWeekDays().map(d => d.toISOString().split('T')[0]);
-    saveShifts(shifts.filter(s =>
-      s.branch !== selectedBranch || !weekDates.includes(s.date) || s.isPinned
-    ));
+    const toDelete = shifts.filter(s =>
+      s.branch === selectedBranch && weekDates.includes(s.date) && !s.isPinned
+    );
+    try {
+      for (const sh of toDelete) {
+        await api.deleteShift(sh.id);
+      }
+    } catch (err) {
+      console.error('Failed to clear week shifts:', err);
+      alert('Lỗi khi xóa lịch tuần.');
+    }
   };
 
   const getShift = (employeeId: string, date: string) =>

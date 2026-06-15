@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, CalendarDays, AlertTriangle } from 'lucide-react';
+import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { getWholesaleAccounts, type WholesaleAccount } from './CustomerApp';
 
@@ -18,15 +18,30 @@ function WholesaleCard({ account }: { account: WholesaleAccount }) {
   const pct = Math.round((account.remainingCups / account.totalCups) * 100);
 
   return (
-    <div className={`rounded-2xl overflow-hidden border ${isExpired ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-white'} shadow-sm`}>
+    <div
+      className="rounded-[20px] overflow-hidden"
+      style={{ background: '#f9f9fb', border: `1px solid ${isExpired ? 'rgba(239,68,68,0.3)' : 'rgba(251,191,36,0.3)'}` }}
+    >
       {/* Header */}
-      <div className={`px-5 py-4 flex items-center justify-between ${isExpired ? 'bg-red-500' : 'bg-emerald-600'}`}>
+      <div
+        className="px-5 py-4 flex items-center justify-between"
+        style={{ background: isExpired ? 'rgba(239,68,68,0.08)' : 'rgba(251,191,36,0.06)' }}
+      >
         <div>
-          <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">{account.packageName}</p>
-          <p className="text-white font-black text-lg leading-tight">{account.customerName}</p>
-          <p className="text-white/70 text-xs">{account.customerPhone}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: isExpired ? '#ef4444' : '#b45309' }}>
+            {account.packageName}
+          </p>
+          <p className="font-black text-[16px] text-zinc-900 leading-tight">{account.customerName}</p>
+          <p className="text-[12px] mt-0.5" style={{ color: 'rgba(0,0,0,0.5)' }}>{account.customerPhone}</p>
         </div>
-        <div className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase ${isExpired ? 'bg-red-700 text-white' : 'bg-white/15 text-white'}`}>
+        <div
+          className="px-3 py-1.5 rounded-xl text-[11px] font-black"
+          style={{
+            background: isExpired ? 'rgba(239,68,68,0.1)' : 'rgba(251,191,36,0.12)',
+            color: isExpired ? '#ef4444' : '#b45309',
+            border: `1px solid ${isExpired ? 'rgba(239,68,68,0.2)' : 'rgba(251,191,36,0.2)'}`,
+          }}
+        >
           {isExpired ? '⚠ Hết hạn' : `Còn ${daysLeft} ngày`}
         </div>
       </div>
@@ -35,40 +50,47 @@ function WholesaleCard({ account }: { account: WholesaleAccount }) {
       <div className="px-5 py-4 space-y-3">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Số ly còn lại</p>
-            <p className="text-4xl font-black text-emerald-600 leading-none">{account.remainingCups}</p>
-            <p className="text-xs text-gray-400 mt-0.5">/ {account.totalCups} ly · đã dùng {usedCups} ly</p>
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.45)' }}>Số ly còn lại</p>
+            <p className="text-[40px] font-black leading-none" style={{ color: isExpired ? '#ef4444' : '#b45309' }}>
+              {account.remainingCups}
+            </p>
+            <p className="text-[11px]" style={{ color: 'rgba(0,0,0,0.45)' }}>/ {account.totalCups} ly · đã dùng {usedCups} ly</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Hạn dùng</p>
-            <p className="text-sm font-black text-gray-700">{new Date(account.expiresAt).toLocaleDateString('vi-VN')}</p>
-            <p className="text-[10px] text-gray-400">Mua: {new Date(account.purchasedAt).toLocaleDateString('vi-VN')}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.45)' }}>Hạn dùng</p>
+            <p className="text-[13px] font-black text-zinc-900">{new Date(account.expiresAt).toLocaleDateString('vi-VN')}</p>
+            <p className="text-[10px]" style={{ color: 'rgba(0,0,0,0.45)' }}>Mua: {new Date(account.purchasedAt).toLocaleDateString('vi-VN')}</p>
           </div>
         </div>
 
         {/* Progress bar */}
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.06)' }}>
           <div
-            className={`h-full rounded-full transition-all ${isExpired ? 'bg-red-400' : pct > 30 ? 'bg-emerald-500' : 'bg-orange-400'}`}
-            style={{ width: `${pct}%` }}
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${pct}%`,
+              background: isExpired ? '#ef4444' : pct > 30 ? '#fbbf24' : '#f97316',
+              boxShadow: isExpired ? 'none' : '0 0 8px rgba(251,191,36,0.2)',
+            }}
           />
         </div>
-        <p className="text-[11px] text-gray-400 text-center font-bold">
+        <p className="text-[11px] text-center font-bold" style={{ color: 'rgba(0,0,0,0.45)' }}>
           {pct}% còn lại
-          {!isExpired && daysLeft <= 7 && <span className="ml-2 text-orange-500">⚠ Sắp hết hạn!</span>}
+          {!isExpired && daysLeft <= 7 && <span className="ml-2" style={{ color: '#f97316' }}>⚠ Sắp hết hạn!</span>}
         </p>
 
-        {/* Preferred Product & Branch info */}
+        {/* Preferred Product & Branch */}
         {(account.preferredProduct || account.branchName) && (
-          <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs text-gray-600">
+          <div className="pt-2 grid grid-cols-2 gap-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
             {account.preferredProduct && (
               <div>
-                <span className="text-[9px] text-gray-400 font-black uppercase tracking-wider block">Vị ưa thích</span>
-                <span className="font-bold text-gray-700 flex items-center gap-1 mt-0.5">
-                  <span>{account.preferredProduct.image}</span> {account.preferredProduct.name}
+                <span className="text-[9px] font-black uppercase tracking-wider block mb-1" style={{ color: 'rgba(0,0,0,0.4)' }}>Vị ưa thích</span>
+                <span className="font-bold text-[12px] text-zinc-900 flex items-center gap-1">
+                  <span>{account.preferredProduct.image}</span>
+                  <span className="truncate">{account.preferredProduct.name}</span>
                 </span>
                 {(account.preferredProductSize || account.preferredProductProtein) && (
-                  <span className="text-[10px] text-gray-400 block mt-0.5">
+                  <span className="text-[10px] block mt-0.5" style={{ color: 'rgba(0,0,0,0.45)' }}>
                     {account.preferredProductSize || '360ml'} · {account.preferredProductProtein || 40}g Protein
                   </span>
                 )}
@@ -76,36 +98,35 @@ function WholesaleCard({ account }: { account: WholesaleAccount }) {
             )}
             {account.branchName && (
               <div>
-                <span className="text-[9px] text-gray-400 font-black uppercase tracking-wider block">Cửa hàng</span>
-                <span className="font-bold text-gray-700 mt-0.5 block truncate" title={account.branchName}>
+                <span className="text-[9px] font-black uppercase tracking-wider block mb-1" style={{ color: 'rgba(0,0,0,0.4)' }}>Chi nhánh</span>
+                <span className="font-bold text-[12px] text-zinc-900 block truncate" title={account.branchName}>
                   📍 {account.branchName}
                 </span>
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {/* Redemption history */}
-      {account.redemptions.length > 0 && (
-        <div className="px-5 pb-4 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2 mt-3">Lịch sử rút ly</p>
-          <div className="space-y-1.5 max-h-32 overflow-y-auto">
-            {[...account.redemptions].reverse().map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <DropletIcon className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span className="text-gray-700 font-medium">{r.flavor}</span>
+        {/* Redemptions */}
+        {account.redemptions.length > 0 && (
+          <div className="pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: 'rgba(0,0,0,0.45)' }}>Lịch sử rút ly</p>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {[...account.redemptions].reverse().map((r, i) => (
+                <div key={i} className="flex items-center justify-between text-[11px]">
+                  <div className="flex items-center gap-2">
+                    <DropletIcon className="w-3 h-3 shrink-0" style={{ color: '#fbbf24' }} />
+                    <span className="font-medium text-zinc-800">{r.flavor}</span>
+                  </div>
+                  <span style={{ color: 'rgba(0,0,0,0.45)' }}>
+                    {new Date(r.date).toLocaleDateString('vi-VN')} · {r.redeemedBy}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-gray-400">{new Date(r.date).toLocaleDateString('vi-VN')}</span>
-                  <span className="ml-2 text-gray-300">· {r.redeemedBy}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -117,7 +138,6 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
   const [results, setResults] = useState<any[]>([]);
   const [searched, setSearched] = useState(false);
 
-  // Wholesale lookup state
   const [wsPhone, setWsPhone] = useState('');
   const [wsResults, setWsResults] = useState<WholesaleAccount[]>([]);
   const [wsSearched, setWsSearched] = useState(false);
@@ -139,162 +159,223 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-2xl sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
+      <div
+        className="w-full max-w-2xl sm:rounded-[2.5rem] rounded-t-[2.5rem] overflow-hidden flex flex-col animate-slide-up"
+        style={{
+          background: '#ffffff',
+          border: '1px solid rgba(0,0,0,0.08)',
+          maxHeight: '90vh',
+        }}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-4 pb-1 shrink-0 sm:hidden">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(0,0,0,0.1)' }} />
+        </div>
+
         {/* Header */}
-        <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
-          <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-            <History className="w-5 h-5 text-emerald-600" /> Tra cứu đơn hàng
+        <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          <h2 className="font-black text-[18px] text-zinc-900 flex items-center gap-2">
+            <History className="w-5 h-5" style={{ color: '#00b14f' }} /> Tra cứu đơn hàng
           </h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 text-gray-400 rounded-xl hover:bg-gray-200">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl transition-all"
+            style={{ background: 'rgba(0,0,0,0.05)' }}
+          >
+            <X className="w-5 h-5" style={{ color: 'rgba(0,0,0,0.4)' }} />
           </button>
         </div>
 
         {/* Tab Bar */}
-        <div className="flex border-b shrink-0">
-          <button
-            onClick={() => setTab('orders')}
-            className={`flex-1 py-3 text-sm font-black uppercase tracking-wider transition-colors ${tab === 'orders' ? 'text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            📦 Đơn hàng thường
-          </button>
-          <button
-            onClick={() => setTab('wholesale')}
-            className={`flex-1 py-3 text-sm font-black uppercase tracking-wider transition-colors ${tab === 'wholesale' ? 'text-yellow-700 border-b-2 border-yellow-500 bg-yellow-50' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            👑 Gói Mua Sỉ
-          </button>
+        <div className="flex shrink-0 px-4 pt-3 gap-2">
+          {[
+            { key: 'orders',    label: '📦 Đơn thường',  accent: '#00b14f' },
+            { key: 'wholesale', label: '👑 Gói Mua Sỉ',  accent: '#b45309' },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key as any)}
+              className="flex-1 py-3 rounded-[14px] text-[12px] font-black uppercase tracking-wider transition-all"
+              style={tab === t.key
+                ? { background: `rgba(${t.key === 'orders' ? '0,177,79' : '251,191,36'},0.1)`, color: t.accent, border: `1.5px solid rgba(${t.key === 'orders' ? '0,177,79' : '251,191,36'},0.25)` }
+                : { background: '#f5f5f5', color: 'rgba(0,0,0,0.55)', border: '1.5px solid rgba(0,0,0,0.04)' }
+              }
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {/* ── ORDERS TAB ── */}
+        {/* ORDERS TAB */}
         {tab === 'orders' && (
           <>
-            <div className="px-6 py-3 border-b bg-gray-50 shrink-0">
+            <div className="px-4 py-3 shrink-0">
               <div className="flex gap-2">
-                <input type="tel" placeholder="Nhập số điện thoại..." value={phone} onChange={e => setPhone(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-medium" />
-                <button onClick={handleSearch} className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors flex items-center gap-1">
-                  <Search className="w-4 h-4" /> Tra cứu
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(0,0,0,0.4)' }} />
+                  <input
+                    type="tel"
+                    placeholder="Nhập số điện thoại..."
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    className="w-full pl-10 pr-4 py-3 text-sm font-medium rounded-[14px] outline-none transition-all"
+                    style={{ background: '#f5f5f5', border: '1.5px solid rgba(0,0,0,0.06)', color: '#0f172a' }}
+                  />
+                </div>
+                <button
+                  onClick={handleSearch}
+                  className="px-5 py-3 rounded-[14px] font-black text-[12px] uppercase tracking-wider transition-all active:scale-95 text-white"
+                  style={{ background: '#00b14f' }}
+                >
+                  Tra
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ scrollbarWidth: 'none' }}>
               {!searched ? (
-                <div className="py-16 flex flex-col items-center text-gray-400">
-                  <Search className="w-16 h-16 opacity-20 mb-3" />
-                  <p className="font-bold">Nhập số điện thoại để tra cứu</p>
+                <div className="py-16 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: 'rgba(0,177,79,0.06)' }}>
+                    <Search className="w-8 h-8" style={{ color: 'rgba(0,177,79,0.4)' }} />
+                  </div>
+                  <p className="font-bold text-[14px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Nhập số điện thoại để tra cứu</p>
                 </div>
               ) : results.length === 0 ? (
-                <div className="py-16 flex flex-col items-center text-gray-400">
-                  <Package className="w-16 h-16 opacity-20 mb-3" />
-                  <p className="font-bold">Không tìm thấy đơn hàng</p>
+                <div className="py-16 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: 'rgba(0,0,0,0.04)' }}>
+                    <Package className="w-8 h-8" style={{ color: 'rgba(0,0,0,0.3)' }} />
+                  </div>
+                  <p className="font-bold text-[14px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Không tìm thấy đơn hàng</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {results.map(order => (
-                    <div key={order.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-black text-gray-900">#{order.id}</p>
-                          <p className="text-xs text-gray-400">{new Date(order.time).toLocaleString('vi-VN')}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {order.status === 'completed' ? 'Hoàn thành' : order.status === 'preparing' ? 'Đang pha chế' : 'Đang xử lý'}
-                        </span>
+                results.map(order => (
+                  <div
+                    key={order.id}
+                    className="rounded-[18px] overflow-hidden"
+                    style={{ background: '#f9f9fb', border: '1px solid rgba(0,0,0,0.05)' }}
+                  >
+                    <div className="px-4 py-3 flex justify-between items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div>
+                        <p className="font-black text-zinc-900 text-[14px]">#{order.id}</p>
+                        <p className="text-[11px]" style={{ color: 'rgba(0,0,0,0.45)' }}>
+                          {new Date(order.time).toLocaleString('vi-VN')}
+                        </p>
                       </div>
-                      <div className="space-y-2 py-3 border-y border-gray-50">
-                        {order.items.map((item: any, idx: number) => (
-                          <div key={idx} className="py-2">
-                            <div className="flex justify-between text-sm">
-                              <span className="font-bold text-gray-800">{item.quantity || 1}x {item.productName || item.name}</span>
-                              <span className="font-bold text-emerald-700">{((item.price || 0) * (item.quantity || 1)).toLocaleString('vi-VN')}đ</span>
-                            </div>
-                            {!item.isCustomCombo && (
-                              <div className="text-[10px] text-gray-400 mt-0.5">
-                                {item.size} | {item.protein}g {item.toppings?.length > 0 && `| Toppings: ${item.toppings.join(', ')}`}
-                              </div>
-                            )}
-                            {item.isCustomCombo && (
-                              <div className="text-[10px] text-gray-400 mt-0.5 italic">
-                                {item.toppings?.join(' • ')}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="pt-3 flex justify-between items-center">
-                        <div className="text-xs text-gray-500 flex items-center gap-1">
-                          {order.paymentMethod === 'cash' ? <Banknote className="w-3.5 h-3.5" /> : <QrCode className="w-3.5 h-3.5" />}
-                          {order.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}
-                        </div>
-                        <span className="font-black text-emerald-700">{order.total.toLocaleString('vi-VN')}đ</span>
-                      </div>
+                      <span
+                        className="px-3 py-1 rounded-full text-[11px] font-black"
+                        style={{
+                          background: order.status === 'completed' ? 'rgba(0,177,79,0.08)' : order.status === 'preparing' ? 'rgba(251,191,36,0.12)' : 'rgba(249,115,22,0.12)',
+                          color: order.status === 'completed' ? '#00b14f' : order.status === 'preparing' ? '#b45309' : '#ea580c',
+                        }}
+                      >
+                        {order.status === 'completed' ? '✓ Hoàn thành' : order.status === 'preparing' ? '⏳ Đang pha' : '🔄 Đang xử lý'}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="px-4 py-3 space-y-2">
+                      {order.items.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-[13px]">
+                          <span className="font-bold text-zinc-800">{item.quantity || 1}× {item.productName || item.name}</span>
+                          <span className="font-bold text-zinc-900">{((item.price || 0) * (item.quantity || 1)).toLocaleString('vi-VN')}đ</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-4 py-3 flex justify-between items-center" style={{ borderTop: '1px solid rgba(0,0,0,0.05)', background: 'rgba(0,0,0,0.02)' }}>
+                      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(0,0,0,0.5)' }}>
+                        {order.paymentMethod === 'cash' ? <Banknote className="w-3.5 h-3.5" /> : <QrCode className="w-3.5 h-3.5" />}
+                        {order.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}
+                      </div>
+                      <span className="font-black text-zinc-900">{order.total.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </>
         )}
 
-        {/* ── WHOLESALE TAB ── */}
+        {/* WHOLESALE TAB */}
         {tab === 'wholesale' && (
           <>
-            {/* Info banner */}
-            <div className="px-6 py-3 bg-yellow-50 border-b border-yellow-100 shrink-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Crown className="w-4 h-4 text-yellow-600" />
-                <p className="text-xs font-black text-yellow-700 uppercase tracking-wider">Tra cứu gói mua sỉ</p>
+            <div className="px-4 py-3 shrink-0">
+              <div
+                className="p-3 rounded-[14px] mb-3"
+                style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.12)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4" style={{ color: '#b45309' }} />
+                  <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#b45309' }}>Tra cứu gói mua sỉ</p>
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: 'rgba(0,0,0,0.5)' }}>
+                  Xem số ly còn lại, ngày hết hạn và lịch sử rút ly
+                </p>
               </div>
               <div className="flex gap-2">
-                <input
-                  type="tel"
-                  placeholder="Số điện thoại đã đăng ký sỉ..."
-                  value={wsPhone}
-                  onChange={e => setWsPhone(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleWsSearch()}
-                  className="flex-1 px-4 py-2.5 bg-white border border-yellow-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none font-medium text-sm"
-                />
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(0,0,0,0.4)' }} />
+                  <input
+                    type="tel"
+                    placeholder="SĐT đã đăng ký gói sỉ..."
+                    value={wsPhone}
+                    onChange={e => setWsPhone(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleWsSearch()}
+                    className="w-full pl-10 pr-4 py-3 text-sm font-medium rounded-[14px] outline-none"
+                    style={{ background: '#f5f5f5', border: '1.5px solid rgba(0,0,0,0.06)', color: '#0f172a' }}
+                  />
+                </div>
                 <button
                   onClick={handleWsSearch}
-                  className="px-5 py-2.5 bg-yellow-500 text-white rounded-xl font-bold hover:bg-yellow-600 transition-colors flex items-center gap-1"
+                  className="px-5 py-3 rounded-[14px] font-black text-[12px] uppercase tracking-wider text-white"
+                  style={{ background: '#fbbf24' }}
                 >
-                  <Search className="w-4 h-4" /> Kiểm tra
+                  Kiểm tra
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-4">
+            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4" style={{ scrollbarWidth: 'none' }}>
               {!wsSearched ? (
-                <div className="py-16 flex flex-col items-center text-gray-400">
-                  <Crown className="w-16 h-16 opacity-20 mb-3 text-yellow-400" />
-                  <p className="font-bold">Nhập SĐT để tra cứu gói sỉ</p>
-                  <p className="text-sm text-center mt-1 max-w-xs">Xem số ly còn lại, ngày hết hạn và lịch sử rút ly của bạn</p>
+                <div className="py-16 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: 'rgba(251,191,36,0.06)' }}>
+                    <Crown className="w-8 h-8" style={{ color: 'rgba(251,191,36,0.4)' }} />
+                  </div>
+                  <p className="font-bold text-[14px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Nhập SĐT để tra cứu gói sỉ</p>
                 </div>
               ) : wsResults.length === 0 ? (
-                <div className="py-16 flex flex-col items-center text-gray-400">
-                  <AlertTriangle className="w-16 h-16 opacity-30 mb-3 text-orange-400" />
-                  <p className="font-bold">Không tìm thấy gói sỉ</p>
-                  <p className="text-sm text-center mt-1 max-w-xs">SĐT này chưa đăng ký gói mua sỉ, hoặc đã hết hạn</p>
+                <div className="py-16 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: 'rgba(0,0,0,0.04)' }}>
+                    <AlertTriangle className="w-8 h-8" style={{ color: 'rgba(249,115,22,0.5)' }} />
+                  </div>
+                  <p className="font-bold text-[14px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Không tìm thấy gói sỉ</p>
+                  <p className="text-[12px] text-center mt-1 max-w-xs" style={{ color: 'rgba(0,0,0,0.3)' }}>
+                    SĐT này chưa đăng ký gói mua sỉ, hoặc đã hết hạn
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <p className="text-xs text-gray-500 font-bold">Tìm thấy {wsResults.length} gói sỉ</p>
+                <>
+                  <p className="text-[11px] font-bold" style={{ color: 'rgba(0,0,0,0.4)' }}>
+                    Tìm thấy {wsResults.length} gói sỉ
+                  </p>
                   {wsResults.map(acc => (
                     <WholesaleCard key={acc.id} account={acc} />
                   ))}
-                </div>
+                </>
               )}
             </div>
           </>
         )}
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes slide-up {
+          from { transform: translateY(60px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up { animation: slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+        input::placeholder { color: rgba(0,0,0,0.35); }
+        ::-webkit-scrollbar { display: none; }
+      ` }} />
     </div>
   );
 }

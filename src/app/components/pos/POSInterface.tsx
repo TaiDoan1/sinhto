@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, ClipboardList, Package, History, User, Users, Store } from 'lucide-react';
+import { ShoppingBag, ClipboardList, Package, History, User, Users, Store, BookOpen } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
 import { CheckoutPanel } from './CheckoutPanel';
@@ -9,6 +9,7 @@ import { ComboManagement } from './ComboManagement';
 import { OrderHistory } from './OrderHistory';
 import { InventoryManagement } from './InventoryManagement';
 import { MenuManagement } from './MenuManagement';
+import { MacroTable } from './MacroTable';
 import { ComboDashboard } from './ComboDashboard';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 
@@ -26,7 +27,7 @@ const branches = [
 export function POSInterface() {
   const { orders } = useOrders();
   const { getTodayDeliveries } = useCombos();
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro'>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
@@ -250,6 +251,17 @@ export function POSInterface() {
                 <ClipboardList className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500" />
                 <span className="whitespace-nowrap">Thực đơn</span>
               </button>
+              <button
+                onClick={() => setActiveTab('macro')}
+                className={`flex-shrink-0 flex items-center justify-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-semibold transition-all text-xs sm:text-sm border-b-2 ${
+                  activeTab === 'macro'
+                    ? 'border-emerald-700 text-emerald-700 bg-emerald-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
+                <span className="whitespace-nowrap">Macro</span>
+              </button>
             </div>
 
           </div>
@@ -323,7 +335,15 @@ export function POSInterface() {
             {/* Content Area */}
             <div className="flex-1 overflow-hidden min-h-0">
               {activeTab === 'products' ? (
-                <ProductGrid onProductClick={setSelectedProduct} />
+                selectedProduct && selectedProduct.category !== 'combo' ? (
+                  <ModifierModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                    onAddToCart={handleAddToCart}
+                  />
+                ) : (
+                  <ProductGrid onProductClick={setSelectedProduct} />
+                )
               ) : activeTab === 'orders' ? (
                 <OrderQueue />
               ) : activeTab === 'combos' ? (
@@ -332,6 +352,8 @@ export function POSInterface() {
                 <InventoryManagement />
               ) : activeTab === 'admin' ? (
                 <MenuManagement />
+              ) : activeTab === 'macro' ? (
+                <MacroTable />
               ) : (
                 <OrderHistory />
               )}
@@ -367,45 +389,29 @@ export function POSInterface() {
         )}
       </div>
 
-      {selectedProduct && selectedProduct.category === 'combo' ? (
+      {selectedProduct && selectedProduct.category === 'combo' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden h-[90vh] flex flex-col">
             <CustomComboBuilder
               isPOS={true}
               onClose={() => setSelectedProduct(null)}
               onAddToCart={(combo) => {
-                const weekDayLabelsShort = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
                 handleAddToCart({
                   productId: `combo-${Date.now()}`,
-                  productName: combo.name || `Combo ${combo.comboType === 'weekly' ? 'Tuần' : 'Tháng'}`,
-                  name: combo.name || `Combo ${combo.comboType === 'weekly' ? 'Tuần' : 'Tháng'}`,
+                  productName: combo.name,
+                  name: combo.name,
                   size: '',
                   protein: 0,
-                  toppings: combo.items.map((i: any) => {
-                    let details = `${i.quantity}x ${i.product.name}`;
-                    const dayLabel = (i.assignedDay === 'all' || i.assignedDay === undefined)
-                      ? 'Tất cả' 
-                      : weekDayLabelsShort[i.assignedDay as number];
-                    if (dayLabel) details = `[Giao ${dayLabel}] ` + details;
-                    return details;
-                  }),
-                  price: combo.finalPrice,
+                  toppings: combo.toppings,
+                  price: combo.price,
                   quantity: 1,
                   isCustomCombo: true,
-                  rawComboData: combo
+                  rawComboData: combo.rawComboData
                 });
                 setSelectedProduct(null);
               }}
             />
           </div>
-        </div>
-      ) : selectedProduct && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <ModifierModal
-            product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
-            onAddToCart={handleAddToCart}
-          />
         </div>
       )}
 

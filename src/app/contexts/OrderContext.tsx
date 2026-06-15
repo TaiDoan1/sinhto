@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useInventory } from './InventoryContext';
+import { useSSE } from './SSEContext';
+import * as api from '../utils/api';
 
 export interface Order {
   id: string;
@@ -10,22 +12,23 @@ export interface Order {
   status: 'pending' | 'preparing' | 'ready' | 'delivering' | 'completed';
   total: number;
   staff: string;
-  paidAt?: Date; // Thời điểm thanh toán
-  readyAt?: Date; // Thời điểm sẵn sàng
-  completedAt?: Date; // Thời điểm đã giao
-  orderNumber?: number; // Số thứ tự để gọi khách
+  paidAt?: Date;
+  readyAt?: Date;
+  completedAt?: Date;
+  orderNumber?: number;
   customerName?: string;
   customerPhone?: string;
   deliveryAddress?: string;
   shipperName?: string;
   shipperId?: string;
   paymentMethod?: 'cash' | 'transfer';
-  stockDeducted?: boolean; // Cờ đánh dấu đã trừ tồn kho chưa
+  stockDeducted?: boolean;
 }
 
 interface OrderContextType {
   orders: Order[];
   history: Order[];
+  offlineQueueLength: number;
   addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>) => void;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
@@ -35,78 +38,191 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export function OrderProvider({ children }: { children: ReactNode }) {
   const { deductStock } = useInventory();
+  const { subscribe } = useSSE();
   const [orders, setOrders] = useState<Order[]>([]);
   const [history, setHistory] = useState<Order[]>([]);
-  const [orderCounter, setOrderCounter] = useState(1);
+  const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
 
-  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>) => {
+  // Load orders and offline queue on mount
+  useEffect(() => {
+    // 1. Fetch from server
+    api.fetchOrders()
+      .then((data: any[]) => {
+        const active = data.filter(o => o.status !== 'completed');
+        const completed = data.filter(o => o.status === 'completed');
+        setOrders(active);
+        setHistory(completed);
+      })
+      .catch(err => {
+        console.error("Lỗi khi load orders từ backend, load từ local tạm thời:", err);
+        const localCached = localStorage.getItem('cached_active_orders');
+        if (localCached) setOrders(JSON.parse(localCached));
+      });
+
+    // 2. Load offline queue from localStorage
+    const savedQueue = localStorage.getItem('offline_orders_queue');
+    if (savedQueue) {
+      setOfflineQueue(JSON.parse(savedQueue));
+    }
+
+    // 3. Subscribe to real-time events via global SSEContext
+    const unsubCreate = subscribe('ORDER_CREATED', (data) => {
+      const newOrder = {
+        ...data,
+        time: new Date(data.time),
+        paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
+        readyAt: data.readyAt ? new Date(data.readyAt) : undefined,
+        completedAt: data.completedAt ? new Date(data.completedAt) : undefined
+      };
+      setOrders(prev => {
+        if (prev.some(o => o.id === newOrder.id)) return prev;
+        const updated = [newOrder, ...prev];
+        localStorage.setItem('cached_active_orders', JSON.stringify(updated));
+        return updated;
+      });
+    });
+
+    const unsubUpdate = subscribe('ORDER_UPDATED', (data) => {
+      const updatedOrder = {
+        ...data,
+        time: new Date(data.time),
+        paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
+        readyAt: data.readyAt ? new Date(data.readyAt) : undefined,
+        completedAt: data.completedAt ? new Date(data.completedAt) : undefined
+      };
+
+      setOrders(prev => {
+        const isCompleted = updatedOrder.status === 'completed';
+        let updated;
+        if (isCompleted) {
+          setHistory(h => {
+            if (h.some(o => o.id === updatedOrder.id)) {
+              return h.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+            }
+            return [updatedOrder, ...h];
+          });
+          updated = prev.filter(o => o.id !== updatedOrder.id);
+        } else {
+          if (prev.some(o => o.id === updatedOrder.id)) {
+            updated = prev.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+          } else {
+            updated = [updatedOrder, ...prev];
+          }
+        }
+        localStorage.setItem('cached_active_orders', JSON.stringify(updated));
+        return updated;
+      });
+    });
+
+    return () => {
+      unsubCreate();
+      unsubUpdate();
+    };
+  }, [subscribe]);
+
+  // Background Auto-sync loop every 10 seconds
+  useEffect(() => {
+    if (offlineQueue.length === 0) return;
+
+    const interval = setInterval(async () => {
+      console.log('🔄 Đang kiểm tra để tự động đồng bộ hóa các đơn hàng ngoại tuyến...');
+      const queueCopy = [...offlineQueue];
+      let successCount = 0;
+
+      for (let i = 0; i < queueCopy.length; i++) {
+        const item = queueCopy[i];
+        try {
+          if (item.action === 'CREATE') {
+            await api.createOrder(item.data);
+          } else if (item.action === 'UPDATE_STATUS') {
+            await api.updateOrderStatus(item.orderId, item.status, item.extra);
+          }
+          successCount++;
+        } catch (err) {
+          console.warn(`Đồng bộ thất bại cho đơn ${item.orderId || 'NEW'}. Có thể vẫn offline.`);
+          break; // Mạng vẫn lỗi, dừng luồng đồng bộ
+        }
+      }
+
+      if (successCount > 0) {
+        const remainingQueue = queueCopy.slice(successCount);
+        setOfflineQueue(remainingQueue);
+        localStorage.setItem('offline_orders_queue', JSON.stringify(remainingQueue));
+        console.log(`✅ Đã đồng bộ thành công ${successCount} tác vụ đơn hàng ngoại tuyến.`);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [offlineQueue]);
+
+  const addOrder = async (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>) => {
     const now = new Date();
-    const newOrder: Order = {
+    const tempId = `ORD-${Date.now()}`;
+    const newOrder: Partial<Order> = {
       ...orderData,
-      id: `ORD-${String(orders.length + 1).padStart(3, '0')}`,
+      id: tempId,
       time: now,
       paidAt: orderData.paidAt || now,
-      orderNumber: orderCounter,
+      status: orderData.status || 'pending',
+      stockDeducted: false
     };
 
-    // Deduct stock immediately if paid (POS scenario or Online QR)
+    // Deduct stock locally
     if (newOrder.paidAt) {
-      const success = deductStock(newOrder.id, newOrder.items.map(item => typeof item === 'string' ? item : item.name), newOrder.staff);
+      const success = deductStock(tempId, newOrder.items!.map(item => typeof item === 'string' ? item : item.name), newOrder.staff || 'System');
       if (success) {
         newOrder.stockDeducted = true;
       } else {
-        alert('Cảnh báo: Không đủ nguyên liệu trong kho! (Tồn kho vẫn được cập nhật âm)');
-        newOrder.stockDeducted = true; // Vẫn đánh dấu để không trừ lại lần nữa
+        newOrder.stockDeducted = true;
       }
     }
 
-    setOrders([newOrder, ...orders]);
-    setOrderCounter(prev => prev + 1);
+    // Add locally to state immediately so employee sees it
+    setOrders(prev => [newOrder as Order, ...prev]);
+
+    try {
+      await api.createOrder(newOrder);
+    } catch (err) {
+      console.warn("Mất kết nối máy chủ backend. Đang xếp đơn hàng vào hàng đợi đồng bộ offline.", err);
+      const updatedQueue = [...offlineQueue, { action: 'CREATE', orderId: tempId, data: newOrder }];
+      setOfflineQueue(updatedQueue);
+      localStorage.setItem('offline_orders_queue', JSON.stringify(updatedQueue));
+    }
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status'], extra?: Partial<Order>) => {
+  const updateOrderStatus = async (orderId: string, status: Order['status'], extra?: Partial<Order>) => {
     const now = new Date();
+    const updates: Partial<Order> = { ...extra, status };
 
-    setOrders(prevOrders => {
-      const order = prevOrders.find(o => o.id === orderId);
+    if (status === 'ready') updates.readyAt = now;
+    if (status === 'completed') updates.completedAt = now;
 
-      // Trừ tồn kho khi đơn hàng hoàn thành (Thanh toán COD) nếu chưa trừ
-      if (order && status === 'completed' && !order.stockDeducted) {
-        deductStock(orderId, order.items.map(item => typeof item === 'string' ? item : item.name), order.staff || 'Hệ thống');
-        extra = { ...extra, stockDeducted: true };
-      }
+    // Local stock deduction
+    const activeOrder = orders.find(o => o.id === orderId);
+    if (activeOrder && status === 'completed' && !activeOrder.stockDeducted) {
+      deductStock(orderId, activeOrder.items.map(item => typeof item === 'string' ? item : item.name), activeOrder.staff || 'Hệ thống');
+      updates.stockDeducted = true;
+    }
 
-      const updatedOrders = prevOrders.map(o => {
-        if (o.id !== orderId) return o;
+    // Update locally immediately
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
 
-        const updates: Partial<Order> = { status, ...extra };
-
-        // Ghi nhận timestamp
-        if (status === 'ready') updates.readyAt = now;
-        if (status === 'completed') updates.completedAt = now;
-
-        return { ...o, ...updates };
-      });
-
-      // Tách đơn hoàn thành vào lịch sử
-      const completedOrders = updatedOrders.filter(o => o.status === 'completed');
-      const activeOrders = updatedOrders.filter(o => o.status !== 'completed');
-
-      if (completedOrders.length > 0) {
-        setHistory(prev => [...completedOrders, ...prev]);
-      }
-
-      return activeOrders;
-    });
+    try {
+      await api.updateOrderStatus(orderId, status, updates);
+    } catch (err) {
+      console.warn(`Lỗi cập nhật trạng thái đơn ${orderId} lên backend. Đang đưa vào hàng đợi offline.`, err);
+      const updatedQueue = [...offlineQueue, { action: 'UPDATE_STATUS', orderId, status, extra: updates }];
+      setOfflineQueue(updatedQueue);
+      localStorage.setItem('offline_orders_queue', JSON.stringify(updatedQueue));
+    }
   };
 
-  const updateOrder = (orderId: string, updates: Partial<Order>) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
-    setHistory(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
+  const updateOrder = async (orderId: string, updates: Partial<Order>) => {
+    updateOrderStatus(orderId, updates.status || 'pending', updates);
   };
 
   return (
-    <OrderContext.Provider value={{ orders, history, addOrder, updateOrderStatus, updateOrder }}>
+    <OrderContext.Provider value={{ orders, history, offlineQueueLength: offlineQueue.length, addOrder, updateOrderStatus, updateOrder }}>
       {children}
     </OrderContext.Provider>
   );

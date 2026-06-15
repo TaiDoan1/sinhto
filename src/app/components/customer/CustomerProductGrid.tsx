@@ -1,24 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, X, Zap, Droplets, Package, ChevronRight, ChevronLeft } from 'lucide-react';
+import * as api from '../../utils/api';
 
 // Inline product data based on FitBlend menu
 const defaultProducts: CustomerProduct[] = [
-  { id: 'SM-01', name: 'Dâu hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Chia' },
-  { id: 'SM-02', name: 'Dâu chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Banana' },
-  { id: 'SM-03', name: 'Mãng cầu dâu', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Soursop Strawberry' },
-  { id: 'SM-04', name: 'Dâu cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Orange' },
-  { id: 'SM-05', name: 'Dâu tằm hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Mulberry Chia' },
-  { id: 'SM-06', name: 'Phúc bồn tử hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Raspberry Chia' },
-  { id: 'SM-07', name: 'Chuối hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Banana Chia' },
-  { id: 'SM-08', name: 'Chanh dây chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Passionfruit Banana' },
-  { id: 'SM-09', name: 'Xoài thơm', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Pineapple' },
-  { id: 'SM-10', name: 'Xoài cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Orange' },
-  { id: 'SM-11', name: 'Cacao yến mạch', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Cacao Oat' },
-  { id: 'SM-12', name: 'Cà phê chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Coffee Banana' },
-  { id: 'SM-13', name: 'Bơ', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado' },
-  { id: 'SM-14', name: 'Bơ chuối', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado Banana' },
-  { id: 'SM-15', name: 'Matcha', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Matcha' },
+  { id: 'SM-01', name: 'Dâu hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Chia · Giảm mỡ' },
+  { id: 'SM-02', name: 'Dâu chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Banana · Tone dáng' },
+  { id: 'SM-03', name: 'Mãng cầu dâu', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Soursop Strawberry · Detox' },
+  { id: 'SM-04', name: 'Dâu cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Orange · Vitamin C' },
+  { id: 'SM-05', name: 'Dâu tằm hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Mulberry Chia · Chống oxy hoá' },
+  { id: 'SM-06', name: 'Phúc bồn tử hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Raspberry Chia · Năng lượng' },
+  { id: 'SM-07', name: 'Chuối hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Banana Chia · Tăng cơ' },
+  { id: 'SM-08', name: 'Chanh dây chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Passionfruit Banana · Refresh' },
+  { id: 'SM-09', name: 'Xoài thơm', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Pineapple · Tropical' },
+  { id: 'SM-10', name: 'Xoài cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Orange · Vitamin' },
+  { id: 'SM-11', name: 'Cacao yến mạch', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Cacao Oat · Năng lượng bền' },
+  { id: 'SM-12', name: 'Cà phê chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Coffee Banana · Pre-workout' },
+  { id: 'SM-13', name: 'Bơ', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado · Healthy fat' },
+  { id: 'SM-14', name: 'Bơ chuối', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado Banana · Siêu béo tốt' },
+  { id: 'SM-15', name: 'Matcha', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Matcha · Antioxidant' },
 
   { id: 'TP-01', name: 'Sữa hạt 100%', category: 'toppings' as const, basePrice: 15000, image: '🥛' },
   { id: 'TP-02', name: 'Sữa A2', category: 'toppings' as const, basePrice: 20000, image: '🥛' },
@@ -41,8 +42,6 @@ const defaultProducts: CustomerProduct[] = [
   { id: 'CB-03', name: 'Elite Mass Plan', category: 'combo' as const, basePrice: 899000, image: '📦', description: 'Tăng cân 7 ngày' },
 ];
 
-
-
 export interface CustomerProduct {
   id: string;
   name: string;
@@ -53,122 +52,323 @@ export interface CustomerProduct {
 }
 
 interface Props {
-  onProductClick: (product: CustomerProduct) => void;
+  onProductClick: (product: CustomerProduct & { initialSize?: string; initialProtein?: number | null }) => void;
   onComboClick: () => void;
 }
 
-const categoryConfig: Record<string, { label: string; emoji: string }> = {
-  all: { label: 'Tất cả', emoji: '✨' },
-  smoothies: { label: 'Smoothies', emoji: '🥤' },
-  toppings: { label: 'Toppings', emoji: '🍯' },
-  combo: { label: 'Combo', emoji: '📦' },
-};
+const categoryConfig = [
+  { key: 'smoothies', label: 'Smoothies', emoji: '🥤', color: '#00b14f' },
+  { key: 'toppings',  label: 'Toppings',  emoji: '🍯', color: '#fbbf24' },
+  { key: 'combo',     label: 'Combo',     emoji: '📦', color: '#a78bfa' },
+];
 
 export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
   const [products, setProducts] = useState<CustomerProduct[]>(defaultProducts);
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState<'smoothies' | 'toppings' | 'combo'>('smoothies');
   const [searchTerm, setSearchTerm] = useState('');
+  const [priceTable, setPriceTable] = useState<any>(null);
+  
+  // Size & Protein flow
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedProtein, setSelectedProtein] = useState<number | null>(null);
+
+  const sizes = [
+    { id: '250ml', label: 'Nhỏ (250ml)', desc: 'Cho buổi sáng nhẹ nhàng' },
+    { id: '360ml', label: 'Vừa (360ml)', desc: 'Kích cỡ ly phổ biến nhất' },
+    { id: '500ml', label: 'Lớn (500ml)', desc: 'Dinh dưỡng dồi dào cả ngày' },
+    { id: '700ml', label: 'Siêu (700ml)', desc: 'Cực đại cho tập luyện nặng' },
+  ];
+
+  const proteinLevelsBySize: Record<string, number[]> = {
+    '250ml': [20, 40],
+    '360ml': [20, 40, 60],
+    '500ml': [20, 40, 60],
+    '700ml': [60, 90],
+  };
+
+  const proteinDesc: Record<number, string> = {
+    20: 'Nhẹ nhàng, dễ tiêu hóa',
+    40: 'Cân bằng dinh dưỡng',
+    60: 'Tăng cơ chuyên sâu',
+    90: 'Tối ưu cho vận động viên',
+  };
+
+  const getProductPriceForSizeAndProtein = (product: CustomerProduct, size: string, protein: number | null) => {
+    try {
+      const activeTable = priceTable || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('menuPriceTable') || 'null') : null);
+      if (activeTable) {
+        const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
+        const price = activeTable[size]?.[prot];
+        if (price) return price;
+      }
+    } catch (e) {}
+
+    const prices = {
+      '250ml': 39000,
+      '360ml': 59000,
+      '500ml': 79000,
+      '700ml': 119000,
+    };
+    const base = prices[size as keyof typeof prices] || 59000;
+    const diff = product.basePrice - 59000;
+    return base + (diff > 0 ? diff : 0);
+  };
 
   useEffect(() => {
+    // 1. Load products from API
+    api.fetchProducts()
+      .then(data => {
+        if (data && data.length > 0) {
+          setProducts(data);
+        }
+      })
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem('menuProducts');
+          if (saved) {
+            setProducts(JSON.parse(saved));
+          }
+        } catch {}
+      });
+
+    // 2. Load Price Table from API
+    api.fetchSetting('menuPriceTable')
+      .then(data => setPriceTable(data))
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem('menuPriceTable');
+          if (saved) setPriceTable(JSON.parse(saved));
+        } catch {}
+      });
+
     const loadData = () => {
-      // Force update if data contains old emojis
       try {
         const saved = localStorage.getItem('menuProducts');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          // Check if data is old (contains emojis instead of image paths)
-          const isOldData = parsed.some((p: any) => p.image && !p.image.startsWith('/') && p.category === 'smoothies');
-          if (isOldData) {
-            localStorage.setItem('menuProducts', JSON.stringify(defaultProducts));
-            setProducts(defaultProducts);
-            return;
-          }
-          setProducts(parsed);
-        } else {
-          setProducts(defaultProducts);
-        }
-      } catch {
-        setProducts(defaultProducts);
-      }
+        if (saved) setProducts(JSON.parse(saved));
+        
+        const savedPrices = localStorage.getItem('menuPriceTable');
+        if (savedPrices) setPriceTable(JSON.parse(savedPrices));
+      } catch {}
     };
 
-    loadData();
     window.addEventListener('menuUpdated', loadData);
     return () => window.removeEventListener('menuUpdated', loadData);
   }, []);
 
-
-
   const filtered = products.filter(p => {
-    const matchCat = activeCategory === 'all' || p.category === activeCategory;
+    const matchCat = p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchCat && matchSearch;
   });
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Search */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Tìm món yêu thích..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3.5 bg-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-          />
-        </div>
-      </div>
-
-      {/* Categories */}
-      <div className="px-4 py-3 flex gap-2 overflow-x-auto hide-scrollbar">
-        {Object.entries(categoryConfig).map(([key, val]) => (
+    <div className="flex flex-col h-full bg-white text-zinc-900">
+      
+      {/* Category Tabs */}
+      <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        {categoryConfig.map(cat => (
           <button
-            key={key}
-            onClick={() => setActiveCategory(key)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all ${
-              activeCategory === key
-                ? 'bg-gray-900 text-white shadow-lg'
-                : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100'
-            }`}
+            key={cat.key}
+            onClick={() => {
+              setActiveCategory(cat.key as any);
+              if (cat.key !== 'smoothies') {
+                setSelectedSize('');
+                setSelectedProtein(null);
+              }
+            }}
+            className="flex items-center gap-1.5 px-4.5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+            style={activeCategory === cat.key
+              ? { background: '#00b14f', color: '#fff', boxShadow: '0 8px 16px rgba(0,177,79,0.2)' }
+              : { background: '#f4f4f5', color: '#71717a' }
+            }
           >
-            <span>{val.emoji}</span> {val.label}
+            <span>{cat.emoji}</span> {cat.label}
           </button>
         ))}
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-y-auto px-4 pb-32">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
-          {filtered.map(item => (
-            <button
-              key={item.id}
-              onClick={() => item.category === 'combo' ? onComboClick() : onProductClick(item)}
-              className="group bg-white rounded-3xl p-4 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-50 hover:border-emerald-100 text-left flex flex-col active:scale-95"
-            >
-              <div className="aspect-square bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-2xl mb-3 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                {item.image.startsWith('/') ? (
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-5xl sm:text-6xl">{item.image}</span>
-                )}
-              </div>
-
-              <h3 className="font-bold text-gray-900 text-sm leading-tight mb-1 line-clamp-2">{item.name}</h3>
-              {item.description && (
-                <p className="text-xs text-gray-400 mb-2 line-clamp-1">{item.description}</p>
-              )}
-              <div className="mt-auto flex items-center justify-between pt-1">
-                <span className="font-extrabold text-emerald-700 text-sm">{item.basePrice.toLocaleString('vi-VN')}đ</span>
-                <div className="w-8 h-8 bg-emerald-600 text-white rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg shadow-emerald-200">
-                  <Plus className="w-4 h-4" />
-                </div>
-              </div>
-            </button>
-          ))}
+      {/* Search Bar - only shown if not in size/protein selection phase */}
+      {(activeCategory !== 'smoothies' || (selectedSize && selectedProtein !== null)) && (
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm sản phẩm lẻ..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 rounded-2xl text-xs font-semibold outline-none transition-all bg-zinc-100 border border-zinc-200/50 focus:border-[#00b14f] focus:bg-white"
+            />
+          </div>
         </div>
+      )}
+
+      {/* Main Container */}
+      <div className="flex-1 overflow-y-auto px-4 pb-28" style={{ scrollbarWidth: 'none' }}>
+        
+        {/* Step 1: Size selection screen first */}
+        {activeCategory === 'smoothies' && !selectedSize && (
+          <div className="py-4 space-y-4 animate-fade-in">
+            <div className="text-center py-2">
+              <h3 className="text-lg font-black text-zinc-800">Chọn dung tích ly (ml)</h3>
+              <p className="text-xs text-zinc-400 mt-1">Chọn kích cỡ ly của bạn để xem menu vị sinh tố tương ứng</p>
+            </div>
+            <div className="grid gap-3">
+              {sizes.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedSize(s.id)}
+                  className="w-full bg-zinc-50 hover:bg-emerald-50/30 p-5 rounded-[22px] border border-zinc-200/60 hover:border-[#00b14f] transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100/50 text-[#00b14f] flex items-center justify-center font-black text-sm group-hover:bg-[#00b14f] group-hover:text-white transition-colors">
+                      {s.id.replace('ml', '')}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-zinc-800 text-sm">{s.label}</h4>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">{s.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-450 group-hover:text-[#00b14f] transition-colors" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Protein selection screen */}
+        {activeCategory === 'smoothies' && selectedSize && selectedProtein === null && (
+          <div className="py-4 space-y-4 animate-fade-in">
+            <div className="text-center py-2">
+              <h3 className="text-lg font-black text-zinc-800">Chọn mức Protein (g)</h3>
+              <p className="text-xs text-zinc-400 mt-1">Hàm lượng đạm thịt gà được tích hợp trực tiếp</p>
+            </div>
+            <div className="grid gap-3">
+              {(proteinLevelsBySize[selectedSize] || [20, 40]).map(level => (
+                <button
+                  key={level}
+                  onClick={() => setSelectedProtein(level)}
+                  className="w-full bg-zinc-50 hover:bg-emerald-50/30 p-5 rounded-[22px] border border-zinc-200/60 hover:border-[#00b14f] transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100/50 text-[#00b14f] flex items-center justify-center font-black text-sm group-hover:bg-[#00b14f] group-hover:text-white transition-colors">
+                      {level}g
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-zinc-800 text-sm">{level}g Protein</h4>
+                      <p className="text-[11px] text-zinc-450 mt-0.5">{proteinDesc[level] || 'Cân bằng dinh dưỡng'}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-450 group-hover:text-[#00b14f] transition-colors" />
+                </button>
+              ))}
+            </div>
+            <div className="text-center pt-2">
+              <button
+                onClick={() => setSelectedSize('')}
+                className="text-xs font-bold text-zinc-400 hover:text-[#00b14f] underline"
+              >
+                Quay lại bước chọn size (ml)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Product grid list of flavors */}
+        {(activeCategory !== 'smoothies' || (selectedSize && selectedProtein !== null)) && (
+          <div className="space-y-4 animate-fade-in">
+            {activeCategory === 'smoothies' && (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-[20px] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-[#00b14f] font-black text-xs bg-white px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{selectedSize}</span>
+                  <span className="text-[#00b14f] font-black text-xs bg-white px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{selectedProtein}g Protein</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedSize('');
+                    setSelectedProtein(null);
+                  }}
+                  className="text-xs font-bold text-[#00b14f] hover:underline"
+                >
+                  Thay đổi
+                </button>
+              </div>
+            )}
+
+            {/* List of Flavors in Full Width Cards */}
+            <div className="grid gap-3 animate-fade-in">
+              {filtered.map(product => {
+                const displayPrice = activeCategory === 'smoothies' && selectedSize
+                  ? getProductPriceForSizeAndProtein(product, selectedSize, selectedProtein)
+                  : product.basePrice;
+
+                return (
+                  <button
+                    key={product.id}
+                    onClick={() => {
+                      if (activeCategory === 'smoothies') {
+                        onProductClick({
+                          ...product,
+                          initialSize: selectedSize,
+                          initialProtein: selectedProtein
+                        });
+                      } else if (product.category === 'combo') {
+                        onComboClick();
+                      } else {
+                        onProductClick(product);
+                      }
+                    }}
+                    className="w-full bg-zinc-50 hover:bg-emerald-50/30 p-5 rounded-[22px] border border-zinc-200/60 hover:border-[#00b14f] transition-all text-left flex items-center justify-between group active:scale-[0.98] cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      {/* Image placeholder */}
+                      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-200/50 flex items-center justify-center flex-shrink-0">
+                        {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <span className="text-2xl">{product.image}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-zinc-800 text-sm leading-tight">{product.name}</h4>
+                        {product.description && (
+                          <p className="text-[11px] text-zinc-400 mt-0.5 leading-normal">{product.description}</p>
+                        )}
+                        <span className="font-black text-xs text-[#00b14f] block mt-1">
+                          {displayPrice.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-zinc-450 group-hover:text-[#00b14f] transition-colors" />
+                  </button>
+                );
+              })}
+
+              {/* Empty state */}
+              {filtered.length === 0 && (
+                <div className="py-16 flex flex-col items-center justify-center text-zinc-400">
+                  <span className="text-4xl mb-2">🥤</span>
+                  <p className="font-bold text-sm">Chưa có sản phẩm phù hợp</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.25s ease-out forwards;
+        }
+      ` }} />
     </div>
   );
 }

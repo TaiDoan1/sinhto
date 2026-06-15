@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import * as api from '../utils/api';
 
 export interface InventoryItem {
   id: string;
@@ -50,27 +51,10 @@ interface InventoryContextType {
     wastePercentage: number;
   };
   updateInventoryStock: (itemId: string, newStock: number, staff: string, reason: string) => void;
+  addInventoryItem: (item: Omit<InventoryItem, 'id'>) => Promise<boolean>;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
-
-// Mock data - Nguyên liệu mẫu
-const initialInventory: InventoryItem[] = [
-  { id: 'INV-001', name: 'Dâu tây', unit: 'kg', currentStock: 15, minStock: 3, cost: 80000, category: 'fruit' },
-  { id: 'INV-002', name: 'Xoài', unit: 'kg', currentStock: 12, minStock: 3, cost: 60000, category: 'fruit' },
-  { id: 'INV-003', name: 'Chuối', unit: 'kg', currentStock: 20, minStock: 5, cost: 25000, category: 'fruit' },
-  { id: 'INV-004', name: 'Bơ', unit: 'kg', currentStock: 8, minStock: 2, cost: 120000, category: 'fruit' },
-  { id: 'INV-005', name: 'Dứa', unit: 'kg', currentStock: 10, minStock: 3, cost: 35000, category: 'fruit' },
-  { id: 'INV-006', name: 'Việt quất', unit: 'kg', currentStock: 5, minStock: 2, cost: 150000, category: 'fruit' },
-  { id: 'INV-007', name: 'Rau bina', unit: 'kg', currentStock: 6, minStock: 2, cost: 40000, category: 'fruit' },
-  { id: 'INV-008', name: 'Sữa tươi', unit: 'lít', currentStock: 25, minStock: 5, cost: 28000, category: 'dairy' },
-  { id: 'INV-009', name: 'Sữa chua', unit: 'kg', currentStock: 10, minStock: 3, cost: 45000, category: 'dairy' },
-  { id: 'INV-010', name: 'Whey Protein', unit: 'gói', currentStock: 50, minStock: 10, cost: 15000, category: 'protein' },
-  { id: 'INV-011', name: 'Hạt chia', unit: 'kg', currentStock: 3, minStock: 1, cost: 180000, category: 'topping' },
-  { id: 'INV-012', name: 'Granola', unit: 'kg', currentStock: 4, minStock: 1, cost: 120000, category: 'topping' },
-  { id: 'INV-013', name: 'Dừa nạo', unit: 'kg', currentStock: 5, minStock: 1, cost: 60000, category: 'topping' },
-  { id: 'INV-014', name: 'Mật ong', unit: 'lít', currentStock: 3, minStock: 1, cost: 200000, category: 'topping' },
-];
 
 // Mock data - Công thức món
 const initialRecipes: Recipe[] = [
@@ -149,9 +133,45 @@ const initialRecipes: Recipe[] = [
 ];
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
-  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [recipes] = useState<Recipe[]>(initialRecipes);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+
+  // Load inventory from database on mount
+  useEffect(() => {
+    const loadData = () => {
+      api.fetchInventory()
+        .then(data => setInventory(data))
+        .catch(err => console.error("Error fetching inventory", err));
+
+      api.fetchMovements()
+        .then((data: any[]) => setMovements(data.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))))
+        .catch(err => console.error("Error fetching movements", err));
+    };
+
+    loadData();
+
+    // Listen to real-time inventory updates via SSE
+    const eventSource = new EventSource('/api/events');
+    eventSource.onmessage = (event) => {
+      try {
+        const { type, data } = JSON.parse(event.data);
+        if (type === 'INVENTORY_UPDATED') {
+          setInventory(data);
+          // Refetch movements to get logs synced
+          api.fetchMovements()
+            .then((movs: any[]) => setMovements(movs.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))))
+            .catch(err => console.error("Error syncing movements", err));
+        }
+      } catch (err) {
+        console.error("SSE parse error in inventory", err);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
 
   const getLowStockItems = () => {
     return inventory.filter(item => item.currentStock <= item.minStock && item.currentStock > 0);
@@ -161,25 +181,23 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return inventory.filter(item => item.currentStock <= 0);
   };
 
-  // Trích xuất productId từ order items
-  const extractProductIds = (productIds: string[]): string[] => {
-    // productIds có thể là array các item string như:
-    // "Strawberry Blast (M, 20g) x1"
-    // Cần extract ra product name để match với recipe
+  const extractProductIds = (productIds: any[]): string[] => {
+    if (!Array.isArray(productIds)) return [];
     return productIds.map(item => {
-      const productName = item.split('(')[0].trim();
+      const nameStr = typeof item === 'string' ? item : (item?.name || item?.productName || '');
+      if (!nameStr) return '';
+      const productName = nameStr.split('(')[0].trim();
       const recipe = recipes.find(r => r.productName === productName);
       return recipe?.productId || '';
     }).filter(id => id !== '');
   };
 
-  // Trừ tồn kho khi bắt đầu làm món
   const deductStock = (orderId: string, orderItems: string[], staff: string): boolean => {
     const productIds = extractProductIds(orderItems);
     const newMovements: StockMovement[] = [];
     const newInventory = [...inventory];
 
-    // Check xem có đủ nguyên liệu không
+    // Check availability
     for (const productId of productIds) {
       const recipe = recipes.find(r => r.productId === productId);
       if (!recipe) continue;
@@ -189,13 +207,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (!invItem) continue;
 
         if (invItem.currentStock < ingredient.quantity) {
-          // Không đủ nguyên liệu
           return false;
         }
       }
     }
 
-    // Đủ nguyên liệu -> Trừ kho
+    // Perform deduction
     for (const productId of productIds) {
       const recipe = recipes.find(r => r.productId === productId);
       if (!recipe) continue;
@@ -221,12 +238,15 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setInventory(newInventory);
-    setMovements(prev => [...newMovements, ...prev]);
+    // Push changes to server
+    api.updateInventory(
+      newInventory.map(item => ({ id: item.id, currentStock: item.currentStock })),
+      newMovements
+    ).catch(err => console.error("Failed to sync inventory deduction to server:", err));
+
     return true;
   };
 
-  // Hoàn kho khi hủy đơn chưa làm
   const returnStock = (orderId: string, orderItems: string[], reason: string, staff: string) => {
     const productIds = extractProductIds(orderItems);
     const newMovements: StockMovement[] = [];
@@ -257,11 +277,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setInventory(newInventory);
-    setMovements(prev => [...newMovements, ...prev]);
+    api.updateInventory(
+      newInventory.map(item => ({ id: item.id, currentStock: item.currentStock })),
+      newMovements
+    ).catch(err => console.error("Failed to sync inventory return to server:", err));
   };
 
-  // Ghi nhận waste khi hủy đơn đã làm
   const recordWaste = (orderId: string, orderItems: string[], reason: string, staff: string) => {
     const productIds = extractProductIds(orderItems);
     const newMovements: StockMovement[] = [];
@@ -289,10 +310,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setMovements(prev => [...newMovements, ...prev]);
+    api.updateInventory(
+      inventory.map(item => ({ id: item.id, currentStock: item.currentStock })),
+      newMovements
+    ).catch(err => console.error("Failed to sync inventory waste to server:", err));
   };
 
-  // Thống kê hôm nay
   const getTodayStats = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -326,27 +349,39 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   const updateInventoryStock = (itemId: string, newStock: number, staff: string, reason: string) => {
-    setInventory(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const difference = newStock - item.currentStock;
-        
-        // Record movement
-        setMovements(moves => [{
-          id: `MOV-${Date.now()}-${Math.random()}`,
-          timestamp: new Date(),
-          type: 'adjustment',
-          itemId: item.id,
-          itemName: item.name,
-          quantity: difference,
-          reason: `Stock Check: ${reason}`,
-          performedBy: staff,
-          cost: difference * item.cost
-        }, ...moves]);
+    const item = inventory.find(i => i.id === itemId);
+    if (!item) return;
 
-        return { ...item, currentStock: newStock };
-      }
-      return item;
-    }));
+    const difference = newStock - item.currentStock;
+    const movement = {
+      id: `MOV-${Date.now()}-${Math.random()}`,
+      timestamp: new Date(),
+      type: 'adjustment',
+      itemId: item.id,
+      itemName: item.name,
+      quantity: difference,
+      reason: `Stock Check: ${reason}`,
+      performedBy: staff,
+      cost: difference * item.cost
+    };
+
+    const newInventory = inventory.map(it => it.id === itemId ? { ...it, currentStock: newStock } : it);
+
+    api.updateInventory(
+      newInventory.map(it => ({ id: it.id, currentStock: it.currentStock })),
+      [movement]
+    ).catch(err => console.error("Failed to sync inventory stock update to server:", err));
+  };
+
+  const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
+    try {
+      const created = await api.createInventoryItem(itemData);
+      setInventory(prev => [...prev, created]);
+      return true;
+    } catch (err) {
+      console.error("Failed to add inventory item:", err);
+      return false;
+    }
   };
 
   return (
@@ -360,7 +395,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       returnStock,
       recordWaste,
       getTodayStats,
-      updateInventoryStock
+      updateInventoryStock,
+      addInventoryItem
     }}>
       {children}
     </InventoryContext.Provider>

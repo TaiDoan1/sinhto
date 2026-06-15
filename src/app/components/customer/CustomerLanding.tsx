@@ -5,13 +5,15 @@ interface LandingProps {
   onGetStarted: () => void;
   onSelectCombo: (planId: string) => void;
   onOpenWholesale: () => void;
+  onGoToRetail?: () => void;
 }
 
-export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale }: LandingProps) {
+export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale, onGoToRetail }: LandingProps) {
   const [scrolled, setScrolled] = useState(false);
   const [showMenuImage, setShowMenuImage] = useState(false);
   const [activeMenuPage, setActiveMenuPage] = useState<1 | 2>(1);
   const [showRegChoice, setShowRegChoice] = useState(false);
+  const [showPurchaseTypeChoice, setShowPurchaseTypeChoice] = useState(false);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
 
 
@@ -192,7 +194,7 @@ export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale }
           </div>
 
           <button 
-            onClick={onGetStarted}
+            onClick={() => setShowPurchaseTypeChoice(true)}
             className="px-6 py-2.5 bg-emerald-500 text-[#0a1a0f] rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
           >
             ĐẶT HÀNG NGAY
@@ -224,7 +226,7 @@ export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale }
 
             <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
               <button 
-                onClick={onGetStarted}
+                onClick={() => setShowPurchaseTypeChoice(true)}
                 className="w-full sm:w-auto px-10 py-5 bg-emerald-500 text-[#0a1a0f] rounded-2xl font-black text-xl hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-emerald-500/30 flex items-center justify-center gap-2"
               >
                 ĐẶT HÀNG NGAY <ArrowRight className="w-6 h-6" />
@@ -456,7 +458,7 @@ export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale }
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
             <button 
-              onClick={onGetStarted}
+              onClick={() => setShowPurchaseTypeChoice(true)}
               className="px-12 py-6 bg-emerald-500 text-[#0a1a0f] rounded-2xl font-black text-2xl hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-emerald-500/40"
             >
               ĐẶT HÀNG NGAY
@@ -522,6 +524,69 @@ export function CustomerLanding({ onGetStarted, onSelectCombo, onOpenWholesale }
               >
                 Để sau
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Choice between Combo subscription and Retail purchase */}
+      {showPurchaseTypeChoice && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#0a1a0f]/90 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-zoom-in">
+            <div className="p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <h3 className="text-2xl font-black text-gray-900">Chọn hình thức mua hàng</h3>
+                <p className="text-gray-500 font-medium text-sm">Bạn muốn đăng ký lộ trình dài hạn hay đặt mua lẻ giao ngay?</p>
+              </div>
+
+              <div className="grid gap-4">
+                {/* Option 1: Combo Plan */}
+                <button
+                  onClick={() => {
+                    setShowPurchaseTypeChoice(false);
+                    onGetStarted();
+                  }}
+                  className="w-full text-left p-6 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-150/50 border-2 border-emerald-500/25 hover:border-emerald-500 rounded-[22px] transition-all duration-300 group flex items-start gap-4 active:scale-[0.98]"
+                >
+                  <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0 group-hover:scale-110 transition-transform">
+                    📦
+                  </div>
+                  <div>
+                    <h4 className="font-black text-gray-900 text-lg">Đăng ký Combo dài hạn</h4>
+                    <p className="text-gray-500 text-xs mt-1 leading-normal">Đặt theo Tuần/Tháng/Quý. Tiết kiệm tới 20% + Miễn phí vận chuyển mỗi sáng tận nhà.</p>
+                  </div>
+                </button>
+
+                {/* Option 2: Retail Purchase */}
+                <button
+                  onClick={() => {
+                    setShowPurchaseTypeChoice(false);
+                    if (onGoToRetail) {
+                      onGoToRetail();
+                    } else {
+                      onGetStarted();
+                    }
+                  }}
+                  className="w-full text-left p-6 bg-gradient-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-100 hover:to-indigo-150/50 border-2 border-indigo-500/25 hover:border-indigo-500 rounded-[22px] transition-all duration-300 group flex items-start gap-4 active:scale-[0.98]"
+                >
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0 group-hover:scale-110 transition-transform">
+                    🥤
+                  </div>
+                  <div>
+                    <h4 className="font-black text-gray-900 text-lg">Mua lẻ từng ly (Giao ngay)</h4>
+                    <p className="text-gray-500 text-xs mt-1 leading-normal">Tùy chọn dung tích ly, lượng Protein & thêm Topping theo sở thích cá nhân tương tự tại quầy POS.</p>
+                  </div>
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <button 
+                  onClick={() => setShowPurchaseTypeChoice(false)}
+                  className="text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>

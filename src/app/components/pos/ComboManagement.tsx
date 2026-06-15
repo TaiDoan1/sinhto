@@ -16,6 +16,9 @@ const FLAVOR_OPTIONS = [
 // ─── Combo Card (existing subscription combos) ────────────────────────────────
 function ComboCard({ combo, updateComboStatus, onEdit }: any) {
   const [showDetail, setShowDetail] = useState(false);
+  const { updateCombo } = useCombos();
+  const [pauseStart, setPauseStart] = useState('');
+  const [pauseEnd, setPauseEnd] = useState('');
 
   const getDaysUntilDelivery = (nextDelivery: Date) => {
     const today = new Date();
@@ -28,6 +31,12 @@ function ComboCard({ combo, updateComboStatus, onEdit }: any) {
 
   const daysUntil = getDaysUntilDelivery(combo.nextDelivery);
   const isToday = daysUntil === 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isCurrentlyPausedByDate = combo.pauseStartDate && combo.pauseEndDate && (
+    today >= new Date(combo.pauseStartDate) && today <= new Date(combo.pauseEndDate)
+  );
 
   return (
     <div className="rounded-xl bg-white shadow-md border-2 border-gray-200">
@@ -44,7 +53,12 @@ function ComboCard({ combo, updateComboStatus, onEdit }: any) {
               }`}>
                 {combo.comboType === 'weekly' ? 'Tuần' : 'Tháng'}
               </span>
-              {isToday && <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-600 text-white">Hôm nay!</span>}
+              {isToday && !isCurrentlyPausedByDate && <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-600 text-white">Hôm nay!</span>}
+              {isCurrentlyPausedByDate && (
+                <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500 text-white">
+                  Hoãn giao (Đến {new Date(combo.pauseEndDate).toLocaleDateString('vi-VN')})
+                </span>
+              )}
             </div>
             <div className="text-lg font-bold text-gray-800">{combo.customerName}</div>
             <div className="text-sm text-gray-600">{combo.customerPhone}</div>
@@ -52,8 +66,8 @@ function ComboCard({ combo, updateComboStatus, onEdit }: any) {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-xs text-gray-600">Giao sau</div>
-              <div className={`text-sm font-bold ${isToday ? 'text-emerald-700' : 'text-gray-800'}`}>
-                {isToday ? 'Hôm nay!' : `${daysUntil} ngày`}
+              <div className={`text-sm font-bold ${isToday && !isCurrentlyPausedByDate ? 'text-emerald-700' : 'text-gray-800'}`}>
+                {isCurrentlyPausedByDate ? 'Đang tạm hoãn' : isToday ? 'Hôm nay!' : `${daysUntil} ngày`}
               </div>
             </div>
             {showDetail ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -100,6 +114,69 @@ function ComboCard({ combo, updateComboStatus, onEdit }: any) {
               </div>
             </div>
           </div>
+
+          {/* Pause by date range */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3 text-xs space-y-2">
+            <div className="font-bold text-yellow-800 uppercase tracking-wider text-[10px]">Tạm ngừng theo khoảng ngày:</div>
+            {combo.pauseStartDate && combo.pauseEndDate ? (
+              <div className="flex justify-between items-center bg-white p-2 rounded border border-yellow-100">
+                <div>
+                  <span className="font-semibold text-gray-700">Đang ngừng: </span>
+                  <span className="font-black text-red-600">
+                    {new Date(combo.pauseStartDate).toLocaleDateString('vi-VN')} - {new Date(combo.pauseEndDate).toLocaleDateString('vi-VN')}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    updateCombo(combo.id, { pauseStartDate: undefined, pauseEndDate: undefined });
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-bold text-[10px]"
+                >
+                  Xóa
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[9px] font-bold text-gray-500 block mb-0.5">Từ ngày</label>
+                    <input
+                      type="date"
+                      value={pauseStart}
+                      onChange={e => setPauseStart(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs outline-none"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[9px] font-bold text-gray-500 block mb-0.5">Đến ngày</label>
+                    <input
+                      type="date"
+                      value={pauseEnd}
+                      onChange={e => setPauseEnd(e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs outline-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!pauseStart || !pauseEnd) {
+                      alert('Vui lòng chọn đầy đủ khoảng ngày!');
+                      return;
+                    }
+                    if (new Date(pauseStart) > new Date(pauseEnd)) {
+                      alert('Ngày bắt đầu không thể lớn hơn ngày kết thúc!');
+                      return;
+                    }
+                    updateCombo(combo.id, { pauseStartDate: pauseStart, pauseEndDate: pauseEnd });
+                  }}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-1.5 rounded font-black uppercase text-[10px]"
+                >
+                  Thiết lập tạm ngừng
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={(e) => { e.stopPropagation(); updateComboStatus(combo.id, 'paused'); }}

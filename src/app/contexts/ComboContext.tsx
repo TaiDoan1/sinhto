@@ -15,6 +15,8 @@ export interface ComboSubscription {
   staff: string;
   branchId: string;
   updatedAt?: Date;
+  pauseStartDate?: string;
+  pauseEndDate?: string;
 }
 
 export interface ComboNotification {
@@ -129,6 +131,18 @@ export function ComboProvider({ children }: { children: ReactNode }) {
 
     return combos.filter(combo => {
       if (combo.status !== 'active') return false;
+
+      // Check if today falls in the paused date range
+      if (combo.pauseStartDate && combo.pauseEndDate) {
+        const start = new Date(combo.pauseStartDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(combo.pauseEndDate);
+        end.setHours(23, 59, 59, 999);
+        if (today >= start && today <= end) {
+          return false; // Skip delivery
+        }
+      }
+
       const nextDelivery = new Date(combo.nextDelivery);
       nextDelivery.setHours(0, 0, 0, 0);
       return nextDelivery.getTime() === today.getTime();

@@ -11,12 +11,15 @@ import { ShipperApp } from './components/shipper/ShipperApp';
 import { PartnerDashboard } from './components/customer/PartnerDashboard';
 import { ProductManagement } from './components/admin/ProductManagement';
 import { ComboManagement } from './components/admin/ComboManagement';
+import { LoyaltyManagement } from './components/admin/LoyaltyManagement';
 import { OrderProvider } from './contexts/OrderContext';
 import { ComboProvider } from './contexts/ComboContext';
 import { InventoryProvider } from './contexts/InventoryContext';
 import { AffiliateProvider, useAffiliate } from './contexts/AffiliateContext';
 import { SSEProvider } from './contexts/SSEContext';
 import { MenuProvider } from './contexts/MenuContext';
+import { LoyaltyProvider } from './contexts/LoyaltyContext';
+import { EmployeeProvider } from './contexts/EmployeeContext';
 
 function AppContent() {
   const { resolveCode } = useAffiliate();
@@ -144,6 +147,8 @@ function AppContent() {
         return <ProductManagement />;
       case 'combos':
         return <ComboManagement />;
+      case 'loyalty':
+        return <LoyaltyManagement />;
       default:
         return <BranchOverview />;
     }
@@ -171,7 +176,11 @@ export default function App() {
           <OrderProvider>
             <ComboProvider>
               <AffiliateProvider>
-                <AppContent />
+                <LoyaltyProvider>
+                  <EmployeeProvider>
+                    <AppContent />
+                  </EmployeeProvider>
+                </LoyaltyProvider>
               </AffiliateProvider>
             </ComboProvider>
           </OrderProvider>

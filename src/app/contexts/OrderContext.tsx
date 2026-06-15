@@ -36,6 +36,27 @@ interface OrderContextType {
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
+function normalizeOrder(raw: any): Order {
+  const source = ['counter', 'mobile', 'web'].includes(raw.source) ? raw.source : 'counter';
+  let items = raw.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+
+  return {
+    ...raw,
+    source,
+    items,
+    time: raw.time ? new Date(raw.time) : new Date(),
+    paidAt: raw.paidAt ? new Date(raw.paidAt) : undefined,
+    readyAt: raw.readyAt ? new Date(raw.readyAt) : undefined,
+    completedAt: raw.completedAt ? new Date(raw.completedAt) : undefined,
+    total: Number(raw.total) || 0,
+    stockDeducted: !!raw.stockDeducted,
+  };
+}
+
 export function OrderProvider({ children }: { children: ReactNode }) {
   const { deductStock } = useInventory();
   const { subscribe } = useSSE();
@@ -48,15 +69,20 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // 1. Fetch from server
     api.fetchOrders()
       .then((data: any[]) => {
-        const active = data.filter(o => o.status !== 'completed');
-        const completed = data.filter(o => o.status === 'completed');
+        const normalized = data.map(normalizeOrder);
+        const active = normalized.filter(o => o.status !== 'completed');
+        const completed = normalized.filter(o => o.status === 'completed');
         setOrders(active);
         setHistory(completed);
       })
       .catch(err => {
         console.error("Lỗi khi load orders từ backend, load từ local tạm thời:", err);
         const localCached = localStorage.getItem('cached_active_orders');
-        if (localCached) setOrders(JSON.parse(localCached));
+        if (localCached) {
+          try {
+            setOrders(JSON.parse(localCached).map(normalizeOrder));
+          } catch { /* ignore */ }
+        }
       });
 
     // 2. Load offline queue from localStorage
@@ -67,13 +93,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     // 3. Subscribe to real-time events via global SSEContext
     const unsubCreate = subscribe('ORDER_CREATED', (data) => {
-      const newOrder = {
-        ...data,
-        time: new Date(data.time),
-        paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
-        readyAt: data.readyAt ? new Date(data.readyAt) : undefined,
-        completedAt: data.completedAt ? new Date(data.completedAt) : undefined
-      };
+      const newOrder = normalizeOrder(data);
       setOrders(prev => {
         if (prev.some(o => o.id === newOrder.id)) return prev;
         const updated = [newOrder, ...prev];
@@ -83,13 +103,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
 
     const unsubUpdate = subscribe('ORDER_UPDATED', (data) => {
-      const updatedOrder = {
-        ...data,
-        time: new Date(data.time),
-        paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
-        readyAt: data.readyAt ? new Date(data.readyAt) : undefined,
-        completedAt: data.completedAt ? new Date(data.completedAt) : undefined
-      };
+      const updatedOrder = normalizeOrder(data);
 
       setOrders(prev => {
         const isCompleted = updatedOrder.status === 'completed';

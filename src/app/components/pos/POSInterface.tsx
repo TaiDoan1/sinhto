@@ -30,7 +30,6 @@ export function POSInterface() {
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro'>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
@@ -152,7 +151,7 @@ export function POSInterface() {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-emerald-50 to-emerald-50 p-2 sm:p-4 overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-emerald-50 to-emerald-50 p-2 sm:p-4 overflow-hidden relative">
       <div className="bg-white rounded-xl shadow-xl h-full p-3 sm:p-4 flex flex-col">
         {/* Header */}
         <div className="mb-2 sm:mb-3 flex items-center justify-between gap-4 flex-shrink-0">

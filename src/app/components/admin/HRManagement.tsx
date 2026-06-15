@@ -1,20 +1,22 @@
 import { useState } from 'react';
-import { Users, UserPlus, List, Calendar } from 'lucide-react';
+import { Users, UserPlus, List, Calendar, Settings } from 'lucide-react';
 import { HRPayroll } from './HRPayroll';
 import { EmployeeRegistration } from './EmployeeRegistration';
 import { EmployeeList } from './EmployeeList';
 import { ShiftSchedule } from './ShiftSchedule';
+import { EmployeeProfileConfig } from './EmployeeProfileConfig';
 
-type HRTab = 'payroll' | 'register' | 'list' | 'schedule';
+type HRTab = 'payroll' | 'register' | 'list' | 'schedule' | 'config';
 
 export function HRManagement() {
-  const [activeTab, setActiveTab] = useState<HRTab>('payroll');
+  const [activeTab, setActiveTab] = useState<HRTab>('schedule');
 
   const tabs = [
-    { id: 'payroll' as HRTab, label: 'Bảng Lương', icon: Users },
     { id: 'schedule' as HRTab, label: 'Lịch Làm Việc', icon: Calendar },
-    { id: 'register' as HRTab, label: 'Đăng Ký Nhân Viên', icon: UserPlus },
-    { id: 'list' as HRTab, label: 'Danh Sách Nhân Viên', icon: List },
+    { id: 'register' as HRTab, label: 'Đăng Ký NV', icon: UserPlus },
+    { id: 'list' as HRTab, label: 'Danh Sách NV', icon: List },
+    { id: 'config' as HRTab, label: 'Cấu Hình NV', icon: Settings },
+    { id: 'payroll' as HRTab, label: 'Bảng Lương', icon: Users },
   ];
 
   return (
@@ -46,6 +48,7 @@ export function HRManagement() {
         {activeTab === 'schedule' && <ShiftSchedule />}
         {activeTab === 'register' && <EmployeeRegistration />}
         {activeTab === 'list' && <EmployeeList />}
+        {activeTab === 'config' && <EmployeeProfileConfig />}
       </div>
     </div>
   );

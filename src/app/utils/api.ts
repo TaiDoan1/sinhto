@@ -166,6 +166,19 @@ export async function deleteProduct(id: string) {
 }
 
 // --- EMPLOYEES ---
+export async function employeeLogin(username: string, password: string) {
+  const res = await fetch(`${BASE_URL}/auth/employee-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Đăng nhập thất bại');
+  }
+  return res.json();
+}
+
 export async function fetchEmployees() {
   const res = await fetch(`${BASE_URL}/employees`);
   if (!res.ok) throw new Error('Failed to fetch employees');
@@ -191,9 +204,23 @@ export async function deleteEmployee(id: string) {
 }
 
 // --- SHIFTS ---
-export async function fetchShifts() {
-  const res = await fetch(`${BASE_URL}/shifts`);
+export async function fetchShifts(params?: { employeeId?: string; status?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.employeeId) qs.set('employeeId', params.employeeId);
+  if (params?.status) qs.set('status', params.status);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/shifts${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Failed to fetch shifts');
+  return res.json();
+}
+
+export async function shiftCheckIn(shiftId: string, action: 'in' | 'out') {
+  const res = await fetch(`${BASE_URL}/shifts/${shiftId}/checkin`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error('Chấm công thất bại');
   return res.json();
 }
 
@@ -229,5 +256,150 @@ export async function saveSetting(key: string, value: any) {
     body: JSON.stringify({ key, value })
   });
   if (!res.ok) throw new Error(`Failed to save setting ${key}`);
+  return res.json();
+}
+
+// --- CUSTOMER LOYALTY ---
+export async function fetchCustomers() {
+  const res = await fetch(`${BASE_URL}/customers`);
+  if (!res.ok) throw new Error('Failed to fetch customers');
+  return res.json();
+}
+
+export async function fetchCustomerByPhone(phone: string) {
+  const res = await fetch(`${BASE_URL}/customers/${phone}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Failed to fetch customer');
+  return res.json();
+}
+
+export async function createCustomer(data: { name: string; phone: string }) {
+  const res = await fetch(`${BASE_URL}/customers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to create customer');
+  return res.json();
+}
+
+export async function updateCustomer(id: string, data: { name?: string; phone?: string; points?: number }) {
+  const res = await fetch(`${BASE_URL}/customers/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to update customer');
+  return res.json();
+}
+
+export async function earnPoints(id: string, points: number) {
+  const res = await fetch(`${BASE_URL}/customers/${id}/earn`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ points })
+  });
+  if (!res.ok) throw new Error('Failed to earn points');
+  return res.json();
+}
+
+export async function redeemPoints(id: string, points: number) {
+  const res = await fetch(`${BASE_URL}/customers/${id}/redeem`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ points })
+  });
+  if (!res.ok) throw new Error('Failed to redeem points');
+  return res.json();
+}
+
+async function parseApiError(res: Response, fallback: string): Promise<never> {
+  const text = await res.text();
+  let message = fallback;
+  try {
+    const data = JSON.parse(text);
+    if (data?.error) message = data.error;
+  } catch {
+    if (res.status === 404) {
+      message = 'API chưa sẵn sàng — hãy restart backend (npm run dev)';
+    }
+  }
+  throw new Error(message);
+}
+
+// --- LOYALTY VOUCHERS ---
+export async function fetchLoyaltyVouchers(params?: {
+  phone?: string;
+  customerId?: string;
+  programId?: string;
+  status?: string;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.phone) qs.set('phone', params.phone);
+  if (params?.customerId) qs.set('customerId', params.customerId);
+  if (params?.programId) qs.set('programId', params.programId);
+  if (params?.status) qs.set('status', params.status);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers${query ? `?${query}` : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch vouchers');
+  return res.json();
+}
+
+export async function lookupLoyaltyVoucher(code: string) {
+  const normalized = code.toUpperCase().trim();
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/lookup/${encodeURIComponent(normalized)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Mã voucher không hợp lệ');
+  }
+  return res.json();
+}
+
+export async function issueLoyaltyVoucher(data: {
+  programId: string;
+  phone?: string;
+  customerId?: string;
+  deductPoints?: boolean;
+}) {
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/issue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) await parseApiError(res, 'Cấp mã thất bại');
+  return res.json();
+}
+
+export async function issueLoyaltyVouchersBulk(data: {
+  programId: string;
+  phones: string[];
+  deductPoints?: boolean;
+}) {
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/issue-bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) await parseApiError(res, 'Cấp mã hàng loạt thất bại');
+  return res.json();
+}
+
+export async function useLoyaltyVoucher(code: string) {
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/use`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) await parseApiError(res, 'Sử dụng mã thất bại');
+  return res.json();
+}
+
+export async function cancelLoyaltyVoucher(id: string, refundPoints = true) {
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/${id}/cancel`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refundPoints }),
+  });
+  if (!res.ok) await parseApiError(res, 'Hủy mã thất bại');
   return res.json();
 }

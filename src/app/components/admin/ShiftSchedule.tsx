@@ -17,6 +17,10 @@ export interface Shift {
   originalEmployeeId?: string;
   originalEmployeeName?: string;
   isSubstitute?: boolean;
+  status?: string;
+  requestedBy?: 'admin' | 'employee';
+  checkIn?: string;
+  checkOut?: string;
 }
 
 const branches = [
@@ -110,6 +114,8 @@ export function ShiftSchedule() {
       endTime: template.end,
       isPinned: false,
       shiftType,
+      status: 'scheduled',
+      requestedBy: 'admin',
     };
 
     try {
@@ -235,6 +241,8 @@ export function ShiftSchedule() {
           endTime: '14:00',
           isPinned: false,
           shiftType: 'morning',
+          status: 'scheduled',
+          requestedBy: 'admin',
         });
         empIndex++;
 
@@ -254,6 +262,8 @@ export function ShiftSchedule() {
           endTime: '22:00',
           isPinned: false,
           shiftType: 'afternoon',
+          status: 'scheduled',
+          requestedBy: 'admin',
         });
         empIndex++;
       }
@@ -280,7 +290,30 @@ export function ShiftSchedule() {
   };
 
   const getShift = (employeeId: string, date: string) =>
-    shifts.find(s => s.employeeId === employeeId && s.date === date && s.branch === selectedBranch);
+    shifts.find(s =>
+      s.employeeId === employeeId && s.date === date && s.branch === selectedBranch &&
+      s.status !== 'pending' && s.status !== 'rejected'
+    );
+
+  const pendingShifts = shifts.filter(s => s.status === 'pending');
+
+  const handleApproveShift = async (shift: Shift) => {
+    try {
+      await api.saveShift({ ...shift, status: 'scheduled' });
+    } catch (err) {
+      console.error('Failed to approve shift:', err);
+      alert('Lỗi duyệt ca');
+    }
+  };
+
+  const handleRejectShift = async (shift: Shift) => {
+    try {
+      await api.saveShift({ ...shift, status: 'rejected' });
+    } catch (err) {
+      console.error('Failed to reject shift:', err);
+      alert('Lỗi từ chối ca');
+    }
+  };
 
   const getShiftColor = (template: typeof shiftTemplates[0]) => template.color;
 
@@ -312,6 +345,40 @@ export function ShiftSchedule() {
           </button>
         </div>
       </div>
+
+      {/* Pending shift requests */}
+      {pendingShifts.length > 0 && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <h3 className="font-bold text-amber-800 mb-3">Yêu cầu đăng ký lịch ({pendingShifts.length})</h3>
+          <div className="space-y-2">
+            {pendingShifts.map(s => (
+              <div key={s.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-amber-100">
+                <div>
+                  <span className="font-semibold text-gray-800">{s.employeeName}</span>
+                  <span className="text-gray-500 text-sm ml-2">
+                    {new Date(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
+                  </span>
+                  {s.branch && <span className="text-xs text-gray-400 ml-2">({s.branch})</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleApproveShift(s)}
+                    className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg"
+                  >
+                    Duyệt
+                  </button>
+                  <button
+                    onClick={() => handleRejectShift(s)}
+                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg"
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Week Navigation */}
       <div className="flex items-center justify-center gap-3 mb-4">

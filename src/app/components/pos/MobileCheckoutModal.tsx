@@ -1,7 +1,12 @@
-import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2 } from 'lucide-react';
-import { useState } from 'react';
+import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
+import { PosVoucherRedeem } from './PosVoucherRedeem';
+
+type CheckoutStep = 'cart' | 'loyalty' | 'payment';
 
 interface MobileCheckoutModalProps {
   cart: CartItem[];
@@ -13,23 +18,40 @@ interface MobileCheckoutModalProps {
 export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }: MobileCheckoutModalProps) {
   const { addOrder } = useOrders();
   const { addCombo } = useCombos();
+  const {
+    addPoints,
+    spendPoints,
+    calcEarnedPoints,
+    calcProgramDiscount,
+    activeCustomer,
+    redeemPointsAmount,
+    selectedRedeemProgramId,
+    activeVoucher,
+    markVoucherUsed,
+    resetLoyalty,
+  } = useLoyalty();
+
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'momo' | 'zalopay' | 'qr' | null>(null);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = Math.round(subtotal * 0.08);
-  const total = subtotal + tax;
+  const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
+  const total = Math.max(0, subtotal - pointsDiscount);
+  const estimatedPointsEarned = calcEarnedPoints(total);
+
+  useEffect(() => {
+    if (cart.length === 0) setCheckoutStep('cart');
+  }, [cart.length]);
+
+  const stepTitle = checkoutStep === 'cart' ? 'Giỏ Hàng' : checkoutStep === 'loyalty' ? 'Tích Điểm' : 'Thanh Toán';
 
   const handleSelectPayment = (method: 'cash' | 'momo' | 'zalopay' | 'qr') => {
     setSelectedPayment(method);
     setShowPaymentConfirm(true);
   };
 
-  const handleConfirmPayment = () => {
-    completePayment();
-  };
-
-  const completePayment = () => {
+  const completePayment = async () => {
     const orderItems = cart.map(item => ({
       name: item.name || item.productName,
       quantity: item.quantity,
@@ -50,7 +72,6 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
       staff: 'POS - Nhân viên quầy'
     });
 
-    // Tự động thêm vào danh sách quản lý Combo nếu có
     orderItems.forEach(item => {
       if (item.isCustomCombo && item.rawComboData) {
         addCombo({
@@ -69,13 +90,33 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
       }
     });
 
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
+    if (activeVoucher) {
+      try {
+        await markVoucherUsed(activeVoucher.code);
+      } catch (err) {
+        console.error('Lỗi đánh dấu voucher:', err);
+      }
+    }
+    if (activeCustomer) {
+      try {
+        if (!activeVoucher && redeemPointsAmount > 0) {
+          await spendPoints(activeCustomer.id, redeemPointsAmount);
+        }
+        if (estimatedPointsEarned > 0) {
+          await addPoints(activeCustomer.id, total);
+        }
+      } catch (err) {
+        console.error('Lỗi cập nhật điểm loyalty:', err);
+      }
+    }
+
+    setTimeout(() => handlePrint(), 100);
 
     onClearCart();
     setShowPaymentConfirm(false);
     setSelectedPayment(null);
+    setCheckoutStep('cart');
+    resetLoyalty();
     onClose();
   };
 
@@ -101,6 +142,7 @@ ${idx + 1}. ${item.productName}
 `).join('\n')}
 ================================
 Tổng tiền: ${total.toLocaleString('vi-VN')}đ
+${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.phone})\n+ Thêm: ${estimatedPointsEarned} điểm\n` : ''}
     `.trim();
 
     const printWindow = window.open('', '_blank');
@@ -124,19 +166,52 @@ Tổng tiền: ${total.toLocaleString('vi-VN')}đ
     }
   };
 
+  const renderTotals = (showLoyaltyLines: boolean) => (
+    <div className="space-y-2 text-sm">
+      {showLoyaltyLines && pointsDiscount > 0 && (
+        <div className="flex justify-between">
+          <span className="text-gray-600">Tạm tính:</span>
+          <span className="font-semibold">{subtotal.toLocaleString('vi-VN')}đ</span>
+        </div>
+      )}
+      {showLoyaltyLines && pointsDiscount > 0 && (
+        <div className="flex justify-between text-pink-600 font-semibold">
+          <span>{activeVoucher ? `Mã ${activeVoucher.code}:` : 'Giảm điểm loyalty:'}</span>
+          <span>-{pointsDiscount.toLocaleString('vi-VN')}đ</span>
+        </div>
+      )}
+      {showLoyaltyLines && activeCustomer && estimatedPointsEarned > 0 && (
+        <div className="flex justify-between text-emerald-600 text-xs font-medium">
+          <span>Tích lũy ước tính:</span>
+          <span>+{estimatedPointsEarned} điểm</span>
+        </div>
+      )}
+      <div className="flex justify-between text-lg border-t pt-2">
+        <span className="font-bold">TỔNG CỘNG:</span>
+        <span className="font-bold text-emerald-700">
+          {(showLoyaltyLines ? total : subtotal).toLocaleString('vi-VN')}đ
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={onClose} />
 
-      {/* Modal */}
       <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="bg-gradient-to-r from-emerald-500 to-pink-500 text-white p-4 rounded-t-2xl flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-bold">Giỏ Hàng</h2>
+          <div className="flex items-center gap-2">
+            {checkoutStep !== 'cart' && (
+              <button
+                onClick={() => setCheckoutStep(checkoutStep === 'payment' ? 'loyalty' : 'cart')}
+                className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h2 className="text-xl font-bold">{stepTitle}</h2>
+          </div>
           <button
             onClick={onClose}
             className="w-10 h-10 bg-white bg-opacity-20 active:bg-opacity-30 rounded-full flex items-center justify-center transition-colors"
@@ -145,123 +220,148 @@ Tổng tiền: ${total.toLocaleString('vi-VN')}đ
           </button>
         </div>
 
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {cart.length === 0 ? (
-            <div className="text-center text-gray-400 py-12">
-              <div className="text-6xl mb-3">🛒</div>
-              <p>Giỏ hàng trống</p>
-            </div>
-          ) : (
-            cart.map((item, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="font-bold text-gray-800">{item.productName}</div>
-                    {item.isCustomCombo ? (
-                      <div className="mt-2 space-y-1">
-                        {item.toppings.map((t, tIdx) => (
-                          <div key={tIdx} className="text-[11px] bg-emerald-50 text-emerald-800 px-2 py-1 rounded-md border border-emerald-100 flex items-start gap-2 font-medium leading-tight">
-                            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-600" />
-                            <span>{t}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-xs text-gray-600 mt-1">
-                          Size: <span className="font-semibold">{item.size}</span> |
-                          Protein: <span className="font-semibold">{item.protein}g</span>
+        {checkoutStep === 'loyalty' && <LoyaltyCustomerSection orderSubtotal={subtotal} />}
+
+        {checkoutStep !== 'loyalty' && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {cart.length === 0 ? (
+              <div className="text-center text-gray-400 py-12">
+                <div className="text-6xl mb-3">🛒</div>
+                <p>Giỏ hàng trống</p>
+              </div>
+            ) : (
+              cart.map((item, idx) => (
+                <div key={idx} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <div className="font-bold text-gray-800">{item.productName}</div>
+                      {item.isCustomCombo ? (
+                        <div className="mt-2 space-y-1">
+                          {item.toppings.map((t, tIdx) => (
+                            <div key={tIdx} className="text-[11px] bg-emerald-50 text-emerald-800 px-2 py-1 rounded-md border border-emerald-100 flex items-start gap-2 font-medium leading-tight">
+                              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-600" />
+                              <span>{t}</span>
+                            </div>
+                          ))}
                         </div>
-                        {item.toppings.length > 0 && (
-                          <div className="text-xs text-emerald-600 font-bold mt-1 uppercase tracking-wider">
-                            + {item.toppings.join(', ')}
+                      ) : (
+                        <>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Size: <span className="font-semibold">{item.size}</span> |
+                            Protein: <span className="font-semibold">{item.protein}g</span>
                           </div>
-                        )}
-                      </>
+                          {item.toppings.length > 0 && (
+                            <div className="text-xs text-emerald-600 font-bold mt-1 uppercase tracking-wider">
+                              + {item.toppings.join(', ')}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {checkoutStep === 'cart' && (
+                      <button
+                        onClick={() => onRemoveItem(idx)}
+                        className="text-red-500 active:text-red-700 ml-2"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     )}
                   </div>
-                  <button
-                    onClick={() => onRemoveItem(idx)}
-                    className="text-red-500 active:text-red-700 ml-2"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">SL: {item.quantity}</span>
+                    <span className="font-bold text-emerald-700">
+                      {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">SL: {item.quantity}</span>
-                  <span className="font-bold text-emerald-700">
-                    {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
 
-        {/* Footer */}
+        {checkoutStep === 'loyalty' && (
+          <div className="flex-1 overflow-y-auto px-4 pb-2">
+            {renderTotals(true)}
+          </div>
+        )}
+
         <div className="border-t p-4 space-y-3 flex-shrink-0 bg-white">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Tạm tính:</span>
-              <span className="font-semibold">{subtotal.toLocaleString('vi-VN')}đ</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">VAT (8%):</span>
-              <span className="font-semibold">{tax.toLocaleString('vi-VN')}đ</span>
-            </div>
-            <div className="flex justify-between text-lg border-t pt-2">
-              <span className="font-bold">TỔNG CỘNG:</span>
-              <span className="font-bold text-emerald-700">{total.toLocaleString('vi-VN')}đ</span>
-            </div>
-          </div>
+          {checkoutStep === 'cart' && (
+            <>
+              {renderTotals(false)}
+              <button
+                onClick={() => setCheckoutStep('loyalty')}
+                disabled={cart.length === 0}
+                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 active:from-emerald-700 active:to-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold transition-colors text-base shadow-lg"
+              >
+                Hoàn Thành Đơn
+              </button>
+              <button
+                onClick={onClearCart}
+                disabled={cart.length === 0}
+                className="w-full bg-gray-500 active:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors text-sm"
+              >
+                Xóa Tất Cả
+              </button>
+            </>
+          )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleSelectPayment('qr')}
-              disabled={cart.length === 0}
-              className="bg-emerald-600 active:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
-            >
-              <QrCode className="w-5 h-5" />
-              VietQR
-            </button>
-            <button
-              onClick={() => handleSelectPayment('cash')}
-              disabled={cart.length === 0}
-              className="bg-green-500 active:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
-            >
-              <Wallet className="w-5 h-5" />
-              Tiền Mặt
-            </button>
-            <button
-              onClick={() => handleSelectPayment('momo')}
-              disabled={cart.length === 0}
-              className="bg-pink-500 active:bg-pink-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
-            >
-              <Smartphone className="w-5 h-5" />
-              MoMo
-            </button>
-            <button
-              onClick={() => handleSelectPayment('zalopay')}
-              disabled={cart.length === 0}
-              className="bg-emerald-700 active:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
-            >
-              <Smartphone className="w-5 h-5" />
-              ZaloPay
-            </button>
-          </div>
+          {checkoutStep === 'loyalty' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCheckoutStep('payment')}
+                className="flex-1 bg-gray-100 active:bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold text-sm"
+              >
+                Không tích điểm
+              </button>
+              <button
+                onClick={() => setCheckoutStep('payment')}
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-3 rounded-lg font-bold text-sm shadow-lg"
+              >
+                Tiếp Tục Thanh Toán
+              </button>
+            </div>
+          )}
 
-          <button
-            onClick={onClearCart}
-            disabled={cart.length === 0}
-            className="w-full bg-gray-500 active:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors text-sm"
-          >
-            Xóa Tất Cả
-          </button>
+          {checkoutStep === 'payment' && (
+            <>
+              <PosVoucherRedeem orderSubtotal={subtotal} variant="compact" />
+              {renderTotals(true)}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleSelectPayment('qr')}
+                  className="bg-emerald-600 active:bg-emerald-700 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <QrCode className="w-5 h-5" />
+                  VietQR
+                </button>
+                <button
+                  onClick={() => handleSelectPayment('cash')}
+                  className="bg-green-500 active:bg-green-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <Wallet className="w-5 h-5" />
+                  Tiền Mặt
+                </button>
+                <button
+                  onClick={() => handleSelectPayment('momo')}
+                  className="bg-pink-500 active:bg-pink-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <Smartphone className="w-5 h-5" />
+                  MoMo
+                </button>
+                <button
+                  onClick={() => handleSelectPayment('zalopay')}
+                  className="bg-emerald-700 active:bg-emerald-800 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors text-sm"
+                >
+                  <Smartphone className="w-5 h-5" />
+                  ZaloPay
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Payment Confirmation Modal */}
       {showPaymentConfirm && (
         <>
           <div className="fixed inset-0 bg-black bg-opacity-70 z-[60]" onClick={() => {
@@ -342,7 +442,7 @@ Tổng tiền: ${total.toLocaleString('vi-VN')}đ
                 Hủy
               </button>
               <button
-                onClick={handleConfirmPayment}
+                onClick={completePayment}
                 className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-semibold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
               >
                 <Printer className="w-5 h-5" />

@@ -1,4 +1,4 @@
-import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
@@ -13,6 +13,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'inventory', label: 'Kho Hàng', icon: Package },
     { id: 'products', label: 'Sản Phẩm', icon: ShoppingBag },
     { id: 'combos', label: 'Quản Lý Combo', icon: Coffee },
+    { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
     { id: 'settings', label: 'Cài Đặt', icon: Settings },
   ];
 

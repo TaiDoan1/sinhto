@@ -5,16 +5,16 @@ import { useOrders } from '../../contexts/OrderContext';
 import { VoidOrderModal } from './VoidOrderModal';
 import type { Order } from '../../contexts/OrderContext';
 
-const sourceColors = {
+const sourceColors: Record<string, string> = {
   counter: 'bg-green-500',
   mobile: 'bg-emerald-600',
-  web: 'bg-emerald-500'
+  web: 'bg-emerald-500',
 };
 
-const sourceLabels = {
+const sourceLabels: Record<string, string> = {
   counter: 'Tại Quầy',
   mobile: 'Đặt Online',
-  web: 'Web'
+  web: 'Web',
 };
 
 export function OrderQueue() {
@@ -38,8 +38,10 @@ export function OrderQueue() {
     return () => clearInterval(timer);
   }, []);
 
-  const getElapsedMinutes = (orderTime: Date) => {
-    return Math.floor((currentTime.getTime() - orderTime.getTime()) / 60000);
+  const getElapsedMinutes = (orderTime: Date | string) => {
+    const t = orderTime instanceof Date ? orderTime : new Date(orderTime);
+    if (Number.isNaN(t.getTime())) return 0;
+    return Math.floor((currentTime.getTime() - t.getTime()) / 60000);
   };
 
   const handleVoidConfirm = () => {
@@ -74,8 +76,8 @@ export function OrderQueue() {
                       <div className="text-xs text-gray-500">{order.id}</div>
                     </div>
                     <div>
-                      <div className={`${sourceColors[order.source]} text-white px-2 py-1 rounded text-xs font-bold mb-1 inline-block`}>
-                        {sourceLabels[order.source]}
+                      <div className={`${sourceColors[order.source] || 'bg-gray-500'} text-white px-2 py-1 rounded text-xs font-bold mb-1 inline-block`}>
+                        {sourceLabels[order.source] || order.source || 'Khác'}
                       </div>
                       <div className="text-xs text-gray-600">
                         <User className="w-3 h-3 inline mr-1" />
@@ -116,11 +118,11 @@ export function OrderQueue() {
                 {/* Items */}
                 <div className="mb-3 bg-gray-50 rounded-lg p-3">
                   <div className="space-y-2">
-                    {order.items.map((item, idx) => (
+                    {(order.items || []).map((item, idx) => (
                       <div key={idx} className="text-sm text-gray-700">
                         <div className="flex justify-between items-start">
-                          <span className="font-semibold text-gray-900">• {typeof item === 'string' ? item : `${item.quantity}x ${item.name}`}</span>
-                          {item.isCustomCombo && (order.status === 'pending' || order.status === 'preparing') && (
+                          <span className="font-semibold text-gray-900">• {typeof item === 'string' ? item : `${item?.quantity ?? 1}x ${item?.name ?? 'Món'}`}</span>
+                          {typeof item === 'object' && item?.isCustomCombo && (order.status === 'pending' || order.status === 'preparing') && (
                             <button 
                               onClick={() => {
                                 setInitialComboData(item.rawComboData);
@@ -158,7 +160,7 @@ export function OrderQueue() {
                   </div>
                   <div className="mt-3 pt-2 border-t border-gray-200 text-right">
                     <span className="text-lg font-bold text-emerald-700">
-                      {order.total.toLocaleString('vi-VN')}đ
+                      {(order.total ?? 0).toLocaleString('vi-VN')}đ
                     </span>
                   </div>
                 </div>

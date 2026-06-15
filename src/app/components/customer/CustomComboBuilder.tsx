@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
 
 interface CustomComboBuilderProps {
   onAddToCart: (combo: any) => void;
@@ -98,6 +99,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
   const [customerType, setCustomerType] = useState<'new' | 'existing' | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const { combos } = useCombos();
+  const { lookupByPhone, registerCustomer, activeCustomer, setActiveCustomer } = useLoyalty();
 
   // Combo Configurations
   const [planId, setPlanId] = useState<'fat-loss' | 'muscle-build' | 'elite-mass'>('fat-loss');
@@ -135,58 +137,113 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
     }
   }, [initialData]);
 
+  // POS: pre-fill from loyalty customer already set at checkout
+  useEffect(() => {
+    if (isPOS && activeCustomer && !initialData) {
+      setCustomerName(activeCustomer.name);
+      setCustomerPhone(activeCustomer.phone);
+      setStep(1);
+    }
+  }, [isPOS, activeCustomer, initialData]);
+
   // Customer Auto Lookup (Existing)
   useEffect(() => {
     if (customerType === 'existing' && customerPhone.length >= 10) {
       setIsSearching(true);
-      const timer = setTimeout(() => {
-        const found = combos.find(c => c.customerPhone === customerPhone);
-        if (found) {
-          setCustomerName(found.customerName);
+      const timer = setTimeout(async () => {
+        if (isPOS) {
+          const loyaltyCust = await lookupByPhone(customerPhone);
+          if (loyaltyCust) {
+            setCustomerName(loyaltyCust.name);
+            setActiveCustomer(loyaltyCust);
+          } else {
+            const found = combos.find(c => c.customerPhone === customerPhone);
+            if (found) {
+              setCustomerName(found.customerName);
+            } else {
+              setCustomerName('');
+            }
+          }
         } else {
-          const saved = localStorage.getItem(`customer_${customerPhone}`);
-          if (saved) setCustomerName(saved);
-          else setCustomerName('');
+          const found = combos.find(c => c.customerPhone === customerPhone);
+          if (found) {
+            setCustomerName(found.customerName);
+          } else {
+            const saved = localStorage.getItem(`customer_${customerPhone}`);
+            if (saved) setCustomerName(saved);
+            else setCustomerName('');
+          }
         }
         setIsSearching(false);
       }, 550);
       return () => clearTimeout(timer);
     }
-  }, [customerPhone, customerType, combos]);
+  }, [customerPhone, customerType, combos, isPOS, lookupByPhone, setActiveCustomer]);
 
-  const handleLookupCustomer = () => {
+  const handleLookupCustomer = async () => {
     if (!customerPhone) return;
     setIsSearching(true);
-    setTimeout(() => {
-      const foundInCombo = combos.find(c => c.customerPhone === customerPhone);
-      let foundName = foundInCombo ? foundInCombo.customerName : null;
-      if (!foundName) {
-        foundName = localStorage.getItem(`customer_${customerPhone}`);
-      }
-
-      if (foundName) {
-        setCustomerName(foundName);
-        localStorage.setItem(`customer_${customerPhone}`, foundName);
-        setStep(1);
-      } else {
+    try {
+      if (isPOS) {
+        const loyaltyCust = await lookupByPhone(customerPhone.trim());
+        if (loyaltyCust) {
+          setCustomerName(loyaltyCust.name);
+          setActiveCustomer(loyaltyCust);
+          setStep(1);
+          return;
+        }
+        const foundInCombo = combos.find(c => c.customerPhone === customerPhone);
+        if (foundInCombo) {
+          setCustomerName(foundInCombo.customerName);
+          setStep(1);
+          return;
+        }
         alert('Không tìm thấy khách hàng này. Vui lòng đăng ký khách mới!');
         setCustomerType('new');
         setCustomerName('');
+      } else {
+        const foundInCombo = combos.find(c => c.customerPhone === customerPhone);
+        let foundName = foundInCombo ? foundInCombo.customerName : null;
+        if (!foundName) {
+          foundName = localStorage.getItem(`customer_${customerPhone}`);
+        }
+        if (foundName) {
+          setCustomerName(foundName);
+          localStorage.setItem(`customer_${customerPhone}`, foundName);
+          setStep(1);
+        } else {
+          alert('Không tìm thấy khách hàng này. Vui lòng đăng ký khách mới!');
+          setCustomerType('new');
+          setCustomerName('');
+        }
       }
+    } finally {
       setIsSearching(false);
-    }, 400);
+    }
   };
 
-  const handleConfirmNewCustomer = () => {
+  const handleConfirmNewCustomer = async () => {
     const name = customerName.trim();
     const phone = customerPhone.trim();
-    if (name && phone) {
+    if (!name || !phone) {
+      alert('Vui lòng nhập đầy đủ tên và số điện thoại khách hàng');
+      return;
+    }
+    if (isPOS) {
+      try {
+        const cust = await registerCustomer(name, phone);
+        setActiveCustomer(cust);
+        setCustomerName(cust.name);
+        setCustomerPhone(cust.phone);
+        setStep(1);
+      } catch {
+        alert('Không thể đăng ký khách hàng. Số điện thoại có thể đã tồn tại.');
+      }
+    } else {
       localStorage.setItem(`customer_${phone}`, name);
       setCustomerName(name);
       setCustomerPhone(phone);
       setStep(1);
-    } else {
-      alert('Vui lòng nhập đầy đủ tên và số điện thoại khách hàng');
     }
   };
 

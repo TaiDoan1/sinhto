@@ -4,6 +4,7 @@ import {
   Loader2, CheckCircle2, CreditCard, Banknote,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useInventory } from '../../contexts/InventoryContext';
 import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
@@ -28,6 +29,7 @@ interface Props {
 
 export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) {
   const { addOrder } = useOrders();
+  const { checkCartStock, formatShortageMessage, isWarehouseReady } = useInventory();
 
   const [mode, setMode] = useState<OrderMode>('retail');
   const [customer, setCustomer] = useState({
@@ -113,7 +115,23 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     setSubmitting(true);
     setSuccessMsg('');
     try {
+      const stockLines = cart.map((item) => ({
+        productId: item.productId,
+        productName: item.productName || item.name,
+        size: item.size,
+        protein: item.protein,
+        toppings: item.toppings,
+        quantity: item.quantity,
+      }));
+      const stockCheck = checkCartStock(stockLines);
+      if (!stockCheck.ok) {
+        alert(`Không thể tạo đơn:\n${formatShortageMessage(stockCheck.shortages)}`);
+        return;
+      }
+
       const orderItems = cart.map((item) => ({
+        productId: item.productId,
+        productName: item.productName || item.name,
         name: item.productName || item.name,
         quantity: item.quantity,
         price: item.price,
@@ -123,7 +141,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }));
 
       const now = new Date();
-      await addOrder({
+      const ok = addOrder({
         branchId: employee.branch || 'CN1',
         source: 'online_sales',
         items: orderItems,
@@ -137,6 +155,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         completedAt: markPaid ? now : undefined,
         ...staffPayload(),
       });
+      if (!ok) {
+        alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhờ Admin nhập kho.');
+        return;
+      }
 
       await logActivity('converted', `Nhập đơn lẻ — ${cartTotal.toLocaleString('vi-VN')}đ (${orderItems.length} món)`);
       await api.patchAssignmentProfile(customer.phone.trim(), {

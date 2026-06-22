@@ -1,13 +1,30 @@
 import { useState } from 'react';
-import { Package, AlertTriangle, TrendingDown, DollarSign, History, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { Package, AlertTriangle, TrendingDown, DollarSign, History, ChevronDown, ChevronUp, Plus, X, Truck } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 
 export function InventoryDashboard() {
-  const { inventory, movements, getLowStockItems, getOutOfStockItems, getTodayStats, addInventoryItem, updateInventoryStock } = useInventory();
+  const {
+    inventory,
+    movements,
+    getLowStockItems,
+    getOutOfStockItems,
+    getTodayStats,
+    addInventoryItem,
+    updateInventoryStock,
+    purchaseStock,
+    isWarehouseReady,
+  } = useInventory();
   const [activeTab, setActiveTab] = useState<'stock' | 'movements'>('stock');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  
-  // Add modal states
+
+  // Nhập kho modal
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [purchaseItemId, setPurchaseItemId] = useState('');
+  const [purchaseQty, setPurchaseQty] = useState('');
+  const [purchaseSupplier, setPurchaseSupplier] = useState('');
+  const [purchaseNote, setPurchaseNote] = useState('');
+  const [purchaseSaving, setPurchaseSaving] = useState(false);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState<'kg' | 'lít' | 'gói' | 'cái'>('kg');
@@ -16,6 +33,34 @@ export function InventoryDashboard() {
   const [newCost, setNewCost] = useState(0);
   const [newCategory, setNewCategory] = useState<'fruit' | 'dairy' | 'protein' | 'topping' | 'other'>('fruit');
 
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = Number(purchaseQty);
+    if (!purchaseItemId || !qty || qty <= 0) return alert('Chọn nguyên liệu và số lượng nhập');
+    setPurchaseSaving(true);
+    try {
+      const ok = await purchaseStock(
+        purchaseItemId,
+        qty,
+        'Admin',
+        purchaseNote || 'Nhap kho',
+        purchaseSupplier || undefined
+      );
+      if (ok) {
+        alert('Nhập kho thành công! POS có thể bán hàng.');
+        setShowPurchaseModal(false);
+        setPurchaseItemId('');
+        setPurchaseQty('');
+        setPurchaseSupplier('');
+        setPurchaseNote('');
+      } else {
+        alert('Nhập kho thất bại');
+      }
+    } finally {
+      setPurchaseSaving(false);
+    }
+  };
+  
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return alert('Vui lòng nhập tên nguyên liệu');
@@ -103,14 +148,30 @@ export function InventoryDashboard() {
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Quản Lý Tồn Kho</h1>
           <p className="text-gray-600">Theo dõi nguyên liệu và chi phí hoạt động</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Thêm nguyên liệu mới</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowPurchaseModal(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
+          >
+            <Truck className="w-5 h-5" />
+            <span>Nhập kho</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-[0.98]"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Thêm nguyên liệu</span>
+          </button>
+        </div>
       </div>
+
+      {!isWarehouseReady && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-amber-900">
+          <p className="font-bold">⚠️ Chưa có phiếu nhập kho</p>
+          <p className="text-sm mt-1">POS và CSKH <strong>không thể bán</strong> cho đến khi Admin nhập kho lần đầu. Bấm <strong>Nhập kho</strong> ở trên.</p>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -341,6 +402,77 @@ export function InventoryDashboard() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* MODAL: NHẬP KHO */}
+      {showPurchaseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 relative">
+            <button onClick={() => setShowPurchaseModal(false)} className="absolute top-4 right-4 p-1.5 rounded-lg bg-gray-100 text-gray-400 hover:bg-gray-200">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <Truck className="w-6 h-6 text-emerald-600" /> Nhập kho
+            </h2>
+            <p className="text-sm text-gray-500 mb-5">Nhập nguyên liệu mới vào kho để mở bán hàng tại POS.</p>
+            <form onSubmit={handlePurchaseSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Nguyên liệu</label>
+                <select
+                  required
+                  value={purchaseItemId}
+                  onChange={(e) => setPurchaseItemId(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-medium"
+                >
+                  <option value="">-- Chọn --</option>
+                  {inventory.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} (còn {item.currentStock} {item.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Số lượng nhập (+)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  value={purchaseQty}
+                  onChange={(e) => setPurchaseQty(e.target.value)}
+                  placeholder="VD: 10"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Nhà cung cấp (tuỳ chọn)</label>
+                <input
+                  type="text"
+                  value={purchaseSupplier}
+                  onChange={(e) => setPurchaseSupplier(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Ghi chú</label>
+                <input
+                  type="text"
+                  value={purchaseNote}
+                  onChange={(e) => setPurchaseNote(e.target.value)}
+                  placeholder="Phiếu nhập, lô hàng..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={purchaseSaving}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
+              >
+                {purchaseSaving ? 'Đang lưu...' : 'Xác nhận nhập kho'}
+              </button>
+            </form>
           </div>
         </div>
       )}

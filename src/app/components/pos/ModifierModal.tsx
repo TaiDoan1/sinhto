@@ -2,6 +2,7 @@ import { X, Check, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
+import { useInventory } from '../../contexts/InventoryContext';
 
 interface ModifierModalProps {
   product: {
@@ -80,6 +81,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
     : COMBO_TOPPINGS;
   const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
   const priceLookup = Object.keys(dynamicPriceTable).length > 0 ? dynamicPriceTable : priceTable;
+  const { checkCartStock, formatShortageMessage, isWarehouseReady } = useInventory();
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>
@@ -124,6 +126,26 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
     selectedToppings.forEach(tName => {
       finalToppingsList.push(tName);
     });
+
+    const line = {
+      productId: product.id,
+      productName: product.name,
+      size: selectedSize,
+      protein: selectedProtein,
+      toppings: finalToppingsList,
+      quantity: 1,
+    };
+
+    if (!isWarehouseReady) {
+      alert('Chưa nhập kho. Admin cần nhập nguyên liệu trước khi bán.');
+      return;
+    }
+
+    const check = checkCartStock([line]);
+    if (!check.ok) {
+      alert(`Không đủ nguyên liệu:\n${formatShortageMessage(check.shortages)}`);
+      return;
+    }
 
     onAddToCart({
       productId: product.id,

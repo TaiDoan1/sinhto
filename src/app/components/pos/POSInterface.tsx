@@ -15,6 +15,7 @@ import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
+import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
@@ -28,6 +29,7 @@ const branches = [
 export function POSInterface() {
   const { orders } = useOrders();
   const { getTodayDeliveries } = useCombos();
+  const { isWarehouseReady } = useInventory();
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro'>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -324,6 +326,12 @@ export function POSInterface() {
             )}
           </div>
         </div>
+
+        {!isWarehouseReady && (
+          <div className="mb-2 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-sm font-semibold flex-shrink-0">
+            ⚠️ Chưa nhập kho — không thể bán hàng. Admin vào <strong>Kho Hàng → Nhập kho</strong> trước.
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 overflow-hidden">

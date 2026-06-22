@@ -9,7 +9,7 @@ interface Props {
 
 export function BranchComboDeliveries({ branchId }: Props) {
   const { combos, updateCombo } = useCombos();
-  const { deductStock, recipes } = useInventory();
+  const { deductStockForOrder, formatShortageMessage, checkCartStock } = useInventory();
   const [todayDeliveries, setTodayDeliveries] = useState<ComboSubscription[]>([]);
   const [deliveredIds, setDeliveredIds] = useState<string[]>([]);
 
@@ -29,25 +29,23 @@ export function BranchComboDeliveries({ branchId }: Props) {
     setTodayDeliveries(filtered);
   }, [combos, branchId, todayDayOfWeek]);
 
-  // Find the recipe ingredients for a product name
-  const getRecipeIngredients = (productName: string) => {
-    const recipe = recipes.find(r => r.productName.toLowerCase() === productName.toLowerCase());
-    return recipe ? recipe.ingredients : [];
-  };
-
   const handleDeliver = (combo: ComboSubscription) => {
-    // 1. Get today's product to deduct stock
-    // If it's custom combo, find the flavor of today or select the first item
-    const todayProduct = combo.items[0]?.product?.name || combo.items[0]?.productName || 'Strawberry Blast';
-    
-    // 2. Deduct inventory stock
-    const success = deductStock(combo.id, [todayProduct], `Chi nhánh ${branchId}`);
-    
-    if (!success) {
-      alert('⚠️ Cảnh báo: Kho chi nhánh không đủ nguyên liệu! (Giao hàng vẫn được ghi nhận nhưng tồn kho âm)');
+    const todayItem = combo.items[0];
+    const productName = todayItem?.product?.name || todayItem?.productName || '';
+    const productId = todayItem?.product?.id || todayItem?.productId;
+    const line = { productId, productName, size: '360ml', protein: 40, quantity: 1 };
+
+    const check = checkCartStock([line]);
+    if (!check.ok) {
+      alert(`⚠️ Không đủ nguyên liệu:\n${formatShortageMessage(check.shortages)}`);
+      return;
     }
 
-    // 3. Update combo's next delivery date
+    const success = deductStockForOrder(combo.id, [line], `Chi nhánh ${branchId}`);
+    if (!success) {
+      alert('⚠️ Trừ kho thất bại. Kiểm tra tồn kho chi nhánh.');
+      return;
+    }
     const calculateNextDeliveryDate = (currentNext: Date, deliveryDays: number[]) => {
       const date = new Date(currentNext);
       // Find next delivery day

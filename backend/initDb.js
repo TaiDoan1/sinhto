@@ -430,6 +430,25 @@ async function initSchemaAndSeeds(pool) {
   if (existingProfile.rowCount === 0) {
     await upsertSetting(pool, 'employee_profile_fields', profileFields);
   }
+
+  const extendedInventory = [
+    ['INV-012', vi('Sua A2'), 'lít', 0, 2, 35000, 'dairy'],
+    ['INV-013', vi('Bot dau ha lan'), 'kg', 0, 1, 45000, 'protein'],
+    ['INV-015', 'Collagen', 'gói', 0, 5, 49000, 'protein'],
+    ['INV-016', vi('Yen mach'), 'kg', 0, 2, 25000, 'topping'],
+    ['INV-017', vi('Hat chia'), 'kg', 0, 2, 30000, 'topping'],
+    ['INV-018', vi('Dua say'), 'kg', 0, 2, 35000, 'topping'],
+    ['INV-019', vi('Co ngot'), 'kg', 0, 1, 20000, 'topping'],
+    ['INV-020', vi('Mat mia'), 'lít', 0, 1, 15000, 'topping'],
+    ['INV-021', vi('Cha la'), 'kg', 0, 1, 40000, 'topping'],
+    ['INV-022', vi('Bo hat'), 'kg', 0, 2, 55000, 'topping'],
+  ];
+  for (const item of extendedInventory) {
+    await pool.query(
+      'INSERT INTO inventory (id, name, unit, "currentStock", "minStock", cost, category) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING',
+      item
+    );
+  }
 }
 
 module.exports = { initSchemaAndSeeds, SCHEMA_SQL };

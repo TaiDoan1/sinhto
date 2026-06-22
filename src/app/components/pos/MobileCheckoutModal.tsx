@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
 
@@ -30,6 +31,7 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
     markVoucherUsed,
     resetLoyalty,
   } = useLoyalty();
+  const { checkCartStock, formatShortageMessage } = useInventory();
 
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
@@ -52,7 +54,25 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
   };
 
   const completePayment = async () => {
+    const stockLines = cart.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      name: item.name,
+      size: item.size,
+      protein: item.protein,
+      toppings: item.toppings,
+      quantity: item.quantity,
+      isCustomCombo: item.isCustomCombo,
+    }));
+    const stockCheck = checkCartStock(stockLines);
+    if (!stockCheck.ok) {
+      alert(`Không thể thanh toán:\n${formatShortageMessage(stockCheck.shortages)}`);
+      return;
+    }
+
     const orderItems = cart.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
       name: item.name || item.productName,
       quantity: item.quantity,
       price: item.price,
@@ -63,7 +83,7 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
       rawComboData: item.rawComboData
     }));
 
-    addOrder({
+    const ok = addOrder({
       branchId: 'CN1',
       source: 'counter',
       items: orderItems,
@@ -71,6 +91,10 @@ export function MobileCheckoutModal({ cart, onClose, onRemoveItem, onClearCart }
       total: total,
       staff: 'POS - Nhân viên quầy'
     });
+    if (!ok) {
+      alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');
+      return;
+    }
 
     orderItems.forEach(async (item) => {
       if (item.isCustomCombo && item.rawComboData) {

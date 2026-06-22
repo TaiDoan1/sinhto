@@ -25,13 +25,14 @@ export interface Order {
   paymentMethod?: 'cash' | 'transfer';
   salesStaffId?: string;
   salesStaffName?: string;
+  stockDeducted?: boolean;
 }
 
 interface OrderContextType {
   orders: Order[];
   history: Order[];
   offlineQueueLength: number;
-  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>) => void;
+  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>) => boolean;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
 }
@@ -60,7 +61,7 @@ function normalizeOrder(raw: any): Order {
 }
 
 export function OrderProvider({ children }: { children: ReactNode }) {
-  const { deductStock } = useInventory();
+  const { deductStockForOrder } = useInventory();
   const { subscribe } = useSSE();
   const [orders, setOrders] = useState<Order[]>([]);
   const [history, setHistory] = useState<Order[]>([]);
@@ -171,39 +172,51 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [offlineQueue]);
 
-  const addOrder = async (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>) => {
+  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>): boolean => {
     const now = new Date();
     const tempId = `ORD-${Date.now()}`;
+    const stockLines = (orderData.items || []).map((item) =>
+      typeof item === 'string'
+        ? { productName: item, quantity: 1 }
+        : {
+            productId: item.productId,
+            productName: item.productName || item.name,
+            size: item.size,
+            protein: item.protein,
+            toppings: item.toppings,
+            quantity: item.quantity ?? 1,
+            isCustomCombo: item.isCustomCombo,
+          }
+    );
+    const retailLines = stockLines.filter((l) => !l.isCustomCombo);
+
     const newOrder: Partial<Order> = {
       ...orderData,
       id: tempId,
       time: now,
       paidAt: orderData.paidAt || now,
       status: orderData.status || 'pending',
-      stockDeducted: false
+      stockDeducted: false,
     };
 
-    // Deduct stock locally
-    if (newOrder.paidAt) {
-      const success = deductStock(tempId, newOrder.items!.map(item => typeof item === 'string' ? item : item.name), newOrder.staff || 'System');
-      if (success) {
-        newOrder.stockDeducted = true;
-      } else {
-        newOrder.stockDeducted = true;
-      }
+    if (newOrder.paidAt && retailLines.length > 0) {
+      const success = deductStockForOrder(tempId, retailLines, newOrder.staff || 'System');
+      if (!success) return false;
+      newOrder.stockDeducted = true;
+    } else if (retailLines.length === 0) {
+      newOrder.stockDeducted = true;
     }
 
-    // Add locally to state immediately so employee sees it
-    setOrders(prev => [newOrder as Order, ...prev]);
+    setOrders((prev) => [newOrder as Order, ...prev]);
 
-    try {
-      await api.createOrder(withSalesRef(newOrder));
-    } catch (err) {
-      console.warn("Mất kết nối máy chủ backend. Đang xếp đơn hàng vào hàng đợi đồng bộ offline.", err);
+    api.createOrder(withSalesRef(newOrder)).catch((err) => {
+      console.warn('Mất kết nối máy chủ backend. Đang xếp đơn hàng vào hàng đợi đồng bộ offline.', err);
       const updatedQueue = [...offlineQueue, { action: 'CREATE', orderId: tempId, data: newOrder }];
       setOfflineQueue(updatedQueue);
       localStorage.setItem('offline_orders_queue', JSON.stringify(updatedQueue));
-    }
+    });
+
+    return true;
   };
 
   const updateOrderStatus = async (orderId: string, status: Order['status'], extra?: Partial<Order>) => {
@@ -216,8 +229,26 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // Local stock deduction
     const activeOrder = orders.find(o => o.id === orderId);
     if (activeOrder && status === 'completed' && !activeOrder.stockDeducted) {
-      deductStock(orderId, activeOrder.items.map(item => typeof item === 'string' ? item : item.name), activeOrder.staff || 'Hệ thống');
-      updates.stockDeducted = true;
+      const lines = activeOrder.items.map((item) =>
+        typeof item === 'string'
+          ? { productName: item, quantity: 1 }
+          : {
+              productId: item.productId,
+              productName: item.productName || item.name,
+              size: item.size,
+              protein: item.protein,
+              toppings: item.toppings,
+              quantity: item.quantity ?? 1,
+              isCustomCombo: item.isCustomCombo,
+            }
+      );
+      const retailLines = lines.filter((l) => !l.isCustomCombo);
+      if (retailLines.length > 0) {
+        const ok = deductStockForOrder(orderId, retailLines, activeOrder.staff || 'Hệ thống');
+        if (ok) updates.stockDeducted = true;
+      } else {
+        updates.stockDeducted = true;
+      }
     }
 
     // Update locally immediately

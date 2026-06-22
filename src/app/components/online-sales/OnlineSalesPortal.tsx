@@ -5,7 +5,7 @@ import {
   ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
-import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
+import { useCombos } from '../../contexts/ComboContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { OnlineSalesDashboard, SalesTask, SalesLead, PipelineStage } from '../../types/onlineSales';
@@ -13,115 +13,15 @@ import { BRANCH_LABELS } from '../../types/employee';
 import { PIPELINE_STAGES, buildWebLink } from './constants';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
+import { CustomerComboHub } from '../combo/CustomerComboHub';
 
 type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo';
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Chờ chốt',
-  active: 'Đang chạy',
-  paused: 'Tạm dừng',
-  completed: 'Hoàn thành',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-800',
-  active: 'bg-indigo-100 text-indigo-800',
-  paused: 'bg-gray-100 text-gray-700',
-  completed: 'bg-blue-100 text-blue-800',
-};
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
   medium: 'border-l-amber-500',
   low: 'border-l-gray-300',
 };
-
-function ComboCard({
-  combo,
-  onClaim,
-  onPause,
-  onResume,
-  onSelect,
-  showClaim,
-  claiming,
-}: {
-  combo: ComboSubscription;
-  onClaim?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onSelect?: () => void;
-  showClaim?: boolean;
-  claiming?: boolean;
-}) {
-  const durationLabel =
-    combo.comboDuration === 'monthly' ? 'Tháng' :
-    combo.comboDuration === 'quarterly' ? 'Quý' : 'Tuần';
-
-  return (
-    <div
-      className={`bg-white rounded-2xl border border-indigo-100 shadow-sm p-4 lg:p-5 space-y-3 h-full flex flex-col ${onSelect ? 'cursor-pointer hover:border-indigo-300' : ''}`}
-      onClick={onSelect}
-      onKeyDown={onSelect ? (e) => e.key === 'Enter' && onSelect() : undefined}
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold text-gray-900 truncate">{combo.planName || combo.customerName}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{combo.id}</p>
-        </div>
-        <span className={`text-[10px] lg:text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${STATUS_COLOR[combo.status]}`}>
-          {STATUS_LABEL[combo.status]}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-600 flex-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <User className="w-4 h-4 text-indigo-600 shrink-0" />
-          <span className="truncate">{combo.customerName}</span>
-        </div>
-        <div className="font-medium flex items-center gap-2 min-w-0">
-          <Phone className="w-4 h-4 text-indigo-600 shrink-0" />
-          <a href={`tel:${combo.customerPhone}`} className="text-indigo-700 font-medium truncate" onClick={(e) => e.stopPropagation()}>{combo.customerPhone}</a>
-        </div>
-        <div className="flex items-center gap-2 sm:col-span-2">
-          <Package className="w-4 h-4 text-indigo-600 shrink-0" />
-          <span>Combo {durationLabel} · {combo.totalPrice.toLocaleString('vi-VN')}đ</span>
-        </div>
-        {combo.deliveryAddress && (
-          <div className="flex items-start gap-2 sm:col-span-2">
-            <MapPin className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-            <span className="text-xs leading-snug line-clamp-2">{combo.deliveryAddress}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex gap-2 pt-1 mt-auto" onClick={(e) => e.stopPropagation()}>
-        {showClaim && onClaim && (
-          <button
-            type="button"
-            onClick={onClaim}
-            disabled={claiming}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-60"
-          >
-            {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Chốt đơn
-          </button>
-        )}
-        {!showClaim && combo.status === 'active' && onPause && (
-          <button type="button" onClick={onPause} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold">
-            <Pause className="w-3.5 h-3.5" /> Tạm dừng
-          </button>
-        )}
-        {!showClaim && combo.status === 'paused' && onResume && (
-          <button type="button" onClick={onResume} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-bold">
-            <Play className="w-3.5 h-3.5" /> Tiếp tục
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function CustomerRow({
   assignment,
@@ -169,14 +69,13 @@ const EMPTY_DASHBOARD: OnlineSalesDashboard = {
 
 export function OnlineSalesPortal() {
   const { activeEmployee, logout } = useOnlineSales();
-  const { combos, claimCombo, updateComboStatus, isLoading } = useCombos();
+  const { combos } = useCombos();
   const [view, setView] = useState<View>('dashboard');
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
   const [dashboard, setDashboard] = useState<OnlineSalesDashboard>(EMPTY_DASHBOARD);
   const [tasks, setTasks] = useState<SalesTask[]>([]);
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [search, setSearch] = useState('');
-  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<CustomerCareAssignment | null>(null);
   const [leadForm, setLeadForm] = useState({ fbName: '', customerName: '', customerPhone: '', notes: '' });
   const [creatingLead, setCreatingLead] = useState(false);
@@ -224,6 +123,13 @@ export function OnlineSalesPortal() {
     [assignments]
   );
 
+  const comboHubProps = {
+    variant: 'cskh' as const,
+    staffId: activeEmployee?.id,
+    staffName: activeEmployee?.fullName,
+    claimAs: activeEmployee ? { id: activeEmployee.id, name: activeEmployee.fullName } : null,
+  };
+
   const filterSearch = (items: CustomerCareAssignment[]) => {
     if (!search.trim()) return items;
     const q = search.toLowerCase();
@@ -235,18 +141,9 @@ export function OnlineSalesPortal() {
     );
   };
 
-  const handleClaim = async (comboId: string) => {
-    if (!activeEmployee) return;
-    setClaimingId(comboId);
-    try {
-      await claimCombo(comboId, activeEmployee.id, activeEmployee.fullName);
-      setView('combo');
-      await refreshData();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Không thể chốt đơn');
-    } finally {
-      setClaimingId(null);
-    }
+  const openCustomer = (phone: string) => {
+    const a = assignments.find((x) => x.customerPhone === phone);
+    if (a) setSelectedAssignment(a);
   };
 
   const handleCreateLead = async () => {
@@ -289,11 +186,6 @@ export function OnlineSalesPortal() {
     await navigator.clipboard.writeText(link);
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);
-  };
-
-  const openCustomer = (phone: string) => {
-    const a = assignments.find((x) => x.customerPhone === phone);
-    if (a) setSelectedAssignment(a);
   };
 
   const handleTaskClick = (task: SalesTask) => {
@@ -472,20 +364,10 @@ export function OnlineSalesPortal() {
             )}
 
             {view === 'pending' && (
-              isLoading ? (
-                <LoaderCenter />
-              ) : pendingCombos.length === 0 ? (
-                <EmptyState icon={ShoppingBag} title="Không có đơn chờ chốt" subtitle="Đơn combo mới từ khách online sẽ hiện ở đây" />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {pendingCombos.map((combo) => (
-                    <ComboCard key={combo.id} combo={combo} showClaim claiming={claimingId === combo.id} onClaim={() => handleClaim(combo.id)} />
-                  ))}
-                </div>
-              )
+              <CustomerComboHub {...comboHubProps} defaultStatusFilter="pending" title="Combo chờ chốt" />
             )}
 
-            {(view === 'retail' || view === 'combo') && (
+            {view === 'retail' && (
               <div className="space-y-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -497,49 +379,20 @@ export function OnlineSalesPortal() {
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm bg-white"
                   />
                 </div>
-                {view === 'retail' ? (
-                  filterSearch(retailCustomers).length === 0 ? (
-                    <EmptyState icon={Store} title="Chưa có khách lẻ" subtitle="Khách mua lẻ qua link của bạn sẽ hiện ở đây" />
-                  ) : (
-                    <div className="grid md:grid-cols-2 gap-3">
-                      {filterSearch(retailCustomers).map((a) => (
-                        <CustomerRow key={a.id} assignment={a} onClick={() => setSelectedAssignment(a)} />
-                      ))}
-                    </div>
-                  )
+                {filterSearch(retailCustomers).length === 0 ? (
+                  <EmptyState icon={Store} title="Chưa có khách lẻ" subtitle="Khách mua lẻ qua link của bạn sẽ hiện ở đây" />
                 ) : (
-                  <>
-                    <div className="grid md:grid-cols-2 gap-3 mb-4">
-                      {filterSearch(comboCustomers).map((a) => (
-                        <CustomerRow key={a.id} assignment={a} onClick={() => setSelectedAssignment(a)} />
-                      ))}
-                    </div>
-                    {isLoading ? (
-                      <LoaderCenter />
-                    ) : myCombos.length === 0 ? (
-                      <EmptyState icon={Users} title="Chưa có combo" subtitle="Chốt đơn mới để nhận khách combo" />
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {myCombos
-                          .filter((c) => {
-                            if (!search.trim()) return true;
-                            const q = search.toLowerCase();
-                            return c.customerName.toLowerCase().includes(q) || c.customerPhone.includes(q);
-                          })
-                          .map((combo) => (
-                            <ComboCard
-                              key={combo.id}
-                              combo={combo}
-                              onPause={() => updateComboStatus(combo.id, 'paused')}
-                              onResume={() => updateComboStatus(combo.id, 'active')}
-                              onSelect={() => openCustomer(combo.customerPhone)}
-                            />
-                          ))}
-                      </div>
-                    )}
-                  </>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {filterSearch(retailCustomers).map((a) => (
+                      <CustomerRow key={a.id} assignment={a} onClick={() => setSelectedAssignment(a)} />
+                    ))}
+                  </div>
                 )}
               </div>
+            )}
+
+            {view === 'combo' && (
+              <CustomerComboHub {...comboHubProps} />
             )}
       </main>
 

@@ -10,7 +10,7 @@ import { OrderHistory } from './OrderHistory';
 import { InventoryManagement } from './InventoryManagement';
 import { MenuManagement } from './MenuManagement';
 import { MacroTable } from './MacroTable';
-import { ComboDashboard } from './ComboDashboard';
+import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 
 import { useOrders } from '../../contexts/OrderContext';
@@ -352,7 +352,7 @@ export function POSInterface() {
               ) : activeTab === 'orders' ? (
                 <OrderQueue />
               ) : activeTab === 'combos' ? (
-                <ComboDashboard />
+                <CustomerComboHub variant="pos" branchId={selectedBranch || undefined} className="p-4" />
               ) : activeTab === 'warehouse' ? (
                 <InventoryManagement />
               ) : activeTab === 'admin' ? (

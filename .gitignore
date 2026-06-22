@@ -81,3 +81,7 @@ dist-ssr/
 # Database / temporary data files
 data/
 backend/uploads/
+backend/sinhto.db
+
+# Internal credentials reference (do not commit)
+THONG-TIN-DANG-NHAP.txt

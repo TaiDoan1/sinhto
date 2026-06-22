@@ -1226,6 +1226,7 @@ function parseComboRow(row) {
     deliveryDays: typeof row.deliveryDays === 'string' ? JSON.parse(row.deliveryDays || '[]') : (row.deliveryDays || []),
     deliveryLog: deliveryLog || [],
     lastDeliveredAt: row.lastDeliveredAt || null,
+    totalCups: row.totalCups != null ? Number(row.totalCups) : 7,
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1325,8 +1326,9 @@ app.post('/api/combo-subscriptions', (req, res) => {
     id, orderId, customerName, customerPhone, planName, comboType, comboDuration,
     startDate, nextDelivery, deliveryDays, items, totalPrice, status, branchId,
     deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
-    closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
+    lastDeliveredAt, deliveryLog, totalCups, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -1337,7 +1339,7 @@ app.post('/api/combo-subscriptions', (req, res) => {
     body.closedByStaffId || null, body.closedByStaffName || null,
     body.closedAt || null, body.assignedAt || null,
     body.pauseStartDate || null, body.pauseEndDate || null, body.notes || '',
-    normStr(body.staff) || '', now, now
+    normStr(body.staff) || '', null, '[]', body.totalCups || 7, now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, row) => {
@@ -1394,7 +1396,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
-        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, updatedAt = ?
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1422,6 +1424,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         normStr(merged.staff ?? row.staff),
         merged.lastDeliveredAt ?? row.lastDeliveredAt,
         merged.deliveryLog ?? row.deliveryLog ?? '[]',
+        merged.totalCups ?? row.totalCups ?? 7,
         now,
         id,
       ],

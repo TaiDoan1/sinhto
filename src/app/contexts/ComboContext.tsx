@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { ComboItem, ComboDeliveryLogEntry } from '../types/combo';
-import { getCombosDueToday, calculateNextDeliveryDate, deriveDeliveryDays, normalizeComboItems, parseDeliveryLog } from '../utils/comboUtils';
+import { getCombosDueToday, calculateNextDeliveryDate, deriveDeliveryDays, normalizeComboItems, parseDeliveryLog, getComboItemForToday, getComboProgress } from '../utils/comboUtils';
 import { useSSE } from './SSEContext';
 import * as api from '../utils/api';
 import { withSalesRef } from '../utils/salesRef';
@@ -37,6 +37,7 @@ export interface ComboSubscription {
   notes?: string;
   lastDeliveredAt?: string;
   deliveryLog?: ComboDeliveryLogEntry[];
+  totalCups?: number;
 }
 
 export interface ComboNotification {
@@ -57,7 +58,7 @@ interface ComboContextType {
   updateCombo: (comboId: string, updates: Partial<ComboSubscription>) => Promise<void>;
   updateComboStatus: (comboId: string, status: ComboSubscription['status'], extra?: Partial<ComboSubscription>) => Promise<void>;
   claimCombo: (comboId: string, employeeId: string, employeeName: string) => Promise<void>;
-  confirmDelivery: (comboId: string, performedBy: string, branchId: string) => Promise<boolean>;
+  confirmDelivery: (comboId: string, performedBy: string, branchId: string, shipNote?: string) => Promise<boolean>;
   refreshCombos: () => Promise<void>;
   getTodayDeliveries: (branchId?: string) => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
@@ -82,6 +83,7 @@ function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
     deliveryDays: (deliveryDays || deriveDeliveryDays(normalizedItems)) as number[],
     deliveryLog: parseDeliveryLog(raw.deliveryLog),
     lastDeliveredAt: (raw.lastDeliveredAt as string) || undefined,
+    totalCups: raw.totalCups != null ? Number(raw.totalCups) : undefined,
     startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
     nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
     updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,
@@ -205,31 +207,42 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const confirmDelivery = async (comboId: string, performedBy: string, branchId: string) => {
+  const confirmDelivery = async (comboId: string, performedBy: string, branchId: string, shipNote?: string) => {
     const combo = combos.find((c) => c.id === comboId);
     if (!combo) return false;
 
     const today = new Date().toISOString().split('T')[0];
-    const todayItem = normalizeComboItems(combo.items).find((i) => i.assignedDay === new Date().getDay())
-      || normalizeComboItems(combo.items)[0];
-    const productName = todayItem?.productName || 'FitBlend';
+    const todayItem = getComboItemForToday(combo);
+    const productName = todayItem?.productName || combo.planName || 'FitBlend';
 
     const log = [...(combo.deliveryLog || [])];
-    log.push({ date: today, productName, performedBy, branchId });
+    log.push({
+      date: today,
+      productName,
+      size: todayItem?.size,
+      protein: todayItem?.protein,
+      toppings: todayItem?.toppings,
+      address: combo.deliveryAddress,
+      performedBy,
+      branchId,
+      note: shipNote,
+    });
 
+    const progress = getComboProgress({ ...combo, deliveryLog: log });
     const nextDelivery = calculateNextDeliveryDate(new Date(), combo.deliveryDays);
 
     await updateCombo(comboId, {
       lastDeliveredAt: new Date().toISOString(),
       deliveryLog: log,
       nextDelivery,
+      status: progress.isComplete ? 'completed' : combo.status,
     });
 
     addNotification({
       comboId,
       customerName: combo.customerName,
       type: 'deliver',
-      message: `Đã giao ${productName} cho ${combo.customerName}`,
+      message: `Đã giao ${productName} cho ${combo.customerName} (${progress.delivered}/${progress.total})`,
     });
     return true;
   };

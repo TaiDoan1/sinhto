@@ -4,6 +4,16 @@ import { lineToIngredients, type RecipeIngredient } from './inventoryRecipes';
 const DAY_MAP = [1, 2, 3, 4, 5, 6, 0];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
+const PLAN_SPECS: Record<string, { size: string; protein: number }> = {
+  'fat-loss': { size: '360ml', protein: 40 },
+  'muscle-build': { size: '500ml', protein: 60 },
+  'elite-mass': { size: '700ml', protein: 90 },
+};
+
+function planSpecs(planId?: string) {
+  return PLAN_SPECS[planId || 'fat-loss'] || PLAN_SPECS['fat-loss'];
+}
+
 function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
@@ -51,6 +61,11 @@ export function normalizeComboItems(items: unknown): ComboItem[] {
 
   if (typeof items === 'object') {
     const raw = items as Record<string, unknown>;
+    const specs = planSpecs(raw.planId as string);
+    const globalToppings: string[] = [];
+    if (Array.isArray(raw.selectedSingleToppings)) {
+      globalToppings.push(...(raw.selectedSingleToppings as string[]));
+    }
     if (Array.isArray(raw.selectedFlavors)) {
       return raw.selectedFlavors
         .map((flavor, idx) => {
@@ -59,9 +74,9 @@ export function normalizeComboItems(items: unknown): ComboItem[] {
             assignedDay: DAY_MAP[idx],
             dayLabel: DAY_LABELS[idx],
             productName: String(flavor),
-            size: '360ml',
-            protein: 40,
-            toppings: [],
+            size: specs.size,
+            protein: specs.protein,
+            toppings: [...globalToppings],
           };
         })
         .filter(Boolean) as ComboItem[];
@@ -145,6 +160,59 @@ export function getRecipeIngredientsForComboItem(item: ComboItem | null): Recipe
   });
 }
 
+export function calculateTotalCups(raw: Record<string, unknown>): number {
+  const flavors = (raw.selectedFlavors as string[])?.filter(Boolean) || [];
+  const perWeek = flavors.length || 7;
+  const qty = Number(raw.quantity) || 1;
+  const duration = (raw.duration as string) || 'weekly';
+  const weeks = duration === 'weekly' ? 1 : duration === 'monthly' ? 4 : duration === 'quarterly' ? 12 : 1;
+  return perWeek * qty * weeks;
+}
+
+export function getComboProgress(combo: ComboSubscriptionLike): {
+  delivered: number;
+  total: number;
+  remaining: number;
+  label: string;
+  isComplete: boolean;
+} {
+  const delivered = parseDeliveryLog(combo.deliveryLog).length;
+  const normalized = normalizeComboItems(combo.items);
+  const total = combo.totalCups || normalized.length || 7;
+  const remaining = Math.max(0, total - delivered);
+  return {
+    delivered,
+    total,
+    remaining,
+    label: `${delivered}/${total} ly`,
+    isComplete: delivered >= total,
+  };
+}
+
+/** Tin nhắn gửi nhóm Zalo SHIP COMBO */
+export function formatZaloShipMessage(combo: ComboSubscriptionLike, shipNote?: string): string {
+  const item = getComboItemForToday(combo);
+  const progress = getComboProgress(combo);
+  const size = item?.size || '360ml';
+  const protein = item?.protein ?? 40;
+  const flavor = item?.productName || combo.planName || 'FitBlend';
+  const toppings = item?.toppings?.length ? ` - ${item.toppings.join(' - ')}` : '';
+  const now = new Date();
+  const timeStr = `${now.getHours()}h ${now.toLocaleDateString('vi-VN')}`;
+
+  const lines = [
+    `📋 Đơn combo - đã thanh toán`,
+    `🥤 1 ly ${size} ${protein}gr protein - ${flavor}${toppings}`,
+    shipNote ? `📝 ${shipNote}` : '',
+    combo.deliveryAddress ? `📍 ${combo.deliveryAddress}` : '',
+    combo.customerPhone ? `📞 tel:${combo.customerPhone}` : '',
+    combo.customerName ? `👤 ${combo.customerName}` : '',
+    `🕐 Giao: ${timeStr}`,
+    `✅ Done: ${progress.delivered}/${progress.total} ly`,
+  ];
+  return lines.filter(Boolean).join('\n');
+}
+
 export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
   customerName: string;
   customerPhone: string;
@@ -159,6 +227,9 @@ export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
   const items = normalizeComboItems(raw);
   const deliveryDays = deriveDeliveryDays(items);
   const startIso = raw.startDate ? new Date(raw.startDate as string).toISOString() : new Date().toISOString();
+  const toppingNote = Array.isArray(raw.selectedSingleToppings)
+    ? (raw.selectedSingleToppings as string[]).join(', ')
+    : '';
 
   return {
     orderId: extras.orderId,
@@ -172,9 +243,11 @@ export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
     nextDelivery: new Date(startIso),
     deliveryDays,
     items,
+    totalCups: calculateTotalCups(raw),
     totalPrice: extras.totalPrice,
     status: extras.status || 'pending',
     branchId: extras.branchId,
     staff: extras.staff,
+    notes: toppingNote,
   };
 }

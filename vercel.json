@@ -22,6 +22,10 @@
     { "source": "/staff/:path*", "destination": "/index.html" },
     { "source": "/nv", "destination": "/index.html" },
     { "source": "/nv/:path*", "destination": "/index.html" },
+    { "source": "/ship-combo", "destination": "/index.html" },
+    { "source": "/ship-combo/:path*", "destination": "/index.html" },
+    { "source": "/giao-combo", "destination": "/index.html" },
+    { "source": "/giao-combo/:path*", "destination": "/index.html" },
     { "source": "/shipper", "destination": "/index.html" },
     { "source": "/shipper/:path*", "destination": "/index.html" }
   ]

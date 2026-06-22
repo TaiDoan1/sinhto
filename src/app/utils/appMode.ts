@@ -1,4 +1,4 @@
-export type AppMode = 'customer' | 'online-sales' | 'staff' | 'pos' | 'admin' | 'shipper';
+export type AppMode = 'customer' | 'online-sales' | 'staff' | 'pos' | 'admin' | 'shipper' | 'combo-ship';
 
 const PATH_MODE: { prefix: string; mode: AppMode }[] = [
   { prefix: '/admin', mode: 'admin' },
@@ -9,6 +9,8 @@ const PATH_MODE: { prefix: string; mode: AppMode }[] = [
   { prefix: '/staff', mode: 'staff' },
   { prefix: '/nv', mode: 'staff' },
   { prefix: '/shipper', mode: 'shipper' },
+  { prefix: '/ship-combo', mode: 'combo-ship' },
+  { prefix: '/giao-combo', mode: 'combo-ship' },
 ];
 
 export function getModeFromPath(pathname = window.location.pathname): AppMode {
@@ -25,6 +27,7 @@ export function pathForMode(mode: AppMode): string {
     case 'online-sales': return '/cs';
     case 'staff': return '/staff';
     case 'shipper': return '/shipper';
+    case 'combo-ship': return '/ship-combo';
     default: return '/';
   }
 }

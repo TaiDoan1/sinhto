@@ -1,4 +1,4 @@
-import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe, Truck } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'inventory', label: 'Kho Hàng', icon: Package },
     { id: 'products', label: 'Sản Phẩm', icon: ShoppingBag },
     { id: 'combos', label: 'Quản Lý Combo', icon: Coffee },
+    { id: 'combo-ship', label: 'Giao Combo Hôm Nay', icon: Truck },
     { id: 'online-sales', label: 'Bán Hàng Online', icon: Globe },
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
   ];

@@ -11,6 +11,7 @@ import { OnlineSalesApp } from './components/online-sales/OnlineSalesApp';
 import { OnlineSalesProvider } from './contexts/OnlineSalesContext';
 import { AdminProvider, useAdmin } from './contexts/AdminContext';
 import { CustomerApp } from './components/customer/CustomerApp';
+import { ComboShipBoard } from './components/combo-ship/ComboShipBoard';
 import { ShipperApp } from './components/shipper/ShipperApp';
 import { ProductManagement } from './components/admin/ProductManagement';
 import { ComboManagement } from './components/admin/ComboManagement';
@@ -38,6 +39,7 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
     { id: 'online-sales', label: '🛍️ CSKH' },
     { id: 'staff', label: '👤 NV' },
     { id: 'pos', label: '💳 POS' },
+    { id: 'combo-ship', label: '🚚 Giao Combo' },
     { id: 'admin', label: '⚙️ Admin' },
   ];
 
@@ -84,6 +86,7 @@ function AdminShell() {
       case 'inventory': return <InventoryDashboard />;
       case 'products': return <ProductManagement />;
       case 'combos': return <ComboManagement />;
+      case 'combo-ship': return <ComboShipBoard />;
       case 'loyalty': return <LoyaltyManagement />;
       case 'online-sales': return <CustomerCareManagement />;
       default: return <BranchOverview />;
@@ -186,6 +189,17 @@ function AppContent() {
         {devNav}
         <div className={devPad}>
           <ShipperApp />
+        </div>
+      </>
+    );
+  }
+
+  if (mode === 'combo-ship') {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <ComboShipBoard />
         </div>
       </>
     );

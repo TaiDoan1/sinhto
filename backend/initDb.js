@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS combo_subscriptions (
   staff TEXT,
   "lastDeliveredAt" TEXT,
   "deliveryLog" TEXT DEFAULT '[]',
+  "totalCups" INTEGER DEFAULT 7,
   "createdAt" TEXT,
   "updatedAt" TEXT
 );
@@ -256,6 +257,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(SCHEMA_SQL);
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "lastDeliveredAt" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveryLog" TEXT DEFAULT '[]'`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "totalCups" INTEGER DEFAULT 7`).catch(() => {});
 
   if ((await countRows(pool, 'settings')) === 0) {
     console.log('Seeding default settings...');

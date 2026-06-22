@@ -38,6 +38,9 @@ export interface ComboSubscription {
   lastDeliveredAt?: string;
   deliveryLog?: ComboDeliveryLogEntry[];
   totalCups?: number;
+  deliveredCups?: number;
+  commissionAmount?: number;
+  commissionStatus?: 'pending' | 'approved' | 'paid';
 }
 
 export interface ComboNotification {
@@ -59,6 +62,7 @@ interface ComboContextType {
   updateComboStatus: (comboId: string, status: ComboSubscription['status'], extra?: Partial<ComboSubscription>) => Promise<void>;
   claimCombo: (comboId: string, employeeId: string, employeeName: string) => Promise<void>;
   confirmDelivery: (comboId: string, performedBy: string, branchId: string, shipNote?: string) => Promise<boolean>;
+  postponeDelivery: (comboId: string, note?: string) => Promise<boolean>;
   refreshCombos: () => Promise<void>;
   getTodayDeliveries: (branchId?: string) => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
@@ -84,6 +88,9 @@ function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
     deliveryLog: parseDeliveryLog(raw.deliveryLog),
     lastDeliveredAt: (raw.lastDeliveredAt as string) || undefined,
     totalCups: raw.totalCups != null ? Number(raw.totalCups) : undefined,
+    deliveredCups: raw.deliveredCups != null ? Number(raw.deliveredCups) : undefined,
+    commissionAmount: raw.commissionAmount != null ? Number(raw.commissionAmount) : undefined,
+    commissionStatus: raw.commissionStatus as ComboSubscription['commissionStatus'],
     startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
     nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
     updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,
@@ -215,6 +222,34 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     const todayItem = getComboItemForToday(combo);
     const productName = todayItem?.productName || combo.planName || 'FitBlend';
 
+    try {
+      const pendingLogs = await api.fetchDeliveryLogs({
+        comboOrderId: comboId,
+        date: today,
+        status: 'pending',
+      });
+
+      if (pendingLogs.length > 0) {
+        const result = await api.deliverDeliveryLog(pendingLogs[0].id, {
+          performedBy,
+          branchId,
+          flavorNote: shipNote,
+          inventoryDeducted: true,
+        });
+        const normalized = normalizeCombo(result.combo);
+        setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
+        addNotification({
+          comboId,
+          customerName: combo.customerName,
+          type: 'deliver',
+          message: `Đã giao ${productName} cho ${combo.customerName} (${normalized.deliveredCups ?? 0}/${normalized.totalCups ?? 7} ly)`,
+        });
+        return true;
+      }
+    } catch (err) {
+      console.warn('delivery_logs API fallback:', err);
+    }
+
     const log = [...(combo.deliveryLog || [])];
     log.push({
       date: today,
@@ -234,6 +269,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     await updateCombo(comboId, {
       lastDeliveredAt: new Date().toISOString(),
       deliveryLog: log,
+      deliveredCups: progress.delivered,
       nextDelivery,
       status: progress.isComplete ? 'completed' : combo.status,
     });
@@ -245,6 +281,37 @@ export function ComboProvider({ children }: { children: ReactNode }) {
       message: `Đã giao ${productName} cho ${combo.customerName} (${progress.delivered}/${progress.total})`,
     });
     return true;
+  };
+
+  const postponeDelivery = async (comboId: string, note?: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const combo = combos.find((c) => c.id === comboId);
+    if (!combo) return false;
+
+    try {
+      const pendingLogs = await api.fetchDeliveryLogs({
+        comboOrderId: comboId,
+        date: today,
+        status: 'pending',
+      });
+      if (!pendingLogs.length) {
+        alert('Không có lịch giao pending hôm nay.');
+        return false;
+      }
+      const result = await api.postponeDeliveryLog(pendingLogs[0].id, { note });
+      const normalized = normalizeCombo(result.combo);
+      setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
+      addNotification({
+        comboId,
+        customerName: combo.customerName,
+        type: 'update',
+        message: `Đã hoãn giao ${combo.customerName} sang ngày mai`,
+      });
+      return true;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Hoãn giao thất bại');
+      return false;
+    }
   };
 
   const addNotification = (notif: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => {
@@ -275,6 +342,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
         updateComboStatus,
         claimCombo,
         confirmDelivery,
+        postponeDelivery,
         refreshCombos,
         getTodayDeliveries,
         markNotificationAsRead,

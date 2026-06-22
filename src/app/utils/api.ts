@@ -489,6 +489,99 @@ export async function claimComboSubscription(id: string, employeeId: string, emp
   return res.json();
 }
 
+export async function fetchDeliveryLogs(params?: {
+  branchId?: string;
+  date?: string;
+  comboOrderId?: string;
+  status?: string;
+  careStaffId?: string;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.branchId) qs.set('branchId', params.branchId);
+  if (params?.date) qs.set('date', params.date);
+  if (params?.comboOrderId) qs.set('comboOrderId', params.comboOrderId);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.careStaffId) qs.set('careStaffId', params.careStaffId);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/delivery-logs${query ? `?${query}` : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch delivery logs');
+  return res.json();
+}
+
+export async function deliverDeliveryLog(
+  id: string,
+  body: { performedBy: string; branchId?: string; flavorNote?: string; inventoryDeducted?: boolean }
+) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/deliver`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to confirm delivery');
+  }
+  return res.json();
+}
+
+export async function postponeDeliveryLog(id: string, body?: { note?: string }) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/postpone`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to postpone delivery');
+  }
+  return res.json();
+}
+
+export async function changeDeliveryLogBranch(id: string, branchId: string) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/branch`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branchId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to change branch');
+  }
+  return res.json();
+}
+
+export async function transferComboSales(body: {
+  comboIds: string[];
+  toSalesId: string;
+  toSalesName: string;
+  transferredBy?: string;
+  note?: string;
+}) {
+  const res = await fetch(`${BASE_URL}/combo-subscriptions/transfer-sales`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to transfer combos');
+  }
+  return res.json();
+}
+
+export async function updateComboCommission(
+  id: string,
+  body: { commissionStatus: string; commissionAmount?: number }
+) {
+  const res = await fetch(`${BASE_URL}/combo-subscriptions/${id}/commission`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error('Failed to update commission');
+  return res.json();
+}
+
 export async function fetchCareAssignments(careStaffId?: string) {
   const qs = careStaffId ? `?careStaffId=${encodeURIComponent(careStaffId)}` : '';
   const res = await fetch(`${BASE_URL}/customer-care/assignments${qs}`);

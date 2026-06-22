@@ -258,6 +258,46 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "lastDeliveredAt" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveryLog" TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "totalCups" INTEGER DEFAULT 7`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveredCups" INTEGER DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionAmount" INTEGER DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionStatus" TEXT DEFAULT 'pending'`).catch(() => {});
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS delivery_logs (
+      id TEXT PRIMARY KEY,
+      combo_order_id TEXT NOT NULL,
+      branch_id TEXT NOT NULL,
+      delivery_date TEXT NOT NULL,
+      scheduled_day_index INTEGER,
+      product_id TEXT,
+      product_name TEXT,
+      size TEXT,
+      protein INTEGER,
+      toppings TEXT DEFAULT '[]',
+      flavor_note TEXT,
+      status TEXT DEFAULT 'pending',
+      performed_by TEXT,
+      performed_at TEXT,
+      postponed_from_id TEXT,
+      inventory_deducted INTEGER DEFAULT 0,
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS combo_transfers (
+      id TEXT PRIMARY KEY,
+      combo_order_id TEXT NOT NULL,
+      from_sales_id TEXT,
+      from_sales_name TEXT,
+      to_sales_id TEXT NOT NULL,
+      to_sales_name TEXT NOT NULL,
+      transferred_by TEXT,
+      transferred_at TEXT,
+      note TEXT
+    )
+  `).catch(() => {});
 
   if ((await countRows(pool, 'settings')) === 0) {
     console.log('Seeding default settings...');

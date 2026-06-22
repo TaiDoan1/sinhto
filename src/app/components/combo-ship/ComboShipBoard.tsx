@@ -24,13 +24,14 @@ const branches = [
 type Tab = 'today' | 'done' | 'all';
 
 export function ComboShipBoard() {
-  const { combos, confirmDelivery, isLoading } = useCombos();
+  const { combos, confirmDelivery, postponeDelivery, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
 
   const [branchId, setBranchId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('today');
   const [shipNotes, setShipNotes] = useState<Record<string, string>>({});
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [postponingId, setPostponingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -97,6 +98,15 @@ export function ComboShipBoard() {
       await confirmDelivery(combo.id, `Ship ${branchId}`, branchId, shipNotes[combo.id]);
     } finally {
       setDeliveringId(null);
+    }
+  };
+
+  const handlePostpone = async (combo: ComboSubscription) => {
+    setPostponingId(combo.id);
+    try {
+      await postponeDelivery(combo.id, shipNotes[combo.id]);
+    } finally {
+      setPostponingId(null);
     }
   };
 
@@ -293,14 +303,24 @@ export function ComboShipBoard() {
                     {copiedId === combo.id ? 'Đã copy!' : 'Copy Zalo'}
                   </button>
                   {!isDone && tab === 'today' && (
-                    <button
-                      onClick={() => handleDeliver(combo)}
-                      disabled={deliveringId === combo.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold hover:bg-emerald-800 disabled:opacity-60"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {deliveringId === combo.id ? '...' : 'Đã giao'}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleDeliver(combo)}
+                        disabled={deliveringId === combo.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold hover:bg-emerald-800 disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {deliveringId === combo.id ? '...' : 'Đã giao'}
+                      </button>
+                      <button
+                        onClick={() => handlePostpone(combo)}
+                        disabled={postponingId === combo.id}
+                        className="px-3 py-2.5 rounded-xl border border-orange-200 text-orange-700 text-xs font-bold disabled:opacity-60"
+                        title="Hoãn giao, không trừ ly"
+                      >
+                        {postponingId === combo.id ? '...' : 'Hoãn'}
+                      </button>
+                    </>
                   )}
                 </div>
 

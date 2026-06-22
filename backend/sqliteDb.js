@@ -106,6 +106,37 @@ CREATE TABLE IF NOT EXISTS sales_activities (
   id TEXT PRIMARY KEY, customerPhone TEXT, leadId TEXT, careStaffId TEXT, careStaffName TEXT,
   activityType TEXT, content TEXT, createdAt TEXT
 );
+CREATE TABLE IF NOT EXISTS delivery_logs (
+  id TEXT PRIMARY KEY,
+  combo_order_id TEXT NOT NULL,
+  branch_id TEXT NOT NULL,
+  delivery_date TEXT NOT NULL,
+  scheduled_day_index INTEGER,
+  product_id TEXT,
+  product_name TEXT,
+  size TEXT,
+  protein INTEGER,
+  toppings TEXT DEFAULT '[]',
+  flavor_note TEXT,
+  status TEXT DEFAULT 'pending',
+  performed_by TEXT,
+  performed_at TEXT,
+  postponed_from_id TEXT,
+  inventory_deducted INTEGER DEFAULT 0,
+  created_at TEXT,
+  updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS combo_transfers (
+  id TEXT PRIMARY KEY,
+  combo_order_id TEXT NOT NULL,
+  from_sales_id TEXT,
+  from_sales_name TEXT,
+  to_sales_id TEXT NOT NULL,
+  to_sales_name TEXT NOT NULL,
+  transferred_by TEXT,
+  transferred_at TEXT,
+  note TEXT
+);
 `;
 
 async function seedIfEmpty(db) {
@@ -229,6 +260,9 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN lastDeliveredAt TEXT",
     "ALTER TABLE combo_subscriptions ADD COLUMN deliveryLog TEXT DEFAULT '[]'",
     "ALTER TABLE combo_subscriptions ADD COLUMN totalCups INTEGER DEFAULT 7",
+    "ALTER TABLE combo_subscriptions ADD COLUMN deliveredCups INTEGER DEFAULT 0",
+    "ALTER TABLE combo_subscriptions ADD COLUMN commissionAmount INTEGER DEFAULT 0",
+    "ALTER TABLE combo_subscriptions ADD COLUMN commissionStatus TEXT DEFAULT 'pending'",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

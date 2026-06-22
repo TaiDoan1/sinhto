@@ -176,7 +176,10 @@ export function getComboProgress(combo: ComboSubscriptionLike): {
   label: string;
   isComplete: boolean;
 } {
-  const delivered = parseDeliveryLog(combo.deliveryLog).length;
+  const delivered =
+    combo.deliveredCups != null
+      ? Number(combo.deliveredCups)
+      : parseDeliveryLog(combo.deliveryLog).length;
   const normalized = normalizeComboItems(combo.items);
   const total = combo.totalCups || normalized.length || 7;
   const remaining = Math.max(0, total - delivered);

@@ -53,9 +53,11 @@ function ComboCustomerCard({
   onResume,
   onComplete,
   onDeliver,
+  onPostpone,
   onSaveEdit,
   claiming,
   delivering,
+  postponing,
 }: {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
@@ -65,9 +67,11 @@ function ComboCustomerCard({
   onResume?: () => void;
   onComplete?: () => void;
   onDeliver?: (note: string) => void;
+  onPostpone?: (note: string) => void;
   onSaveEdit?: (address: string, notes: string) => void;
   claiming?: boolean;
   delivering?: boolean;
+  postponing?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [shipNote, setShipNote] = useState('');
@@ -153,6 +157,11 @@ function ComboCustomerCard({
         {combo.careStaffName && (
           <p className="text-xs text-gray-400 mt-1">CS: {combo.careStaffName}</p>
         )}
+        {variant === 'admin' && combo.commissionAmount != null && combo.commissionAmount > 0 && (
+          <p className="text-xs text-amber-700 mt-1">
+            HH: {combo.commissionAmount.toLocaleString('vi-VN')}đ · {combo.commissionStatus || 'pending'}
+          </p>
+        )}
 
         {/* Actions row */}
         <div className="mt-3 flex flex-wrap gap-2">
@@ -232,6 +241,17 @@ function ComboCustomerCard({
               <Truck className="w-4 h-4" />
               {delivering ? 'Đang xử lý...' : 'Xác nhận giao & Trừ kho'}
             </button>
+            {onPostpone && (
+              <button
+                type="button"
+                onClick={() => onPostpone(shipNote)}
+                disabled={postponing}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-orange-200 text-orange-700 text-sm font-bold disabled:opacity-60"
+              >
+                <Calendar className="w-4 h-4" />
+                {postponing ? 'Đang hoãn...' : 'Hoãn giao (không trừ ly)'}
+              </button>
+            )}
           </div>
         )}
 
@@ -304,7 +324,7 @@ export function CustomerComboHub({
   className = '',
   defaultStatusFilter,
 }: CustomerComboHubProps) {
-  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, isLoading } = useCombos();
+  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
 
   const [search, setSearch] = useState('');
@@ -313,6 +333,7 @@ export function CustomerComboHub({
   );
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [postponingId, setPostponingId] = useState<string | null>(null);
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
@@ -405,6 +426,15 @@ export function CustomerComboHub({
     }
   };
 
+  const handlePostpone = async (combo: ComboSubscription, note: string) => {
+    setPostponingId(combo.id);
+    try {
+      await postponeDelivery(combo.id, note);
+    } finally {
+      setPostponingId(null);
+    }
+  };
+
   const hubTitle = title || (
     variant === 'pos' ? 'Combo Khách Hàng' :
     variant === 'cskh' ? 'Khách Combo Của Tôi' :
@@ -490,6 +520,7 @@ export function CustomerComboHub({
               variant={variant}
               claiming={claimingId === combo.id}
               delivering={deliveringId === combo.id}
+              postponing={postponingId === combo.id}
               onClaim={combo.status === 'pending' ? () => handleClaim(combo.id) : undefined}
               onActivate={combo.status === 'pending' ? () => updateComboStatus(combo.id, 'active') : undefined}
               onPause={combo.status === 'active' ? () => updateComboStatus(combo.id, 'paused') : undefined}
@@ -498,6 +529,11 @@ export function CustomerComboHub({
               onDeliver={
                 combo.status === 'active' && dueToday.some((d) => d.id === combo.id)
                   ? (note) => handleDeliver(combo, note)
+                  : undefined
+              }
+              onPostpone={
+                combo.status === 'active' && dueToday.some((d) => d.id === combo.id)
+                  ? (note) => handlePostpone(combo, note)
                   : undefined
               }
               onSaveEdit={

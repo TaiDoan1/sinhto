@@ -7,6 +7,7 @@ const { removeDiacritics, deepConvert, convertMaybeJson } = require('./vietnames
 const { hashPassword, verifyPassword, isHashed } = require('./password');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
+const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -1227,6 +1228,9 @@ function parseComboRow(row) {
     deliveryLog: deliveryLog || [],
     lastDeliveredAt: row.lastDeliveredAt || null,
     totalCups: row.totalCups != null ? Number(row.totalCups) : 7,
+    deliveredCups: row.deliveredCups != null ? Number(row.deliveredCups) : (deliveryLog || []).length,
+    commissionAmount: row.commissionAmount != null ? Number(row.commissionAmount) : 0,
+    commissionStatus: row.commissionStatus || 'pending',
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1430,8 +1434,18 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
       ],
       function(updateErr) {
         if (updateErr) return res.status(500).json({ error: updateErr.message });
-        db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
+        db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], async (e, updated) => {
           if (e || !updated) return res.status(500).json({ error: 'Failed to fetch updated combo' });
+          if (updated.status === 'active' && row.status !== 'active') {
+            try {
+              await generateDeliveryLogsForCombo(db, updated);
+              updated = await new Promise((resolve) => {
+                db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err2, row2) => resolve(row2));
+              });
+            } catch (genErr) {
+              console.error('generateDeliveryLogsForCombo:', genErr.message);
+            }
+          }
           const parsed = parseComboRow(updated);
           broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
           res.json(parsed);
@@ -1479,8 +1493,18 @@ app.post('/api/combo-subscriptions/:id/claim', (req, res) => {
             activityType: 'claim',
             content: `Chốt combo ${row.planName || id} — ${(row.totalPrice || 0).toLocaleString('vi-VN')}đ`,
           }, () => {});
-          db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
-            const parsed = parseComboRow(updated);
+          db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], async (e, updated) => {
+            if (updated) {
+              try {
+                await afterComboClaimed(db, updated);
+              } catch (claimErr) {
+                console.error('afterComboClaimed:', claimErr.message);
+              }
+            }
+            const fresh = await new Promise((resolve) => {
+              db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err2, row2) => resolve(row2));
+            });
+            const parsed = parseComboRow(fresh || updated);
             broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
             if (assignment) broadcast('CARE_ASSIGNMENT_UPDATED', parseAssignmentRow(assignment));
             res.json(parsed);
@@ -1573,6 +1597,7 @@ async function start() {
       parseAssignmentRow,
       upsertCareAssignment,
     });
+    registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

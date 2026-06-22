@@ -19,6 +19,32 @@ export interface ComboDeliveryLogEntry {
   performedBy: string;
   branchId: string;
   note?: string;
+  deliveryLogId?: string;
+}
+
+/** Bản ghi lịch giao chuẩn hóa (delivery_logs table) */
+export interface DeliveryLogRecord {
+  id: string;
+  comboOrderId: string;
+  branchId: string;
+  deliveryDate: string;
+  productName?: string;
+  productId?: string;
+  size?: string;
+  protein?: number;
+  toppings?: string[];
+  flavorNote?: string;
+  status: 'pending' | 'shipping' | 'delivered' | 'postponed';
+  performedBy?: string;
+  performedAt?: string;
+  customerName?: string;
+  customerPhone?: string;
+  planName?: string;
+  deliveryAddress?: string;
+  careStaffId?: string;
+  totalCups?: number;
+  deliveredCups?: number;
+  comboStatus?: string;
 }
 
 export interface ComboSubscriptionLike {
@@ -37,5 +63,8 @@ export interface ComboSubscriptionLike {
   deliveryLog?: unknown;
   lastDeliveredAt?: string;
   totalCups?: number;
+  deliveredCups?: number;
+  commissionAmount?: number;
+  commissionStatus?: string;
   notes?: string;
 }

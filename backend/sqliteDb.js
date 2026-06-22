@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS combo_subscriptions (
   items TEXT, totalPrice INTEGER, status TEXT DEFAULT 'pending', branchId TEXT, deliveryAddress TEXT,
   careStaffId TEXT, careStaffName TEXT, closedByStaffId TEXT, closedByStaffName TEXT,
   closedAt TEXT, assignedAt TEXT, pauseStartDate TEXT, pauseEndDate TEXT, notes TEXT, staff TEXT,
+  lastDeliveredAt TEXT, deliveryLog TEXT DEFAULT '[]',
   createdAt TEXT, updatedAt TEXT
 );
 CREATE TABLE IF NOT EXISTS customer_care_assignments (
@@ -225,6 +226,8 @@ async function init() {
     "ALTER TABLE customer_care_assignments ADD COLUMN lastContactAt TEXT",
     "ALTER TABLE customer_care_assignments ADD COLUMN tags TEXT DEFAULT '[]'",
     "ALTER TABLE customer_care_assignments ADD COLUMN salesRefCode TEXT DEFAULT ''",
+    "ALTER TABLE combo_subscriptions ADD COLUMN lastDeliveredAt TEXT",
+    "ALTER TABLE combo_subscriptions ADD COLUMN deliveryLog TEXT DEFAULT '[]'",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

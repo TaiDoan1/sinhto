@@ -185,6 +185,8 @@ CREATE TABLE IF NOT EXISTS combo_subscriptions (
   "pauseEndDate" TEXT,
   notes TEXT,
   staff TEXT,
+  "lastDeliveredAt" TEXT,
+  "deliveryLog" TEXT DEFAULT '[]',
   "createdAt" TEXT,
   "updatedAt" TEXT
 );
@@ -252,6 +254,8 @@ async function upsertSetting(pool, key, value) {
 
 async function initSchemaAndSeeds(pool) {
   await pool.query(SCHEMA_SQL);
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "lastDeliveredAt" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveryLog" TEXT DEFAULT '[]'`).catch(() => {});
 
   if ((await countRows(pool, 'settings')) === 0) {
     console.log('Seeding default settings...');

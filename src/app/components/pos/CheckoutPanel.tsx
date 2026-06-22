@@ -6,16 +6,18 @@ import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
+import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 
 type CheckoutStep = 'cart' | 'loyalty' | 'payment';
 
 interface CheckoutPanelProps {
   cart: CartItem[];
+  branchId: string;
   onRemoveItem: (index: number) => void;
   onClearCart: () => void;
 }
 
-export function CheckoutPanel({ cart, onRemoveItem, onClearCart }: CheckoutPanelProps) {
+export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: CheckoutPanelProps) {
   const { addOrder } = useOrders();
   const { addCombo } = useCombos();
   const {
@@ -83,7 +85,7 @@ export function CheckoutPanel({ cart, onRemoveItem, onClearCart }: CheckoutPanel
     }));
 
     const ok = addOrder({
-      branchId: 'CN1',
+      branchId,
       source: 'counter',
       items: orderItems,
       status: 'preparing',
@@ -98,20 +100,16 @@ export function CheckoutPanel({ cart, onRemoveItem, onClearCart }: CheckoutPanel
     orderItems.forEach(async (item) => {
       if (item.isCustomCombo && item.rawComboData) {
         try {
-          await addCombo({
+          const payload = buildComboPayloadFromRaw(item.rawComboData, {
             customerName: item.rawComboData.customerName || activeCustomer?.name || 'Khách tại quầy',
             customerPhone: item.rawComboData.customerPhone || activeCustomer?.phone || '',
-            comboType: item.rawComboData.comboType || 'weekly',
-            startDate: new Date(),
-            nextDelivery: new Date(),
-            deliveryDays: item.rawComboData.deliveryDays || [1, 2, 3, 4, 5],
-            items: item.rawComboData.items || item.rawComboData,
             totalPrice: item.price,
-            status: 'active',
+            branchId,
             staff: 'POS - Nhân viên quầy',
-            branchId: 'CN1',
+            status: 'pending',
             planName: item.name,
           });
+          await addCombo(payload);
         } catch (err) {
           console.error('Failed to create combo:', err);
         }

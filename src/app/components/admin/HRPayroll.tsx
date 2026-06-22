@@ -55,98 +55,105 @@ export function HRPayroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
 
-  const [salarySettings, setSalarySettings] = useState<SalarySettings>(() => {
-    const saved = localStorage.getItem('salarySettings');
-    return saved ? JSON.parse(saved) : {
-      baseSalaryMin: 5000000,
-      baseSalaryMax: 15000000,
-      standardWorkHours: 160,
-      comboBonus: 50000,
-    };
+  const [salarySettings, setSalarySettings] = useState<SalarySettings>({
+    baseSalaryMin: 5000000,
+    baseSalaryMax: 15000000,
+    standardWorkHours: 160,
+    comboBonus: 50000,
   });
 
-  const [otSettings, setOTSettings] = useState<OTSettings>(() => {
-    const saved = localStorage.getItem('otSettings');
-    return saved ? JSON.parse(saved) : {
-      otRate: 1.5,
-      otThreshold: 8,
-      weekendOTRate: 2.0,
-      holidayOTRate: 3.0,
-    };
+  const [otSettings, setOTSettings] = useState<OTSettings>({
+    otRate: 1.5,
+    otThreshold: 8,
+    weekendOTRate: 2.0,
+    holidayOTRate: 3.0,
   });
 
   const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
+  const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string }[]>([]);
 
-  // Load employees and shifts from backend
   useEffect(() => {
-    Promise.all([api.fetchEmployees(), api.fetchShifts()])
-      .then(([empData, shiftData]) => {
-        setEmployees(empData);
-        setShifts(shiftData);
-      })
-      .catch(err => console.error('Failed to fetch employees and shifts:', err));
+    Promise.all([
+      api.fetchSetting('hrSalarySettings').catch(() => null),
+      api.fetchSetting('hrOtSettings').catch(() => null),
+    ]).then(([salary, ot]) => {
+      if (salary && typeof salary === 'object') setSalarySettings(salary as SalarySettings);
+      if (ot && typeof ot === 'object') setOTSettings(ot as OTSettings);
+    });
   }, []);
 
-  // Generate checkin records once employees are loaded
   useEffect(() => {
-    const saved = localStorage.getItem('checkinRecords');
-    if (saved) {
-      setCheckinRecords(JSON.parse(saved));
-    } else if (employees.length > 0) {
-      const sampleRecords: CheckInRecord[] = [];
-      const today = new Date();
+    Promise.all([api.fetchEmployees(), api.fetchShifts(), api.fetchComboSubscriptions()])
+      .then(([empData, shiftData, comboData]) => {
+        setEmployees(empData);
+        setShifts(shiftData);
+        setComboSubscriptions(comboData);
+      })
+      .catch((err) => console.error('Failed to fetch HR data:', err));
+  }, []);
 
-      employees.forEach(emp => {
-        for (let i = 0; i < 7; i++) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-
-          const checkInHour = 8 + Math.floor(Math.random() * 2);
-          const checkInMinute = Math.floor(Math.random() * 60);
-          const checkOutHour = 17 + Math.floor(Math.random() * 2);
-          const checkOutMinute = Math.floor(Math.random() * 60);
-
-          sampleRecords.push({
-            id: `${emp.id}-${i}`,
-            employeeId: emp.employeeId,
-            employeeName: emp.fullName,
-            date: date.toISOString().split('T')[0],
-            checkInTime: `${checkInHour.toString().padStart(2, '0')}:${checkInMinute.toString().padStart(2, '0')}`,
-            checkOutTime: `${checkOutHour.toString().padStart(2, '0')}:${checkOutMinute.toString().padStart(2, '0')}`,
-            location: emp.branch,
-            status: checkInHour > 8 || (checkInHour === 8 && checkInMinute > 30) ? 'late' : 'on-time',
-          });
-        }
-      });
-
-      setCheckinRecords(sampleRecords.sort((a, b) => b.date.localeCompare(a.date)));
-    }
-  }, [employees]);
+  // Real check-in records from shifts
+  useEffect(() => {
+    if (employees.length === 0) return;
+    const records: CheckInRecord[] = shifts
+      .filter((s) => s.checkIn)
+      .map((s) => {
+        const emp = employees.find((e) => e.id === s.employeeId);
+        const checkInDate = new Date(s.checkIn!);
+        const checkOutDate = s.checkOut ? new Date(s.checkOut) : null;
+        const shiftStart = parseInt(s.startTime.split(':')[0], 10);
+        const isLate =
+          checkInDate.getHours() > shiftStart ||
+          (checkInDate.getHours() === shiftStart && checkInDate.getMinutes() > 15);
+        return {
+          id: s.id,
+          employeeId: emp?.employeeId || s.employeeId,
+          employeeName: s.employeeName,
+          date: s.date,
+          checkInTime: checkInDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          checkOutTime: checkOutDate
+            ? checkOutDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            : '—',
+          location: s.branch || emp?.branch || '',
+          status: isLate ? 'late' as const : 'on-time' as const,
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date) || b.checkInTime.localeCompare(a.checkInTime));
+    setCheckinRecords(records);
+  }, [employees, shifts]);
 
   useEffect(() => {
     if (employees.length > 0) {
       calculatePayroll();
     }
-  }, [employees, shifts, otSettings]);
+  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions]);
 
   const calculatePayroll = () => {
-    const records: EmployeeRecord[] = employees.map(emp => {
-      const employeeShifts = shifts.filter(s => s.employeeId === emp.id);
+    const records: EmployeeRecord[] = employees.map((emp) => {
+      const employeeShifts = shifts.filter((s) => s.employeeId === emp.id);
 
       const hoursWorked = employeeShifts.reduce((total, shift) => {
-        const start = parseInt(shift.startTime.split(':')[0]);
-        const end = parseInt(shift.endTime.split(':')[0]);
-        const hours = end > start ? end - start : (24 - start) + end;
+        const start = parseInt(shift.startTime.split(':')[0], 10);
+        const end = parseInt(shift.endTime.split(':')[0], 10);
+        const hours = end > start ? end - start : 24 - start + end;
         return total + hours;
       }, 0);
 
-      const substituteShifts = employeeShifts.filter(s => s.isSubstitute).length;
-      const overtimeHours = Math.max(0, hoursWorked - (employeeShifts.length * otSettings.otThreshold));
+      const substituteShifts = employeeShifts.filter((s) => s.isSubstitute).length;
+      const overtimeHours = Math.max(0, hoursWorked - employeeShifts.length * otSettings.otThreshold);
+
+      const comboSales = comboSubscriptions.filter(
+        (c) =>
+          (c.closedByStaffId === emp.id || c.careStaffId === emp.id) &&
+          ['active', 'completed'].includes(c.status)
+      ).length;
 
       const hourlyRate = emp.baseSalary / salarySettings.standardWorkHours;
       const otPay = overtimeHours * hourlyRate * otSettings.otRate;
-      const comboBonus = 0;
+      const comboBonus = comboSales * salarySettings.comboBonus;
       const totalSalary = emp.baseSalary + otPay + comboBonus;
+
+      const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
 
       return {
         id: emp.id,
@@ -157,12 +164,12 @@ export function HRPayroll() {
         substituteShifts,
         hoursWorked,
         overtimeHours,
-        comboSales: 0,
+        comboSales,
         baseSalary: emp.baseSalary,
         otPay,
         comboBonus,
         totalSalary,
-        selfieChecks: employeeShifts.length,
+        selfieChecks,
       };
     });
 
@@ -170,13 +177,14 @@ export function HRPayroll() {
   };
 
 
-  const saveSalarySettings = () => {
-    localStorage.setItem('salarySettings', JSON.stringify(salarySettings));
+  const saveSalarySettings = async () => {
+    await api.saveSetting('hrSalarySettings', salarySettings);
+    calculatePayroll();
     alert('Đã lưu cài đặt lương!');
   };
 
-  const saveOTSettings = () => {
-    localStorage.setItem('otSettings', JSON.stringify(otSettings));
+  const saveOTSettings = async () => {
+    await api.saveSetting('hrOtSettings', otSettings);
     calculatePayroll();
     alert('Đã lưu cài đặt OT!');
   };
@@ -372,7 +380,7 @@ export function HRPayroll() {
               <div className="flex items-start gap-3">
                 <Camera className="w-5 h-5 text-emerald-700 mt-0.5" />
                 <div className="text-sm text-gray-700">
-                  <strong>Ghi chú:</strong> Dấu chấm xanh bên cạnh số ca làm việc cho biết nhân viên đã điểm danh selfie đầy đủ cho tất cả các ca.
+                  <strong>Ghi chú:</strong> Lịch sử check-in lấy từ ca làm thực tế (Staff chấm công). Dấu chấm xanh = đã selfie check-in.
                 </div>
               </div>
             </div>

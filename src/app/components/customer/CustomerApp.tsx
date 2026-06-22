@@ -13,6 +13,7 @@ import { useAffiliate } from '../../contexts/AffiliateContext';
 import { CustomerProductGrid, type CustomerProduct } from './CustomerProductGrid';
 import { CustomerModifierModal } from './CustomerModifierModal';
 import * as api from '../../utils/api';
+import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 export type PlanId = 'fat-loss' | 'muscle-build' | 'elite-mass';
@@ -337,26 +338,18 @@ export function CustomerApp() {
         });
       } else if (item.isCustomCombo && item.rawComboData) {
         const raw = item.rawComboData;
-        const duration = raw.duration || 'weekly';
-        const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
         try {
-          await addCombo({
+          await addCombo(buildComboPayloadFromRaw(raw, {
             orderId,
             customerName: form.name,
             customerPhone: form.phone,
             deliveryAddress: form.address,
-            planName: raw.name || item.name,
-            comboType: duration === 'weekly' ? 'weekly' : 'monthly',
-            comboDuration: duration,
-            startDate: new Date(startIso),
-            nextDelivery: new Date(startIso),
-            deliveryDays: [1, 2, 3, 4, 5],
-            items: raw,
             totalPrice: item.price,
-            status: 'pending',
             branchId: 'CN1',
             staff: 'Online',
-          });
+            status: 'pending',
+            planName: raw.name || item.name,
+          }));
         } catch (err) {
           console.error('Failed to create combo subscription:', err);
         }

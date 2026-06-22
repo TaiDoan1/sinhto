@@ -1216,10 +1216,16 @@ app.patch('/api/loyalty-vouchers/:id/cancel', (req, res) => {
 
 function parseComboRow(row) {
   if (!row) return null;
+  let deliveryLog = row.deliveryLog;
+  if (typeof deliveryLog === 'string') {
+    try { deliveryLog = JSON.parse(deliveryLog || '[]'); } catch { deliveryLog = []; }
+  }
   return {
     ...row,
     items: typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []),
     deliveryDays: typeof row.deliveryDays === 'string' ? JSON.parse(row.deliveryDays || '[]') : (row.deliveryDays || []),
+    deliveryLog: deliveryLog || [],
+    lastDeliveredAt: row.lastDeliveredAt || null,
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1378,6 +1384,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
       ...updates,
       items: updates.items !== undefined ? JSON.stringify(updates.items) : row.items,
       deliveryDays: updates.deliveryDays !== undefined ? JSON.stringify(updates.deliveryDays) : row.deliveryDays,
+      deliveryLog: updates.deliveryLog !== undefined ? JSON.stringify(updates.deliveryLog) : row.deliveryLog,
       updatedAt: now,
     };
 
@@ -1387,7 +1394,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
-        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, updatedAt = ?
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1413,6 +1420,8 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.pauseEndDate ?? row.pauseEndDate,
         merged.notes ?? row.notes,
         normStr(merged.staff ?? row.staff),
+        merged.lastDeliveredAt ?? row.lastDeliveredAt,
+        merged.deliveryLog ?? row.deliveryLog ?? '[]',
         now,
         id,
       ],

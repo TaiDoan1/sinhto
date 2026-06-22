@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { ComboItem } from '../components/customer/CustomComboBuilder';
+import type { ComboItem, ComboDeliveryLogEntry } from '../types/combo';
+import { getCombosDueToday, calculateNextDeliveryDate, deriveDeliveryDays, normalizeComboItems, parseDeliveryLog } from '../utils/comboUtils';
 import { useSSE } from './SSEContext';
 import * as api from '../utils/api';
 import { withSalesRef } from '../utils/salesRef';
 import type { ComboSubscriptionStatus } from '../types/customerCare';
+
+export type { ComboItem };
 
 export interface ComboSubscription {
   id: string;
@@ -32,13 +35,15 @@ export interface ComboSubscription {
   closedAt?: Date;
   assignedAt?: Date;
   notes?: string;
+  lastDeliveredAt?: string;
+  deliveryLog?: ComboDeliveryLogEntry[];
 }
 
 export interface ComboNotification {
   id: string;
   comboId: string;
   customerName: string;
-  type: 'update' | 'pause' | 'resume' | 'claim';
+  type: 'update' | 'pause' | 'resume' | 'claim' | 'deliver';
   message: string;
   timestamp: Date;
   isRead: boolean;
@@ -50,10 +55,11 @@ interface ComboContextType {
   notifications: ComboNotification[];
   addCombo: (combo: Omit<ComboSubscription, 'id'>) => Promise<void>;
   updateCombo: (comboId: string, updates: Partial<ComboSubscription>) => Promise<void>;
-  updateComboStatus: (comboId: string, status: ComboSubscription['status']) => Promise<void>;
+  updateComboStatus: (comboId: string, status: ComboSubscription['status'], extra?: Partial<ComboSubscription>) => Promise<void>;
   claimCombo: (comboId: string, employeeId: string, employeeName: string) => Promise<void>;
+  confirmDelivery: (comboId: string, performedBy: string, branchId: string) => Promise<boolean>;
   refreshCombos: () => Promise<void>;
-  getTodayDeliveries: () => ComboSubscription[];
+  getTodayDeliveries: (branchId?: string) => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
   addNotification: (notification: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => void;
 }
@@ -69,10 +75,13 @@ function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
   if (typeof deliveryDays === 'string') {
     try { deliveryDays = JSON.parse(deliveryDays); } catch { deliveryDays = [1, 2, 3, 4, 5]; }
   }
+  const normalizedItems = normalizeComboItems(items);
   return {
     ...(raw as ComboSubscription),
-    items: (items || []) as ComboSubscription['items'],
-    deliveryDays: (deliveryDays || [1, 2, 3, 4, 5]) as number[],
+    items: normalizedItems.length ? normalizedItems : (items || []) as ComboSubscription['items'],
+    deliveryDays: (deliveryDays || deriveDeliveryDays(normalizedItems)) as number[],
+    deliveryLog: parseDeliveryLog(raw.deliveryLog),
+    lastDeliveredAt: (raw.lastDeliveredAt as string) || undefined,
     startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
     nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
     updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,
@@ -133,8 +142,13 @@ export function ComboProvider({ children }: { children: ReactNode }) {
   }, [subscribe]);
 
   const addCombo = async (comboData: Omit<ComboSubscription, 'id'>) => {
+    const items = normalizeComboItems(comboData.items);
     const created = await api.createComboSubscription(withSalesRef({
-      ...toApiPayload(comboData),
+      ...toApiPayload({
+        ...comboData,
+        items: items.length ? items : comboData.items,
+        deliveryDays: comboData.deliveryDays?.length ? comboData.deliveryDays : deriveDeliveryDays(items),
+      }),
       status: comboData.status || 'pending',
     }));
     const normalized = normalizeCombo(created);
@@ -142,13 +156,41 @@ export function ComboProvider({ children }: { children: ReactNode }) {
   };
 
   const updateCombo = async (comboId: string, updates: Partial<ComboSubscription>) => {
-    const updated = await api.updateComboSubscription(comboId, toApiPayload(updates));
+    const payload = { ...toApiPayload(updates) };
+    if (updates.items) {
+      const items = normalizeComboItems(updates.items);
+      payload.items = items.length ? items : updates.items;
+    }
+    const updated = await api.updateComboSubscription(comboId, payload);
     const normalized = normalizeCombo(updated);
     setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
   };
 
-  const updateComboStatus = async (comboId: string, status: ComboSubscription['status']) => {
-    await updateCombo(comboId, { status });
+  const updateComboStatus = async (
+    comboId: string,
+    status: ComboSubscription['status'],
+    extra?: Partial<ComboSubscription>
+  ) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (status === 'paused') {
+      await updateCombo(comboId, {
+        status: 'paused',
+        pauseStartDate: today,
+        pauseEndDate: extra?.pauseEndDate,
+        ...extra,
+      });
+      return;
+    }
+    if (status === 'active') {
+      await updateCombo(comboId, {
+        status: 'active',
+        pauseStartDate: '',
+        pauseEndDate: '',
+        ...extra,
+      });
+      return;
+    }
+    await updateCombo(comboId, { status, ...extra });
   };
 
   const claimCombo = async (comboId: string, employeeId: string, employeeName: string) => {
@@ -161,6 +203,35 @@ export function ComboProvider({ children }: { children: ReactNode }) {
       type: 'claim',
       message: `Đã chốt combo cho ${normalized.customerName}`,
     });
+  };
+
+  const confirmDelivery = async (comboId: string, performedBy: string, branchId: string) => {
+    const combo = combos.find((c) => c.id === comboId);
+    if (!combo) return false;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayItem = normalizeComboItems(combo.items).find((i) => i.assignedDay === new Date().getDay())
+      || normalizeComboItems(combo.items)[0];
+    const productName = todayItem?.productName || 'FitBlend';
+
+    const log = [...(combo.deliveryLog || [])];
+    log.push({ date: today, productName, performedBy, branchId });
+
+    const nextDelivery = calculateNextDeliveryDate(new Date(), combo.deliveryDays);
+
+    await updateCombo(comboId, {
+      lastDeliveredAt: new Date().toISOString(),
+      deliveryLog: log,
+      nextDelivery,
+    });
+
+    addNotification({
+      comboId,
+      customerName: combo.customerName,
+      type: 'deliver',
+      message: `Đã giao ${productName} cho ${combo.customerName}`,
+    });
+    return true;
   };
 
   const addNotification = (notif: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => {
@@ -177,24 +248,8 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)));
   };
 
-  const getTodayDeliveries = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return combos.filter((combo) => {
-      if (combo.status !== 'active') return false;
-      if (combo.pauseStartDate && combo.pauseEndDate) {
-        const start = new Date(combo.pauseStartDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(combo.pauseEndDate);
-        end.setHours(23, 59, 59, 999);
-        if (today >= start && today <= end) return false;
-      }
-      const nextDelivery = new Date(combo.nextDelivery);
-      nextDelivery.setHours(0, 0, 0, 0);
-      return nextDelivery.getTime() === today.getTime();
-    });
-  };
+  const getTodayDeliveries = (branchId?: string) =>
+    getCombosDueToday(combos, branchId) as ComboSubscription[];
 
   return (
     <ComboContext.Provider
@@ -206,6 +261,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
         updateCombo,
         updateComboStatus,
         claimCombo,
+        confirmDelivery,
         refreshCombos,
         getTodayDeliveries,
         markNotificationAsRead,

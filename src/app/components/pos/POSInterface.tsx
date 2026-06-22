@@ -371,6 +371,7 @@ export function POSInterface() {
             <div className="hidden lg:block lg:w-[350px] xl:w-[400px] flex-shrink-0">
               <CheckoutPanel
                 cart={cart}
+                branchId={selectedBranch}
                 onRemoveItem={handleRemoveItem}
                 onClearCart={handleClearCart}
               />
@@ -423,6 +424,7 @@ export function POSInterface() {
       {showMobileCheckout && (
         <MobileCheckoutModal
           cart={cart}
+          branchId={selectedBranch || 'CN1'}
           onClose={() => setShowMobileCheckout(false)}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}

@@ -310,6 +310,8 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         startDate,
         name: plan.name,
         finalPrice,
+        customerName,
+        customerPhone,
       },
       customerName,
       customerPhone,

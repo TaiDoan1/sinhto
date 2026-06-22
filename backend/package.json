@@ -5,8 +5,12 @@
   "description": "Backend API Server for FitBlend System",
   "main": "index.js",
   "scripts": {
+    "build": "echo \"Backend ready\"",
     "start": "node index.js",
     "migrate:sqlite": "node scripts/migrate-sqlite-to-pg.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -2,6 +2,7 @@ import { Plus, Search, Droplets, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 export interface Product {
   id: string;
@@ -33,6 +34,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedProtein, setSelectedProtein] = useState<number | null>(null);
+  const { priceTable } = useMenuPricing();
 
   const sizes = [
     { id: '250ml', label: '250ml', desc: 'Ly nhỏ — buổi sáng nhẹ' },
@@ -56,18 +58,10 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
   };
 
   const getProductPriceForSizeAndProtein = (product: Product, size: string, protein: number | null) => {
-    // Try to load custom price table from localStorage
-    try {
-      const savedPrices = localStorage.getItem('menuPriceTable');
-      if (savedPrices) {
-        const dynamicPriceTable = JSON.parse(savedPrices);
-        const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
-        const price = dynamicPriceTable[size]?.[prot];
-        if (price) return price;
-      }
-    } catch (e) {}
+    const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
+    const price = priceTable[size]?.[prot];
+    if (price) return price;
 
-    // Fallback static pricing logic
     const prices = {
       '250ml': 39000,
       '360ml': 59000,

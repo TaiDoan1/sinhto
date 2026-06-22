@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, X, Zap, Droplets, Package, ChevronRight, ChevronLeft } from 'lucide-react';
 import * as api from '../../utils/api';
+import { useMenu } from '../../contexts/MenuContext';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 // Inline product data based on FitBlend menu
 const defaultProducts: CustomerProduct[] = [
@@ -63,10 +65,11 @@ const categoryConfig = [
 ];
 
 export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
+  const { products: menuProducts } = useMenu();
+  const { priceTable } = useMenuPricing();
   const [products, setProducts] = useState<CustomerProduct[]>(defaultProducts);
   const [activeCategory, setActiveCategory] = useState<'smoothies' | 'toppings' | 'combo'>('smoothies');
   const [searchTerm, setSearchTerm] = useState('');
-  const [priceTable, setPriceTable] = useState<any>(null);
   
   // Size & Protein flow
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -94,14 +97,9 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
   };
 
   const getProductPriceForSizeAndProtein = (product: CustomerProduct, size: string, protein: number | null) => {
-    try {
-      const activeTable = priceTable || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('menuPriceTable') || 'null') : null);
-      if (activeTable) {
-        const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
-        const price = activeTable[size]?.[prot];
-        if (price) return price;
-      }
-    } catch (e) {}
+    const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
+    const price = priceTable[size]?.[prot];
+    if (price) return price;
 
     const prices = {
       '250ml': 39000,
@@ -115,45 +113,16 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
   };
 
   useEffect(() => {
-    // 1. Load products from API
+    if (menuProducts.length > 0) {
+      setProducts(menuProducts as CustomerProduct[]);
+      return;
+    }
     api.fetchProducts()
-      .then(data => {
-        if (data && data.length > 0) {
-          setProducts(data);
-        }
+      .then((data) => {
+        if (data && data.length > 0) setProducts(data);
       })
-      .catch(() => {
-        try {
-          const saved = localStorage.getItem('menuProducts');
-          if (saved) {
-            setProducts(JSON.parse(saved));
-          }
-        } catch {}
-      });
-
-    // 2. Load Price Table from API
-    api.fetchSetting('menuPriceTable')
-      .then(data => setPriceTable(data))
-      .catch(() => {
-        try {
-          const saved = localStorage.getItem('menuPriceTable');
-          if (saved) setPriceTable(JSON.parse(saved));
-        } catch {}
-      });
-
-    const loadData = () => {
-      try {
-        const saved = localStorage.getItem('menuProducts');
-        if (saved) setProducts(JSON.parse(saved));
-        
-        const savedPrices = localStorage.getItem('menuPriceTable');
-        if (savedPrices) setPriceTable(JSON.parse(savedPrices));
-      } catch {}
-    };
-
-    window.addEventListener('menuUpdated', loadData);
-    return () => window.removeEventListener('menuUpdated', loadData);
-  }, []);
+      .catch(() => {});
+  }, [menuProducts]);
 
   const filtered = products.filter(p => {
     const matchCat = p.category === activeCategory;

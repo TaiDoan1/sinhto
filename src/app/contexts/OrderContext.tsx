@@ -2,11 +2,12 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useInventory } from './InventoryContext';
 import { useSSE } from './SSEContext';
 import * as api from '../utils/api';
+import { withSalesRef } from '../utils/salesRef';
 
 export interface Order {
   id: string;
   branchId: string;
-  source: 'counter' | 'mobile' | 'web';
+  source: 'counter' | 'mobile' | 'web' | 'online_sales';
   items: any[];
   time: Date;
   status: 'pending' | 'preparing' | 'ready' | 'delivering' | 'completed';
@@ -22,7 +23,8 @@ export interface Order {
   shipperName?: string;
   shipperId?: string;
   paymentMethod?: 'cash' | 'transfer';
-  stockDeducted?: boolean;
+  salesStaffId?: string;
+  salesStaffName?: string;
 }
 
 interface OrderContextType {
@@ -37,7 +39,7 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 function normalizeOrder(raw: any): Order {
-  const source = ['counter', 'mobile', 'web'].includes(raw.source) ? raw.source : 'counter';
+  const source = ['counter', 'mobile', 'web', 'online_sales'].includes(raw.source) ? raw.source : 'counter';
   let items = raw.items;
   if (typeof items === 'string') {
     try { items = JSON.parse(items); } catch { items = []; }
@@ -147,7 +149,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         const item = queueCopy[i];
         try {
           if (item.action === 'CREATE') {
-            await api.createOrder(item.data);
+            await api.createOrder(withSalesRef(item.data));
           } else if (item.action === 'UPDATE_STATUS') {
             await api.updateOrderStatus(item.orderId, item.status, item.extra);
           }
@@ -195,7 +197,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     setOrders(prev => [newOrder as Order, ...prev]);
 
     try {
-      await api.createOrder(newOrder);
+      await api.createOrder(withSalesRef(newOrder));
     } catch (err) {
       console.warn("Mất kết nối máy chủ backend. Đang xếp đơn hàng vào hàng đợi đồng bộ offline.", err);
       const updatedQueue = [...offlineQueue, { action: 'CREATE', orderId: tempId, data: newOrder }];

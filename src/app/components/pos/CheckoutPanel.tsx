@@ -71,21 +71,26 @@ export function CheckoutPanel({ cart, onRemoveItem, onClearCart }: CheckoutPanel
       staff: 'POS - Nhân viên quầy'
     });
 
-    orderItems.forEach(item => {
+    orderItems.forEach(async (item) => {
       if (item.isCustomCombo && item.rawComboData) {
-        addCombo({
-          customerName: item.rawComboData.customerName || 'Khách tại quầy',
-          customerPhone: item.rawComboData.customerPhone || '',
-          comboType: item.rawComboData.comboType,
-          startDate: new Date(),
-          nextDelivery: new Date(),
-          deliveryDays: item.rawComboData.deliveryDays,
-          items: item.rawComboData.items,
-          totalPrice: item.price,
-          status: 'active',
-          staff: 'POS - Nhân viên quầy',
-          branchId: 'CN1'
-        });
+        try {
+          await addCombo({
+            customerName: item.rawComboData.customerName || activeCustomer?.name || 'Khách tại quầy',
+            customerPhone: item.rawComboData.customerPhone || activeCustomer?.phone || '',
+            comboType: item.rawComboData.comboType || 'weekly',
+            startDate: new Date(),
+            nextDelivery: new Date(),
+            deliveryDays: item.rawComboData.deliveryDays || [1, 2, 3, 4, 5],
+            items: item.rawComboData.items || item.rawComboData,
+            totalPrice: item.price,
+            status: 'active',
+            staff: 'POS - Nhân viên quầy',
+            branchId: 'CN1',
+            planName: item.name,
+          });
+        } catch (err) {
+          console.error('Failed to create combo:', err);
+        }
       }
     });
 

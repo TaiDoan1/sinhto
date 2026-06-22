@@ -208,8 +208,5 @@ export const sampleEmployees: Employee[] = [
 ];
 
 export function initializeSampleEmployees() {
-  const existing = localStorage.getItem('employees');
-  if (!existing) {
-    localStorage.setItem('employees', JSON.stringify(sampleEmployees));
-  }
+  // Employees are managed via the backend API — no localStorage cache.
 }

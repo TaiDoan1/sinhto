@@ -1,0 +1,15 @@
+export const BRAND = {
+  green: '#0D530E',
+  greenBright: '#0B7A3E',
+  orange: '#F97A00',
+  beige: '#FFFDF6',
+  cream: '#FDFCF8',
+  brown: '#4B352A',
+  ink: '#1A1A1A',
+  phone: '0965351545',
+  phoneDisplay: '096 535 15 45',
+  email: 'fitblendprotein@gmail.com',
+  facebook: 'https://www.facebook.com/FitblendProtein',
+  tiktok: 'https://www.tiktok.com/@fitblendprotein',
+  zalo: 'https://zalo.me/0965351545',
+} as const;

@@ -5,14 +5,16 @@
   "description": "Backend API Server for FitBlend System",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "migrate:sqlite": "node scripts/migrate-sqlite-to-pg.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
     "express": "^4.19.2",
     "multer": "^2.1.1",
+    "pg": "^8.16.0",
     "sqlite3": "^5.1.7"
-  }
+  },
+  "devDependencies": {}
 }

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import * as api from '../utils/api';
 import { useSSE } from './SSEContext';
 import type { Employee, WorkShift, ProfileFieldConfig } from '../types/employee';
-import { DEFAULT_PROFILE_FIELDS } from '../types/employee';
+import { DEFAULT_PROFILE_FIELDS, isOnlineSalesPosition } from '../types/employee';
 
 const SESSION_KEY = 'staff_session';
 
@@ -17,8 +17,9 @@ interface EmployeeContextType {
   updateProfile: (updates: Partial<Employee>) => Promise<void>;
   refreshShifts: () => Promise<void>;
   requestShift: (date: string, templateId: string) => Promise<void>;
-  checkIn: (shiftId: string) => Promise<void>;
-  checkOut: (shiftId: string) => Promise<void>;
+  cancelShift: (shiftId: string) => Promise<void>;
+  checkIn: (shiftId: string, photo: string) => Promise<void>;
+  checkOut: (shiftId: string, photo: string) => Promise<void>;
   saveProfileFields: (fields: ProfileFieldConfig[]) => Promise<void>;
 }
 
@@ -87,6 +88,9 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     const employee = await api.employeeLogin(username, password);
+    if (isOnlineSalesPosition(employee.position)) {
+      throw new Error('Tài khoản Bán Hàng Online — vui lòng đăng nhập tại cổng 🛍️ Bán Hàng Online.');
+    }
     setActiveEmployee(employee);
     localStorage.setItem(SESSION_KEY, JSON.stringify(employee));
   };
@@ -127,13 +131,18 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     await refreshShifts();
   };
 
-  const checkIn = async (shiftId: string) => {
-    await api.shiftCheckIn(shiftId, 'in');
+  const cancelShift = async (shiftId: string) => {
+    await api.deleteShift(shiftId);
     await refreshShifts();
   };
 
-  const checkOut = async (shiftId: string) => {
-    await api.shiftCheckIn(shiftId, 'out');
+  const checkIn = async (shiftId: string, photo: string) => {
+    await api.shiftCheckIn(shiftId, 'in', photo);
+    await refreshShifts();
+  };
+
+  const checkOut = async (shiftId: string, photo: string) => {
+    await api.shiftCheckIn(shiftId, 'out', photo);
     await refreshShifts();
   };
 
@@ -154,6 +163,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       updateProfile,
       refreshShifts,
       requestShift,
+      cancelShift,
       checkIn,
       checkOut,
       saveProfileFields,

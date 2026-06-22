@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://REPLACE_ME.onrender.com/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://REPLACE_ME.onrender.com/uploads/:path*"
+    },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/pos", "destination": "/index.html" },
+    { "source": "/pos/:path*", "destination": "/index.html" },
+    { "source": "/cs", "destination": "/index.html" },
+    { "source": "/cs/:path*", "destination": "/index.html" },
+    { "source": "/cskh", "destination": "/index.html" },
+    { "source": "/cskh/:path*", "destination": "/index.html" },
+    { "source": "/online-sales", "destination": "/index.html" },
+    { "source": "/online-sales/:path*", "destination": "/index.html" },
+    { "source": "/staff", "destination": "/index.html" },
+    { "source": "/staff/:path*", "destination": "/index.html" },
+    { "source": "/nv", "destination": "/index.html" },
+    { "source": "/nv/:path*", "destination": "/index.html" },
+    { "source": "/shipper", "destination": "/index.html" },
+    { "source": "/shipper/:path*", "destination": "/index.html" }
+  ]
+}

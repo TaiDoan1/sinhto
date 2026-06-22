@@ -24,9 +24,10 @@ export interface Shift {
 }
 
 const branches = [
-  { id: 'CN1', name: 'CN1' },
-  { id: 'CN2', name: 'CN2' },
-  { id: 'CN3', name: 'CN3' },
+  { id: 'ALL', name: 'Tất cả chi nhánh' },
+  { id: 'CN1', name: 'CN1 - Quận 1' },
+  { id: 'CN2', name: 'CN2 - Quận 3' },
+  { id: 'CN3', name: 'CN3 - Thủ Đức' },
 ];
 
 const shiftTemplates = [
@@ -46,10 +47,13 @@ export function ShiftSchedule() {
   const { subscribe } = useSSE();
 
   useEffect(() => {
-    // Load initial data
-    api.fetchEmployees()
-      .then(data => setEmployees(data))
-      .catch(err => console.error('Failed to load employees:', err));
+    const loadEmployees = () => {
+      api.fetchEmployees()
+        .then(data => setEmployees(data))
+        .catch(err => console.error('Failed to load employees:', err));
+    };
+
+    loadEmployees();
 
     api.fetchShifts()
       .then(data => setShifts(data))
@@ -70,10 +74,17 @@ export function ShiftSchedule() {
       setShifts(prev => prev.filter(s => s.id !== data.id));
     });
 
+    const unsubEmpCreate = subscribe('EMPLOYEE_CREATED', () => loadEmployees());
+    const unsubEmpUpdate = subscribe('EMPLOYEE_UPDATED', () => loadEmployees());
+    const unsubEmpDelete = subscribe('EMPLOYEE_DELETED', () => loadEmployees());
+
     return () => {
       unsubCreate();
       unsubUpdate();
       unsubDelete();
+      unsubEmpCreate();
+      unsubEmpUpdate();
+      unsubEmpDelete();
     };
   }, [subscribe]);
 
@@ -108,7 +119,7 @@ export function ShiftSchedule() {
       id: Date.now().toString(),
       employeeId: employee.id,
       employeeName: employee.fullName,
-      branch: selectedBranch,
+      branch: shiftBranch || employee.branch,
       date,
       startTime: template.start,
       endTime: template.end,
@@ -119,7 +130,8 @@ export function ShiftSchedule() {
     };
 
     try {
-      await api.saveShift(newShift);
+      const saved = await api.saveShift(newShift);
+      setShifts(prev => (prev.some(s => s.id === saved.id) ? prev : [...prev, saved]));
       setSelectedCell(null);
     } catch (err) {
       console.error('Failed to add shift:', err);
@@ -195,6 +207,10 @@ export function ShiftSchedule() {
   };
 
   const handleRotateShifts = async () => {
+    if (selectedBranch === 'ALL') {
+      alert('Chọn một chi nhánh cụ thể để xoay ca tự động.');
+      return;
+    }
     if (!confirm('Xoay ca tự động? (Ca đã ghim sẽ giữ nguyên)')) return;
 
     const weekDays = getWeekDays();
@@ -274,6 +290,10 @@ export function ShiftSchedule() {
   };
 
   const handleClearWeek = async () => {
+    if (selectedBranch === 'ALL') {
+      alert('Chọn một chi nhánh cụ thể để xóa lịch tuần.');
+      return;
+    }
     if (!confirm('Xóa lịch tuần này? (Trừ ca ghim)')) return;
     const weekDates = getWeekDays().map(d => d.toISOString().split('T')[0]);
     const toDelete = shifts.filter(s =>
@@ -291,7 +311,8 @@ export function ShiftSchedule() {
 
   const getShift = (employeeId: string, date: string) =>
     shifts.find(s =>
-      s.employeeId === employeeId && s.date === date && s.branch === selectedBranch &&
+      s.employeeId === employeeId && s.date === date &&
+      (shiftBranch ? s.branch === shiftBranch : true) &&
       s.status !== 'pending' && s.status !== 'rejected'
     );
 
@@ -317,8 +338,11 @@ export function ShiftSchedule() {
 
   const getShiftColor = (template: typeof shiftTemplates[0]) => template.color;
 
-  const availableEmployees = employees.filter(e => e.branch === selectedBranch);
+  const availableEmployees = selectedBranch === 'ALL'
+    ? [...employees].sort((a, b) => a.branch.localeCompare(b.branch) || a.fullName.localeCompare(b.fullName))
+    : employees.filter(e => e.branch === selectedBranch);
   const weekDays = getWeekDays();
+  const shiftBranch = selectedBranch === 'ALL' ? null : selectedBranch;
 
   return (
     <div className="flex flex-col h-full">
@@ -326,6 +350,11 @@ export function ShiftSchedule() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Lịch Làm Việc</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {selectedBranch === 'ALL'
+              ? `Hiển thị ${availableEmployees.length}/${employees.length} nhân viên (tất cả chi nhánh)`
+              : `Hiển thị ${availableEmployees.length} nhân viên · ${branches.find(b => b.id === selectedBranch)?.name}`}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <select
@@ -420,7 +449,14 @@ export function ShiftSchedule() {
             </tr>
           </thead>
           <tbody>
-            {availableEmployees.map((emp) => (
+            {availableEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="text-center py-12 text-gray-500">
+                  <p className="font-medium">Chưa có nhân viên tại chi nhánh này</p>
+                  <p className="text-sm mt-1">Đăng ký nhân viên mới hoặc chọn chi nhánh khác</p>
+                </td>
+              </tr>
+            ) : availableEmployees.map((emp) => (
               <tr key={emp.id} className="hover:bg-gray-50">
                 <td className="border border-gray-200 p-2 bg-gray-50">
                   <div className="flex items-center gap-2">
@@ -433,6 +469,9 @@ export function ShiftSchedule() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm text-gray-800 truncate">{emp.fullName}</div>
+                      {selectedBranch === 'ALL' && (
+                        <div className="text-xs text-gray-500">{emp.branch}</div>
+                      )}
                     </div>
                   </div>
                 </td>

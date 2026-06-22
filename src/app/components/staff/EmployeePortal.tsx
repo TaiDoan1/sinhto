@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { User, Clock, Calendar, LogOut, Save, Loader2, CheckCircle, MapPin } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
-import { SHIFT_TEMPLATES, POSITION_LABELS, BRANCH_LABELS } from '../../types/employee';
+import { SHIFT_TEMPLATES, POSITION_LABELS, BRANCH_LABELS, canCancelShift } from '../../types/employee';
 import type { ProfileFieldConfig } from '../../types/employee';
+import { AttendanceCamera } from './AttendanceCamera';
+import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
+import * as api from '../../utils/api';
 
-type Tab = 'info' | 'attendance' | 'schedule';
+type Tab = EmployeeTab;
 
 function getFieldValue(employee: any, field: ProfileFieldConfig): string {
   if (field.source === 'custom') return employee.customData?.[field.fieldKey] || '';
@@ -24,14 +27,16 @@ function todayStr() {
 }
 
 export function EmployeePortal() {
-  const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, checkIn, checkOut } = useEmployee();
-  const [tab, setTab] = useState<Tab>('info');
+  const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, cancelShift, checkIn, checkOut } = useEmployee();
+  const [tab, setTab] = useState<Tab>('attendance');
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [now, setNow] = useState(new Date());
   const [requestDate, setRequestDate] = useState(todayStr());
   const [requesting, setRequesting] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'in' | 'out' | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -81,6 +86,29 @@ export function EmployeePortal() {
     }
   };
 
+  const handleAttendanceCapture = async (file: File) => {
+    if (!todayShift || !cameraMode) return;
+    try {
+      const photoUrl = await api.uploadImage(file);
+      if (cameraMode === 'in') await checkIn(todayShift.id, photoUrl);
+      else await checkOut(todayShift.id, photoUrl);
+      setCameraMode(null);
+    } catch {
+      alert('Chấm công thất bại. Vui lòng thử lại.');
+      setCameraMode(null);
+    }
+  };
+
+  const handleCancelShift = async (shiftId: string) => {
+    if (!confirm('Bạn có chắc muốn hủy đăng ký ca làm này?')) return;
+    setCancellingId(shiftId);
+    try {
+      await cancelShift(shiftId);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const statusLabel: Record<string, string> = {
     pending: '⏳ Chờ duyệt',
     scheduled: '✅ Đã xếp ca',
@@ -90,56 +118,48 @@ export function EmployeePortal() {
     completed: '✔️ Hoàn thành',
   };
 
-  const tabs = [
-    { id: 'info' as Tab, label: 'Thông tin', icon: User },
-    { id: 'attendance' as Tab, label: 'Chấm công', icon: Clock },
-    { id: 'schedule' as Tab, label: 'Lịch làm', icon: Calendar },
-  ];
+  const pageTitles: Record<Tab, string> = {
+    info: 'Thông tin cá nhân',
+    attendance: 'Chấm công',
+    schedule: 'Lịch làm việc',
+  };
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-4 pt-4 pb-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">
-              {activeEmployee.fullName.charAt(0)}
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-4 pt-3 pb-4 shadow-md">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0 overflow-hidden">
+              {activeEmployee.photo ? (
+                <img src={activeEmployee.photo} alt="" className="w-full h-full object-cover" />
+              ) : (
+                activeEmployee.fullName.charAt(0)
+              )}
             </div>
-            <div>
-              <div className="font-bold text-lg leading-tight">{activeEmployee.fullName}</div>
-              <div className="text-emerald-100 text-sm">{POSITION_LABELS[activeEmployee.position] || activeEmployee.position}</div>
+            <div className="min-w-0">
+              <div className="font-bold text-base leading-tight truncate">{activeEmployee.fullName}</div>
+              <div className="text-emerald-100 text-xs truncate">
+                {POSITION_LABELS[activeEmployee.position] || activeEmployee.position}
+              </div>
             </div>
           </div>
-          <button onClick={logout} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors" title="Đăng xuất">
+          <button
+            onClick={logout}
+            className="p-2.5 bg-white/15 rounded-xl active:bg-white/25 transition-colors flex-shrink-0"
+            title="Đăng xuất"
+          >
             <LogOut className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Tab bar */}
-        <div className="flex bg-white/10 rounded-xl p-1 gap-1">
-          {tabs.map(t => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                  tab === t.id ? 'bg-white text-emerald-700 shadow' : 'text-white/80 hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        <h1 className="mt-3 text-lg font-bold">{pageTitles[tab]}</h1>
+      </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-8">
+      <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-28">
         {tab === 'info' && (
-          <div className="space-y-4 max-w-lg mx-auto">
-            <div className="bg-white rounded-2xl shadow-md p-5 space-y-4">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
               <h2 className="font-bold text-gray-800 text-lg">Hồ sơ nhân viên</h2>
               {visibleFields.map(field => (
                 <div key={field.id}>
@@ -183,8 +203,8 @@ export function EmployeePortal() {
         )}
 
         {tab === 'attendance' && (
-          <div className="space-y-4 max-w-lg mx-auto">
-            <div className="bg-white rounded-2xl shadow-md p-6 text-center">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-center">
               <div className="text-4xl font-mono font-bold text-gray-800 mb-1">
                 {now.toLocaleTimeString('vi-VN')}
               </div>
@@ -206,17 +226,19 @@ export function EmployeePortal() {
 
                   {!todayShift.checkIn && (
                     <button
-                      onClick={() => checkIn(todayShift.id)}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold text-lg transition-colors shadow-lg"
+                      onClick={() => setCameraMode('in')}
+                      className="w-full bg-green-500 active:bg-green-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
                     >
+                      <Camera className="w-5 h-5" />
                       Check-in
                     </button>
                   )}
                   {todayShift.checkIn && !todayShift.checkOut && (
                     <button
-                      onClick={() => checkOut(todayShift.id)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-lg transition-colors shadow-lg"
+                      onClick={() => setCameraMode('out')}
+                      className="w-full bg-emerald-600 active:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
                     >
+                      <Camera className="w-5 h-5" />
                       Check-out
                     </button>
                   )}
@@ -236,7 +258,7 @@ export function EmployeePortal() {
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-md p-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h3 className="font-bold text-gray-800 mb-3">Lịch sử chấm công gần đây</h3>
               <div className="space-y-2">
                 {myShifts.filter(s => s.checkIn).slice(0, 5).map(s => (
@@ -258,9 +280,8 @@ export function EmployeePortal() {
         )}
 
         {tab === 'schedule' && (
-          <div className="space-y-4 max-w-lg mx-auto">
-            {/* Request shift */}
-            <div className="bg-white rounded-2xl shadow-md p-5">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h2 className="font-bold text-gray-800 mb-4">Đăng ký lịch làm</h2>
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày</label>
@@ -278,7 +299,7 @@ export function EmployeePortal() {
                     key={tpl.id}
                     onClick={() => handleRequestShift(tpl.id)}
                     disabled={requesting}
-                    className="flex items-center gap-3 p-3 border-2 border-gray-100 hover:border-emerald-300 hover:bg-emerald-50 rounded-xl transition-all text-left disabled:opacity-60"
+                    className="flex items-center gap-3 p-3.5 border-2 border-gray-100 active:border-emerald-300 active:bg-emerald-50 rounded-2xl text-left disabled:opacity-60 min-h-[60px]"
                   >
                     <span className="text-2xl">{tpl.icon}</span>
                     <div>
@@ -290,26 +311,43 @@ export function EmployeePortal() {
               </div>
               <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
                 <MapPin className="w-3 h-3" />
-                Yêu cầu sẽ được gửi tới quản lý để duyệt
+                Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách bên dưới để hủy nếu đăng ký nhầm.
               </p>
             </div>
 
             {/* My shifts list */}
-            <div className="bg-white rounded-2xl shadow-md p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h2 className="font-bold text-gray-800 mb-4">Lịch làm của tôi</h2>
               {upcomingShifts.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch làm</p>
               ) : (
                 <div className="space-y-2">
                   {upcomingShifts.map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <div>
+                    <div key={s.id} className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl gap-2">
+                      <div className="min-w-0">
                         <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
                         <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
                       </div>
-                      <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-white border">
-                        {statusLabel[s.status] || s.status}
-                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-white border">
+                          {statusLabel[s.status] || s.status}
+                        </span>
+                        {canCancelShift(s) && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelShift(s.id)}
+                            disabled={cancellingId === s.id}
+                            className="p-2 text-red-500 active:bg-red-50 rounded-lg transition-colors disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"
+                            title="Hủy đăng ký"
+                          >
+                            {cancellingId === s.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <X className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -317,7 +355,17 @@ export function EmployeePortal() {
             </div>
           </div>
         )}
-      </div>
+      </main>
+
+      <EmployeeBottomNav activeTab={tab} onTabChange={setTab} />
+
+      {cameraMode && todayShift && (
+        <AttendanceCamera
+          label={cameraMode === 'in' ? 'Chụp ảnh Check-in' : 'Chụp ảnh Check-out'}
+          onCapture={handleAttendanceCapture}
+          onCancel={() => setCameraMode(null)}
+        />
+      )}
     </div>
   );
 }

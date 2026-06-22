@@ -1,12 +1,16 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const { removeDiacritics, deepConvert, convertMaybeJson } = require('./vietnamese');
+const { hashPassword, verifyPassword, isHashed } = require('./password');
+const { initDatabase, getPool, isPostgres } = require('./db');
+const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
+let db;
 
 app.use(cors());
 app.use(express.json());
@@ -36,423 +40,48 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // limit 5MB
 });
 
-// Initialize SQLite database
-const dbDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir);
-}
-const dbPath = path.join(dbDir, 'database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database', err);
-  } else {
-    console.log('Database connected.');
-    createTables();
-  }
-});
-
 // SSE Clients for real-time notifications
 let clients = [];
 
-function createTables() {
-  db.serialize(() => {
-    // 1. Inventory Table
-    db.run(`CREATE TABLE IF NOT EXISTS inventory (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      unit TEXT,
-      currentStock REAL,
-      minStock REAL,
-      cost INTEGER,
-      category TEXT
-    )`);
-
-    // 2. Inventory Movements Table
-    db.run(`CREATE TABLE IF NOT EXISTS inventory_movements (
-      id TEXT PRIMARY KEY,
-      timestamp TEXT,
-      type TEXT,
-      orderId TEXT,
-      itemId TEXT,
-      itemName TEXT,
-      quantity REAL,
-      reason TEXT,
-      performedBy TEXT,
-      cost INTEGER
-    )`);
-
-    // 3. Orders Table (items is stored as stringified JSON)
-    db.run(`CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      branchId TEXT,
-      source TEXT,
-      items TEXT,
-      time TEXT,
-      status TEXT,
-      total INTEGER,
-      staff TEXT,
-      paidAt TEXT,
-      readyAt TEXT,
-      completedAt TEXT,
-      orderNumber INTEGER,
-      customerName TEXT,
-      customerPhone TEXT,
-      deliveryAddress TEXT,
-      shipperName TEXT,
-      shipperId TEXT,
-      paymentMethod TEXT,
-      stockDeducted INTEGER
-    )`);
-
-    // 4. Wholesale Accounts Table (redemptions is stored as stringified JSON)
-    db.run(`CREATE TABLE IF NOT EXISTS wholesale_accounts (
-      id TEXT PRIMARY KEY,
-      customerName TEXT,
-      customerPhone TEXT,
-      packageName TEXT,
-      totalCups INTEGER,
-      remainingCups INTEGER,
-      durationMonths INTEGER,
-      purchasedAt TEXT,
-      expiresAt TEXT,
-      preferredProduct TEXT,
-      preferredProductSize TEXT,
-      preferredProductProtein INTEGER,
-      branchId TEXT,
-      branchName TEXT,
-      redemptions TEXT
-    )`);
-
-    // 5. PT Partners Table
-    db.run(`CREATE TABLE IF NOT EXISTS partners_pt (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      phone TEXT,
-      code TEXT UNIQUE,
-      dateCreated TEXT,
-      paidCommission INTEGER
-    )`);
-
-    // 6. Referral Transactions Table
-    db.run(`CREATE TABLE IF NOT EXISTS referral_transactions (
-      id TEXT PRIMARY KEY,
-      ptId TEXT,
-      ptCode TEXT,
-      orderId TEXT,
-      customerName TEXT,
-      comboName TEXT,
-      price REAL,
-      timestamp TEXT
-    )`);
-
-    // 7. Products Table
-    db.run(`CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      category TEXT,
-      basePrice INTEGER,
-      image TEXT,
-      description TEXT
-    )`);
-
-    // 8. Employees Table
-    db.run(`CREATE TABLE IF NOT EXISTS employees (
-      id TEXT PRIMARY KEY,
-      fullName TEXT,
-      employeeId TEXT,
-      email TEXT,
-      phone TEXT,
-      idNumber TEXT,
-      dateOfBirth TEXT,
-      address TEXT,
-      branch TEXT,
-      position TEXT,
-      baseSalary INTEGER,
-      startDate TEXT,
-      username TEXT,
-      password TEXT,
-      photo TEXT
-    )`);
-
-    // 9. Shifts Table
-    db.run(`CREATE TABLE IF NOT EXISTS shifts (
-      id TEXT PRIMARY KEY,
-      employeeId TEXT,
-      employeeName TEXT,
-      date TEXT,
-      shiftType TEXT,
-      startTime TEXT,
-      endTime TEXT,
-      status TEXT,
-      checkIn TEXT,
-      checkOut TEXT
-    )`);
-
-    // 10. Settings Table
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )`);
-
-    // 11. Customers Loyalty Table
-    db.run(`CREATE TABLE IF NOT EXISTS customers (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      phone TEXT UNIQUE,
-      points INTEGER DEFAULT 0,
-      createdAt TEXT
-    )`);
-
-    // 12. Loyalty Vouchers — mã giảm giá cấp cho từng khách
-    db.run(`CREATE TABLE IF NOT EXISTS loyalty_vouchers (
-      id TEXT PRIMARY KEY,
-      code TEXT UNIQUE NOT NULL,
-      programId TEXT NOT NULL,
-      customerId TEXT NOT NULL,
-      customerName TEXT,
-      customerPhone TEXT,
-      status TEXT DEFAULT 'active',
-      pointsDeducted INTEGER DEFAULT 0,
-      issuedAt TEXT NOT NULL,
-      usedAt TEXT,
-      expiresAt TEXT
-    )`);
-
-    // Seed Default Settings if empty
-    db.get("SELECT COUNT(*) as count FROM settings", (err, row) => {
-      if (row && row.count === 0) {
-        console.log('Seeding default settings...');
-        const defaultPriceTable = {
-          '250ml': { 20: 39000, 40: 59000 },
-          '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-          '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-          '700ml': { 60: 139000, 90: 159000 },
-        };
-        const defaultCombos = [
-          { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
-          { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
-          { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
-          { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
-        ];
-        
-        db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['menuPriceTable', JSON.stringify(defaultPriceTable)]);
-        db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['menuComboToppings', JSON.stringify(defaultCombos)]);
-        db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['loyaltyEarnRate', '1000']);
-        db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['loyaltyRedeemValue', '1000']);
-      }
-    });
-
-    // Seed loyalty extended config if missing (for existing DBs)
-    const loyaltyDefaults = {
-      loyaltyTiers: JSON.stringify([
-        { id: 'new', name: 'Thành viên mới', subtitle: 'Khách hàng mới tham gia', emoji: '🥉', gradient: 'from-blue-400 to-blue-600', minPoints: 0, maxPoints: 1000 },
-        { id: 'bronze', name: 'Hạng Đồng', subtitle: 'Khách hàng thân thiết', emoji: '🏅', gradient: 'from-amber-600 to-amber-800', minPoints: 1001, maxPoints: 5000 },
-        { id: 'silver', name: 'Hạng Bạc', subtitle: 'Khách hàng VIP', emoji: '🥈', gradient: 'from-gray-400 to-gray-600', minPoints: 5001, maxPoints: 10000 },
-        { id: 'gold', name: 'Hạng Vàng', subtitle: 'Khách hàng VVIP', emoji: '👑', gradient: 'from-yellow-400 to-yellow-600', minPoints: 10001, maxPoints: 20000 },
-        { id: 'diamond', name: 'Hạng Kim Cương', subtitle: 'Khách hàng đặc biệt', emoji: '💎', gradient: 'from-rose-500 to-pink-600', minPoints: 20001, maxPoints: null, autoAbovePrevious: true }
-      ]),
-      loyaltyRedeemPrograms: JSON.stringify([
-        { id: 'prog-ship', enabled: true, type: 'shipping', title: 'Miễn phí ship đơn tiếp theo', description: 'Đổi điểm lấy mã miễn phí ship cho đơn hàng tiếp theo', pointsCost: 300, value: 30000, minOrderAmount: 50000, validFrom: null, validTo: null, maxDiscountAmount: null },
-        { id: 'prog-free-drink', enabled: true, type: 'item_percent', title: 'Tặng 1 ly FitBlend bất kỳ', description: 'Đổi 2.000 điểm để nhận 1 ly FitBlend miễn phí', pointsCost: 2000, value: 100, minOrderAmount: 0, validFrom: null, validTo: null, maxDiscountAmount: 80000 },
-        { id: 'prog-voucher-30k', enabled: true, type: 'item_vnd', title: 'Voucher giảm 30.000đ', description: 'Đổi 500 điểm lấy voucher 30.000đ cho đơn tiếp theo', pointsCost: 500, value: 30000, minOrderAmount: 50000, validFrom: null, validTo: null, maxDiscountAmount: null },
-        { id: 'prog-voucher-100k', enabled: true, type: 'item_vnd', title: 'Voucher giảm 100.000đ', description: 'Đổi 1.000 điểm lấy voucher 100.000đ', pointsCost: 1000, value: 100000, minOrderAmount: 150000, validFrom: null, validTo: null, maxDiscountAmount: null }
-      ])
-    };
-    Object.entries(loyaltyDefaults).forEach(([key, value]) => {
-      db.get("SELECT value FROM settings WHERE key = ?", [key], (err, row) => {
-        if (!row) {
-          db.run("INSERT INTO settings (key, value) VALUES (?, ?)", [key, value]);
-        }
-      });
-    });
-
-    // Seed Default Products if empty
-    db.get("SELECT COUNT(*) as count FROM products", (err, row) => {
-      if (row && row.count === 0) {
-        console.log('Seeding default products...');
-        const defaultProducts = [
-          { id: 'SM-01', name: 'Dâu hạt chia', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Chia' },
-          { id: 'SM-02', name: 'Dâu chuối', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Banana' },
-          { id: 'SM-03', name: 'Mãng cầu dâu', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Soursop Strawberry' },
-          { id: 'SM-04', name: 'Dâu cam', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Orange' },
-          { id: 'SM-05', name: 'Dâu tằm hạt chia', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Mulberry Chia' },
-          { id: 'SM-06', name: 'Phúc bồn tử hạt chia', category: 'smoothies', basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Raspberry Chia' },
-          { id: 'SM-07', name: 'Chuối hạt chia', category: 'smoothies', basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Banana Chia' },
-          { id: 'SM-08', name: 'Chanh dây chuối', category: 'smoothies', basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Passionfruit Banana' },
-          { id: 'SM-09', name: 'Xoài thơm', category: 'smoothies', basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Pineapple' },
-          { id: 'SM-10', name: 'Xoài cam', category: 'smoothies', basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Orange' },
-          { id: 'SM-11', name: 'Cacao yến mạch', category: 'smoothies', basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Cacao Oat' },
-          { id: 'SM-12', name: 'Cà phê chuối', category: 'smoothies', basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Coffee Banana' },
-          { id: 'SM-13', name: 'Bơ', category: 'smoothies', basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado' },
-          { id: 'SM-14', name: 'Bơ chuối', category: 'smoothies', basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado Banana' },
-          { id: 'SM-15', name: 'Matcha', category: 'smoothies', basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Matcha' },
-          { id: 'TP-01', name: 'Sữa hạt 100%', category: 'toppings', basePrice: 15000, image: '🥛', description: '' },
-          { id: 'TP-02', name: 'Sữa A2', category: 'toppings', basePrice: 20000, image: '🥛', description: '' },
-          { id: 'TP-03', name: 'Bột đậu hà lan', category: 'toppings', basePrice: 20000, image: '🫛', description: '' },
-          { id: 'TP-04', name: 'Whey Gold Standard', category: 'toppings', basePrice: 39000, image: '💪', description: '' },
-          { id: 'TP-05', name: 'Collagen', category: 'toppings', basePrice: 49000, image: '✨', description: '' },
-          { id: 'TP-06', name: 'Yến mạch', category: 'toppings', basePrice: 10000, image: '🌾', description: '' },
-          { id: 'TP-07', name: 'Hạt chia', category: 'toppings', basePrice: 10000, image: '🌾', description: '' },
-          { id: 'TP-08', name: 'Dừa sấy giòn', category: 'toppings', basePrice: 10000, image: '🥥', description: '' },
-          { id: 'TP-09', name: 'Cỏ ngọt', category: 'toppings', basePrice: 10000, image: '🌿', description: '' },
-          { id: 'TP-10', name: 'Mật ong', category: 'toppings', basePrice: 15000, image: '🍯', description: '' },
-          { id: 'TP-11', name: 'Mật mía', category: 'toppings', basePrice: 3000, image: '🍯', description: '' },
-          { id: 'TP-12', name: 'Chà là', category: 'toppings', basePrice: 5000, image: '🌴', description: '' },
-          { id: 'TP-13', name: 'Bơ hạnh nhân', category: 'toppings', basePrice: 10000, image: '🥜', description: '' },
-          { id: 'TP-14', name: 'Bơ đậu phộng', category: 'toppings', basePrice: 20000, image: '🥜', description: '' },
-          { id: 'TP-15', name: 'Bơ hạt điều', category: 'toppings', basePrice: 15000, image: '🥜', description: '' },
-          { id: 'CB-01', name: 'Fat Loss Plan', category: 'combo', basePrice: 449000, image: '📦', description: 'Giảm mỡ 7 ngày' },
-          { id: 'CB-02', name: 'Muscle Build Plan', category: 'combo', basePrice: 669000, image: '📦', description: 'Tăng cơ 7 ngày' },
-          { id: 'CB-03', name: 'Elite Mass Plan', category: 'combo', basePrice: 899000, image: '📦', description: 'Tăng cân 7 ngày' }
-        ];
-        const stmt = db.prepare("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?)");
-        defaultProducts.forEach(p => {
-          stmt.run(p.id, p.name, p.category, p.basePrice, p.image, p.description);
-        });
-        stmt.finalize();
-      }
-    });
-
-    // Seed Sample Employees if empty
-    db.get("SELECT COUNT(*) as count FROM employees", (err, row) => {
-      if (row && row.count === 0) {
-        console.log('Seeding sample employees...');
-        const sampleEmployees = [
-          {
-            id: '1',
-            fullName: 'Nguyễn Văn An',
-            employeeId: 'NV-001',
-            email: 'nguyenvanan@fitblend.vn',
-            phone: '0901234567',
-            idNumber: '001234567890',
-            dateOfBirth: '1995-03-15',
-            address: '123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM',
-            branch: 'CN1',
-            position: 'manager',
-            baseSalary: 12000000,
-            startDate: '2023-01-10',
-            username: 'vanan',
-            password: '123',
-            photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
-          },
-          {
-            id: '2',
-            fullName: 'Trần Thị Bình',
-            employeeId: 'NV-002',
-            email: 'tranthibinh@fitblend.vn',
-            phone: '0902345678',
-            idNumber: '002345678901',
-            dateOfBirth: '1998-07-22',
-            address: '456 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM',
-            branch: 'CN1',
-            position: 'cashier',
-            baseSalary: 8000000,
-            startDate: '2023-02-15',
-            username: 'thibinh',
-            password: '123',
-            photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-          },
-          {
-            id: '3',
-            fullName: 'Lê Minh Cường',
-            employeeId: 'NV-003',
-            email: 'leminhcuong@fitblend.vn',
-            phone: '0903456789',
-            idNumber: '003456789012',
-            dateOfBirth: '1997-11-08',
-            address: '789 Pasteur, Phường Võ Thị Sáu, Quận 3, TP.HCM',
-            branch: 'CN2',
-            position: 'bartender',
-            baseSalary: 9000000,
-            startDate: '2023-03-01',
-            username: 'minhcuong',
-            password: '123',
-            photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-          }
-        ];
-        const stmt = db.prepare("INSERT INTO employees VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        sampleEmployees.forEach(e => {
-          stmt.run(e.id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, e.username, e.password, e.photo);
-        });
-        stmt.finalize();
-      }
-    });
-
-    // Seed Sample Inventory if empty
-    db.get("SELECT COUNT(*) as count FROM inventory", (err, row) => {
-      if (row && row.count === 0) {
-        console.log('Seeding sample inventory...');
-        const sampleInventory = [
-          { id: 'INV-001', name: 'Dâu tây', unit: 'kg', currentStock: 25.0, minStock: 5.0, cost: 80000, category: 'fruit' },
-          { id: 'INV-002', name: 'Xoài', unit: 'kg', currentStock: 30.0, minStock: 6.0, cost: 40000, category: 'fruit' },
-          { id: 'INV-003', name: 'Chuối', unit: 'kg', currentStock: 15.0, minStock: 3.0, cost: 20000, category: 'fruit' },
-          { id: 'INV-004', name: 'Bơ', unit: 'kg', currentStock: 20.0, minStock: 5.0, cost: 60000, category: 'fruit' },
-          { id: 'INV-005', name: 'Dứa', unit: 'kg', currentStock: 10.0, minStock: 2.0, cost: 25000, category: 'fruit' },
-          { id: 'INV-006', name: 'Việt quất', unit: 'kg', currentStock: 8.0, minStock: 2.0, cost: 150000, category: 'fruit' },
-          { id: 'INV-007', name: 'Rau bina', unit: 'kg', currentStock: 5.0, minStock: 1.5, cost: 35000, category: 'fruit' },
-          { id: 'INV-008', name: 'Sữa tươi', unit: 'lít', currentStock: 40.0, minStock: 10.0, cost: 28000, category: 'dairy' },
-          { id: 'INV-009', name: 'Sữa chua', unit: 'kg', currentStock: 15.0, minStock: 4.0, cost: 45000, category: 'dairy' },
-          { id: 'INV-010', name: 'Whey Protein', unit: 'gói', currentStock: 100, minStock: 20, cost: 30000, category: 'protein' },
-          { id: 'INV-014', name: 'Mật ong', unit: 'lít', currentStock: 5.0, minStock: 1.0, cost: 120000, category: 'topping' }
-        ];
-        const stmt = db.prepare("INSERT INTO inventory VALUES (?, ?, ?, ?, ?, ?, ?)");
-        sampleInventory.forEach(item => {
-          stmt.run(item.id, item.name, item.unit, item.currentStock, item.minStock, item.cost, item.category);
-        });
-        stmt.finalize();
-      }
-    });
-
-    // Seed Sample Customers if empty
-    db.get("SELECT COUNT(*) as count FROM customers", (err, row) => {
-      if (row && row.count === 0) {
-        console.log('Seeding sample loyalty customers...');
-        const sampleCustomers = [
-          { id: 'CUST-001', name: 'Nguyễn Hoàng Nam', phone: '0987654321', points: 150, createdAt: new Date().toISOString() },
-          { id: 'CUST-002', name: 'Phạm Minh Tuyến', phone: '0912345678', points: 45, createdAt: new Date().toISOString() },
-          { id: 'CUST-003', name: 'Trần Thị Thu Hương', phone: '0909998887', points: 280, createdAt: new Date().toISOString() }
-        ];
-        const stmt = db.prepare("INSERT INTO customers VALUES (?, ?, ?, ?, ?)");
-        sampleCustomers.forEach(c => {
-          stmt.run(c.id, c.name, c.phone, c.points, c.createdAt);
-        });
-        stmt.finalize();
-      }
-    });
-
-    // Migrations for employee portal
-    const migrations = [
-      "ALTER TABLE employees ADD COLUMN customData TEXT DEFAULT '{}'",
-      "ALTER TABLE shifts ADD COLUMN branch TEXT DEFAULT ''",
-      "ALTER TABLE shifts ADD COLUMN requestedBy TEXT DEFAULT 'admin'",
-    ];
-    migrations.forEach(sql => {
-      db.run(sql, (err) => {
-        if (err && !String(err.message).includes('duplicate column')) {
-          console.warn('Migration skip:', err.message);
-        }
-      });
-    });
-
-    // Seed employee profile field config
-    const defaultProfileFields = JSON.stringify([
-      { id: 'fullName', label: 'Họ và tên', type: 'text', source: 'builtin', fieldKey: 'fullName', visible: true, editable: false, order: 1 },
-      { id: 'employeeId', label: 'Mã nhân viên', type: 'text', source: 'builtin', fieldKey: 'employeeId', visible: true, editable: false, order: 2 },
-      { id: 'phone', label: 'Số điện thoại', type: 'phone', source: 'builtin', fieldKey: 'phone', visible: true, editable: true, order: 3 },
-      { id: 'email', label: 'Email', type: 'email', source: 'builtin', fieldKey: 'email', visible: true, editable: true, order: 4 },
-      { id: 'branch', label: 'Chi nhánh', type: 'text', source: 'builtin', fieldKey: 'branch', visible: true, editable: false, order: 5 },
-      { id: 'position', label: 'Chức vụ', type: 'text', source: 'builtin', fieldKey: 'position', visible: true, editable: false, order: 6 },
-      { id: 'startDate', label: 'Ngày vào làm', type: 'date', source: 'builtin', fieldKey: 'startDate', visible: true, editable: false, order: 7 },
-      { id: 'address', label: 'Địa chỉ', type: 'textarea', source: 'builtin', fieldKey: 'address', visible: true, editable: true, order: 8 },
-    ]);
-    db.get("SELECT value FROM settings WHERE key = 'employee_profile_fields'", (err, row) => {
-      if (!row) {
-        db.run("INSERT INTO settings (key, value) VALUES (?, ?)", ['employee_profile_fields', defaultProfileFields]);
-      }
-    });
-
-  });
+function normStr(v) {
+  return v == null ? v : removeDiacritics(String(v));
 }
+
+function normalizeEmployee(e) {
+  const out = { ...e };
+  out.fullName = normStr(out.fullName);
+  out.address = normStr(out.address);
+  if (out.customData && typeof out.customData === 'object') out.customData = deepConvert(out.customData);
+  return out;
+}
+
+function normalizeProduct(p) {
+  return { ...p, name: normStr(p.name), description: normStr(p.description) };
+}
+
+function normalizeOrder(order) {
+  return {
+    ...order,
+    items: deepConvert(order.items || []),
+    staff: normStr(order.staff),
+    customerName: normStr(order.customerName),
+    deliveryAddress: normStr(order.deliveryAddress),
+    shipperName: normStr(order.shipperName),
+  };
+}
+
+function normalizeShift(s) {
+  return { ...s, employeeName: normStr(s.employeeName) };
+}
+
+function normalizeCustomer(c) {
+  return { ...c, name: normStr(c.name) };
+}
+
+function normalizeInventoryItem(item) {
+  return { ...item, name: normStr(item.name), unit: normStr(item.unit) };
+}
+
 
 // Upload image route
 app.post('/api/upload', upload.single('image'), (req, res) => {
@@ -466,7 +95,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
 // Create new inventory item
 app.post('/api/inventory', (req, res) => {
-  const item = req.body;
+  const item = normalizeInventoryItem(req.body);
   const id = item.id || `INV-${Date.now()}`;
   db.run(
     `INSERT INTO inventory (id, name, unit, currentStock, minStock, cost, category) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -534,42 +163,85 @@ app.get('/api/orders', (req, res) => {
 
 // Create new order
 app.post('/api/orders', (req, res) => {
-  const order = req.body;
+  const order = normalizeOrder(req.body);
   const id = order.id || `ORD-${Date.now()}`;
   const orderNumber = order.orderNumber || Math.floor(Math.random() * 1000) + 1;
   const time = order.time || new Date().toISOString();
 
-  const query = `INSERT INTO orders (
-    id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone, deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const finishInsert = (salesStaffId, salesStaffName) => {
+    const query = `INSERT INTO orders (
+      id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  db.run(query, [
-    id,
-    order.branchId,
-    order.source,
-    JSON.stringify(order.items),
-    time,
-    order.status,
-    order.total,
-    order.staff,
-    order.paidAt || null,
-    order.readyAt || null,
-    order.completedAt || null,
-    orderNumber,
-    order.customerName,
-    order.customerPhone,
-    order.deliveryAddress,
-    order.shipperName,
-    order.shipperId,
-    order.paymentMethod,
-    order.stockDeducted ? 1 : 0
-  ], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    const createdOrder = { ...order, id, time: new Date(time), orderNumber };
-    broadcast('ORDER_CREATED', createdOrder);
-    res.status(201).json(createdOrder);
-  });
+    db.run(query, [
+      id,
+      order.branchId,
+      order.source,
+      JSON.stringify(order.items),
+      time,
+      order.status,
+      order.total,
+      order.staff,
+      order.paidAt || null,
+      order.readyAt || null,
+      order.completedAt || null,
+      orderNumber,
+      order.customerName,
+      order.customerPhone,
+      order.deliveryAddress,
+      order.shipperName,
+      order.shipperId,
+      order.paymentMethod,
+      order.stockDeducted ? 1 : 0,
+      salesStaffId || order.salesStaffId || '',
+      salesStaffName || order.salesStaffName || '',
+    ], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+
+      const createdOrder = {
+        ...order,
+        id,
+        time: new Date(time),
+        orderNumber,
+        salesStaffId: salesStaffId || order.salesStaffId || '',
+        salesStaffName: salesStaffName || order.salesStaffName || '',
+      };
+
+      const phone = order.customerPhone;
+      const staffId = salesStaffId || order.salesStaffId;
+      const staffName = salesStaffName || order.salesStaffName;
+      const isRetailChannel = ['web', 'mobile', 'online_sales'].includes(order.source);
+      if (phone && staffId && staffName && isRetailChannel) {
+        upsertCareAssignment(phone, order.customerName || '', staffId, staffName, staffId, () => {
+          db.run(
+            `UPDATE customer_care_assignments SET customerType='retail', pipelineStage='closed_retail', lastContactAt=? WHERE customerPhone=?`,
+            [new Date().toISOString(), phone]
+          );
+          logSalesActivity(db, {
+            customerPhone: phone,
+            careStaffId: staffId,
+            careStaffName: staffName,
+            activityType: 'converted',
+            content: `Đơn lẻ ${id} — ${(order.total || 0).toLocaleString('vi-VN')}đ`,
+          }, () => {});
+        }, { customerType: 'retail', pipelineStage: 'closed_retail' });
+      }
+
+      broadcast('ORDER_CREATED', createdOrder);
+      res.status(201).json(createdOrder);
+    });
+  };
+
+  const refCode = order.salesRefCode || order.salesStaffRef;
+  if (!order.salesStaffId && refCode) {
+    resolveSalesRef(refCode, (refErr, staff) => {
+      if (refErr) return res.status(500).json({ error: refErr.message });
+      finishInsert(staff?.id, staff?.fullName);
+    });
+  } else {
+    finishInsert(order.salesStaffId, order.salesStaffName);
+  }
 });
 
 // Update order status/fields
@@ -593,9 +265,12 @@ app.patch('/api/orders/:id', (req, res) => {
     const readyAt = updates.readyAt || row.readyAt;
     const completedAt = updates.completedAt || row.completedAt;
 
+    const salesStaffId = updates.salesStaffId !== undefined ? updates.salesStaffId : row.salesStaffId;
+    const salesStaffName = updates.salesStaffName !== undefined ? updates.salesStaffName : row.salesStaffName;
+
     db.run(
-      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ? WHERE id = ?`,
-      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, id],
+      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ? WHERE id = ?`,
+      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -638,48 +313,97 @@ app.get('/api/inventory/movements', (req, res) => {
 
 // Update stock (adjust or sale etc.)
 app.post('/api/inventory/update', (req, res) => {
-  const { items, movements } = req.body; // Array of { id, currentStock }, and movements to record
-  
-  db.serialize(() => {
-    db.run("BEGIN TRANSACTION");
+  const { items, movements } = req.body;
 
-    const itemStmt = db.prepare("UPDATE inventory SET currentStock = ? WHERE id = ?");
-    items.forEach(item => {
-      itemStmt.run(item.currentStock, item.id);
+  const finish = (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.all('SELECT * FROM inventory', (e, currentInv) => {
+      if (!e) broadcast('INVENTORY_UPDATED', currentInv);
+      res.json({ success: true });
     });
-    itemStmt.finalize();
+  };
 
-    if (movements && movements.length > 0) {
-      const movStmt = db.prepare(`INSERT INTO inventory_movements VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-      movements.forEach(m => {
-        movStmt.run(
-          m.id || `MOV-${Date.now()}-${Math.random()}`,
-          m.timestamp || new Date().toISOString(),
-          m.type,
-          m.orderId || null,
-          m.itemId,
-          m.itemName,
-          m.quantity,
-          m.reason,
-          m.performedBy,
-          m.cost
+  if (!isPostgres()) {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const itemStmt = db.prepare('UPDATE inventory SET currentStock = ? WHERE id = ?');
+      (items || []).forEach((item) => itemStmt.run(item.currentStock, item.id));
+      itemStmt.finalize((err) => {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: err.message });
+        }
+        if (!movements?.length) {
+          return db.run('COMMIT', finish);
+        }
+        const movStmt = db.prepare(
+          'INSERT INTO inventory_movements VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-      });
-      movStmt.finalize();
-    }
-
-    db.run("COMMIT", (err) => {
-      if (err) {
-        db.run("ROLLBACK");
-        return res.status(500).json({ error: err.message });
-      }
-      // Broadcast inventory update
-      db.all("SELECT * FROM inventory", (err, currentInv) => {
-        if (!err) broadcast('INVENTORY_UPDATED', currentInv);
-        res.json({ success: true });
+        movements.forEach((m) => {
+          movStmt.run(
+            m.id || `MOV-${Date.now()}-${Math.random()}`,
+            m.timestamp || new Date().toISOString(),
+            m.type,
+            m.orderId || null,
+            m.itemId,
+            m.itemName,
+            m.quantity,
+            m.reason,
+            m.performedBy,
+            m.cost
+          );
+        });
+        movStmt.finalize((err2) => {
+          if (err2) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: err2.message });
+          }
+          db.run('COMMIT', finish);
+        });
       });
     });
-  });
+    return;
+  }
+
+  (async () => {
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of items || []) {
+        await client.query('UPDATE inventory SET "currentStock" = $1 WHERE id = $2', [
+          item.currentStock,
+          item.id,
+        ]);
+      }
+      if (movements?.length) {
+        for (const m of movements) {
+          await client.query(
+            `INSERT INTO inventory_movements (id, timestamp, type, "orderId", "itemId", "itemName", quantity, reason, "performedBy", cost)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            [
+              m.id || `MOV-${Date.now()}-${Math.random()}`,
+              m.timestamp || new Date().toISOString(),
+              m.type,
+              m.orderId || null,
+              m.itemId,
+              m.itemName,
+              m.quantity,
+              m.reason,
+              m.performedBy,
+              m.cost,
+            ]
+          );
+        }
+      }
+      await client.query('COMMIT');
+      finish(null);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  })();
 });
 
 // --- WHOLESALE ACCOUNTS API ---
@@ -822,7 +546,7 @@ app.get('/api/products', (req, res) => {
 });
 
 app.post('/api/products', (req, res) => {
-  const p = req.body;
+  const p = normalizeProduct(req.body);
   const id = p.id || `PROD-${Date.now()}`;
   db.run(
     `INSERT INTO products (id, name, category, basePrice, image, description) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -838,7 +562,7 @@ app.post('/api/products', (req, res) => {
 
 app.put('/api/products/:id', (req, res) => {
   const { id } = req.params;
-  const p = req.body;
+  const p = normalizeProduct(req.body);
   db.run(
     `UPDATE products SET name = ?, category = ?, basePrice = ?, image = ?, description = ? WHERE id = ?`,
     [p.name, p.category, p.basePrice, p.image, p.description || '', id],
@@ -866,12 +590,12 @@ app.post('/api/auth/employee-login', (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ error: 'Vui lòng nhập tên đăng nhập và mật khẩu' });
   }
-  db.get("SELECT * FROM employees WHERE username = ? AND password = ?", [username.trim(), password], (err, row) => {
+  db.get("SELECT * FROM employees WHERE username = ?", [username.trim()], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng' });
-    const employee = { ...row };
-    delete employee.password;
-    try { employee.customData = JSON.parse(employee.customData || '{}'); } catch { employee.customData = {}; }
+    if (!row || !verifyPassword(password, row.password)) {
+      return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng' });
+    }
+    const employee = parseEmployeeRow(row);
     res.json(employee);
   });
 });
@@ -888,21 +612,23 @@ function parseEmployeeRow(row) {
 app.get('/api/employees', (req, res) => {
   db.all("SELECT * FROM employees", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows.map(r => {
-      const e = { ...r };
-      try { e.customData = JSON.parse(e.customData || '{}'); } catch { e.customData = {}; }
-      return e;
-    }));
+    res.json(rows.map(parseEmployeeRow));
   });
 });
 
+function prepareEmployeePassword(password) {
+  if (!password) return password;
+  return isHashed(password) ? password : hashPassword(password);
+}
+
 app.post('/api/employees', (req, res) => {
-  const e = req.body;
+  const e = normalizeEmployee(req.body);
   const id = e.id || `EMP-${Date.now()}`;
   const customData = typeof e.customData === 'object' ? JSON.stringify(e.customData || {}) : (e.customData || '{}');
+  const storedPassword = prepareEmployeePassword(e.password);
   db.run(
     `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, e.username, e.password, e.photo || '', customData],
+    [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, e.username, storedPassword, e.photo || '', customData],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       const created = parseEmployeeRow({ ...e, id, customData: e.customData || {} });
@@ -914,18 +640,25 @@ app.post('/api/employees', (req, res) => {
 
 app.put('/api/employees/:id', (req, res) => {
   const { id } = req.params;
-  const e = req.body;
+  const e = normalizeEmployee(req.body);
   const customData = typeof e.customData === 'object' ? JSON.stringify(e.customData || {}) : (e.customData || '{}');
+  const storedPassword = e.password ? prepareEmployeePassword(e.password) : undefined;
+  db.get('SELECT password FROM employees WHERE id = ?', [id], (getErr, existing) => {
+    if (getErr) return res.status(500).json({ error: getErr.message });
+    if (!existing) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
+    const passwordToSave = storedPassword || existing.password;
   db.run(
     `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ? WHERE id = ?`,
-    [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, e.username, e.password, e.photo || '', customData, id],
+    [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, e.username, passwordToSave, e.photo || '', customData, id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
       const updated = parseEmployeeRow({ ...e, id, customData: e.customData || {} });
       broadcast('EMPLOYEE_UPDATED', updated);
       res.json(updated);
     }
   );
+  });
 });
 
 app.delete('/api/employees/:id', (req, res) => {
@@ -939,12 +672,14 @@ app.delete('/api/employees/:id', (req, res) => {
 
 // --- SHIFTS API ---
 app.get('/api/shifts', (req, res) => {
-  const { employeeId, status } = req.query;
+  const { employeeId, status, branch, date } = req.query;
   let sql = "SELECT * FROM shifts";
   const params = [];
   const clauses = [];
   if (employeeId) { clauses.push("employeeId = ?"); params.push(employeeId); }
   if (status) { clauses.push("status = ?"); params.push(status); }
+  if (branch) { clauses.push("branch = ?"); params.push(branch); }
+  if (date) { clauses.push("date = ?"); params.push(date); }
   if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
   sql += " ORDER BY date DESC";
   db.all(sql, params, (err, rows) => {
@@ -954,7 +689,7 @@ app.get('/api/shifts', (req, res) => {
 });
 
 app.post('/api/shifts', (req, res) => {
-  const s = req.body;
+  const s = normalizeShift(req.body);
   const id = s.id || `SHIFT-${Date.now()}`;
   db.run(
     `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -970,12 +705,13 @@ app.post('/api/shifts', (req, res) => {
 
 app.put('/api/shifts/:id', (req, res) => {
   const { id } = req.params;
-  const s = req.body;
+  const s = normalizeShift(req.body);
   db.run(
     `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ? WHERE id = ?`,
     [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
       const updated = { ...s, id };
       broadcast('SHIFT_UPDATED', updated);
       res.json(updated);
@@ -985,18 +721,20 @@ app.put('/api/shifts/:id', (req, res) => {
 
 app.patch('/api/shifts/:id/checkin', (req, res) => {
   const { id } = req.params;
-  const { action } = req.body;
+  const { action, photo } = req.body;
   const now = new Date().toISOString();
   db.get("SELECT * FROM shifts WHERE id = ?", [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
     const field = action === 'out' ? 'checkOut' : 'checkIn';
+    const photoField = action === 'out' ? 'checkOutPhoto' : 'checkInPhoto';
     const updated = { ...row, [field]: now };
+    if (photo) updated[photoField] = photo;
     if (action === 'in') updated.status = 'in_progress';
     if (action === 'out') updated.status = 'completed';
     db.run(
-      `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ? WHERE id = ?`,
-      [updated.checkIn || '', updated.checkOut || '', updated.status, id],
+      `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ? WHERE id = ?`,
+      [updated.checkIn || '', updated.checkOut || '', updated.status, updated.checkInPhoto || '', updated.checkOutPhoto || '', id],
       function(err2) {
         if (err2) return res.status(500).json({ error: err2.message });
         broadcast('SHIFT_UPDATED', updated);
@@ -1031,7 +769,8 @@ app.get('/api/settings/:key', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const { key, value } = req.body;
-  const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  const stringValue = convertMaybeJson(raw);
   db.run(
     "INSERT INTO settings (key, value) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     [key, stringValue],
@@ -1061,7 +800,7 @@ app.get('/api/customers/:phone', (req, res) => {
 });
 
 app.post('/api/customers', (req, res) => {
-  const c = req.body;
+  const c = normalizeCustomer(req.body);
   const id = c.id || `CUST-${Date.now()}`;
   const points = c.points || 0;
   const createdAt = new Date().toISOString();
@@ -1086,7 +825,7 @@ app.patch('/api/customers/:id', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Customer not found' });
 
-    const newName = name !== undefined ? name : row.name;
+    const newName = name !== undefined ? normStr(name) : row.name;
     const newPhone = phone !== undefined ? phone : row.phone;
     const newPoints = points !== undefined ? points : row.points;
 
@@ -1473,6 +1212,362 @@ app.patch('/api/loyalty-vouchers/:id/cancel', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// --- COMBO SUBSCRIPTIONS & CUSTOMER CARE ---
+
+function parseComboRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    items: typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []),
+    deliveryDays: typeof row.deliveryDays === 'string' ? JSON.parse(row.deliveryDays || '[]') : (row.deliveryDays || []),
+    startDate: row.startDate ? new Date(row.startDate) : new Date(),
+    nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
+    createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt) : undefined,
+    closedAt: row.closedAt ? new Date(row.closedAt) : undefined,
+    assignedAt: row.assignedAt ? new Date(row.assignedAt) : undefined,
+  };
+}
+
+function parseAssignmentRow(row) {
+  if (!row) return null;
+  let tags = row.tags;
+  if (typeof tags === 'string') {
+    try { tags = JSON.parse(tags); } catch { tags = []; }
+  }
+  return {
+    ...row,
+    tags,
+    assignedAt: row.assignedAt ? new Date(row.assignedAt) : undefined,
+    lastContactAt: row.lastContactAt || undefined,
+    customerType: row.customerType || 'combo',
+    pipelineStage: row.pipelineStage || 'nurturing',
+  };
+}
+
+function resolveSalesRef(username, cb) {
+  if (!username) return cb(null, null);
+  db.get(
+    "SELECT id, fullName, username FROM employees WHERE username = ? AND position IN ('online_sales', 'customer_care')",
+    [String(username).trim()],
+    (err, row) => cb(err, row || null)
+  );
+}
+
+function upsertCareAssignment(customerPhone, customerName, careStaffId, careStaffName, assignedBy, cb, extras = {}) {
+  const id = `CCA-${customerPhone.replace(/\D/g, '')}`;
+  const now = new Date().toISOString();
+  const customerType = extras.customerType || 'combo';
+  const pipelineStage = extras.pipelineStage || (customerType === 'combo' ? 'closed_combo' : 'nurturing');
+  const salesRefCode = extras.salesRefCode || '';
+
+  db.get('SELECT * FROM customer_care_assignments WHERE customerPhone = ?', [customerPhone], (err, existing) => {
+    if (err) return cb(err);
+    if (existing) {
+      db.run(
+        `UPDATE customer_care_assignments SET customerName = ?, careStaffId = ?, careStaffName = ?, assignedAt = ?, assignedBy = ?,
+         customerType = COALESCE(?, customerType), pipelineStage = COALESCE(?, pipelineStage),
+         salesRefCode = CASE WHEN ? != '' THEN ? ELSE salesRefCode END, lastContactAt = ?
+         WHERE customerPhone = ?`,
+        [customerName, careStaffId, careStaffName, now, assignedBy, customerType, pipelineStage, salesRefCode, salesRefCode, now, customerPhone],
+        (e) => {
+          if (e) return cb(e);
+          db.get('SELECT * FROM customer_care_assignments WHERE customerPhone = ?', [customerPhone], (e2, row) => cb(e2, row));
+        }
+      );
+    } else {
+      db.run(
+        `INSERT INTO customer_care_assignments (id, customerPhone, customerName, careStaffId, careStaffName, assignedAt, assignedBy, notes,
+         customerType, pipelineStage, salesRefCode, lastContactAt, tags, fbName)
+         VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, '[]', '')`,
+        [id, customerPhone, customerName, careStaffId, careStaffName, now, assignedBy, customerType, pipelineStage, salesRefCode, now],
+        (e) => {
+          if (e) return cb(e);
+          db.get('SELECT * FROM customer_care_assignments WHERE customerPhone = ?', [customerPhone], (e2, row) => cb(e2, row));
+        }
+      );
+    }
+  });
+}
+
+app.get('/api/combo-subscriptions', (req, res) => {
+  const { careStaffId, status, customerPhone } = req.query;
+  let sql = 'SELECT * FROM combo_subscriptions WHERE 1=1';
+  const params = [];
+  if (careStaffId) { sql += ' AND careStaffId = ?'; params.push(careStaffId); }
+  if (status) { sql += ' AND status = ?'; params.push(status); }
+  if (customerPhone) { sql += ' AND customerPhone = ?'; params.push(customerPhone); }
+  sql += ' ORDER BY createdAt DESC';
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows.map(parseComboRow));
+  });
 });
+
+app.post('/api/combo-subscriptions', (req, res) => {
+  const body = req.body;
+  const id = body.id || `COMBO-${Date.now()}`;
+  const now = new Date().toISOString();
+  const startDate = body.startDate || now;
+  const nextDelivery = body.nextDelivery || startDate;
+  const deliveryDays = JSON.stringify(body.deliveryDays || [1, 2, 3, 4, 5]);
+  const items = JSON.stringify(body.items || body.rawComboData || []);
+  const status = body.status || 'pending';
+
+  const insertCombo = (careStaffId, careStaffName) => {
+  const query = `INSERT INTO combo_subscriptions (
+    id, orderId, customerName, customerPhone, planName, comboType, comboDuration,
+    startDate, nextDelivery, deliveryDays, items, totalPrice, status, branchId,
+    deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
+    closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+  db.run(query, [
+    id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
+    body.planName || '', body.comboType || 'weekly', body.comboDuration || 'weekly',
+    startDate, nextDelivery, deliveryDays, items, body.totalPrice || 0, status,
+    body.branchId || 'CN1', normStr(body.deliveryAddress) || '',
+    careStaffId || body.careStaffId || null, careStaffName || body.careStaffName || null,
+    body.closedByStaffId || null, body.closedByStaffName || null,
+    body.closedAt || null, body.assignedAt || null,
+    body.pauseStartDate || null, body.pauseEndDate || null, body.notes || '',
+    normStr(body.staff) || '', now, now
+  ], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, row) => {
+      if (e || !row) return res.status(500).json({ error: 'Failed to fetch created combo' });
+      const created = parseComboRow(row);
+      if (row.customerPhone && careStaffId && careStaffName) {
+        upsertCareAssignment(
+          row.customerPhone,
+          row.customerName,
+          careStaffId,
+          careStaffName,
+          careStaffId,
+          () => {},
+          { customerType: 'combo', pipelineStage: status === 'pending' ? 'web_sent' : 'closed_combo', salesRefCode: body.salesRefCode || '' }
+        );
+      }
+      broadcast('COMBO_SUBSCRIPTION_CREATED', created);
+      res.status(201).json(created);
+    });
+  });
+  };
+
+  const refCode = body.salesRefCode;
+  if (!body.careStaffId && refCode) {
+    resolveSalesRef(refCode, (refErr, staff) => {
+      if (refErr) return res.status(500).json({ error: refErr.message });
+      insertCombo(staff?.id, staff?.fullName);
+    });
+  } else {
+    insertCombo(body.careStaffId, body.careStaffName);
+  }
+});
+
+app.patch('/api/combo-subscriptions/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+  db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Combo not found' });
+
+    const now = new Date().toISOString();
+    const merged = {
+      ...row,
+      ...updates,
+      items: updates.items !== undefined ? JSON.stringify(updates.items) : row.items,
+      deliveryDays: updates.deliveryDays !== undefined ? JSON.stringify(updates.deliveryDays) : row.deliveryDays,
+      updatedAt: now,
+    };
+
+    db.run(
+      `UPDATE combo_subscriptions SET
+        customerName = ?, customerPhone = ?, planName = ?, comboType = ?, comboDuration = ?,
+        startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
+        branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
+        closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, updatedAt = ?
+      WHERE id = ?`,
+      [
+        normStr(merged.customerName ?? row.customerName),
+        merged.customerPhone ?? row.customerPhone,
+        merged.planName ?? row.planName,
+        merged.comboType ?? row.comboType,
+        merged.comboDuration ?? row.comboDuration,
+        merged.startDate ?? row.startDate,
+        merged.nextDelivery ?? row.nextDelivery,
+        merged.deliveryDays,
+        merged.items,
+        merged.totalPrice ?? row.totalPrice,
+        merged.status ?? row.status,
+        merged.branchId ?? row.branchId,
+        normStr(merged.deliveryAddress ?? row.deliveryAddress),
+        merged.careStaffId ?? row.careStaffId,
+        merged.careStaffName ?? row.careStaffName,
+        merged.closedByStaffId ?? row.closedByStaffId,
+        merged.closedByStaffName ?? row.closedByStaffName,
+        merged.closedAt ?? row.closedAt,
+        merged.assignedAt ?? row.assignedAt,
+        merged.pauseStartDate ?? row.pauseStartDate,
+        merged.pauseEndDate ?? row.pauseEndDate,
+        merged.notes ?? row.notes,
+        normStr(merged.staff ?? row.staff),
+        now,
+        id,
+      ],
+      function(updateErr) {
+        if (updateErr) return res.status(500).json({ error: updateErr.message });
+        db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
+          if (e || !updated) return res.status(500).json({ error: 'Failed to fetch updated combo' });
+          const parsed = parseComboRow(updated);
+          broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+          res.json(parsed);
+        });
+      }
+    );
+  });
+});
+
+app.post('/api/combo-subscriptions/:id/claim', (req, res) => {
+  const { id } = req.params;
+  const { employeeId, employeeName } = req.body;
+  if (!employeeId || !employeeName) {
+    return res.status(400).json({ error: 'employeeId and employeeName required' });
+  }
+  const now = new Date().toISOString();
+  db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Combo not found' });
+    if (row.status !== 'pending') {
+      return res.status(400).json({ error: 'Combo da duoc chot hoac khong con cho xu ly' });
+    }
+    db.run(
+      `UPDATE combo_subscriptions SET status = 'active', careStaffId = ?, careStaffName = ?,
+       closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?, updatedAt = ? WHERE id = ?`,
+      [employeeId, employeeName, employeeId, employeeName, now, now, now, id],
+      function(updateErr) {
+        if (updateErr) return res.status(500).json({ error: updateErr.message });
+        upsertCareAssignment(
+          row.customerPhone,
+          row.customerName,
+          employeeId,
+          employeeName,
+          employeeId,
+          (assignErr, assignment) => {
+          if (assignErr) return res.status(500).json({ error: assignErr.message });
+          db.run(
+            `UPDATE customer_care_assignments SET customerType='combo', pipelineStage='closed_combo', lastContactAt=? WHERE customerPhone=?`,
+            [now, row.customerPhone]
+          );
+          logSalesActivity(db, {
+            customerPhone: row.customerPhone,
+            careStaffId: employeeId,
+            careStaffName: employeeName,
+            activityType: 'claim',
+            content: `Chốt combo ${row.planName || id} — ${(row.totalPrice || 0).toLocaleString('vi-VN')}đ`,
+          }, () => {});
+          db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
+            const parsed = parseComboRow(updated);
+            broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+            if (assignment) broadcast('CARE_ASSIGNMENT_UPDATED', parseAssignmentRow(assignment));
+            res.json(parsed);
+          });
+        },
+          { customerType: 'combo', pipelineStage: 'closed_combo' }
+        );
+      }
+    );
+  });
+});
+
+app.get('/api/customer-care/assignments', (req, res) => {
+  const { careStaffId } = req.query;
+  let sql = 'SELECT * FROM customer_care_assignments';
+  const params = [];
+  if (careStaffId) { sql += ' WHERE careStaffId = ?'; params.push(careStaffId); }
+  sql += ' ORDER BY assignedAt DESC';
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows.map(parseAssignmentRow));
+  });
+});
+
+app.post('/api/customer-care/assignments', (req, res) => {
+  const { customerPhone, customerName, careStaffId, careStaffName, assignedBy, notes } = req.body;
+  if (!customerPhone || !careStaffId || !careStaffName) {
+    return res.status(400).json({ error: 'customerPhone, careStaffId, careStaffName required' });
+  }
+  upsertCareAssignment(customerPhone, customerName || '', careStaffId, careStaffName, assignedBy || 'admin', (err, assignment) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (notes) {
+      db.run('UPDATE customer_care_assignments SET notes = ? WHERE customerPhone = ?', [notes, customerPhone]);
+    }
+    db.all(
+      `SELECT id FROM combo_subscriptions WHERE customerPhone = ? AND status IN ('pending', 'active', 'paused')`,
+      [customerPhone],
+      (_, comboRows) => {
+        const now = new Date().toISOString();
+        comboRows.forEach((c) => {
+          db.run(
+            `UPDATE combo_subscriptions SET careStaffId = ?, careStaffName = ?, assignedAt = ?, updatedAt = ? WHERE id = ?`,
+            [careStaffId, careStaffName, now, now, c.id]
+          );
+        });
+        const parsed = parseAssignmentRow({ ...assignment, notes: notes || '' });
+        broadcast('CARE_ASSIGNMENT_UPDATED', parsed);
+        res.status(201).json(parsed);
+      }
+    );
+  });
+});
+
+app.patch('/api/customer-care/assignments/:phone', (req, res) => {
+  const phone = decodeURIComponent(req.params.phone);
+  const { careStaffId, careStaffName, assignedBy, notes } = req.body;
+  if (!careStaffId || !careStaffName) {
+    return res.status(400).json({ error: 'careStaffId and careStaffName required' });
+  }
+  db.get('SELECT * FROM customer_care_assignments WHERE customerPhone = ?', [phone], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const customerName = row?.customerName || req.body.customerName || '';
+    upsertCareAssignment(phone, customerName, careStaffId, careStaffName, assignedBy || 'admin', (assignErr, assignment) => {
+      if (assignErr) return res.status(500).json({ error: assignErr.message });
+      const now = new Date().toISOString();
+      db.run(
+        `UPDATE combo_subscriptions SET careStaffId = ?, careStaffName = ?, assignedAt = ?, updatedAt = ? WHERE customerPhone = ? AND status IN ('pending', 'active', 'paused')`,
+        [careStaffId, careStaffName, now, now, phone],
+        () => {
+          if (notes !== undefined) {
+            db.run('UPDATE customer_care_assignments SET notes = ? WHERE customerPhone = ?', [notes, phone]);
+          }
+          broadcast('CARE_ASSIGNMENT_UPDATED', parseAssignmentRow(assignment));
+          res.json(parseAssignmentRow(assignment));
+        }
+      );
+    });
+  });
+});
+
+// Health check for Render / monitoring
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
+async function start() {
+  try {
+    db = await initDatabase();
+    registerOnlineSalesRoutes(app, db, broadcast, {
+      parseAssignmentRow,
+      upsertCareAssignment,
+    });
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+start();

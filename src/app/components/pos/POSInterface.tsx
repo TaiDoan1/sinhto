@@ -16,6 +16,7 @@ import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
 import type { CartItem } from './ModifierModal';
+import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
 
 const branches = [
@@ -76,30 +77,27 @@ export function POSInterface() {
     }
   };
 
-  const loadCurrentShifts = () => {
+  const loadCurrentShifts = async () => {
     if (!selectedBranch) return;
 
-    const shifts = JSON.parse(localStorage.getItem('shifts') || '[]') as Shift[];
     const today = new Date().toISOString().split('T')[0];
     const currentHour = new Date().getHours();
 
-    const todayShifts = shifts.filter(shift => {
-      if (shift.branch !== selectedBranch || shift.date !== today) return false;
-
-      const startHour = parseInt(shift.startTime.split(':')[0]);
-      const endHour = parseInt(shift.endTime.split(':')[0]);
-
-      // Handle overnight shifts (e.g., 22:00 - 06:00)
-      if (endHour < startHour) {
-        return currentHour >= startHour || currentHour < endHour;
-      }
-
-      // Normal shifts
-      return currentHour >= startHour && currentHour < endHour;
-    });
-
-    console.log('Current shifts for POS:', todayShifts);
-    setCurrentShifts(todayShifts);
+    try {
+      const shifts = (await api.fetchShifts({ branch: selectedBranch, date: today })) as Shift[];
+      const todayShifts = shifts.filter((shift) => {
+        const startHour = parseInt(shift.startTime.split(':')[0], 10);
+        const endHour = parseInt(shift.endTime.split(':')[0], 10);
+        if (endHour < startHour) {
+          return currentHour >= startHour || currentHour < endHour;
+        }
+        return currentHour >= startHour && currentHour < endHour;
+      });
+      setCurrentShifts(todayShifts);
+    } catch (err) {
+      console.error('Failed to load shifts for POS:', err);
+      setCurrentShifts([]);
+    }
   };
 
   const handleAddToCart = (item: CartItem) => {

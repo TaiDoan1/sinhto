@@ -14,9 +14,9 @@ export function StaffApp() {
     );
   }
 
-  if (!isLoggedIn) {
-    return <EmployeeLogin />;
-  }
-
-  return <EmployeePortal />;
+  return (
+    <div className="h-full mx-auto bg-gray-50 shadow-xl relative max-w-md">
+      {!isLoggedIn ? <EmployeeLogin /> : <EmployeePortal />}
+    </div>
+  );
 }

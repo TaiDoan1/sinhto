@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Check } from 'lucide-react';
-import * as api from '../../utils/api';
+import { useMenu } from '../../contexts/MenuContext';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 interface Props {
   product: { id: string; name: string; basePrice: number; image: string; description?: string };
@@ -60,47 +61,16 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
   const [protein, setProtein] = useState(40);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
-  const [dynamicPriceTable, setDynamicPriceTable] = useState<any>(defaultPriceTable);
-  const [dynamicToppings, setDynamicToppings] = useState<any[]>(defaultToppings);
-  const [comboList, setComboList] = useState<any[]>(COMBO_TOPPINGS);
   const [toppingTab, setToppingTab] = useState<'single' | 'combo'>('single');
-
-  useEffect(() => {
-    // 1. Fetch Price Table
-    api.fetchSetting('menuPriceTable')
-      .then(data => setDynamicPriceTable(data))
-      .catch(() => {
-        const savedPrices = localStorage.getItem('menuPriceTable');
-        if (savedPrices) setDynamicPriceTable(JSON.parse(savedPrices));
-      });
-
-    // 2. Fetch Toppings
-    api.fetchProducts()
-      .then(products => {
-        const toppingItems = products.filter((p: any) => p.category === 'toppings');
-        if (toppingItems.length > 0) {
-          setDynamicToppings(toppingItems.map((p: any) => ({ name: p.name, price: p.basePrice })));
-        }
-      })
-      .catch(() => {
-        const savedProducts = localStorage.getItem('menuProducts');
-        if (savedProducts) {
-          const allProducts = JSON.parse(savedProducts);
-          const toppingItems = allProducts.filter((p: any) => p.category === 'toppings');
-          if (toppingItems.length > 0) {
-            setDynamicToppings(toppingItems.map((p: any) => ({ name: p.name, price: p.basePrice })));
-          }
-        }
-      });
-
-    // 3. Fetch Combo Toppings list
-    api.fetchSetting('menuComboToppings')
-      .then(data => setComboList(data))
-      .catch(() => {
-        const savedCombos = localStorage.getItem('menuComboToppings');
-        if (savedCombos) setComboList(JSON.parse(savedCombos));
-      });
-  }, []);
+  const { products } = useMenu();
+  const { priceTable: dynamicPriceTable, comboToppings: comboListFromApi } = useMenuPricing();
+  const dynamicToppings = products
+    .filter((p) => p.category === 'toppings')
+    .map((p) => ({ name: p.name, price: p.basePrice }));
+  const toppings = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
+  const comboList = (comboListFromApi as typeof COMBO_TOPPINGS).length > 0
+    ? (comboListFromApi as typeof COMBO_TOPPINGS)
+    : COMBO_TOPPINGS;
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>
@@ -118,7 +88,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
     const tablePrice = dynamicPriceTable[size]?.[protein] || product.basePrice;
     
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
-      const topping = dynamicToppings.find(t => t.name === name);
+      const topping = toppings.find(t => t.name === name);
       return sum + (topping?.price || 0);
     }, 0);
 
@@ -233,7 +203,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
             <div className="min-h-[260px]">
               {toppingTab === 'single' ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {dynamicToppings.map(t => {
+                  {toppings.map(t => {
                     const isSelected = selectedToppings.includes(t.name);
                     return (
                       <button key={t.name} onClick={() => toggleTopping(t.name)}

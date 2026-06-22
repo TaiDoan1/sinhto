@@ -6,7 +6,10 @@
   "scripts": {
     "build": "vite build",
     "dev": "concurrently \"npm run backend\" \"vite\"",
-    "backend": "node backend/index.js"
+    "backend": "node backend/index.js",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "node backend/scripts/migrate-sqlite-to-pg.js"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

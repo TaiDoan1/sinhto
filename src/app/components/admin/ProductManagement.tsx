@@ -55,10 +55,17 @@ export function ProductManagement() {
   const { subscribe } = useSSE();
 
   useEffect(() => {
-    // Load products from backend API
     api.fetchProducts()
       .then(data => setProducts(data))
       .catch(err => console.error('Failed to load products:', err));
+
+    api.fetchSetting('menuPriceTable')
+      .then((data) => { if (data) setPriceTable(data); })
+      .catch(() => {});
+
+    api.fetchSetting('menuComboToppings')
+      .then((data) => { if (Array.isArray(data)) setComboToppings(data); })
+      .catch(() => {});
 
     const unsubCreate = subscribe('PRODUCT_CREATED', (data) => {
       setProducts(prev => {
@@ -137,14 +144,23 @@ export function ProductManagement() {
     }
   };
 
-  const handlePublishMenu = () => {
-    const now = new Date().toISOString();
-    setLastSyncTime(now);
-    setSyncStatus('success');
-    setTimeout(() => setSyncStatus('idle'), 3000);
+  const handlePublishMenu = async () => {
+    try {
+      await Promise.all([
+        api.saveSetting('menuPriceTable', priceTable),
+        api.saveSetting('menuComboToppings', comboToppings),
+      ]);
+      const now = new Date().toISOString();
+      setLastSyncTime(now);
+      setSyncStatus('success');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch (err) {
+      console.error(err);
+      alert('Đồng bộ thất bại. Kiểm tra backend đang chạy.');
+    }
   };
 
-  const handleQuickEntry = () => {
+  const handleQuickEntry = async () => {
     if (!quickEntryText.trim()) return;
     const lines = quickEntryText.trim().split('\n').filter(l => l.trim());
     const newItems: Product[] = [];
@@ -164,10 +180,17 @@ export function ProductManagement() {
       }
     });
     if (newItems.length === 0) return alert('Định dạng không đúng. Vui lòng dùng: Tên | Giá | Loại (smoothies/toppings/combo)');
-    const updated = [...products, ...newItems];
-    saveProducts(updated);
-    setQuickEntryText('');
-    handlePublishMenu();
+    try {
+      for (const item of newItems) {
+        await api.saveProduct(item);
+      }
+      setQuickEntryText('');
+      await handlePublishMenu();
+      alert(`Đã thêm ${newItems.length} sản phẩm và đồng bộ menu.`);
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi khi thêm sản phẩm nhanh.');
+    }
   };
 
   return (

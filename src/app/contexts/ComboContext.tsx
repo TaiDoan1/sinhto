@@ -1,29 +1,44 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { ComboItem } from '../components/customer/CustomComboBuilder';
+import { useSSE } from './SSEContext';
+import * as api from '../utils/api';
+import { withSalesRef } from '../utils/salesRef';
+import type { ComboSubscriptionStatus } from '../types/customerCare';
 
 export interface ComboSubscription {
   id: string;
   customerName: string;
   customerPhone: string;
   comboType: 'weekly' | 'monthly';
+  comboDuration?: 'weekly' | 'monthly' | 'quarterly';
   startDate: Date;
   nextDelivery: Date;
-  deliveryDays: number[]; // 0-6 (Sunday-Saturday)
-  items: ComboItem[];
+  deliveryDays: number[];
+  items: ComboItem[] | Record<string, unknown>;
   totalPrice: number;
-  status: 'active' | 'paused' | 'completed';
+  status: ComboSubscriptionStatus;
   staff: string;
   branchId: string;
   updatedAt?: Date;
   pauseStartDate?: string;
   pauseEndDate?: string;
+  orderId?: string;
+  planName?: string;
+  deliveryAddress?: string;
+  careStaffId?: string;
+  careStaffName?: string;
+  closedByStaffId?: string;
+  closedByStaffName?: string;
+  closedAt?: Date;
+  assignedAt?: Date;
+  notes?: string;
 }
 
 export interface ComboNotification {
   id: string;
   comboId: string;
   customerName: string;
-  type: 'update' | 'pause' | 'resume';
+  type: 'update' | 'pause' | 'resume' | 'claim';
   message: string;
   timestamp: Date;
   isRead: boolean;
@@ -31,10 +46,13 @@ export interface ComboNotification {
 
 interface ComboContextType {
   combos: ComboSubscription[];
+  isLoading: boolean;
   notifications: ComboNotification[];
-  addCombo: (combo: Omit<ComboSubscription, 'id'>) => void;
-  updateCombo: (comboId: string, updates: Partial<ComboSubscription>) => void;
-  updateComboStatus: (comboId: string, status: ComboSubscription['status']) => void;
+  addCombo: (combo: Omit<ComboSubscription, 'id'>) => Promise<void>;
+  updateCombo: (comboId: string, updates: Partial<ComboSubscription>) => Promise<void>;
+  updateComboStatus: (comboId: string, status: ComboSubscription['status']) => Promise<void>;
+  claimCombo: (comboId: string, employeeId: string, employeeName: string) => Promise<void>;
+  refreshCombos: () => Promise<void>;
   getTodayDeliveries: () => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
   addNotification: (notification: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => void;
@@ -42,73 +60,107 @@ interface ComboContextType {
 
 const ComboContext = createContext<ComboContextType | undefined>(undefined);
 
-// Dữ liệu mẫu
-const getNextDeliveryDate = (daysFromNow: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromNow);
-  return date;
-};
+function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
+  let items = raw.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  let deliveryDays = raw.deliveryDays;
+  if (typeof deliveryDays === 'string') {
+    try { deliveryDays = JSON.parse(deliveryDays); } catch { deliveryDays = [1, 2, 3, 4, 5]; }
+  }
+  return {
+    ...(raw as ComboSubscription),
+    items: (items || []) as ComboSubscription['items'],
+    deliveryDays: (deliveryDays || [1, 2, 3, 4, 5]) as number[],
+    startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
+    nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
+    updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,
+    closedAt: raw.closedAt ? new Date(raw.closedAt as string) : undefined,
+    assignedAt: raw.assignedAt ? new Date(raw.assignedAt as string) : undefined,
+    status: (raw.status as ComboSubscriptionStatus) || 'pending',
+    staff: (raw.staff as string) || '',
+  };
+}
 
-const mockCombos: ComboSubscription[] = [
-  {
-    id: 'COMBO-001',
-    customerName: 'Nguyễn Thị Mai',
-    customerPhone: '0912345678',
-    comboType: 'weekly',
-    startDate: new Date('2025-04-01'),
-    nextDelivery: getNextDeliveryDate(0), // Hôm nay
-    deliveryDays: [1, 3, 5], // T2, T4, T6
-    items: [
-      { id: '1', product: { id: 'SM-007', name: 'Strawberry Blast', basePrice: 45000, image: '🍓', category: 'smoothies' }, quantity: 1, size: '500ml', protein: 20, toppings: [], price: 45000, assignedDay: 'all' },
-      { id: '2', product: { id: 'SM-008', name: 'Green Power', basePrice: 50000, image: '🥬', category: 'smoothies' }, quantity: 1, size: '500ml', protein: 20, toppings: [], price: 50000, assignedDay: 'all' },
-      { id: '3', product: { id: 'SM-003', name: 'Mango Tango', basePrice: 48000, image: '🥭', category: 'smoothies' }, quantity: 1, size: '500ml', protein: 20, toppings: [], price: 48000, assignedDay: 'all' }
-    ],
-    totalPrice: 280000,
-    status: 'active',
-    staff: 'Nguyễn Văn An',
-    branchId: 'CN1'
-  },
-  {
-    id: 'COMBO-002',
-    customerName: 'Trần Văn Hùng',
-    customerPhone: '0923456789',
-    comboType: 'monthly',
-    startDate: new Date('2025-04-01'),
-    nextDelivery: getNextDeliveryDate(2), // 2 ngày nữa
-    deliveryDays: [1, 2, 3, 4, 5], // T2-T6
-    items: [
-      { id: '4', product: { id: 'SM-001', name: 'Protein Shake', basePrice: 55000, image: '🥤', category: 'smoothies' }, quantity: 1, size: '500ml', protein: 40, toppings: [], price: 55000, assignedDay: 'all' }
-    ],
-    totalPrice: 950000,
-    status: 'active',
-    staff: 'Trần Thị Bình',
-    branchId: 'CN1'
-  },
-];
+function toApiPayload(combo: Partial<ComboSubscription>) {
+  return {
+    ...combo,
+    startDate: combo.startDate instanceof Date ? combo.startDate.toISOString() : combo.startDate,
+    nextDelivery: combo.nextDelivery instanceof Date ? combo.nextDelivery.toISOString() : combo.nextDelivery,
+    closedAt: combo.closedAt instanceof Date ? combo.closedAt.toISOString() : combo.closedAt,
+    assignedAt: combo.assignedAt instanceof Date ? combo.assignedAt.toISOString() : combo.assignedAt,
+  };
+}
 
 export function ComboProvider({ children }: { children: ReactNode }) {
-  const [combos, setCombos] = useState<ComboSubscription[]>(mockCombos);
+  const { subscribe } = useSSE();
+  const [combos, setCombos] = useState<ComboSubscription[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<ComboNotification[]>([]);
 
-  const addCombo = (comboData: Omit<ComboSubscription, 'id'>) => {
-    const newCombo: ComboSubscription = {
-      ...comboData,
-      id: `COMBO-${String(combos.length + 1).padStart(3, '0')}`,
-      updatedAt: new Date(),
+  const refreshCombos = useCallback(async () => {
+    try {
+      const data = await api.fetchComboSubscriptions();
+      setCombos(data.map(normalizeCombo));
+    } catch (err) {
+      console.error('Failed to load combos:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCombos();
+  }, [refreshCombos]);
+
+  useEffect(() => {
+    const unsubCreate = subscribe('COMBO_SUBSCRIPTION_CREATED', (data) => {
+      setCombos((prev) => {
+        const normalized = normalizeCombo(data);
+        if (prev.some((c) => c.id === normalized.id)) return prev;
+        return [normalized, ...prev];
+      });
+    });
+    const unsubUpdate = subscribe('COMBO_SUBSCRIPTION_UPDATED', (data) => {
+      const normalized = normalizeCombo(data);
+      setCombos((prev) => prev.map((c) => (c.id === normalized.id ? normalized : c)));
+    });
+    return () => {
+      unsubCreate();
+      unsubUpdate();
     };
-    setCombos([...combos, newCombo]);
+  }, [subscribe]);
+
+  const addCombo = async (comboData: Omit<ComboSubscription, 'id'>) => {
+    const created = await api.createComboSubscription(withSalesRef({
+      ...toApiPayload(comboData),
+      status: comboData.status || 'pending',
+    }));
+    const normalized = normalizeCombo(created);
+    setCombos((prev) => [normalized, ...prev.filter((c) => c.id !== normalized.id)]);
   };
 
-  const updateCombo = (comboId: string, updates: Partial<ComboSubscription>) => {
-    setCombos(prev => prev.map(combo => 
-      combo.id === comboId ? { ...combo, ...updates, updatedAt: new Date() } : combo
-    ));
+  const updateCombo = async (comboId: string, updates: Partial<ComboSubscription>) => {
+    const updated = await api.updateComboSubscription(comboId, toApiPayload(updates));
+    const normalized = normalizeCombo(updated);
+    setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
   };
 
-  const updateComboStatus = (comboId: string, status: ComboSubscription['status']) => {
-    setCombos(combos.map(combo =>
-      combo.id === comboId ? { ...combo, status, updatedAt: new Date() } : combo
-    ));
+  const updateComboStatus = async (comboId: string, status: ComboSubscription['status']) => {
+    await updateCombo(comboId, { status });
+  };
+
+  const claimCombo = async (comboId: string, employeeId: string, employeeName: string) => {
+    const updated = await api.claimComboSubscription(comboId, employeeId, employeeName);
+    const normalized = normalizeCombo(updated);
+    setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
+    addNotification({
+      comboId,
+      customerName: normalized.customerName,
+      type: 'claim',
+      message: `Đã chốt combo cho ${normalized.customerName}`,
+    });
   };
 
   const addNotification = (notif: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => {
@@ -118,31 +170,26 @@ export function ComboProvider({ children }: { children: ReactNode }) {
       timestamp: new Date(),
       isRead: false,
     };
-    setNotifications(prev => [newNotif, ...prev]);
+    setNotifications((prev) => [newNotif, ...prev]);
   };
 
   const markNotificationAsRead = (notifId: string) => {
-    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, isRead: true } : n));
+    setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)));
   };
 
   const getTodayDeliveries = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return combos.filter(combo => {
+    return combos.filter((combo) => {
       if (combo.status !== 'active') return false;
-
-      // Check if today falls in the paused date range
       if (combo.pauseStartDate && combo.pauseEndDate) {
         const start = new Date(combo.pauseStartDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(combo.pauseEndDate);
         end.setHours(23, 59, 59, 999);
-        if (today >= start && today <= end) {
-          return false; // Skip delivery
-        }
+        if (today >= start && today <= end) return false;
       }
-
       const nextDelivery = new Date(combo.nextDelivery);
       nextDelivery.setHours(0, 0, 0, 0);
       return nextDelivery.getTime() === today.getTime();
@@ -150,16 +197,21 @@ export function ComboProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ComboContext.Provider value={{ 
-      combos, 
-      notifications, 
-      addCombo, 
-      updateCombo, 
-      updateComboStatus, 
-      getTodayDeliveries,
-      markNotificationAsRead,
-      addNotification
-    }}>
+    <ComboContext.Provider
+      value={{
+        combos,
+        isLoading,
+        notifications,
+        addCombo,
+        updateCombo,
+        updateComboStatus,
+        claimCombo,
+        refreshCombos,
+        getTodayDeliveries,
+        markNotificationAsRead,
+        addNotification,
+      }}
+    >
       {children}
     </ComboContext.Provider>
   );

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, ChevronRight, Package, X } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useCombos } from '../../contexts/ComboContext';
 import { CustomerCartPanel, type CartItem } from './CustomerCartPanel';
 import { CustomerCheckout } from './CustomerCheckout';
 import { CustomerOrderHistory } from './CustomerOrderHistory';
@@ -179,39 +180,39 @@ function PlanCard({ plan, duration, onSelect }: {
       style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}
     >
       {/* Top info section */}
-      <div className="px-5 pt-5 pb-4">
-        <div className="flex items-start justify-between mb-2">
-          <p className="text-[11px] font-bold tracking-widest uppercase" style={{ color: plan.priceColor, opacity: 0.9 }}>
+      <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3">
+        <div className="flex items-start justify-between mb-1.5 sm:mb-2">
+          <p className="text-[10px] sm:text-[11px] font-bold tracking-widest uppercase" style={{ color: plan.priceColor, opacity: 0.9 }}>
             {plan.subtitle}
           </p>
-          <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full" style={{ background: plan.badgeColor, color: '#fff' }}>
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 sm:px-3 py-0.5 sm:py-1 rounded-full" style={{ background: plan.badgeColor, color: '#fff' }}>
             {plan.badge}
           </span>
         </div>
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-3xl">{plan.icon}</span>
-          <h3 className="text-[22px] font-black text-zinc-900 leading-tight">{plan.name}</h3>
+        <div className="flex items-center gap-2 sm:gap-3 mb-0.5">
+          <span className="text-2xl sm:text-3xl">{plan.icon}</span>
+          <h3 className="text-lg sm:text-[22px] font-black text-zinc-900 leading-tight">{plan.name}</h3>
         </div>
-        <p className="text-[13px] text-zinc-500 font-medium">{plan.specs}</p>
+        <p className="text-[12px] sm:text-[13px] text-zinc-500 font-medium">{plan.specs}</p>
       </div>
 
       {/* Divider */}
       <div style={{ height: 1, background: 'rgba(0,0,0,0.06)' }} />
 
       {/* Price section */}
-      <div className="px-5 py-4 flex items-end justify-between" style={{ background: 'rgba(0,0,0,0.02)' }}>
+      <div className="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3" style={{ background: 'rgba(0,0,0,0.02)' }}>
         <div>
           <p className="text-[13px] font-bold line-through" style={{ color: 'rgba(0,0,0,0.35)' }}>
             {fmt(p.original)}k
           </p>
-          <p className="text-[36px] font-black leading-none" style={{ color: plan.priceColor }}>
-            {fmt(p.price)}<span className="text-[22px]">k</span>
+          <p className="text-[32px] sm:text-[36px] font-black leading-none" style={{ color: plan.priceColor }}>
+            {fmt(p.price)}<span className="text-[20px] sm:text-[22px]">k</span>
           </p>
           <p className="text-[12px] text-zinc-500 font-medium mt-0.5">
             = {p.perCup}k/ly · Freeship
           </p>
         </div>
-        <div className="px-4 py-2 rounded-full text-[13px] font-bold text-white" style={{ background: plan.ctaColor }}>
+        <div className="self-start sm:self-auto px-4 py-2 rounded-full text-[12px] sm:text-[13px] font-bold text-white whitespace-nowrap" style={{ background: plan.ctaColor }}>
           {savingsLabel}
         </div>
       </div>
@@ -227,12 +228,12 @@ function DurationTabs({ active, onChange }: { active: Duration; onChange: (d: Du
     { key: 'quarterly', label: '🔥 QUÝ –20%' },
   ];
   return (
-    <div className="flex gap-2 px-4">
+    <div className="flex gap-1.5 sm:gap-2 px-3 sm:px-4">
       {tabs.map(t => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
-          className="flex-1 py-3 rounded-[14px] text-[11px] font-black uppercase tracking-wider transition-all"
+          className="flex-1 py-2.5 sm:py-3 rounded-xl sm:rounded-[14px] text-[10px] sm:text-[11px] font-black uppercase tracking-wide transition-all"
           style={active === t.key
             ? { background: 'transparent', border: '1.5px solid #d97706', color: '#d97706' }
             : { background: 'rgba(0,0,0,0.05)', border: '1.5px solid transparent', color: 'rgba(0,0,0,0.6)' }
@@ -247,7 +248,8 @@ function DurationTabs({ active, onChange }: { active: Duration; onChange: (d: Du
 
 // ─── Main CustomerApp ─────────────────────────────────────────────────────────
 export function CustomerApp() {
-  const { addOrder, orders } = useOrders();
+  const { addOrder } = useOrders();
+  const { addCombo } = useCombos();
   const { resolveCode, addReferral } = useAffiliate();
   const activeReferralCode = localStorage.getItem('activeReferralCode');
   const referringPT = activeReferralCode ? resolveCode(activeReferralCode) : null;
@@ -285,7 +287,7 @@ export function CustomerApp() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [viewMode, setViewMode] = useState<'combos' | 'retail'>('combos');
   const [selectedRetailProduct, setSelectedRetailProduct] = useState<CustomerProduct | null>(null);
-  const [duration, setDuration] = useState<Duration>('quarterly');
+  const [duration, setDuration] = useState<Duration>('monthly');
   const [activePlanId, setActivePlanId] = useState<PlanId | null>(null);
   const [showWholesaleModal, setShowWholesaleModal] = useState(false);
 
@@ -310,17 +312,16 @@ export function CustomerApp() {
 
   const removeItem = (id: string) => setCart(prev => prev.filter(i => i.cartItemId !== id));
 
-  const placeOrder = (form: { name: string; phone: string; address: string; paymentMethod: string }) => {
-    const nextOrderId = `ORD-${String(orders.length + 1).padStart(3, '0')}`;
-    addOrder({
+  const placeOrder = async (form: { name: string; phone: string; address: string; paymentMethod: string }) => {
+    const orderId = `ORD-${Date.now()}`;
+    await addOrder({
       customerName: form.name, customerPhone: form.phone, deliveryAddress: form.address,
-      items: cart, total: cartTotal, status: 'pending', time: new Date(),
-      paymentMethod: form.paymentMethod as any, source: 'mobile',
-      branchId: 'CN1', staff: 'Online', paidAt: new Date()
+      items: cart, total: cartTotal, status: 'pending',
+      paymentMethod: form.paymentMethod as 'cash' | 'transfer', source: 'mobile',
+      branchId: 'CN1', staff: 'Online', paidAt: new Date(),
     });
 
-    // Register wholesale accounts for any wholesale items in cart
-    cart.forEach(item => {
+    for (const item of cart) {
       if (item.rawComboData?.isWholesaleCombo) {
         registerWholesaleAccount({
           customerName: item.rawComboData.customerName || form.name,
@@ -334,14 +335,39 @@ export function CustomerApp() {
           branchId: item.rawComboData.branchId,
           branchName: item.rawComboData.branchName,
         });
+      } else if (item.isCustomCombo && item.rawComboData) {
+        const raw = item.rawComboData;
+        const duration = raw.duration || 'weekly';
+        const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
+        try {
+          await addCombo({
+            orderId,
+            customerName: form.name,
+            customerPhone: form.phone,
+            deliveryAddress: form.address,
+            planName: raw.name || item.name,
+            comboType: duration === 'weekly' ? 'weekly' : 'monthly',
+            comboDuration: duration,
+            startDate: new Date(startIso),
+            nextDelivery: new Date(startIso),
+            deliveryDays: [1, 2, 3, 4, 5],
+            items: raw,
+            totalPrice: item.price,
+            status: 'pending',
+            branchId: 'CN1',
+            staff: 'Online',
+          });
+        } catch (err) {
+          console.error('Failed to create combo subscription:', err);
+        }
       }
-    });
+    }
 
     // Record PT affiliate if active
     if (activeReferralCode) {
       cart.forEach(item => {
         if (item.isCustomCombo) {
-          addReferral(activeReferralCode, nextOrderId, form.name, item.name, item.price);
+          addReferral(activeReferralCode, orderId, form.name, item.name, item.price);
         }
       });
     }
@@ -349,7 +375,7 @@ export function CustomerApp() {
     setCart([]);
     setIsCheckoutOpen(false);
     setIsCartOpen(false);
-    alert('🎉 Đặt hàng thành công! Cảm ơn bạn.');
+    alert('🎉 Đặt hàng thành công! Nhân viên CS sẽ liên hệ xác nhận combo.');
   };
 
   // ── Landing ──────────────────────────────────────────────────────────────────
@@ -364,6 +390,11 @@ export function CustomerApp() {
           onGoToRetail={() => {
             setShowWelcome(false);
             setViewMode('retail');
+          }}
+          onSelectDuration={(d) => {
+            setShowWelcome(false);
+            setViewMode('combos');
+            setDuration(d);
           }}
           onSelectCombo={(planId) => {
             setShowWelcome(false);
@@ -385,21 +416,21 @@ export function CustomerApp() {
 
   // ── Main App ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen" style={{ background: '#ffffff' }}>
+    <div className="flex flex-col min-h-dvh max-w-lg mx-auto w-full" style={{ background: '#ffffff' }}>
 
-      {/* Header — fixed height */}
-      <header className="flex-shrink-0 z-20 flex items-center justify-between px-4 py-4 border-b border-zinc-100" style={{ background: '#ffffff' }}>
-        <button onClick={() => setShowWelcome(true)} className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-lg" style={{ background: '#00b14f' }}>F</div>
-          <span className="text-zinc-900 font-black text-lg tracking-tight">FITBLEND</span>
+      {/* Header */}
+      <header className="flex-shrink-0 z-20 flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 border-b border-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]" style={{ background: '#ffffff' }}>
+        <button onClick={() => setShowWelcome(true)} className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-black text-white text-base sm:text-lg shrink-0" style={{ background: '#00b14f' }}>F</div>
+          <span className="text-zinc-900 font-black text-base sm:text-lg tracking-tight truncate">FITBLEND</span>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={() => setShowWholesaleModal(true)}
-            className="px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center gap-1"
             style={{ background: 'rgba(251,191,36,0.1)', color: '#b45309', border: '1px solid rgba(251,191,36,0.2)' }}
           >
-            👑 Mua Sỉ
+            <span className="sm:hidden">👑 </span>Mua Sỉ
           </button>
           <button onClick={() => setIsOrdersOpen(true)} className="p-2 rounded-xl" style={{ background: 'rgba(0,0,0,0.05)' }}>
             <Package className="w-5 h-5 text-zinc-700" />
@@ -407,28 +438,30 @@ export function CustomerApp() {
         </div>
       </header>
 
-      {/* Tab switcher — fixed, never moves */}
-      <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-zinc-100" style={{ background: '#ffffff' }}>
+      {/* Tab switcher */}
+      <div className="flex-shrink-0 px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2 border-b border-zinc-100" style={{ background: '#ffffff' }}>
         <div className="flex bg-zinc-100 p-1 rounded-2xl border border-zinc-200">
           <button
             onClick={() => setViewMode('combos')}
-            className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            className={`flex-1 py-2.5 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wide sm:tracking-wider transition-all leading-tight px-1 ${
               viewMode === 'combos'
                 ? 'bg-[#00b14f] text-white shadow-md'
                 : 'text-zinc-600 hover:text-zinc-900'
             }`}
           >
-            📦 Đặt Combo Tuần/Tháng
+            <span className="sm:hidden">📦 Combo</span>
+            <span className="hidden sm:inline">📦 Đặt Combo Tuần/Tháng</span>
           </button>
           <button
             onClick={() => setViewMode('retail')}
-            className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            className={`flex-1 py-2.5 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wide sm:tracking-wider transition-all leading-tight px-1 ${
               viewMode === 'retail'
                 ? 'bg-[#00b14f] text-white shadow-md'
                 : 'text-zinc-600 hover:text-zinc-900'
             }`}
           >
-            🥤 Mua Lẻ Từng Ly
+            <span className="sm:hidden">🥤 Mua lẻ</span>
+            <span className="hidden sm:inline">🥤 Mua Lẻ Từng Ly</span>
           </button>
         </div>
       </div>
@@ -457,23 +490,20 @@ export function CustomerApp() {
 
         {/* Combos view: scrollable column */}
         {viewMode === 'combos' && (
-          <div className="flex-1 overflow-y-auto pb-28" style={{ scrollbarWidth: 'none' }}>
-            {/* Title */}
-            <div className="px-4 pb-4 pt-3">
-              <p className="text-zinc-400 text-[11px] font-black uppercase tracking-[0.2em] mb-1">CÀNG MUA NHIỀU – TIẾT KIỆM CÀNG LỚN</p>
-              <h1 className="text-zinc-900 text-[26px] font-black leading-tight">
+          <div className="flex-1 overflow-y-auto pb-20 sm:pb-28" style={{ scrollbarWidth: 'none' }}>
+            <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-2 sm:pt-3">
+              <p className="text-zinc-400 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-0.5 sm:mb-1 hidden sm:block">CÀNG MUA NHIỀU – TIẾT KIỆM CÀNG LỚN</p>
+              <h1 className="text-zinc-900 text-xl sm:text-[26px] font-black leading-tight">
                 Combo <span style={{ color: '#00b14f' }}>Tuần · Tháng · Quý</span>
               </h1>
-              <p className="text-zinc-500 text-[13px] mt-1">Chọn vị từng ngày · Giao tươi mỗi sáng · Freeship</p>
+              <p className="text-zinc-500 text-[12px] sm:text-[13px] mt-0.5">Giao tươi mỗi sáng · Freeship</p>
             </div>
 
-            {/* Duration Tabs */}
-            <div className="mb-4">
+            <div className="mb-3 sm:mb-4">
               <DurationTabs active={duration} onChange={setDuration} />
             </div>
 
-            {/* Plan Cards */}
-            <div className="px-4 space-y-4">
+            <div className="px-3 sm:px-4 space-y-3 sm:space-y-4">
               {PLAN_ORDER.map(pid => (
                 <PlanCard
                   key={pid}
@@ -487,21 +517,19 @@ export function CustomerApp() {
             {/* Wholesale promo banner */}
             <button
               onClick={() => setShowWholesaleModal(true)}
-              className="mx-4 mt-6 w-[calc(100%-2rem)] rounded-[20px] p-5 text-left active:scale-[0.98] transition-transform"
+              className="mx-3 sm:mx-4 mt-4 sm:mt-6 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] rounded-2xl sm:rounded-[20px] p-3.5 sm:p-5 text-left active:scale-[0.98] transition-transform"
               style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.05) 0%, rgba(99,102,241,0.05) 100%)', border: '1px solid rgba(251,191,36,0.15)' }}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#b45309' }}>👑 MUA SỈ PREPAID</p>
-                  <p className="text-zinc-900 font-black text-[16px] leading-tight">Mua 10–50 ly, lấy dần</p>
-                  <p className="text-zinc-500 text-[12px] mt-0.5">Tiết kiệm lên đến 40% · Tra cứu bằng SĐT</p>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#b45309' }}>👑 MUA SỈ</p>
+                  <p className="text-zinc-900 font-black text-[14px] sm:text-[16px] leading-tight truncate">Mua 10–50 ly, lấy dần</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-zinc-400" />
+                <ChevronRight className="w-5 h-5 text-zinc-400 shrink-0" />
               </div>
             </button>
 
-            {/* Discount info block */}
-            <div className="mx-4 mt-4 mb-4 rounded-[20px] p-5" style={{ background: 'rgba(0,177,79,0.03)', border: '1px solid rgba(0,177,79,0.08)' }}>
+            <div className="hidden sm:block mx-4 mt-4 mb-4 rounded-[20px] p-5" style={{ background: 'rgba(0,177,79,0.03)', border: '1px solid rgba(0,177,79,0.08)' }}>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { pct: '-10%', label: 'Gói Tuần', sub: '7 ly · Freeship', bg: 'rgba(34,197,94,0.08)', text: '#166534' },
@@ -532,7 +560,10 @@ export function CustomerApp() {
 
       {/* Floating Cart Button */}
       {cart.length > 0 && !isCartOpen && (
-        <div className="fixed bottom-5 left-4 right-4 z-30" onClick={() => setIsCartOpen(true)}>
+        <div
+          className="fixed bottom-0 left-0 right-0 z-30 px-3 sm:px-4 pb-[max(1rem,env(safe-area-inset-bottom))] max-w-lg mx-auto"
+          onClick={() => setIsCartOpen(true)}
+        >
           <div className="rounded-2xl p-4 shadow-2xl flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform" style={{ background: '#00b14f' }}>
             <div className="flex items-center gap-3">
               <div className="relative">

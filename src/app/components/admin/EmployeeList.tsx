@@ -1,57 +1,48 @@
 import { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, X, Save, User } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
-import { EmployeeCredentials } from './EmployeeCredentials';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 
 const branches = [
-  { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 - Quận 3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 - Thủ Đức' },
+  { id: 'ALL', name: 'Tất cả chi nhánh' },
+  { id: 'CN1', name: 'CN1 - Quận 1' },
+  { id: 'CN2', name: 'CN2 - Quận 3' },
+  { id: 'CN3', name: 'CN3 - Thủ Đức' },
 ];
 
 const positions = [
-  { id: 'manager', name: 'Quản Lý Chi Nhánh' },
+  { id: 'manager', name: 'Quản Lý' },
   { id: 'cashier', name: 'Thu Ngân' },
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
   { id: 'cleaner', name: 'Vệ Sinh' },
+  { id: 'online_sales', name: 'Bán Hàng Online' },
 ];
 
 export function EmployeeList() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [branchFilter, setBranchFilter] = useState('ALL');
   const [editForm, setEditForm] = useState<Employee | null>(null);
   const { subscribe } = useSSE();
 
   useEffect(() => {
-    // Load employees from backend
     api.fetchEmployees()
       .then(data => setEmployees(data))
       .catch(err => console.error('Failed to load employees:', err));
 
     const unsubCreate = subscribe('EMPLOYEE_CREATED', (data) => {
-      setEmployees(prev => {
-        if (prev.some(e => e.id === data.id)) return prev;
-        return [...prev, data];
-      });
+      setEmployees(prev => (prev.some(e => e.id === data.id) ? prev : [...prev, data]));
     });
-
     const unsubUpdate = subscribe('EMPLOYEE_UPDATED', (data) => {
       setEmployees(prev => prev.map(e => e.id === data.id ? data : e));
     });
-
     const unsubDelete = subscribe('EMPLOYEE_DELETED', (data) => {
       setEmployees(prev => prev.filter(e => e.id !== data.id));
     });
 
-    return () => {
-      unsubCreate();
-      unsubUpdate();
-      unsubDelete();
-    };
+    return () => { unsubCreate(); unsubUpdate(); unsubDelete(); };
   }, [subscribe]);
 
   const handleDelete = async (id: string) => {
@@ -64,16 +55,10 @@ export function EmployeeList() {
     }
   };
 
-  const handleEdit = (employee: Employee) => {
-    setEditingId(employee.id);
-    setEditForm({ ...employee });
-  };
-
   const handleSaveEdit = async () => {
     if (!editForm) return;
     try {
       await api.saveEmployee(editForm);
-      setEditingId(null);
       setEditForm(null);
     } catch (err) {
       console.error('Failed to update employee:', err);
@@ -81,235 +66,233 @@ export function EmployeeList() {
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditForm(null);
-  };
+  const filteredEmployees = employees
+    .filter(emp => branchFilter === 'ALL' || emp.branch === branchFilter)
+    .filter(emp =>
+      emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.phone.includes(searchTerm) ||
+      emp.username.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => a.branch.localeCompare(b.branch) || a.employeeId.localeCompare(b.employeeId));
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getBranchName = (id: string) => branches.find(b => b.id === id)?.name || id;
   const getPositionName = (id: string) => positions.find(p => p.id === id)?.name || id;
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Danh Sách Nhân Viên</h1>
-          <p className="text-gray-600 mt-1">Quản lý thông tin nhân viên trong hệ thống</p>
-        </div>
-        <div className="text-2xl font-bold text-emerald-700">
-          {employees.length} nhân viên
+          <h1 className="text-2xl font-bold text-gray-800">Danh Sách Nhân Viên</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {filteredEmployees.length}/{employees.length} nhân viên
+          </p>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="mb-6 bg-white rounded-xl shadow-lg p-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+      <div className="mb-4 bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Tìm kiếm theo tên, mã NV, hoặc email..."
+            placeholder="Tìm tên, mã NV, email, SĐT, username..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-sm"
           />
         </div>
+        <select
+          value={branchFilter}
+          onChange={e => setBranchFilter(e.target.value)}
+          className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
+        >
+          {branches.map(b => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Employee Grid */}
       {filteredEmployees.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-          <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">
-            {searchTerm ? 'Không tìm thấy nhân viên nào' : 'Chưa có nhân viên nào được đăng ký'}
+        <div className="bg-white rounded-xl shadow-md p-12 text-center">
+          <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">
+            {searchTerm || branchFilter !== 'ALL' ? 'Không tìm thấy nhân viên' : 'Chưa có nhân viên'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEmployees.map(employee => (
-            <div key={employee.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-              {editingId === employee.id && editForm ? (
-                // Edit Mode
-                <div className="p-6">
-                  <div className="mb-4">
-                    <div className="w-24 h-24 mx-auto rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                      {editForm.photo ? (
-                        <img src={editForm.photo} alt={editForm.fullName} className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="w-12 h-12 text-gray-400" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Họ và tên"
-                    />
-
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Email"
-                    />
-
-                    <input
-                      type="tel"
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Số điện thoại"
-                    />
-
-                    <select
-                      value={editForm.branch}
-                      onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                    >
-                      {branches.map(branch => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={editForm.position}
-                      onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                    >
-                      {positions.map(position => (
-                        <option key={position.id} value={position.id}>{position.name}</option>
-                      ))}
-                    </select>
-
-                    <input
-                      type="number"
-                      value={editForm.baseSalary}
-                      onChange={(e) => setEditForm({ ...editForm, baseSalary: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Lương cơ bản"
-                    />
-
-                    <input
-                      type="text"
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Username"
-                    />
-
-                    <input
-                      type="password"
-                      value={editForm.password}
-                      onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
-                      placeholder="Password"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={handleSaveEdit}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Save className="w-4 h-4" />
-                      Lưu
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <X className="w-4 h-4" />
-                      Hủy
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // View Mode
-                <>
-                  <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 text-white">
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-white/20 flex items-center justify-center flex-shrink-0">
-                        {employee.photo ? (
-                          <img src={employee.photo} alt={employee.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-10 h-10 text-white" />
-                        )}
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="px-4 py-3 w-10">#</th>
+                  <th className="px-4 py-3">Mã NV</th>
+                  <th className="px-4 py-3 min-w-[160px]">Họ và tên</th>
+                  <th className="px-4 py-3">CN</th>
+                  <th className="px-4 py-3">Chức vụ</th>
+                  <th className="px-4 py-3">SĐT</th>
+                  <th className="px-4 py-3 min-w-[180px]">Email</th>
+                  <th className="px-4 py-3 text-right">Lương CB</th>
+                  <th className="px-4 py-3">Username</th>
+                  <th className="px-4 py-3">MK</th>
+                  <th className="px-4 py-3 text-center w-24">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredEmployees.map((emp, idx) => (
+                  <tr key={emp.id} className="hover:bg-emerald-50/50 transition-colors">
+                    <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-emerald-700">{emp.employeeId}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {emp.photo ? (
+                            <img src={emp.photo} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-emerald-700">{emp.fullName.charAt(0)}</span>
+                          )}
+                        </div>
+                        <span className="font-medium text-gray-800">{emp.fullName}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-lg truncate">{employee.fullName}</h3>
-                        <p className="text-sm text-emerald-100">{employee.employeeId}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{getPositionName(emp.position)}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{emp.phone}</td>
+                    <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]" title={emp.email}>{emp.email}</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
+                      {emp.baseSalary.toLocaleString('vi-VN')}đ
+                    </td>
+                    <td className="px-4 py-3 font-mono text-gray-700">{emp.username}</td>
+                    <td className="px-4 py-3 font-mono text-gray-500">{emp.password}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setEditForm({ ...emp })}
+                          className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                          title="Sửa"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(emp.id)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-                  <div className="p-6 space-y-3">
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Vị trí</div>
-                      <div className="text-sm font-medium text-gray-800">{getPositionName(employee.position)}</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Chi nhánh</div>
-                      <div className="text-sm font-medium text-gray-800">{getBranchName(employee.branch)}</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Email</div>
-                      <div className="text-sm text-gray-700 truncate">{employee.email}</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Điện thoại</div>
-                      <div className="text-sm text-gray-700">{employee.phone}</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Lương cơ bản</div>
-                      <div className="text-sm font-bold text-green-600">
-                        {employee.baseSalary.toLocaleString('vi-VN')} đ
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase font-semibold">Ngày bắt đầu</div>
-                      <div className="text-sm text-gray-700">
-                        {new Date(employee.startDate).toLocaleDateString('vi-VN')}
-                      </div>
-                    </div>
-
-                    <EmployeeCredentials username={employee.username} password={employee.password} />
-                  </div>
-
-                  <div className="px-6 pb-6 flex gap-2">
-                    <button
-                      onClick={() => handleEdit(employee)}
-                      className="flex-1 bg-emerald-700 text-white px-4 py-2 rounded-lg hover:bg-emerald-800 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => handleDelete(employee.id)}
-                      className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Xóa
-                    </button>
-                  </div>
-                </>
-              )}
+      {editForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="font-bold text-gray-800">Sửa nhân viên — {editForm.employeeId}</h3>
+              <button onClick={() => setEditForm(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
             </div>
-          ))}
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="sm:col-span-2">
+                <span className="text-xs font-semibold text-gray-500">Họ và tên</span>
+                <input
+                  value={editForm.fullName}
+                  onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Email</span>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">SĐT</span>
+                <input
+                  value={editForm.phone}
+                  onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Chi nhánh</span>
+                <select
+                  value={editForm.branch}
+                  onChange={e => setEditForm({ ...editForm, branch: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                >
+                  {branches.filter(b => b.id !== 'ALL').map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Chức vụ</span>
+                <select
+                  value={editForm.position}
+                  onChange={e => setEditForm({ ...editForm, position: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                >
+                  {positions.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Lương cơ bản</span>
+                <input
+                  type="number"
+                  value={editForm.baseSalary}
+                  onChange={e => setEditForm({ ...editForm, baseSalary: Number(e.target.value) })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Username</span>
+                <input
+                  value={editForm.username}
+                  onChange={e => setEditForm({ ...editForm, username: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label className="sm:col-span-2">
+                <span className="text-xs font-semibold text-gray-500">Mật khẩu</span>
+                <input
+                  type="text"
+                  value={editForm.password}
+                  onChange={e => setEditForm({ ...editForm, password: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2 px-5 py-4 border-t">
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg font-semibold hover:bg-emerald-700 flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" /> Lưu
+              </button>
+              <button
+                onClick={() => setEditForm(null)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

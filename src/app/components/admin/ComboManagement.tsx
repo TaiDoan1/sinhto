@@ -11,7 +11,7 @@ const branches = [
 export function ComboManagement() {
   const { combos, updateComboStatus, updateCombo } = useCombos();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'paused' | 'completed'>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
 
   const filteredCombos = combos.filter(c => {
@@ -36,6 +36,8 @@ export function ComboManagement() {
 
   const getStatusBadgeClass = (status: ComboSubscription['status']) => {
     switch (status) {
+      case 'pending':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'active':
         return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       case 'paused':
@@ -47,6 +49,7 @@ export function ComboManagement() {
 
   const getStatusLabel = (status: ComboSubscription['status']) => {
     switch (status) {
+      case 'pending': return 'Chờ chốt';
       case 'active': return 'Đang chạy';
       case 'paused': return 'Tạm dừng';
       case 'completed': return 'Đã hoàn thành';
@@ -110,7 +113,7 @@ export function ComboManagement() {
 
         {/* Status Filter */}
         <div className="flex gap-2">
-          {(['all', 'active', 'paused', 'completed'] as const).map(status => (
+          {(['all', 'pending', 'active', 'paused', 'completed'] as const).map(status => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}

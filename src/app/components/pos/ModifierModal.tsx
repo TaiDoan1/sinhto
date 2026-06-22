@@ -1,5 +1,7 @@
 import { X, Check, ArrowLeft } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useMenu } from '../../contexts/MenuContext';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 interface ModifierModalProps {
   product: {
@@ -68,26 +70,16 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   const [selectedProtein] = useState<number>(initialProtein);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
-  const [dynamicPriceTable, setDynamicPriceTable] = useState<any>(priceTable);
-  const [dynamicToppings, setDynamicToppings] = useState<any[]>(defaultToppings);
-  const [comboList, setComboList] = useState<any[]>(COMBO_TOPPINGS);
-
-  useEffect(() => {
-    const savedPrices = localStorage.getItem('menuPriceTable');
-    if (savedPrices) setDynamicPriceTable(JSON.parse(savedPrices));
-
-    const savedProducts = localStorage.getItem('menuProducts');
-    if (savedProducts) {
-      const allProducts = JSON.parse(savedProducts);
-      const toppingItems = allProducts.filter((p: any) => p.category === 'toppings');
-      if (toppingItems.length > 0) {
-        setDynamicToppings(toppingItems.map((p: any) => ({ name: p.name, price: p.basePrice })));
-      }
-    }
-
-    const savedCombos = localStorage.getItem('menuComboToppings');
-    if (savedCombos) setComboList(JSON.parse(savedCombos));
-  }, []);
+  const { products } = useMenu();
+  const { priceTable: dynamicPriceTable, comboToppings: comboListFromApi } = useMenuPricing();
+  const dynamicToppings = products
+    .filter((p) => p.category === 'toppings')
+    .map((p) => ({ name: p.name, price: p.basePrice }));
+  const comboList = (comboListFromApi as typeof COMBO_TOPPINGS).length > 0
+    ? (comboListFromApi as typeof COMBO_TOPPINGS)
+    : COMBO_TOPPINGS;
+  const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
+  const priceLookup = Object.keys(dynamicPriceTable).length > 0 ? dynamicPriceTable : priceTable;
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>
@@ -102,11 +94,11 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   };
 
   const calculatePrice = () => {
-    const tablePrice = dynamicPriceTable[selectedSize]?.[selectedProtein] || product.basePrice;
+    const tablePrice = priceLookup[selectedSize]?.[selectedProtein] || product.basePrice;
     
     // Topping lẻ
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
-      const topping = dynamicToppings.find(t => t.name === name);
+      const topping = toppingsList.find(t => t.name === name);
       return sum + (topping?.price || 0);
     }, 0);
 

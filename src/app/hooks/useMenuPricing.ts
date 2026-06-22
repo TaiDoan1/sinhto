@@ -1,0 +1,45 @@
+import { useState, useEffect } from 'react';
+import * as api from '../utils/api';
+import { useSSE } from '../contexts/SSEContext';
+
+const DEFAULT_PRICE_TABLE = {
+  '250ml': { 20: 39000, 40: 59000 },
+  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
+  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
+  '700ml': { 60: 139000, 90: 159000 },
+};
+
+export function useMenuPricing() {
+  const { subscribe } = useSSE();
+  const [priceTable, setPriceTable] = useState<Record<string, Record<number, number>>>(DEFAULT_PRICE_TABLE);
+  const [comboToppings, setComboToppings] = useState<unknown[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    try {
+      const [prices, toppings] = await Promise.allSettled([
+        api.fetchSetting('menuPriceTable'),
+        api.fetchSetting('menuComboToppings'),
+      ]);
+      if (prices.status === 'fulfilled' && prices.value) {
+        setPriceTable(prices.value);
+      }
+      if (toppings.status === 'fulfilled' && Array.isArray(toppings.value)) {
+        setComboToppings(toppings.value);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const unsub = subscribe('SETTING_UPDATED', (data: { key: string; value: unknown }) => {
+      if (data.key === 'menuPriceTable' && data.value) setPriceTable(data.value as Record<string, Record<number, number>>);
+      if (data.key === 'menuComboToppings' && Array.isArray(data.value)) setComboToppings(data.value);
+    });
+    return unsub;
+  }, [subscribe]);
+
+  return { priceTable, comboToppings, loading, refresh: load };
+}

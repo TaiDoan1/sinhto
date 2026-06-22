@@ -7,7 +7,8 @@
   "scripts": {
     "build": "echo \"Backend ready\"",
     "start": "node index.js",
-    "migrate:sqlite": "node scripts/migrate-sqlite-to-pg.js"
+    "migrate:sqlite": "node scripts/migrate-sqlite-to-pg.js",
+    "reset:store": "node scripts/reset-store-data.js"
   },
   "engines": {
     "node": ">=18"

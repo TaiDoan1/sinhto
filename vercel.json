@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE_ME.onrender.com/api/:path*"
+      "destination": "https://sinhto.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://REPLACE_ME.onrender.com/uploads/:path*"
+      "destination": "https://sinhto.onrender.com/uploads/:path*"
     },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/:path*", "destination": "/index.html" },

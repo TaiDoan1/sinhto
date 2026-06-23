@@ -18,8 +18,9 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-export async function fetchOrders() {
-  const res = await fetch(`${BASE_URL}/orders`);
+export async function fetchOrders(params?: { branchId?: string }) {
+  const qs = params?.branchId ? `?branchId=${encodeURIComponent(params.branchId)}` : '';
+  const res = await fetch(`${BASE_URL}/orders${qs}`);
   if (!res.ok) throw new Error('Failed to fetch orders');
   return res.json();
 }
@@ -76,8 +77,9 @@ export async function createInventoryItem(itemData: any) {
   return res.json();
 }
 
-export async function fetchWholesale() {
-  const res = await fetch(`${BASE_URL}/wholesale`);
+export async function fetchWholesale(branchId?: string) {
+  const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+  const res = await fetch(`${BASE_URL}/wholesale${qs}`);
   if (!res.ok) throw new Error('Failed to fetch wholesale accounts');
   return res.json();
 }
@@ -444,11 +446,13 @@ export async function fetchComboSubscriptions(params?: {
   careStaffId?: string;
   status?: string;
   customerPhone?: string;
+  branchId?: string;
 }) {
   const qs = new URLSearchParams();
   if (params?.careStaffId) qs.set('careStaffId', params.careStaffId);
   if (params?.status) qs.set('status', params.status);
   if (params?.customerPhone) qs.set('customerPhone', params.customerPhone);
+  if (params?.branchId) qs.set('branchId', params.branchId);
   const query = qs.toString();
   const res = await fetch(`${BASE_URL}/combo-subscriptions${query ? `?${query}` : ''}`);
   if (res.status === 404) return [];

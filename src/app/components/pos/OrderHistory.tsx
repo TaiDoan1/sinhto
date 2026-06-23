@@ -1,6 +1,6 @@
 import { Clock, User, Search, Calendar, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
-import { useOrders } from '../../contexts/OrderContext';
+import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { RefundOrderModal } from './RefundOrderModal';
 import type { Order } from '../../contexts/OrderContext';
 
@@ -16,8 +16,8 @@ const sourceLabels = {
   web: 'Web'
 };
 
-export function OrderHistory() {
-  const { history } = useOrders();
+export function OrderHistory({ branchId }: { branchId: string }) {
+  const { history } = useBranchOrders(branchId);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState<'today' | 'week' | 'all'>('today');
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);

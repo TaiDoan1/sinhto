@@ -5,55 +5,44 @@ import { ModifierModal } from './ModifierModal';
 import { CheckoutPanel } from './CheckoutPanel';
 import { MobileCheckoutModal } from './MobileCheckoutModal';
 import { OrderQueue } from './OrderQueue';
-import { ComboManagement } from './ComboManagement';
 import { OrderHistory } from './OrderHistory';
 import { InventoryManagement } from './InventoryManagement';
 import { MenuManagement } from './MenuManagement';
 import { MacroTable } from './MacroTable';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
+import { PosProvider, usePos } from '../../contexts/PosContext';
+import { PosLogin } from './PosLogin';
+import { useBranchOrders } from '../../hooks/useBranchOrders';
+import { useBranchCombos } from '../../hooks/useBranchCombos';
+import { BRANCH_LABELS } from '../../types/employee';
 
-import { useOrders } from '../../contexts/OrderContext';
-import { useCombos } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
 
-const branches = [
-  { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 - Quận 3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 - Thủ Đức' },
-];
-
-export function POSInterface() {
-  const { orders } = useOrders();
-  const { getTodayDeliveries } = useCombos();
+function POSInterfaceInner() {
+  const { session, isLoggedIn, isLoading, logout } = usePos();
+  const branchId = session?.branchId || '';
+  const { orders } = useBranchOrders(branchId);
+  const { getTodayDeliveries } = useBranchCombos(branchId);
   const { isWarehouseReady } = useInventory();
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro'>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [currentShifts, setCurrentShifts] = useState<Shift[]>([]);
   const [showStaffList, setShowStaffList] = useState(false);
 
   useEffect(() => {
-    // Load saved branch from localStorage
-    const savedBranch = localStorage.getItem('pos_branch');
-    if (savedBranch) {
-      setSelectedBranch(savedBranch);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedBranch) {
+    if (branchId) {
       loadCurrentShifts();
-      const interval = setInterval(loadCurrentShifts, 60000); // Update every minute
+      const interval = setInterval(loadCurrentShifts, 60000);
       return () => clearInterval(interval);
     }
-  }, [selectedBranch]);
+  }, [branchId]);
 
   const getCurrentShiftType = () => {
     const currentHour = new Date().getHours();
@@ -66,27 +55,21 @@ export function POSInterface() {
     }
   };
 
-  const handleBranchLogin = (branchId: string) => {
-    setSelectedBranch(branchId);
-    localStorage.setItem('pos_branch', branchId);
-  };
-
   const handleLogout = () => {
-    if (confirm('Đăng xuất khỏi chi nhánh này?')) {
-      setSelectedBranch(null);
-      localStorage.removeItem('pos_branch');
+    if (confirm('Đăng xuất máy POS?')) {
+      logout();
       setCart([]);
     }
   };
 
   const loadCurrentShifts = async () => {
-    if (!selectedBranch) return;
+    if (!branchId) return;
 
     const today = new Date().toISOString().split('T')[0];
     const currentHour = new Date().getHours();
 
     try {
-      const shifts = (await api.fetchShifts({ branch: selectedBranch, date: today })) as Shift[];
+      const shifts = (await api.fetchShifts({ branch: branchId, date: today })) as Shift[];
       const todayShifts = shifts.filter((shift) => {
         const startHour = parseInt(shift.startTime.split(':')[0], 10);
         const endHour = parseInt(shift.endTime.split(':')[0], 10);
@@ -114,40 +97,16 @@ export function POSInterface() {
     setCart([]);
   };
 
-  // Branch Login Screen
-  if (!selectedBranch) {
+  if (isLoading) {
     return (
-      <div className="h-screen bg-gradient-to-br from-emerald-600 to-emerald-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Store className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">FitBlend POS</h1>
-            <p className="text-gray-600">Chọn chi nhánh để bắt đầu</p>
-          </div>
-
-          <div className="space-y-3">
-            {branches.map(branch => (
-              <button
-                key={branch.id}
-                onClick={() => handleBranchLogin(branch.id)}
-                className="w-full p-6 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-3"
-              >
-                <Store className="w-6 h-6" />
-                {branch.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-6 p-4 bg-emerald-50 rounded-lg">
-            <p className="text-center text-sm text-gray-600">
-              <span className="font-semibold">Lưu ý:</span> Máy POS sẽ được cố định với chi nhánh đã chọn
-            </p>
-          </div>
-        </div>
+      <div className="h-screen flex items-center justify-center bg-emerald-50">
+        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (!isLoggedIn || !session) {
+    return <PosLogin />;
   }
 
   return (
@@ -159,14 +118,15 @@ export function POSInterface() {
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800">FitBlend POS</h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-xs sm:text-sm text-gray-600 font-semibold">
-                {branches.find(b => b.id === selectedBranch)?.name}
+                {BRANCH_LABELS[branchId] || branchId}
               </p>
+              <p className="text-[10px] text-gray-400">{session.employeeName}</p>
               <button
                 onClick={handleLogout}
                 className="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded-md font-semibold transition-colors flex items-center gap-1"
-                title="Đăng xuất chi nhánh"
+                title="Đăng xuất"
               >
-                Đổi
+                Thoát
               </button>
             </div>
           </div>
@@ -211,9 +171,9 @@ export function POSInterface() {
               >
                 <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="whitespace-nowrap">Combo</span>
-                {getTodayDeliveries().length > 0 && (
+                {getTodayDeliveries(branchId).length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow-md animate-pulse">
-                    {getTodayDeliveries().length}
+                    {getTodayDeliveries(branchId).length}
                   </span>
                 )}
               </button>
@@ -350,9 +310,9 @@ export function POSInterface() {
                   <ProductGrid onProductClick={setSelectedProduct} />
                 )
               ) : activeTab === 'orders' ? (
-                <OrderQueue />
+                <OrderQueue branchId={branchId} />
               ) : activeTab === 'combos' ? (
-                <CustomerComboHub variant="pos" branchId={selectedBranch || undefined} className="p-4" />
+                <CustomerComboHub variant="pos" branchId={branchId} className="p-4" />
               ) : activeTab === 'warehouse' ? (
                 <InventoryManagement />
               ) : activeTab === 'admin' ? (
@@ -360,7 +320,7 @@ export function POSInterface() {
               ) : activeTab === 'macro' ? (
                 <MacroTable />
               ) : (
-                <OrderHistory />
+                <OrderHistory branchId={branchId} />
               )}
 
             </div>
@@ -371,7 +331,7 @@ export function POSInterface() {
             <div className="hidden lg:block lg:w-[350px] xl:w-[400px] flex-shrink-0">
               <CheckoutPanel
                 cart={cart}
-                branchId={selectedBranch}
+                branchId={branchId}
                 onRemoveItem={handleRemoveItem}
                 onClearCart={handleClearCart}
               />
@@ -424,12 +384,20 @@ export function POSInterface() {
       {showMobileCheckout && (
         <MobileCheckoutModal
           cart={cart}
-          branchId={selectedBranch || 'CN1'}
+          branchId={branchId}
           onClose={() => setShowMobileCheckout(false)}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
         />
       )}
     </div>
+  );
+}
+
+export function POSInterface() {
+  return (
+    <PosProvider>
+      <POSInterfaceInner />
+    </PosProvider>
   );
 }

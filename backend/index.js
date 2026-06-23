@@ -147,7 +147,15 @@ app.get('/api/events', (req, res) => {
 
 // Get all orders (active & completed history)
 app.get('/api/orders', (req, res) => {
-  db.all("SELECT * FROM orders ORDER BY time DESC", (err, rows) => {
+  const { branchId } = req.query;
+  let sql = 'SELECT * FROM orders';
+  const params = [];
+  if (branchId) {
+    sql += ' WHERE branchId = ?';
+    params.push(branchId);
+  }
+  sql += ' ORDER BY time DESC';
+  db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const orders = rows.map(r => ({
       ...r,
@@ -411,7 +419,14 @@ app.post('/api/inventory/update', (req, res) => {
 
 // Get wholesale accounts
 app.get('/api/wholesale', (req, res) => {
-  db.all("SELECT * FROM wholesale_accounts", (err, rows) => {
+  const { branchId } = req.query;
+  let sql = 'SELECT * FROM wholesale_accounts';
+  const params = [];
+  if (branchId) {
+    sql += ' WHERE branchId = ?';
+    params.push(branchId);
+  }
+  db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const accounts = rows.map(r => ({
       ...r,
@@ -1302,12 +1317,13 @@ function upsertCareAssignment(customerPhone, customerName, careStaffId, careStaf
 }
 
 app.get('/api/combo-subscriptions', (req, res) => {
-  const { careStaffId, status, customerPhone } = req.query;
+  const { careStaffId, status, customerPhone, branchId } = req.query;
   let sql = 'SELECT * FROM combo_subscriptions WHERE 1=1';
   const params = [];
   if (careStaffId) { sql += ' AND careStaffId = ?'; params.push(careStaffId); }
   if (status) { sql += ' AND status = ?'; params.push(status); }
   if (customerPhone) { sql += ' AND customerPhone = ?'; params.push(customerPhone); }
+  if (branchId) { sql += ' AND branchId = ?'; params.push(branchId); }
   sql += ' ORDER BY createdAt DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });

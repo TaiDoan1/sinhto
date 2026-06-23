@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Package, User, CheckCircle, XCircle, MapPin, Phone, Play, Edit, CheckCircle2 } from 'lucide-react';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
-import { useOrders } from '../../contexts/OrderContext';
+import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { VoidOrderModal } from './VoidOrderModal';
 import type { Order } from '../../contexts/OrderContext';
 
@@ -17,7 +17,7 @@ const sourceLabels: Record<string, string> = {
   web: 'Web',
 };
 
-export function OrderQueue() {
+export function OrderQueue({ branchId }: { branchId: string }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [voidingOrder, setVoidingOrder] = useState<Order | null>(null);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
@@ -29,7 +29,7 @@ export function OrderQueue() {
     { id: 3, label: 'T4' }, { id: 4, label: 'T5' }, { id: 5, label: 'T6' }, { id: 6, label: 'T7' }
   ];
 
-  const { orders, updateOrderStatus, updateOrder, history } = useOrders();
+  const { orders, updateOrderStatus, updateOrder, history } = useBranchOrders(branchId);
 
   useEffect(() => {
     const timer = setInterval(() => {

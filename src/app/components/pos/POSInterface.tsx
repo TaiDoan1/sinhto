@@ -23,7 +23,8 @@ import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { PosProvider, usePos } from '../../contexts/PosContext';
 import { PosLogin } from './PosLogin';
-import { PosKioskOverlay } from './PosKioskOverlay';
+import { PosKioskOverlay, PosFullscreenButton } from './PosKioskOverlay';
+import { PosKioskProvider } from '../../hooks/usePosKiosk';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { useBranchCombos } from '../../hooks/useBranchCombos';
 import { BRANCH_LABELS } from '../../types/employee';
@@ -193,6 +194,7 @@ function POSInterfaceInner() {
               </div>
             )}
           </div>
+          <PosFullscreenButton />
           <button
             type="button"
             onClick={handleLogout}
@@ -203,7 +205,7 @@ function POSInterfaceInner() {
           </button>
         </div>
 
-        <nav className="flex gap-0.5 px-1 pb-1 overflow-x-auto scrollbar-hide">
+        <nav className="pos-tab-bar flex gap-1.5 px-2 py-2 overflow-x-auto scrollbar-hide">
           {POS_TABS.map((tab) => {
             const Icon = tab.icon;
             const count =
@@ -213,16 +215,16 @@ function POSInterfaceInner() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`pos-tab relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold text-sm transition-colors ${
+                className={`pos-tab relative flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-lg font-bold text-base transition-colors min-h-[48px] ${
                   activeTab === tab.id
-                    ? 'bg-emerald-700 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-emerald-700 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-6 h-6 shrink-0" />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 {count > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow">
                     {count}
                   </span>
                 )}
@@ -336,9 +338,11 @@ function POSInterfaceInner() {
 export function POSInterface() {
   return (
     <PosProvider>
-      <PosKioskOverlay>
-        <POSInterfaceInner />
-      </PosKioskOverlay>
+      <PosKioskProvider>
+        <PosKioskOverlay>
+          <POSInterfaceInner />
+        </PosKioskOverlay>
+      </PosKioskProvider>
     </PosProvider>
   );
 }

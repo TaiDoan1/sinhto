@@ -13,6 +13,7 @@ import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { PosProvider, usePos } from '../../contexts/PosContext';
 import { PosLogin } from './PosLogin';
+import { PosKioskOverlay } from './PosKioskOverlay';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { useBranchCombos } from '../../hooks/useBranchCombos';
 import { BRANCH_LABELS } from '../../types/employee';
@@ -27,7 +28,7 @@ function POSInterfaceInner() {
   const branchId = session?.branchId || '';
   const { orders } = useBranchOrders(branchId);
   const { getTodayDeliveries } = useBranchCombos(branchId);
-  const { isWarehouseReady } = useInventory();
+  const { isWarehouseReady, loadForBranch } = useInventory();
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro'>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -38,11 +39,12 @@ function POSInterfaceInner() {
 
   useEffect(() => {
     if (branchId) {
+      loadForBranch(branchId);
       loadCurrentShifts();
       const interval = setInterval(loadCurrentShifts, 60000);
       return () => clearInterval(interval);
     }
-  }, [branchId]);
+  }, [branchId, loadForBranch]);
 
   const getCurrentShiftType = () => {
     const currentHour = new Date().getHours();
@@ -397,7 +399,9 @@ function POSInterfaceInner() {
 export function POSInterface() {
   return (
     <PosProvider>
-      <POSInterfaceInner />
+      <PosKioskOverlay>
+        <POSInterfaceInner />
+      </PosKioskOverlay>
     </PosProvider>
   );
 }

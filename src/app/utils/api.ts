@@ -45,23 +45,25 @@ export async function updateOrderStatus(orderId: string, status: string, extra?:
   return res.json();
 }
 
-export async function fetchInventory() {
-  const res = await fetch(`${BASE_URL}/inventory`);
+export async function fetchInventory(branchId?: string) {
+  const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+  const res = await fetch(`${BASE_URL}/inventory${qs}`);
   if (!res.ok) throw new Error('Failed to fetch inventory');
   return res.json();
 }
 
-export async function fetchMovements() {
-  const res = await fetch(`${BASE_URL}/inventory/movements`);
+export async function fetchMovements(branchId?: string) {
+  const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+  const res = await fetch(`${BASE_URL}/inventory/movements${qs}`);
   if (!res.ok) throw new Error('Failed to fetch movements');
   return res.json();
 }
 
-export async function updateInventory(items: any[], movements: any[]) {
+export async function updateInventory(items: any[], movements: any[], branchId: string) {
   const res = await fetch(`${BASE_URL}/inventory/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, movements })
+    body: JSON.stringify({ items, movements, branchId })
   });
   if (!res.ok) throw new Error('Failed to update inventory');
   return res.json();

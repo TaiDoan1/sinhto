@@ -10,10 +10,10 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const { adminUser, logout } = useAdmin();
 
   const menuItems = [
-    { id: 'overview', label: 'Tổng Quan', icon: LayoutDashboard },
+    { id: 'overview', label: 'Chi Nhánh', icon: LayoutDashboard },
     { id: 'analytics', label: 'Doanh Thu', icon: TrendingUp },
     { id: 'hr', label: 'Nhân Sự & Lương', icon: Users },
-    { id: 'inventory', label: 'Kho Hàng', icon: Package },
+    { id: 'inventory', label: 'Danh Mục NL', icon: Package },
     { id: 'products', label: 'Sản Phẩm', icon: ShoppingBag },
     { id: 'combos', label: 'Quản Lý Combo', icon: Coffee },
     { id: 'combo-ship', label: 'Giao Combo Hôm Nay', icon: Truck },

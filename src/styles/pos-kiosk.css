@@ -1,0 +1,33 @@
+/* Máy POS Android (iPOS iAP200, v.v.) — UI lớn hơn, full màn hình */
+html.pos-kiosk,
+html.pos-kiosk body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+html.pos-kiosk body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/* Chrome Android hỗ trợ zoom — phóng to toàn bộ POS ~20% */
+html.pos-kiosk #root {
+  height: 100%;
+  zoom: 1.2;
+}
+
+@supports not (zoom: 1) {
+  html.pos-kiosk {
+    font-size: 18px;
+  }
+}
+
+/* Nút bấm tối thiểu 44px cho cảm ứng */
+html.pos-kiosk button,
+html.pos-kiosk [role='button'],
+html.pos-kiosk a {
+  min-height: 2.5rem;
+}

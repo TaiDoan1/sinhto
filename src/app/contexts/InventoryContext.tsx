@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import * as api from '../utils/api';
 import {
   FITBLEND_RECIPES,
@@ -29,13 +29,16 @@ export interface StockMovement {
   reason: string;
   performedBy: string;
   cost: number;
+  branchId?: string;
 }
 
 interface InventoryContextType {
   inventory: InventoryItem[];
   recipes: typeof FITBLEND_RECIPES;
   movements: StockMovement[];
+  activeBranchId: string | null;
   isWarehouseReady: boolean;
+  loadForBranch: (branchId: string) => void;
   getLowStockItems: () => InventoryItem[];
   getOutOfStockItems: () => InventoryItem[];
   checkCartStock: (lines: CartStockLine[]) => { ok: boolean; shortages: StockShortage[] };
@@ -82,28 +85,45 @@ function applyInventoryPatch(
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const branchRef = useRef<string | null>(null);
 
   const isWarehouseReady = movements.some((m) => m.type === 'purchase');
 
-  const loadMovements = useCallback(() => {
-    api.fetchMovements()
-      .then((data: any[]) => setMovements(data.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))))
+  const loadMovements = useCallback((branchId: string) => {
+    api
+      .fetchMovements(branchId)
+      .then((data: any[]) =>
+        setMovements(data.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })))
+      )
       .catch((err) => console.error('Error fetching movements', err));
   }, []);
 
-  useEffect(() => {
-    api.fetchInventory()
-      .then((data) => setInventory(data))
-      .catch((err) => console.error('Error fetching inventory', err));
-    loadMovements();
+  const loadForBranch = useCallback(
+    (branchId: string) => {
+      if (!branchId) return;
+      branchRef.current = branchId;
+      setActiveBranchId(branchId);
+      api
+        .fetchInventory(branchId)
+        .then((data) => setInventory(data))
+        .catch((err) => console.error('Error fetching inventory', err));
+      loadMovements(branchId);
+    },
+    [loadMovements]
+  );
 
+  useEffect(() => {
     const eventSource = new EventSource('/api/events');
     eventSource.onmessage = (event) => {
       try {
         const { type, data } = JSON.parse(event.data);
         if (type === 'INVENTORY_UPDATED') {
-          setInventory(data);
-          loadMovements();
+          const payload = data?.branchId ? data : { branchId: null, inventory: data };
+          if (payload.branchId && payload.branchId === branchRef.current) {
+            setInventory(payload.inventory || []);
+            loadMovements(payload.branchId);
+          }
         }
       } catch {
         /* ignore */
@@ -116,12 +136,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     newInventory: InventoryItem[],
     newMovements: StockMovement[]
   ) => {
+    const branchId = branchRef.current;
+    if (!branchId) {
+      console.error('Chưa chọn chi nhánh — không thể cập nhật kho');
+      return;
+    }
     setInventory(newInventory);
     setMovements((prev) => [...newMovements, ...prev]);
     api
       .updateInventory(
         newInventory.map((item) => ({ id: item.id, currentStock: item.currentStock })),
-        newMovements
+        newMovements,
+        branchId
       )
       .catch((err) => console.error('Failed to sync inventory:', err));
   };
@@ -132,6 +158,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const getOutOfStockItems = () => inventory.filter((item) => item.currentStock <= 0);
 
   const checkCartStock = (lines: CartStockLine[]) => {
+    if (!branchRef.current) {
+      return {
+        ok: false,
+        shortages: [
+          { itemId: '_warehouse', itemName: 'Kho hang', need: 1, have: 0, unit: 'lan' },
+        ],
+      };
+    }
     if (!isWarehouseReady) {
       return {
         ok: false,
@@ -151,7 +185,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
   const formatShortageMessage = (shortages: StockShortage[]) => {
     if (shortages.some((s) => s.itemId === '_warehouse')) {
-      return 'Chưa có phiếu nhập kho. Admin cần nhập kho tại mục Kho Hàng trước khi bán.';
+      return 'Chưa có phiếu nhập kho tại chi nhánh này. Admin cần nhập kho trong Chi nhánh → Tồn Kho trước khi bán.';
     }
     return shortages
       .map(
@@ -183,6 +217,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       reason: supplier ? `${note} (NCC: ${supplier})` : note || 'Nhap kho',
       performedBy: staff,
       cost: quantity * item.cost,
+      branchId: branchRef.current || undefined,
     };
 
     const newInventory = inventory.map((it) =>
@@ -213,6 +248,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         reason: `Ban hang - ${orderId}`,
         performedBy: staff,
         cost: ing.quantity * (inv?.cost || 0),
+        branchId: branchRef.current || undefined,
       };
     });
 
@@ -242,6 +278,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         reason: `Hoan kho - ${reason}`,
         performedBy: staff,
         cost: -(ing.quantity * (inv?.cost || 0)),
+        branchId: branchRef.current || undefined,
       };
     });
     syncInventory(newInventory, newMovements);
@@ -266,6 +303,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         reason: `Lang phi - ${reason}`,
         performedBy: staff,
         cost: ing.quantity * (inv?.cost || 0),
+        branchId: branchRef.current || undefined,
       };
     });
     syncInventory(newInventory, newMovements);
@@ -306,6 +344,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       reason: `Kiem kho: ${reason}`,
       performedBy: staff,
       cost: difference * item.cost,
+      branchId: branchRef.current || undefined,
     };
     const newInventory = inventory.map((it) =>
       it.id === itemId ? { ...it, currentStock: newStock } : it
@@ -316,7 +355,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
     try {
       const created = await api.createInventoryItem(itemData);
-      setInventory((prev) => [...prev, created]);
+      if (branchRef.current) {
+        loadForBranch(branchRef.current);
+      }
       return true;
     } catch {
       return false;
@@ -329,7 +370,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         inventory,
         recipes: FITBLEND_RECIPES,
         movements,
+        activeBranchId,
         isWarehouseReady,
+        loadForBranch,
         getLowStockItems,
         getOutOfStockItems,
         checkCartStock,

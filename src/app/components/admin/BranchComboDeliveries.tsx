@@ -15,9 +15,13 @@ interface Props {
 
 export function BranchComboDeliveries({ branchId }: Props) {
   const { combos, confirmDelivery } = useCombos();
-  const { deductStockForOrder, formatShortageMessage, checkCartStock } = useInventory();
+  const { deductStockForOrder, formatShortageMessage, checkCartStock, loadForBranch } = useInventory();
   const [todayDeliveries, setTodayDeliveries] = useState<ComboSubscription[]>([]);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadForBranch(branchId);
+  }, [branchId, loadForBranch]);
 
   useEffect(() => {
     setTodayDeliveries(getCombosDueToday(combos, branchId) as ComboSubscription[]);

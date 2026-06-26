@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
+import { useInventory } from '../../contexts/InventoryContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { OnlineSalesDashboard, SalesTask, SalesLead, PipelineStage } from '../../types/onlineSales';
@@ -70,6 +71,7 @@ const EMPTY_DASHBOARD: OnlineSalesDashboard = {
 export function OnlineSalesPortal() {
   const { activeEmployee, logout } = useOnlineSales();
   const { combos } = useCombos();
+  const { loadForBranch } = useInventory();
   const [view, setView] = useState<View>('dashboard');
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
   const [dashboard, setDashboard] = useState<OnlineSalesDashboard>(EMPTY_DASHBOARD);
@@ -84,6 +86,10 @@ export function OnlineSalesPortal() {
   const [orderPrefill, setOrderPrefill] = useState<{ name?: string; phone?: string; address?: string } | undefined>();
 
   const employeeId = activeEmployee?.id || '';
+
+  useEffect(() => {
+    if (activeEmployee?.branch) loadForBranch(activeEmployee.branch);
+  }, [activeEmployee?.branch, loadForBranch]);
 
   const refreshData = useCallback(async () => {
     if (!employeeId) return;

@@ -263,6 +263,14 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN deliveredCups INTEGER DEFAULT 0",
     "ALTER TABLE combo_subscriptions ADD COLUMN commissionAmount INTEGER DEFAULT 0",
     "ALTER TABLE combo_subscriptions ADD COLUMN commissionStatus TEXT DEFAULT 'pending'",
+    `CREATE TABLE IF NOT EXISTS branch_inventory (
+      branchId TEXT NOT NULL,
+      itemId TEXT NOT NULL,
+      currentStock REAL DEFAULT 0,
+      minStock REAL,
+      PRIMARY KEY (branchId, itemId)
+    )`,
+    "ALTER TABLE inventory_movements ADD COLUMN branchId TEXT DEFAULT 'CN1'",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

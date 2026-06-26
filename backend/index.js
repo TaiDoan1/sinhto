@@ -8,6 +8,13 @@ const { hashPassword, verifyPassword, isHashed } = require('./password');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
 const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
+const {
+  initBranchInventory,
+  getInventoryForBranch,
+  getMovementsForBranch,
+  applyBranchInventoryUpdate,
+  seedBranchRowsForItem,
+} = require('./branchInventory');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -100,16 +107,14 @@ app.post('/api/inventory', (req, res) => {
   const id = item.id || `INV-${Date.now()}`;
   db.run(
     `INSERT INTO inventory (id, name, unit, currentStock, minStock, cost, category) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, item.name, item.unit, item.currentStock, item.minStock, item.cost, item.category],
+    [id, item.name, item.unit, 0, item.minStock, item.cost, item.category],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      
+
+      seedBranchRowsForItem(db, id, item.minStock).catch(() => {});
+
       db.get("SELECT * FROM inventory WHERE id = ?", [id], (err, row) => {
         if (!err && row) {
-          // Broadcast updated inventory list to all clients
-          db.all("SELECT * FROM inventory", (err, currentInv) => {
-            if (!err) broadcast('INVENTORY_UPDATED', currentInv);
-          });
           res.status(201).json(row);
         } else {
           res.status(500).json({ error: "Failed to fetch created item" });
@@ -304,115 +309,85 @@ app.patch('/api/orders/:id', (req, res) => {
 
 // --- INVENTORY API ---
 
-// Get current inventory stock
-app.get('/api/inventory', (req, res) => {
-  db.all("SELECT * FROM inventory", (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+app.get('/api/inventory', async (req, res) => {
+  const { branchId } = req.query;
+  try {
+    const rows = await getInventoryForBranch(db, branchId || null);
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Get inventory movements
-app.get('/api/inventory/movements', (req, res) => {
-  db.all("SELECT * FROM inventory_movements ORDER BY timestamp DESC", (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+app.get('/api/inventory/movements', async (req, res) => {
+  const { branchId } = req.query;
+  try {
+    const rows = await getMovementsForBranch(db, branchId || null);
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Update stock (adjust or sale etc.)
-app.post('/api/inventory/update', (req, res) => {
-  const { items, movements } = req.body;
+app.post('/api/inventory/update', async (req, res) => {
+  const { items, movements, branchId } = req.body;
+  if (!branchId) {
+    return res.status(400).json({ error: 'branchId required — moi chi nhanh co kho rieng' });
+  }
 
-  const finish = (err) => {
+  const finish = (err, updatedInv) => {
     if (err) return res.status(500).json({ error: err.message });
-    db.all('SELECT * FROM inventory', (e, currentInv) => {
-      if (!e) broadcast('INVENTORY_UPDATED', currentInv);
-      res.json({ success: true });
-    });
+    broadcast('INVENTORY_UPDATED', { branchId, inventory: updatedInv });
+    res.json({ success: true, branchId, inventory: updatedInv });
   };
 
   if (!isPostgres()) {
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-      const itemStmt = db.prepare('UPDATE inventory SET currentStock = ? WHERE id = ?');
-      (items || []).forEach((item) => itemStmt.run(item.currentStock, item.id));
-      itemStmt.finalize((err) => {
-        if (err) {
-          db.run('ROLLBACK');
-          return res.status(500).json({ error: err.message });
-        }
-        if (!movements?.length) {
-          return db.run('COMMIT', finish);
-        }
-        const movStmt = db.prepare(
-          'INSERT INTO inventory_movements VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
-        movements.forEach((m) => {
-          movStmt.run(
-            m.id || `MOV-${Date.now()}-${Math.random()}`,
-            m.timestamp || new Date().toISOString(),
-            m.type,
-            m.orderId || null,
-            m.itemId,
-            m.itemName,
-            m.quantity,
-            m.reason,
-            m.performedBy,
-            m.cost
-          );
-        });
-        movStmt.finalize((err2) => {
-          if (err2) {
-            db.run('ROLLBACK');
-            return res.status(500).json({ error: err2.message });
-          }
-          db.run('COMMIT', finish);
-        });
-      });
-    });
+    try {
+      const updatedInv = await applyBranchInventoryUpdate(db, branchId, items, movements);
+      finish(null, updatedInv);
+    } catch (err) {
+      finish(err);
+    }
     return;
   }
 
-  (async () => {
-    const client = await getPool().connect();
-    try {
-      await client.query('BEGIN');
-      for (const item of items || []) {
-        await client.query('UPDATE inventory SET "currentStock" = $1 WHERE id = $2', [
-          item.currentStock,
-          item.id,
-        ]);
-      }
-      if (movements?.length) {
-        for (const m of movements) {
-          await client.query(
-            `INSERT INTO inventory_movements (id, timestamp, type, "orderId", "itemId", "itemName", quantity, reason, "performedBy", cost)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-            [
-              m.id || `MOV-${Date.now()}-${Math.random()}`,
-              m.timestamp || new Date().toISOString(),
-              m.type,
-              m.orderId || null,
-              m.itemId,
-              m.itemName,
-              m.quantity,
-              m.reason,
-              m.performedBy,
-              m.cost,
-            ]
-          );
-        }
-      }
-      await client.query('COMMIT');
-      finish(null);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      res.status(500).json({ error: err.message });
-    } finally {
-      client.release();
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    for (const item of items || []) {
+      await client.query(
+        `UPDATE branch_inventory SET "currentStock" = $1 WHERE "branchId" = $2 AND "itemId" = $3`,
+        [item.currentStock, branchId, item.id]
+      );
     }
-  })();
+    for (const m of movements || []) {
+      await client.query(
+        `INSERT INTO inventory_movements (id, timestamp, type, "orderId", "itemId", "itemName", quantity, reason, "performedBy", cost, "branchId")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          m.id || `MOV-${Date.now()}-${Math.random()}`,
+          m.timestamp || new Date().toISOString(),
+          m.type,
+          m.orderId || null,
+          m.itemId,
+          m.itemName,
+          m.quantity,
+          m.reason,
+          m.performedBy,
+          m.cost,
+          branchId,
+        ]
+      );
+    }
+    await client.query('COMMIT');
+    const updatedInv = await getInventoryForBranch(db, branchId);
+    finish(null, updatedInv);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
 // --- WHOLESALE ACCOUNTS API ---
@@ -1614,6 +1589,7 @@ async function start() {
       upsertCareAssignment,
     });
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
+    initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

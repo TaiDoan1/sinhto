@@ -1,0 +1,19 @@
+{
+  "name": "FitBlend POS",
+  "short_name": "FitBlend POS",
+  "description": "Máy bán hàng FitBlend",
+  "start_url": "/pos",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#ecfdf5",
+  "theme_color": "#047857",
+  "icons": [
+    {
+      "src": "/pos-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

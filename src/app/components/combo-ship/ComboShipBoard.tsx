@@ -25,7 +25,7 @@ type Tab = 'today' | 'done' | 'all';
 
 export function ComboShipBoard() {
   const { combos, confirmDelivery, postponeDelivery, isLoading } = useCombos();
-  const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
+  const { deductStockForOrder, checkCartStock, formatShortageMessage, loadForBranch } = useInventory();
 
   const [branchId, setBranchId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('today');
@@ -38,6 +38,10 @@ export function ComboShipBoard() {
     const saved = localStorage.getItem('ship_combo_branch');
     if (saved) setBranchId(saved);
   }, []);
+
+  useEffect(() => {
+    if (branchId) loadForBranch(branchId);
+  }, [branchId, loadForBranch]);
 
   const activeCombos = useMemo(
     () => combos.filter((c) => c.status === 'active' && (!branchId || c.branchId === branchId)),

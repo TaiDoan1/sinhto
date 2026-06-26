@@ -38,7 +38,7 @@ export function PosKioskOverlay({ children }: { children: React.ReactNode }) {
       )}
 
       {!needsFullscreenTap && !isStandalone && (
-        <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
+        <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[90] pointer-events-none pos-kiosk-tip">
           <p className="text-[10px] text-gray-400 bg-white/80 px-2 py-0.5 rounded-full shadow">
             Tip: Thêm vào Màn hình chính để ẩn thanh https vĩnh viễn
           </p>

@@ -7,6 +7,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
+import type { CartItem } from './ModifierModal';
 
 type CheckoutStep = 'cart' | 'loyalty' | 'payment';
 
@@ -412,7 +413,7 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
               <>
                 <h3 className="text-xl font-bold text-center mb-4 text-green-600">Thanh Toán Tiền Mặt</h3>
                 <div className="text-center mb-4">
-                  <div className="text-6xl mb-3">💵</div>
+                  <div className="pos-checkout-pay-emoji text-6xl mb-3">💵</div>
                   <div className="text-sm text-gray-600">Số tiền cần thanh toán</div>
                   <div className="text-3xl font-bold text-green-600">
                     {total.toLocaleString('vi-VN')}đ

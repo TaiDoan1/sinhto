@@ -160,9 +160,9 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-lg border border-gray-150 overflow-hidden text-gray-800">
+    <div className="pos-modifier flex flex-col h-full bg-white rounded-lg shadow border border-gray-150 overflow-hidden text-gray-800 min-h-0">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-4 flex justify-between items-center flex-shrink-0">
+      <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-3 py-2 flex justify-between items-center flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -188,9 +188,9 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       </div>
 
       {/* Main Configurations Grid */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="pos-modifier-body flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         {/* Row 1: Combo Topping */}
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-5 rounded-xl border border-emerald-150">
+        <div className="pos-modifier-section bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-150">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-black text-emerald-800 uppercase tracking-wider">🌟 1. Combo Topping (Siêu tiết kiệm)</h3>
@@ -237,7 +237,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
         </div>
 
         {/* Row 2: Toppings Lẻ */}
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+        <div className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
           <h3 className="text-sm font-black text-gray-800 mb-1.5 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
           <p className="text-xs text-gray-400 mb-4 font-medium">Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây</p>
           <div className="grid grid-cols-3 gap-3">

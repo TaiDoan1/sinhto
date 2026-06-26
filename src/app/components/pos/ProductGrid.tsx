@@ -111,7 +111,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
   });
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 rounded-lg text-gray-800">
+    <div className="pos-product-grid flex flex-col h-full bg-gray-50 rounded-lg text-gray-800 min-h-0">
       <div className="bg-white p-1 rounded-t-lg shadow-sm flex-shrink-0 space-y-1.5">
         {/* Category Tabs */}
         <div className="grid grid-cols-3 gap-1">
@@ -153,53 +153,51 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
       {/* Khoảng cách */}
       <div className="h-2"></div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-24 lg:pb-4">
+      <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
         {activeCategory === 'smoothies' && !selectedSize ? (
-          /* Size selection screen first */
-          <div className="space-y-4 py-6">
+          <div className="pos-step-wrap space-y-2">
             <div className="text-center">
-              <h3 className="text-lg font-black text-gray-700">Chọn dung tích ly trước (ml)</h3>
-              <p className="text-xs text-gray-500 mt-1">Chọn kích cỡ ly bên dưới để xem menu và giá của các vị smoothies</p>
+              <h3 className="pos-step-title font-black text-gray-700">Chọn dung tích ly (ml)</h3>
+              <p className="pos-step-desc text-gray-500 mt-0.5">Chọn kích cỡ để xem menu và giá</p>
             </div>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
+            <div className="pos-size-grid">
               {sizes.map(s => (
                 <button
                   key={s.id}
                   onClick={() => setSelectedSize(s.id)}
-                  className="bg-white hover:bg-emerald-50/50 p-6 rounded-2xl border-2 border-gray-200 hover:border-emerald-500 shadow-sm hover:shadow-md transition-all text-left flex flex-col justify-between group active:scale-95 cursor-pointer"
+                  className="pos-size-card bg-white hover:bg-emerald-50/50 border-2 border-gray-200 hover:border-emerald-500 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black text-sm mb-4 transition-colors">
+                  <div className="pos-size-icon rounded-lg bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black transition-colors">
                     {s.id.replace('ml', '')}
-                    <span className="text-[10px] ml-0.5 font-bold">ml</span>
+                    <span className="text-[9px] ml-0.5 font-bold">ml</span>
                   </div>
                   <div>
-                    <h4 className="font-black text-gray-800 text-base">{s.label}</h4>
-                    <p className="text-xs text-gray-500 mt-1">{s.desc}</p>
+                    <h4 className="font-black text-gray-800">{s.label}</h4>
+                    <p className="text-gray-500">{s.desc}</p>
                   </div>
                 </button>
               ))}
             </div>
           </div>
         ) : activeCategory === 'smoothies' && selectedSize && selectedProtein === null ? (
-          /* Step 2: Protein selection screen */
-          <div className="space-y-4 py-6">
+          <div className="pos-step-wrap space-y-2">
             <div className="text-center">
-              <h3 className="text-lg font-black text-gray-700">Chọn mức Protein (g)</h3>
-              <p className="text-xs text-gray-500 mt-1">Chọn hàm lượng protein để tiếp tục chọn vị sinh tố</p>
+              <h3 className="pos-step-title font-black text-gray-700">Chọn mức Protein (g)</h3>
+              <p className="pos-step-desc text-gray-500 mt-0.5">Chọn hàm lượng protein</p>
             </div>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
+            <div className="pos-size-grid">
               {(proteinLevelsBySize[selectedSize] || [20, 40]).map(level => (
                 <button
                   key={level}
                   onClick={() => setSelectedProtein(level)}
-                  className="bg-white hover:bg-emerald-50/50 p-6 rounded-2xl border-2 border-gray-200 hover:border-emerald-500 shadow-sm hover:shadow-md transition-all text-left flex flex-col justify-between group active:scale-95 cursor-pointer"
+                  className="pos-size-card bg-white hover:bg-emerald-50/50 border-2 border-gray-200 hover:border-emerald-500 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black text-sm mb-4 transition-colors">
+                  <div className="pos-size-icon rounded-lg bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black transition-colors">
                     {level}g
                   </div>
                   <div>
-                    <h4 className="font-black text-gray-800 text-base">{level}g Protein</h4>
-                    <p className="text-xs text-gray-500 mt-1">{proteinDesc[level] || 'Cân bằng dinh dưỡng'}</p>
+                    <h4 className="font-black text-gray-800">{level}g Protein</h4>
+                    <p className="text-gray-500">{proteinDesc[level] || 'Cân bằng dinh dưỡng'}</p>
                   </div>
                 </button>
               ))}
@@ -215,36 +213,36 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
           </div>
         ) : (
           /* Products Grid list (Flavors) */
-          <div className="space-y-4">
+          <div className="space-y-2">
             {activeCategory === 'smoothies' && selectedSize && (
-              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-4">
-                  <span className="text-emerald-700 font-extrabold text-sm">Size: {selectedSize}</span>
-                  <span className="text-emerald-700 font-extrabold text-sm">Protein: {selectedProtein}g</span>
+              <div className="pos-filter-bar flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-700 font-bold">{selectedSize}</span>
+                  <span className="text-emerald-700 font-bold">{selectedProtein}g</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <button
-                    onClick={() => {
-                      setSelectedProtein(null);
-                    }}
-                    className="text-xs font-bold text-emerald-700 hover:underline bg-white border border-emerald-300 px-3 py-1 rounded-lg transition-colors active:scale-95 cursor-pointer"
+                    type="button"
+                    onClick={() => setSelectedProtein(null)}
+                    className="text-[10px] font-bold text-emerald-700 bg-white border border-emerald-300 px-2 py-0.5 rounded"
                   >
                     Đổi Protein
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setSelectedSize('');
                       setSelectedProtein(null);
                     }}
-                    className="text-xs font-bold text-emerald-700 hover:underline bg-white border border-emerald-300 px-3 py-1 rounded-lg transition-colors active:scale-95 cursor-pointer"
+                    className="text-[10px] font-bold text-emerald-700 bg-white border border-emerald-300 px-2 py-0.5 rounded"
                   >
-                    Đổi dung tích (ml)
+                    Đổi ly
                   </button>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="pos-flavor-grid">
               {filteredProducts.map(product => {
                 const displayPrice = activeCategory === 'smoothies' && selectedSize
                   ? getProductPriceForSizeAndProtein(product, selectedSize, selectedProtein)
@@ -253,34 +251,35 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                 return (
                   <button
                     key={product.id}
+                    type="button"
                     onClick={() => {
                       if (activeCategory === 'smoothies') {
-                        onProductClick({ 
-                          ...product, 
-                          initialSize: selectedSize, 
-                          initialProtein: selectedProtein 
+                        onProductClick({
+                          ...product,
+                          initialSize: selectedSize,
+                          initialProtein: selectedProtein
                         } as any);
                       } else {
                         onProductClick(product);
                       }
                     }}
-                    className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-5 flex flex-col items-center group hover:scale-105 border-2 border-gray-100"
+                    className="pos-flavor-card bg-white rounded-lg shadow hover:shadow-md transition-all flex flex-col items-center border border-gray-100 active:scale-95"
                   >
-                    <div className="w-full aspect-square mb-4 overflow-hidden rounded-xl bg-gray-50 flex items-center justify-center">
+                    <div className="pos-flavor-img w-full aspect-square overflow-hidden rounded-lg bg-gray-50 flex items-center justify-center">
                       {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
-                        <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-7xl">{product.image}</span>
+                        <span>{product.image}</span>
                       )}
                     </div>
-                    <div className="text-base font-bold text-gray-800 text-center mb-3 min-h-[48px] flex items-center line-clamp-2">
+                    <div className="pos-flavor-name font-bold text-gray-800 text-center line-clamp-2 w-full">
                       {product.name}
                     </div>
-                    <div className="text-xl font-bold text-emerald-700 mb-3">
+                    <div className="pos-flavor-price font-bold text-emerald-700">
                       {displayPrice.toLocaleString('vi-VN')}đ
                     </div>
-                    <div className="bg-emerald-700 text-white rounded-full p-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                      <Plus className="w-6 h-6" />
+                    <div className="pos-flavor-add bg-emerald-700 text-white rounded-full p-1.5">
+                      <Plus className="w-4 h-4" />
                     </div>
                   </button>
                 );

@@ -283,3 +283,72 @@ html.pos-kiosk #root {
   font-size: 1.25rem;
   font-weight: 900;
 }
+
+/* ── Topping — nút TO, dễ chạm ── */
+.pos-modifier .pos-topping-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.pos-modifier .pos-topping-card {
+  min-height: 6.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.85rem;
+}
+
+.pos-modifier .pos-topping-price {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.pos-modifier .pos-topping-name {
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.pos-modifier .pos-combo-card {
+  min-height: 8.75rem;
+}
+
+.pos-modifier .pos-combo-name {
+  font-size: 1.05rem;
+}
+
+.pos-modifier .pos-modifier-footer-btn {
+  font-size: 1.05rem;
+  min-height: 3.25rem;
+}
+
+.pos-product-grid .pos-topping-catalog-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pos-product-grid .pos-topping-catalog-grid .pos-flavor-name {
+  font-size: 1.15rem;
+  min-height: 3rem;
+}
+
+/* ── Hiệu năng POS — giảm lag trên máy 1GB RAM ── */
+html.pos-kiosk .animate-pulse {
+  animation: none !important;
+}
+
+html.pos-kiosk .pos-modifier button,
+html.pos-kiosk .pos-product-grid button,
+html.pos-kiosk .pos-checkout button {
+  transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease !important;
+}
+
+html.pos-kiosk .pos-modifier button:active,
+html.pos-kiosk .pos-product-grid button:active,
+html.pos-kiosk .pos-checkout button:active {
+  transform: none !important;
+}
+
+html.pos-kiosk .pos-flavor-card,
+html.pos-kiosk .pos-size-card,
+html.pos-kiosk .pos-combo-card,
+html.pos-kiosk .pos-topping-card {
+  will-change: auto;
+}

@@ -195,37 +195,36 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
               <h3 className="text-sm font-black text-emerald-800 uppercase tracking-wider">🌟 1. Combo Topping (Siêu tiết kiệm)</h3>
               <p className="text-xs text-emerald-600 font-medium mt-0.5">Nhấp chọn Combo để áp dụng nhanh bộ topping ưu đãi</p>
             </div>
-            <span className="bg-emerald-600 text-white font-black text-xs px-3 py-1 rounded-full animate-pulse">SIÊU RẺ</span>
+            <span className="bg-emerald-600 text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge">SIÊU RẺ</span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="pos-combo-grid grid grid-cols-2 gap-3">
             {comboList.map(combo => {
               const isSelected = selectedCombos.includes(combo.id);
               return (
                 <button
                   key={combo.id}
                   onClick={() => toggleCombo(combo.id)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all relative flex flex-col justify-between ${
+                  className={`pos-combo-card p-4 rounded-xl border-2 text-left relative flex flex-col justify-between ${
                     isSelected
-                      ? 'border-emerald-600 bg-white shadow-lg scale-[1.01]'
-                      : 'border-gray-200 bg-white hover:border-emerald-300 hover:shadow-md'
+                      ? 'border-emerald-600 bg-white shadow-lg'
+                      : 'border-gray-200 bg-white'
                   }`}
-                  style={{ height: '120px' }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-black leading-tight ${isSelected ? 'text-emerald-700' : 'text-gray-950'}`}>{combo.name}</p>
-                      <p className="text-xs text-gray-500 font-bold mt-1 leading-snug line-clamp-2">{combo.items}</p>
+                      <p className={`pos-combo-name text-base font-black leading-tight ${isSelected ? 'text-emerald-700' : 'text-gray-950'}`}>{combo.name}</p>
+                      <p className="text-sm text-gray-500 font-bold mt-1 leading-snug line-clamp-2">{combo.items}</p>
                     </div>
                     {isSelected && (
-                      <span className="bg-emerald-600 text-white p-1 rounded-full flex-shrink-0 ml-2">
-                        <Check className="w-4 h-4" />
+                      <span className="bg-emerald-600 text-white p-1.5 rounded-full flex-shrink-0 ml-2">
+                        <Check className="w-5 h-5" />
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                    <span className="text-sm font-black text-emerald-700">{(combo.price).toLocaleString()}đ</span>
-                    <span className="text-xs text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
-                    <span className="ml-auto text-[10px] bg-rose-50 text-rose-600 font-black px-1.5 py-0.5 rounded whitespace-nowrap">
+                    <span className="text-base font-black text-emerald-700">{(combo.price).toLocaleString()}đ</span>
+                    <span className="text-sm text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
+                    <span className="ml-auto text-xs bg-rose-50 text-rose-600 font-black px-2 py-0.5 rounded whitespace-nowrap">
                       -{(combo.save || 0) / 1000}k
                     </span>
                   </div>
@@ -237,28 +236,27 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
 
         {/* Row 2: Toppings Lẻ */}
         <div className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
-          <h3 className="text-sm font-black text-gray-800 mb-1.5 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
-          <p className="text-xs text-gray-400 mb-4 font-medium">Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây</p>
-          <div className="grid grid-cols-3 gap-3">
-            {dynamicToppings.map(topping => {
+          <h3 className="text-base font-black text-gray-800 mb-1.5 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
+          <p className="text-sm text-gray-500 mb-3 font-medium">Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây</p>
+          <div className="pos-topping-grid grid grid-cols-2 gap-3">
+            {toppingsList.map(topping => {
               const isSelected = selectedToppings.includes(topping.name);
               return (
                 <button
                   key={topping.name}
                   onClick={() => toggleTopping(topping.name)}
-                  className={`rounded-xl font-medium transition-all text-left relative border-2 flex flex-col justify-between ${
+                  className={`pos-topping-card rounded-xl font-medium text-left relative border-2 flex flex-col justify-between ${
                     isSelected
                       ? 'bg-emerald-600 border-emerald-600 text-white shadow-md font-bold'
-                      : 'bg-white border-gray-200 text-gray-850 hover:bg-gray-100 hover:border-gray-300'
+                      : 'bg-white border-gray-200 text-gray-850'
                   }`}
-                  style={{ height: '80px', padding: '10px 12px' }}
                 >
-                  <div className={`text-[11px] leading-tight font-extrabold ${isSelected ? 'text-white/90' : 'text-emerald-700'}`}>
+                  <div className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : 'text-emerald-700'}`}>
                     +{topping.price.toLocaleString()}đ
                   </div>
-                  <div className="text-xs font-black leading-tight">{topping.name}</div>
+                  <div className="pos-topping-name font-black leading-tight">{topping.name}</div>
                   {isSelected && (
-                    <Check className="w-3.5 h-3.5 absolute top-2 right-2 text-white" />
+                    <Check className="w-5 h-5 absolute top-2.5 right-2.5 text-white" />
                   )}
                 </button>
               );
@@ -271,14 +269,14 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-between items-center gap-3 flex-shrink-0">
         <button
           onClick={onClose}
-          className="px-5 py-2.5 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-black text-xs transition-all"
+          className="pos-modifier-footer-btn px-6 py-3 rounded-lg bg-gray-200 text-gray-800 font-black"
         >
           HỦY BỎ
         </button>
 
         <button
           onClick={handleAddToCart}
-          className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white py-2.5 rounded-lg font-black text-xs tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+          className="pos-modifier-footer-btn flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-3 rounded-lg font-black tracking-wider shadow-md flex items-center justify-center gap-2"
         >
           XÁC NHẬN & THÊM VÀO GIỎ ({calculatePrice().toLocaleString('vi-VN')}đ)
         </button>

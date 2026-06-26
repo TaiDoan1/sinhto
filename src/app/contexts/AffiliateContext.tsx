@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as api from '../utils/api';
+import { useSSE } from './SSEContext';
 
 export interface PartnerPT {
   id: string;
@@ -49,6 +50,7 @@ interface AffiliateContextType {
 const AffiliateContext = createContext<AffiliateContextType | undefined>(undefined);
 
 export function AffiliateProvider({ children }: { children: ReactNode }) {
+  const { subscribe } = useSSE();
   const [partners, setPartners] = useState<PartnerPT[]>([]);
   const [transactions, setTransactions] = useState<ReferralTransaction[]>([]);
 
@@ -65,34 +67,30 @@ export function AffiliateProvider({ children }: { children: ReactNode }) {
     };
 
     loadData();
-
-    // Listen to real-time updates via SSE
-    const eventSource = new EventSource('/api/events');
-    eventSource.onmessage = (event) => {
-      try {
-        const { type, data } = JSON.parse(event.data);
-        if (type === 'PT_PARTNER_CREATED') {
-          setPartners(prev => {
-            if (prev.some(p => p.id === data.id)) return prev;
-            return [...prev, data];
-          });
-        } else if (type === 'PT_PARTNER_UPDATED') {
-          setPartners(prev => prev.map(p => p.id === data.id ? data : p));
-        } else if (type === 'REFERRAL_CREATED') {
-          setTransactions(prev => {
-            if (prev.some(t => t.id === data.id)) return prev;
-            return [data, ...prev];
-          });
-        }
-      } catch (err) {
-        console.error("SSE parse error in AffiliateContext", err);
-      }
-    };
-
-    return () => {
-      eventSource.close();
-    };
   }, []);
+
+  useEffect(() => {
+    const unsubCreated = subscribe('PT_PARTNER_CREATED', (data) => {
+      setPartners((prev) => {
+        if (prev.some((p) => p.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    });
+    const unsubUpdated = subscribe('PT_PARTNER_UPDATED', (data) => {
+      setPartners((prev) => prev.map((p) => (p.id === data.id ? data : p)));
+    });
+    const unsubReferral = subscribe('REFERRAL_CREATED', (data) => {
+      setTransactions((prev) => {
+        if (prev.some((t) => t.id === data.id)) return prev;
+        return [data, ...prev];
+      });
+    });
+    return () => {
+      unsubCreated();
+      unsubUpdated();
+      unsubReferral();
+    };
+  }, [subscribe]);
 
   // Add a new PT Partner
   const addPartner = (name: string, phone: string, code: string) => {

@@ -224,7 +224,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
               </div>
             )}
 
-            <div className="pos-flavor-grid">
+            <div className={`pos-flavor-grid${activeCategory === 'toppings' ? ' pos-topping-catalog-grid' : ''}`}>
               {filteredProducts.map(product => (
                   <button
                     key={product.id}
@@ -240,11 +240,11 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                         onProductClick(product);
                       }
                     }}
-                    className="pos-flavor-card bg-white rounded-lg shadow hover:shadow-md transition-all flex flex-col items-center border border-gray-100 active:scale-95"
+                    className="pos-flavor-card bg-white rounded-lg shadow flex flex-col items-center border border-gray-100"
                   >
                     <div className="pos-flavor-img w-full aspect-square overflow-hidden rounded-lg bg-gray-50 flex items-center justify-center">
                       {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
-                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <span>{product.image}</span>
                       )}

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import * as api from '../utils/api';
+import { useSSE } from './SSEContext';
 import {
   FITBLEND_RECIPES,
   checkStockAvailability,
@@ -83,6 +84,7 @@ function applyInventoryPatch(
 }
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
+  const { subscribe } = useSSE();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
@@ -114,23 +116,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/events');
-    eventSource.onmessage = (event) => {
-      try {
-        const { type, data } = JSON.parse(event.data);
-        if (type === 'INVENTORY_UPDATED') {
-          const payload = data?.branchId ? data : { branchId: null, inventory: data };
-          if (payload.branchId && payload.branchId === branchRef.current) {
-            setInventory(payload.inventory || []);
-            loadMovements(payload.branchId);
-          }
-        }
-      } catch {
-        /* ignore */
+    return subscribe('INVENTORY_UPDATED', (data) => {
+      const payload = data?.branchId ? data : { branchId: null, inventory: data };
+      if (payload.branchId && payload.branchId === branchRef.current) {
+        setInventory(payload.inventory || []);
+        loadMovements(payload.branchId);
       }
-    };
-    return () => eventSource.close();
-  }, [loadMovements]);
+    });
+  }, [subscribe, loadMovements]);
 
   const syncInventory = (
     newInventory: InventoryItem[],

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as api from '../utils/api';
 import { useSSE } from './SSEContext';
+import { normalizePhoneVN } from '../utils/phone';
 import {
   DEFAULT_LOYALTY_TIERS,
   DEFAULT_REDEEM_PROGRAMS,
@@ -174,15 +175,19 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
   }, [subscribe]);
 
   const lookupByPhone = async (phone: string): Promise<LoyaltyCustomer | null> => {
+    const normalized = normalizePhoneVN(phone);
+    if (!normalized) return null;
+    const local = customers.find((c) => normalizePhoneVN(c.phone) === normalized);
+    if (local) return local;
     try {
-      return await api.fetchCustomerByPhone(phone);
+      return await api.fetchCustomerByPhone(normalized);
     } catch {
       return null;
     }
   };
 
   const registerCustomer = async (name: string, phone: string): Promise<LoyaltyCustomer> => {
-    const created = await api.createCustomer({ name, phone });
+    const created = await api.createCustomer({ name, phone: normalizePhoneVN(phone) });
     setCustomers(prev => [created, ...prev]);
     return created;
   };

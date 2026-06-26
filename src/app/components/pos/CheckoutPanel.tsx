@@ -91,7 +91,9 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
       items: orderItems,
       status: 'preparing',
       total: total,
-      staff: 'POS - Nhân viên quầy'
+      staff: 'POS - Nhân viên quầy',
+      customerName: activeCustomer?.name,
+      customerPhone: activeCustomer?.phone,
     });
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');

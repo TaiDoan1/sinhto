@@ -305,7 +305,7 @@ export async function fetchCustomers() {
 }
 
 export async function fetchCustomerByPhone(phone: string) {
-  const res = await fetch(`${BASE_URL}/customers/${phone}`);
+  const res = await fetch(`${BASE_URL}/customers/${encodeURIComponent(phone)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('Failed to fetch customer');
   return res.json();

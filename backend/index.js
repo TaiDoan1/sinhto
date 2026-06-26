@@ -15,6 +15,7 @@ const {
   applyBranchInventoryUpdate,
   seedBranchRowsForItem,
 } = require('./branchInventory');
+const { normalizePhoneVN, phonesMatch } = require('./phoneUtils');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -83,7 +84,8 @@ function normalizeShift(s) {
 }
 
 function normalizeCustomer(c) {
-  return { ...c, name: normStr(c.name) };
+  const phone = normalizePhoneVN(c.phone) || String(c.phone || '').trim().replace(/\s/g, '');
+  return { ...c, name: normStr(c.name), phone };
 }
 
 function normalizeInventoryItem(item) {
@@ -774,6 +776,96 @@ app.post('/api/settings', (req, res) => {
 });
 
 // --- CUSTOMER LOYALTY API ---
+function findInCustomersTable(normalizedPhone, cb) {
+  db.all('SELECT * FROM customers', [], (err, customers) => {
+    if (err) return cb(err);
+    const existing = (customers || []).find((c) => phonesMatch(normalizedPhone, c.phone));
+    cb(null, existing || null);
+  });
+}
+
+function findLegacyCustomerProfile(normalizedPhone, cb) {
+  db.all(
+    `SELECT customerName, customerPhone FROM combo_subscriptions
+     WHERE customerPhone IS NOT NULL AND TRIM(customerPhone) != ''
+     ORDER BY createdAt DESC`,
+    [],
+    (err, comboRows) => {
+      if (err) return cb(err);
+      const comboHit = (comboRows || []).find((r) => phonesMatch(normalizedPhone, r.customerPhone));
+      if (comboHit) return cb(null, { name: comboHit.customerName, phone: comboHit.customerPhone });
+
+      db.all(
+        `SELECT customerName, customerPhone FROM orders
+         WHERE customerPhone IS NOT NULL AND TRIM(customerPhone) != ''
+         ORDER BY time DESC`,
+        [],
+        (err2, orderRows) => {
+          if (err2) return cb(err2);
+          const orderHit = (orderRows || []).find((r) => phonesMatch(normalizedPhone, r.customerPhone));
+          if (orderHit) {
+            return cb(null, {
+              name: orderHit.customerName || 'Khach hang',
+              phone: orderHit.customerPhone,
+            });
+          }
+
+          db.all(
+            `SELECT customerName, customerPhone FROM customer_care_assignments
+             WHERE customerPhone IS NOT NULL AND TRIM(customerPhone) != ''`,
+            [],
+            (err3, careRows) => {
+              if (err3) return cb(err3);
+              const careHit = (careRows || []).find((r) => phonesMatch(normalizedPhone, r.customerPhone));
+              if (careHit) {
+                return cb(null, {
+                  name: careHit.customerName || 'Khach hang',
+                  phone: careHit.customerPhone,
+                });
+              }
+              cb(null, null);
+            }
+          );
+        }
+      );
+    }
+  );
+}
+
+function insertLoyaltyCustomer(name, normalizedPhone, cb) {
+  const id = `CUST-${Date.now()}`;
+  const createdAt = new Date().toISOString();
+  db.run(
+    'INSERT INTO customers (id, name, phone, points, createdAt) VALUES (?, ?, ?, 0, ?)',
+    [id, name, normalizedPhone, createdAt],
+    function(insertErr) {
+      if (insertErr) {
+        return findInCustomersTable(normalizedPhone, cb);
+      }
+      const created = { id, name, phone: normalizedPhone, points: 0, createdAt };
+      broadcast('CUSTOMER_CREATED', created);
+      cb(null, created);
+    }
+  );
+}
+
+function findCustomerByPhone(rawPhone, cb) {
+  const normalized = normalizePhoneVN(rawPhone);
+  if (!normalized || normalized.length < 9) return cb(null, null);
+
+  findInCustomersTable(normalized, (err, existing) => {
+    if (err) return cb(err);
+    if (existing) return cb(null, existing);
+
+    findLegacyCustomerProfile(normalized, (err2, profile) => {
+      if (err2) return cb(err2);
+      if (!profile) return cb(null, null);
+      const name = normStr(profile.name) || 'Khach hang';
+      insertLoyaltyCustomer(name, normalized, cb);
+    });
+  });
+}
+
 app.get('/api/customers', (req, res) => {
   db.all("SELECT * FROM customers ORDER BY createdAt DESC", (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -782,8 +874,8 @@ app.get('/api/customers', (req, res) => {
 });
 
 app.get('/api/customers/:phone', (req, res) => {
-  const { phone } = req.params;
-  db.get("SELECT * FROM customers WHERE phone = ?", [phone], (err, row) => {
+  const phone = decodeURIComponent(req.params.phone);
+  findCustomerByPhone(phone, (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Customer not found' });
     res.json(row);
@@ -1043,7 +1135,7 @@ app.post('/api/loyalty-vouchers/issue', (req, res) => {
     if (customerId) {
       db.get('SELECT * FROM customers WHERE id = ?', [customerId], cb);
     } else {
-      db.get('SELECT * FROM customers WHERE phone = ?', [phone], cb);
+      findCustomerByPhone(phone, cb);
     }
   };
 
@@ -1081,7 +1173,7 @@ app.post('/api/loyalty-vouchers/issue-bulk', (req, res) => {
   }
 
   const uniquePhones = [...new Set(
-    phones.map(p => String(p).trim().replace(/\s/g, '')).filter(Boolean)
+    phones.map(p => normalizePhoneVN(String(p))).filter(Boolean)
   )];
 
   getRedeemPrograms((_, programs) => {
@@ -1105,7 +1197,7 @@ app.post('/api/loyalty-vouchers/issue-bulk', (req, res) => {
       }
 
       const phone = uniquePhones[index++];
-      db.get('SELECT * FROM customers WHERE phone = ?', [phone], (err, customer) => {
+      findCustomerByPhone(phone, (err, customer) => {
         if (err) {
           failed.push({ phone, error: err.message });
           return processNext();

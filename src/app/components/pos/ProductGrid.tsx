@@ -2,7 +2,6 @@ import { Plus, Search, Droplets, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
-import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 export interface Product {
   id: string;
@@ -34,7 +33,6 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedProtein, setSelectedProtein] = useState<number | null>(null);
-  const { priceTable } = useMenuPricing();
 
   const sizes = [
     { id: '250ml', label: '250ml', desc: 'Ly nhỏ — buổi sáng nhẹ' },
@@ -55,22 +53,6 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
     40: 'Cân bằng dinh dưỡng',
     60: 'Tăng cường cơ bắp',
     90: 'Tối ưu cho vận động viên',
-  };
-
-  const getProductPriceForSizeAndProtein = (product: Product, size: string, protein: number | null) => {
-    const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
-    const price = priceTable[size]?.[prot];
-    if (price) return price;
-
-    const prices = {
-      '250ml': 39000,
-      '360ml': 59000,
-      '500ml': 79000,
-      '700ml': 119000,
-    };
-    const base = prices[size as keyof typeof prices] || 59000;
-    const diff = product.basePrice - 59000;
-    return base + (diff > 0 ? diff : 0);
   };
 
   const { subscribe } = useSSE();
@@ -158,7 +140,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
           <div className="pos-step-wrap space-y-2">
             <div className="text-center">
               <h3 className="pos-step-title font-black text-gray-700">Chọn dung tích ly (ml)</h3>
-              <p className="pos-step-desc text-gray-500 mt-0.5">Chọn kích cỡ để xem menu và giá</p>
+              <p className="pos-step-desc text-gray-500 mt-0.5">Chọn kích cỡ để xem menu các vị</p>
             </div>
             <div className="pos-size-grid">
               {sizes.map(s => (
@@ -243,12 +225,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
             )}
 
             <div className="pos-flavor-grid">
-              {filteredProducts.map(product => {
-                const displayPrice = activeCategory === 'smoothies' && selectedSize
-                  ? getProductPriceForSizeAndProtein(product, selectedSize, selectedProtein)
-                  : product.basePrice;
-
-                return (
+              {filteredProducts.map(product => (
                   <button
                     key={product.id}
                     type="button"
@@ -275,15 +252,11 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                     <div className="pos-flavor-name font-bold text-gray-800 text-center line-clamp-2 w-full">
                       {product.name}
                     </div>
-                    <div className="pos-flavor-price font-bold text-emerald-700">
-                      {displayPrice.toLocaleString('vi-VN')}đ
-                    </div>
                     <div className="pos-flavor-add bg-emerald-700 text-white rounded-full p-1.5">
                       <Plus className="w-4 h-4" />
                     </div>
                   </button>
-                );
-              })}
+                ))}
             </div>
           </div>
         )}

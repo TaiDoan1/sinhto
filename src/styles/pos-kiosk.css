@@ -236,6 +236,10 @@ html.pos-kiosk #root {
   padding: 0.65rem;
 }
 
+.pos-checkout .pos-loyalty-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 .pos-checkout .pos-cart-btn-primary {
   font-size: 1.05rem;
   font-weight: 800;

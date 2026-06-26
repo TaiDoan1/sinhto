@@ -11,9 +11,12 @@ import {
 export function LoyaltyCustomerSection({
   allowLookup = true,
   orderSubtotal = 0,
+  compact = false,
 }: {
   allowLookup?: boolean;
   orderSubtotal?: number;
+  /** Giao diện gọn cho cột giỏ hàng POS */
+  compact?: boolean;
 }) {
   const {
     lookupByPhone,
@@ -72,13 +75,17 @@ export function LoyaltyCustomerSection({
 
   if (!allowLookup && !activeVoucher) return null;
 
+  const pad = compact ? 'p-2' : 'p-4';
+  const gap = compact ? 'space-y-2' : 'space-y-4';
+
   return (
-    <div className="p-4 bg-gradient-to-b from-emerald-50 to-white border-b border-emerald-100 space-y-4">
-      <PosVoucherRedeem orderSubtotal={orderSubtotal} variant="full" />
+    <div className={`${pad} bg-gradient-to-b from-emerald-50 to-white border-b border-emerald-100 ${gap}`}>
+      <PosVoucherRedeem orderSubtotal={orderSubtotal} variant={compact ? 'compact' : 'full'} />
 
       {!activeCustomer ? (
         allowLookup ? (
-        <div className="space-y-4">
+        <div className={gap}>
+          {!compact && (
           <div className="text-center">
             <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-lg shadow-emerald-200">
               <Star className="w-7 h-7 text-white" />
@@ -86,73 +93,69 @@ export function LoyaltyCustomerSection({
             <h3 className="text-base font-bold text-gray-800">Tích Điểm Thành Viên</h3>
             <p className="text-sm text-gray-500 mt-1">Nhập SĐT để tìm hoặc đăng ký khách mới</p>
           </div>
+          )}
+          {compact && (
+            <h3 className="text-sm font-bold text-gray-800 text-center">Tích điểm — nhập SĐT</h3>
+          )}
 
           {isRegistering ? (
-            <form onSubmit={handleRegister} className="space-y-3 bg-white p-4 rounded-2xl border-2 border-emerald-100 shadow-sm">
-              <div className="text-sm font-bold text-emerald-800">Đăng ký khách hàng mới</div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Họ và tên</label>
-                <input
-                  type="text"
-                  placeholder="Nguyễn Văn A"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  className="w-full text-base p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Số điện thoại</label>
-                <input
-                  type="tel"
-                  placeholder="09xxxxxxxx"
-                  value={newPhone}
-                  onChange={e => setNewPhone(e.target.value)}
-                  className="w-full text-base p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 tracking-widest font-semibold text-center"
-                  required
-                />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setIsRegistering(false)} className="flex-1 bg-gray-100 text-gray-700 text-sm py-3 rounded-xl font-semibold active:bg-gray-200">Hủy</button>
-                <button type="submit" className="flex-1 bg-emerald-600 text-white text-sm py-3 rounded-xl font-bold active:bg-emerald-700 shadow-md">Đăng Ký</button>
+            <form onSubmit={handleRegister} className={`space-y-2 bg-white rounded-xl border-2 border-emerald-100 shadow-sm ${compact ? 'p-2' : 'p-4'}`}>
+              <div className="text-sm font-bold text-emerald-800">Đăng ký khách mới</div>
+              <input
+                type="text"
+                placeholder="Họ tên"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="w-full text-sm p-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-500"
+                required
+                autoFocus
+              />
+              <input
+                type="tel"
+                placeholder="09xxxxxxxx"
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                className="w-full text-sm p-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-500 text-center font-semibold"
+                required
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setIsRegistering(false)} className="flex-1 bg-gray-100 text-gray-700 text-sm py-2 rounded-lg font-semibold">Hủy</button>
+                <button type="submit" className="flex-1 bg-emerald-600 text-white text-sm py-2 rounded-lg font-bold">Đăng Ký</button>
               </div>
             </form>
           ) : (
-            <form onSubmit={handleLookup} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Số điện thoại khách</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
-                  <input
-                    type="tel"
-                    placeholder="Nhập số điện thoại..."
-                    value={phoneSearch}
-                    onChange={e => setPhoneSearch(e.target.value)}
-                    className="w-full text-lg pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 tracking-widest font-bold text-center text-emerald-900 bg-white shadow-sm"
-                  />
-                </div>
+            <form onSubmit={handleLookup} className="space-y-2">
+              <div className="relative">
+                <Phone className={`absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 ${compact ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                <input
+                  type="tel"
+                  placeholder="Số điện thoại..."
+                  value={phoneSearch}
+                  onChange={e => setPhoneSearch(e.target.value)}
+                  className={`w-full pl-10 pr-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 font-bold text-center text-emerald-900 bg-white ${
+                    compact ? 'py-2.5 text-base' : 'py-4 text-lg'
+                  }`}
+                />
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="flex-1 bg-emerald-600 text-white text-base py-3.5 rounded-2xl font-bold active:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2">
-                  <Search className="w-5 h-5" />
+                <button type="submit" className={`flex-1 bg-emerald-600 text-white rounded-xl font-bold active:bg-emerald-700 flex items-center justify-center gap-1.5 ${compact ? 'py-2.5 text-sm' : 'py-3.5 text-base'}`}>
+                  <Search className={compact ? 'w-4 h-4' : 'w-5 h-5'} />
                   Tìm Khách
                 </button>
-                <button type="button" onClick={() => setIsRegistering(true)} className="px-4 border-2 border-emerald-600 text-emerald-700 rounded-2xl font-bold active:bg-emerald-50 flex items-center justify-center gap-1.5" title="Đăng ký mới">
-                  <UserPlus className="w-5 h-5" />
-                  <span className="text-sm hidden sm:inline">Mới</span>
+                <button type="button" onClick={() => setIsRegistering(true)} className={`border-2 border-emerald-600 text-emerald-700 rounded-xl font-bold active:bg-emerald-50 flex items-center justify-center ${compact ? 'px-3 py-2' : 'px-4 py-3'}`} title="Đăng ký mới">
+                  <UserPlus className={compact ? 'w-4 h-4' : 'w-5 h-5'} />
                 </button>
               </div>
             </form>
           )}
 
           {lookupError && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3 text-center font-medium">{lookupError}</div>
+            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2 text-center font-medium">{lookupError}</div>
           )}
         </div>
         ) : null
       ) : (
-        <div className="bg-white p-4 rounded-2xl border-2 border-emerald-200 shadow-sm space-y-3">
+        <div className={`bg-white rounded-xl border-2 border-emerald-200 shadow-sm space-y-2 ${compact ? 'p-2' : 'p-4'}`}>
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
@@ -193,7 +196,7 @@ export function LoyaltyCustomerSection({
                 <Gift className="w-4 h-4 text-pink-500" />
                 Chương trình đổi điểm
               </div>
-              <div className="space-y-2 max-h-56 overflow-y-auto">
+              <div className={`space-y-2 overflow-y-auto ${compact ? 'max-h-28' : 'max-h-56'}`}>
                 {config.redeemPrograms.filter(p => p.enabled && isProgramInPeriod(p)).map(prog => {
                   const { eligible, reason } = getProgramEligibility(prog, {
                     customerPoints: activeCustomer.points,

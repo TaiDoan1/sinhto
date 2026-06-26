@@ -223,7 +223,7 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
 
   return (
     <div className="pos-checkout flex flex-col h-full w-full bg-white rounded-lg shadow-md relative border-2 border-gray-100">
-      <div className="pos-checkout-header bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-t-lg">
+      <div className="pos-checkout-header shrink-0 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-t-lg">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-1.5">
             {checkoutStep !== 'cart' && (
@@ -249,9 +249,12 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
         </div>
       </div>
 
-      {checkoutStep === 'loyalty' && <LoyaltyCustomerSection orderSubtotal={subtotal} />}
-
-      {checkoutStep !== 'loyalty' && (
+      {checkoutStep === 'loyalty' ? (
+        <div className="pos-loyalty-scroll flex-1 min-h-0 overflow-y-auto">
+          <LoyaltyCustomerSection orderSubtotal={subtotal} compact />
+          <div className="px-3 pb-2">{renderTotals(true)}</div>
+        </div>
+      ) : (
         <div className="pos-cart-scroll flex-1 overflow-y-auto space-y-2 min-h-0">
           {cart.length === 0 ? (
             <div className="text-center text-gray-400 py-10">
@@ -311,13 +314,7 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
         </div>
       )}
 
-      {checkoutStep === 'loyalty' && (
-        <div className="flex-1 overflow-y-auto p-3">
-          {renderTotals(true)}
-        </div>
-      )}
-
-      <div className="pos-cart-footer border-t-2 border-gray-200 space-y-2">
+      <div className="pos-cart-footer shrink-0 border-t-2 border-gray-200 space-y-2 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.06)] z-10">
         {checkoutStep === 'cart' && (
           <>
             {renderTotals(false)}

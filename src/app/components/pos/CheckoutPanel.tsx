@@ -193,28 +193,28 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
   };
 
   const renderTotals = (showLoyaltyLines: boolean) => (
-    <div className="space-y-1 text-xs">
+    <div className="space-y-1.5">
       {showLoyaltyLines && pointsDiscount > 0 && (
-        <div className="flex justify-between">
-          <span className="text-gray-600">Tạm tính:</span>
-          <span className="font-semibold">{subtotal.toLocaleString('vi-VN')}đ</span>
+        <div className="flex justify-between text-base">
+          <span className="text-gray-600 font-medium">Tạm tính:</span>
+          <span className="font-bold">{subtotal.toLocaleString('vi-VN')}đ</span>
         </div>
       )}
       {showLoyaltyLines && pointsDiscount > 0 && (
-        <div className="flex justify-between text-pink-600 font-semibold">
-          <span>{activeVoucher ? `Mã ${activeVoucher.code}:` : 'Giảm điểm loyalty:'}</span>
+        <div className="flex justify-between text-base text-pink-600 font-bold">
+          <span>{activeVoucher ? `Mã ${activeVoucher.code}:` : 'Giảm điểm:'}</span>
           <span>-{pointsDiscount.toLocaleString('vi-VN')}đ</span>
         </div>
       )}
       {showLoyaltyLines && activeCustomer && estimatedPointsEarned > 0 && (
-        <div className="flex justify-between text-emerald-600 text-[10px] font-medium">
+        <div className="flex justify-between text-emerald-600 text-sm font-semibold">
           <span>Tích lũy ước tính:</span>
           <span>+{estimatedPointsEarned} điểm</span>
         </div>
       )}
-      <div className="flex justify-between text-sm border-t pt-1">
-        <span className="font-bold">TỔNG:</span>
-        <span className="font-bold text-emerald-700">
+      <div className="pos-cart-total-row flex justify-between border-t-2 border-gray-200 pt-2 mt-1">
+        <span>TỔNG:</span>
+        <span className="pos-cart-total-amount">
           {(showLoyaltyLines ? total : subtotal).toLocaleString('vi-VN')}đ
         </span>
       </div>
@@ -222,26 +222,28 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
   );
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-md relative">
-      <div className="bg-gradient-to-r from-emerald-500 to-pink-500 text-white p-2 rounded-t-lg">
+    <div className="pos-checkout flex flex-col h-full w-full bg-white rounded-lg shadow-md relative border-2 border-gray-100">
+      <div className="pos-checkout-header bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-t-lg">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {checkoutStep !== 'cart' && (
               <button
+                type="button"
                 onClick={() => setCheckoutStep(checkoutStep === 'payment' ? 'loyalty' : 'cart')}
-                className="p-0.5 rounded active:bg-white/20"
+                className="p-1 rounded active:bg-white/20"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <h2 className="text-base font-bold">{stepTitle}</h2>
+            <h2 className="pos-checkout-title">{stepTitle}</h2>
           </div>
           {checkoutStep === 'cart' && (
             <button
+              type="button"
               onClick={onClearCart}
-              className="bg-white bg-opacity-20 active:bg-opacity-30 px-2 py-0.5 rounded text-xs font-semibold transition-colors"
+              className="bg-white/25 active:bg-white/35 px-3 py-1 rounded-lg text-sm font-bold"
             >
-              Xóa
+              Xóa hết
             </button>
           )}
         </div>
@@ -250,34 +252,37 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
       {checkoutStep === 'loyalty' && <LoyaltyCustomerSection orderSubtotal={subtotal} />}
 
       {checkoutStep !== 'loyalty' && (
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        <div className="pos-cart-scroll flex-1 overflow-y-auto space-y-2 min-h-0">
           {cart.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">
-              <div className="text-4xl mb-2">🛒</div>
-              <p className="text-sm">Giỏ trống</p>
+            <div className="text-center text-gray-400 py-10">
+              <div className="text-5xl mb-3">🛒</div>
+              <p className="text-lg font-semibold">Giỏ trống</p>
             </div>
           ) : (
             cart.map((item, idx) => (
-              <div key={idx} className="bg-gray-50 rounded p-2 border border-gray-200">
-                <div className="flex justify-between items-start mb-1">
+              <div key={idx} className="pos-cart-item bg-gray-50 border border-gray-200">
+                <div className="flex justify-between items-start gap-2 mb-1.5">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-800 text-sm truncate">{item.productName}</div>
+                    <div className="pos-cart-name">{item.productName}</div>
                     {item.isCustomCombo ? (
-                      <div className="mt-1.5 space-y-1">
+                      <div className="mt-2 space-y-1">
                         {item.toppings.map((t, tIdx) => (
-                          <div key={tIdx} className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-100 flex items-start gap-1 font-medium leading-tight">
-                            <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0 text-emerald-600" />
+                          <div
+                            key={tIdx}
+                            className="pos-cart-topping bg-emerald-50 text-emerald-900 rounded border border-emerald-200 flex items-start gap-1.5 leading-snug"
+                          >
+                            <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
                             <span>{t}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <>
-                        <div className="text-xs text-gray-600 mt-0.5">
-                          {item.size} | {item.protein}g
+                        <div className="pos-cart-detail">
+                          {item.size} · Protein {item.protein}g
                         </div>
                         {item.toppings.length > 0 && (
-                          <div className="text-xs text-emerald-600 font-medium mt-0.5">
+                          <div className="pos-cart-detail text-emerald-700 mt-1">
                             + {item.toppings.join(', ')}
                           </div>
                         )}
@@ -286,16 +291,17 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
                   </div>
                   {checkoutStep === 'cart' && (
                     <button
+                      type="button"
                       onClick={() => onRemoveItem(idx)}
-                      className="text-red-500 active:text-red-700 ml-1"
+                      className="text-red-500 active:text-red-700 p-1 shrink-0"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   )}
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-600">SL: {item.quantity}</span>
-                  <span className="font-bold text-emerald-700">
+                <div className="flex justify-between items-center border-t border-gray-200 pt-1.5 mt-1">
+                  <span className="pos-cart-qty text-gray-700">SL: {item.quantity}</span>
+                  <span className="pos-cart-price">
                     {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
@@ -311,14 +317,15 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
         </div>
       )}
 
-      <div className="border-t p-2 space-y-2">
+      <div className="pos-cart-footer border-t-2 border-gray-200 space-y-2">
         {checkoutStep === 'cart' && (
           <>
             {renderTotals(false)}
             <button
+              type="button"
               onClick={() => setCheckoutStep('loyalty')}
               disabled={cart.length === 0}
-              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 active:from-emerald-700 active:to-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-bold transition-colors text-sm shadow-md"
+              className="pos-cart-btn-primary w-full bg-emerald-600 active:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl shadow-md"
             >
               Hoàn Thành Đơn
             </button>
@@ -328,61 +335,68 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
         {checkoutStep === 'loyalty' && (
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setCheckoutStep('payment')}
-              className="flex-1 bg-gray-100 active:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold text-xs"
+              className="pos-cart-btn-primary flex-1 bg-gray-100 active:bg-gray-200 text-gray-800 rounded-xl"
             >
               Không tích điểm
             </button>
             <button
+              type="button"
               onClick={() => setCheckoutStep('payment')}
-              className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-2.5 rounded-lg font-bold text-xs shadow-md"
+              className="pos-cart-btn-primary flex-1 bg-emerald-600 text-white rounded-xl shadow-md"
             >
-              Tiếp Tục Thanh Toán
+              Thanh Toán
             </button>
           </div>
         )}
 
         {checkoutStep === 'payment' && (
           <>
-            <div className="px-2 pb-2">
+            <div className="px-1 pb-1">
               <PosVoucherRedeem orderSubtotal={subtotal} variant="compact" />
             </div>
             {renderTotals(true)}
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               <button
+                type="button"
                 onClick={() => handleSelectPayment('qr')}
-                className="bg-emerald-600 active:bg-emerald-700 text-white py-2 rounded font-semibold flex items-center justify-center gap-1 transition-colors text-xs"
+                className="pos-cart-btn-pay bg-emerald-600 active:bg-emerald-700 text-white rounded-lg flex items-center justify-center gap-1.5"
               >
-                <QrCode className="w-3.5 h-3.5" />
+                <QrCode className="w-5 h-5" />
                 QR
               </button>
               <button
+                type="button"
                 onClick={() => handleSelectPayment('cash')}
-                className="bg-green-500 active:bg-green-600 text-white py-2 rounded font-semibold flex items-center justify-center gap-1 transition-colors text-xs"
+                className="pos-cart-btn-pay bg-green-600 active:bg-green-700 text-white rounded-lg flex items-center justify-center gap-1.5"
               >
-                <Wallet className="w-3.5 h-3.5" />
-                Tiền
+                <Wallet className="w-5 h-5" />
+                Tiền mặt
               </button>
               <button
+                type="button"
                 onClick={() => handleSelectPayment('momo')}
-                className="bg-pink-500 active:bg-pink-600 text-white py-2 rounded font-semibold flex items-center justify-center gap-1 transition-colors text-xs"
+                className="pos-cart-btn-pay bg-pink-500 active:bg-pink-600 text-white rounded-lg flex items-center justify-center gap-1.5"
               >
-                <Smartphone className="w-3.5 h-3.5" />
+                <Smartphone className="w-5 h-5" />
                 MoMo
               </button>
               <button
+                type="button"
                 onClick={() => handleSelectPayment('zalopay')}
-                className="bg-emerald-700 active:bg-emerald-800 text-white py-2 rounded font-semibold flex items-center justify-center gap-1 transition-colors text-xs"
+                className="pos-cart-btn-pay bg-emerald-800 active:bg-emerald-900 text-white rounded-lg flex items-center justify-center gap-1.5"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                Zalo
+                <Smartphone className="w-5 h-5" />
+                ZaloPay
               </button>
             </div>
             <button
+              type="button"
               onClick={handlePrint}
-              className="w-full bg-gray-700 active:bg-gray-800 text-white py-2 rounded font-semibold flex items-center justify-center gap-1 transition-colors text-xs"
+              className="pos-cart-btn-primary w-full bg-gray-700 active:bg-gray-800 text-white rounded-xl flex items-center justify-center gap-2"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-5 h-5" />
               In Bill
             </button>
           </>

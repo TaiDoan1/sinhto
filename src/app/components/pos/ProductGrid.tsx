@@ -125,27 +125,27 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                   setSelectedProtein(null);
                 }
               }}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded font-medium transition-all ${
+              className={`pos-cat-btn flex flex-col items-center justify-center rounded-lg font-medium transition-all ${
                 activeCategory === cat.id
-                  ? 'bg-emerald-700 text-white shadow-sm font-bold'
+                  ? 'bg-emerald-700 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-700 active:bg-gray-200'
               }`}
             >
-              <div className="mb-1 text-emerald-600">{cat.icon}</div>
-              <span className="text-xs leading-tight">{cat.label}</span>
+              <div className="mb-0.5">{cat.icon}</div>
+              <span>{cat.label}</span>
             </button>
           ))}
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Tìm sản phẩm..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+            className="pos-search-input w-full pl-10 pr-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-600"
           />
         </div>
       </div>

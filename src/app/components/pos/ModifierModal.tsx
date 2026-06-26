@@ -162,28 +162,27 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   return (
     <div className="pos-modifier flex flex-col h-full bg-white rounded-lg shadow border border-gray-150 overflow-hidden text-gray-800 min-h-0">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-3 py-2 flex justify-between items-center flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="pos-modifier-header bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-3 py-2.5 flex justify-between items-center flex-shrink-0">
+        <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1 text-sm font-bold"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5" />
             <span>Quay lại</span>
           </button>
-          <div className="h-6 w-[1px] bg-white/20"></div>
+          <div className="h-6 w-px bg-white/20" />
           <div>
-            <h2 className="text-base font-black leading-tight">
-              {product.name}
-            </h2>
-            <p className="text-[11px] opacity-90 mt-0.5">
-              Dung tích: <span className="font-extrabold">{selectedSize}</span> | Protein: <span className="font-extrabold">{selectedProtein}g</span>
+            <h2 className="text-lg font-black leading-tight">{product.name}</h2>
+            <p className="text-sm opacity-90 mt-0.5 font-semibold">
+              {selectedSize} · Protein {selectedProtein}g
             </p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[10px] opacity-75">Thành tiền</p>
-          <p className="text-lg font-black">{calculatePrice().toLocaleString('vi-VN')}đ</p>
+          <p className="text-xs opacity-80">Thành tiền</p>
+          <p className="pos-modifier-price">{calculatePrice().toLocaleString('vi-VN')}đ</p>
         </div>
       </div>
 

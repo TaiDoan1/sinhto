@@ -213,13 +213,13 @@ function POSInterfaceInner() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`pos-tab relative flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold text-xs transition-colors ${
+                className={`pos-tab relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold text-sm transition-colors ${
                   activeTab === tab.id
                     ? 'bg-emerald-700 text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4" />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 {count > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
@@ -269,7 +269,7 @@ function POSInterfaceInner() {
         </div>
 
         {activeTab === 'products' && (
-          <div className="hidden min-[1024px]:flex w-[260px] shrink-0 min-h-0 pos-checkout">
+          <div className="hidden min-[1024px]:flex w-[380px] shrink-0 min-h-0 pos-checkout">
             <CheckoutPanel
               cart={cart}
               branchId={branchId}

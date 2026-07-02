@@ -3,6 +3,7 @@
 export interface PosPrintLine {
   productName: string;
   size?: string;
+  bagSize?: string;
   protein?: number;
   toppings?: string[];
   quantity: number;
@@ -79,7 +80,7 @@ export function printCustomerReceipt(data: CustomerReceiptData) {
       const lineTotal = item.price * item.quantity;
       const detail = item.isCustomCombo
         ? ''
-        : `\n   ${item.size || ''} · ${item.protein ?? ''}g protein`;
+        : `\n   ${item.size || ''} · Túi ${item.bagSize || '-'} · ${item.protein ?? ''}g protein`;
       const tops =
         item.toppings && item.toppings.length > 0
           ? `\n   + ${item.toppings.join(', ')}`
@@ -152,7 +153,7 @@ export function printCupLabels(
         stickers.push(`
 <div class="cup-label">
   <div class="cup-name">${item.productName}</div>
-  <div class="cup-meta">${item.size || '360ml'} · Protein ${item.protein ?? 40}g</div>
+  <div class="cup-meta">${item.size || '360ml'} · Túi ${item.bagSize || '-'} · Protein ${item.protein ?? 40}g</div>
   <div class="cup-toppings">
     <b>Thành phần / Topping:</b><br/>
     ${item.toppings && item.toppings.length > 0 ? item.toppings.join('<br/>') : 'Không thêm topping'}

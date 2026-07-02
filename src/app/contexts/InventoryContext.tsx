@@ -19,6 +19,17 @@ export interface InventoryItem {
   category: 'fruit' | 'dairy' | 'protein' | 'topping' | 'other';
 }
 
+interface ProductInventoryState {
+  smoothies: Record<string, Record<string, number>>;
+  toppings: Record<string, number>;
+}
+
+interface MenuProductLite {
+  id: string;
+  name: string;
+  category: 'smoothies' | 'toppings' | 'combo';
+}
+
 export interface StockMovement {
   id: string;
   timestamp: Date;
@@ -38,6 +49,7 @@ interface InventoryContextType {
   recipes: typeof FITBLEND_RECIPES;
   movements: StockMovement[];
   activeBranchId: string | null;
+  productInventory: ProductInventoryState;
   isWarehouseReady: boolean;
   loadForBranch: (branchId: string) => void;
   getLowStockItems: () => InventoryItem[];
@@ -88,6 +100,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [productInventory, setProductInventory] = useState<ProductInventoryState>({ smoothies: {}, toppings: {} });
+  const [menuProducts, setMenuProducts] = useState<MenuProductLite[]>([]);
   const branchRef = useRef<string | null>(null);
 
   const isWarehouseReady = movements.some((m) => m.type === 'purchase');
@@ -110,6 +124,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         .fetchInventory(branchId)
         .then((data) => setInventory(data))
         .catch((err) => console.error('Error fetching inventory', err));
+      api
+        .fetchProducts()
+        .then((data) => setMenuProducts((data || []).map((p: any) => ({ id: p.id, name: p.name, category: p.category }))))
+        .catch(() => setMenuProducts([]));
+      api
+        .fetchSetting(`branchProductInventory_${branchId}`)
+        .then((data) =>
+          setProductInventory({
+            smoothies: data?.smoothies || {},
+            toppings: data?.toppings || {},
+          })
+        )
+        .catch(() => setProductInventory({ smoothies: {}, toppings: {} }));
       loadMovements(branchId);
     },
     [loadMovements]
@@ -188,6 +215,62 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       .join('\n');
   };
 
+  const checkProductStock = (lines: CartStockLine[]) => {
+    const shortages: StockShortage[] = [];
+    const toppingMap = new Map(
+      menuProducts.filter((p) => p.category === 'toppings').map((p) => [p.name, p.id])
+    );
+
+    for (const rawLine of lines as any[]) {
+      const quantity = rawLine.quantity ?? 1;
+      if (!rawLine.isCustomCombo && rawLine.productCategory === 'smoothies') {
+        const bagSize = rawLine.bagSize || 'S';
+        const variantKey = `${rawLine.size}-${bagSize}`;
+        const available = productInventory.smoothies?.[rawLine.productId]?.[variantKey] ?? 0;
+        if (available < quantity) {
+          shortages.push({
+            itemId: `${rawLine.productId}-${variantKey}`,
+            itemName: `${rawLine.productName} (${rawLine.size} · Túi ${bagSize})`,
+            need: quantity,
+            have: available,
+            unit: 'tui',
+          });
+        }
+
+        for (const toppingName of rawLine.toppings || []) {
+          if (String(toppingName).startsWith('Combo Topping:')) continue;
+          const toppingId = toppingMap.get(toppingName);
+          if (!toppingId) continue;
+          const availableTopping = productInventory.toppings?.[toppingId] ?? 0;
+          if (availableTopping < quantity) {
+            shortages.push({
+              itemId: toppingId,
+              itemName: `${toppingName} (topping)`,
+              need: quantity,
+              have: availableTopping,
+              unit: 'phan',
+            });
+          }
+        }
+      }
+
+      if (rawLine.productCategory === 'toppings') {
+        const available = productInventory.toppings?.[rawLine.productId] ?? 0;
+        if (available < quantity) {
+          shortages.push({
+            itemId: rawLine.productId,
+            itemName: rawLine.productName,
+            need: quantity,
+            have: available,
+            unit: 'phan',
+          });
+        }
+      }
+    }
+
+    return { ok: shortages.length === 0, shortages };
+  };
+
   const purchaseStock = async (
     itemId: string,
     quantity: number,
@@ -223,29 +306,69 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const deductStockForOrder = (orderId: string, lines: CartStockLine[], staff: string): boolean => {
     const check = checkCartStock(lines);
     if (!check.ok) return false;
+    const productCheck = checkProductStock(lines);
+    if (!productCheck.ok) return false;
 
     const needed = aggregateIngredients(lines);
-    if (needed.length === 0) return true;
+    if (needed.length > 0) {
+      const newInventory = applyInventoryPatch(inventory, needed, -1);
+      const newMovements: StockMovement[] = needed.map((ing) => {
+        const inv = inventory.find((i) => i.id === ing.itemId);
+        return {
+          id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: new Date(),
+          type: 'sale',
+          orderId,
+          itemId: ing.itemId,
+          itemName: inv?.name || ing.itemName,
+          quantity: -ing.quantity,
+          reason: `Ban hang - ${orderId}`,
+          performedBy: staff,
+          cost: ing.quantity * (inv?.cost || 0),
+          branchId: branchRef.current || undefined,
+        };
+      });
 
-    const newInventory = applyInventoryPatch(inventory, needed, -1);
-    const newMovements: StockMovement[] = needed.map((ing) => {
-      const inv = inventory.find((i) => i.id === ing.itemId);
-      return {
-        id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        timestamp: new Date(),
-        type: 'sale',
-        orderId,
-        itemId: ing.itemId,
-        itemName: inv?.name || ing.itemName,
-        quantity: -ing.quantity,
-        reason: `Ban hang - ${orderId}`,
-        performedBy: staff,
-        cost: ing.quantity * (inv?.cost || 0),
-        branchId: branchRef.current || undefined,
-      };
-    });
+      syncInventory(newInventory, newMovements);
+    }
 
-    syncInventory(newInventory, newMovements);
+    const nextProductInventory: ProductInventoryState = JSON.parse(JSON.stringify(productInventory));
+    const toppingMap = new Map(
+      menuProducts.filter((p) => p.category === 'toppings').map((p) => [p.name, p.id])
+    );
+    for (const rawLine of lines as any[]) {
+      const quantity = rawLine.quantity ?? 1;
+      if (!rawLine.isCustomCombo && rawLine.productCategory === 'smoothies') {
+        const bagSize = rawLine.bagSize || 'S';
+        const variantKey = `${rawLine.size}-${bagSize}`;
+        nextProductInventory.smoothies[rawLine.productId] = nextProductInventory.smoothies[rawLine.productId] || {};
+        nextProductInventory.smoothies[rawLine.productId][variantKey] = Math.max(
+          0,
+          (nextProductInventory.smoothies[rawLine.productId][variantKey] || 0) - quantity
+        );
+        for (const toppingName of rawLine.toppings || []) {
+          if (String(toppingName).startsWith('Combo Topping:')) continue;
+          const toppingId = toppingMap.get(toppingName);
+          if (!toppingId) continue;
+          nextProductInventory.toppings[toppingId] = Math.max(
+            0,
+            (nextProductInventory.toppings[toppingId] || 0) - quantity
+          );
+        }
+      }
+      if (rawLine.productCategory === 'toppings') {
+        nextProductInventory.toppings[rawLine.productId] = Math.max(
+          0,
+          (nextProductInventory.toppings[rawLine.productId] || 0) - quantity
+        );
+      }
+    }
+    setProductInventory(nextProductInventory);
+    if (branchRef.current) {
+      api.saveSetting(`branchProductInventory_${branchRef.current}`, nextProductInventory).catch((err) =>
+        console.error('Failed to sync product inventory:', err)
+      );
+    }
     return true;
   };
 
@@ -361,6 +484,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     <InventoryContext.Provider
       value={{
         inventory,
+        productInventory,
         recipes: FITBLEND_RECIPES,
         movements,
         activeBranchId,

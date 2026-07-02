@@ -59,6 +59,7 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
     cart.map((item) => ({
       productName: item.productName,
       size: item.size,
+      bagSize: item.bagSize,
       protein: item.protein,
       toppings: item.toppings,
       quantity: item.quantity,
@@ -95,8 +96,10 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
     const stockLines = cart.map((item) => ({
       productId: item.productId,
       productName: item.productName,
+      productCategory: item.productCategory,
       name: item.name,
       size: item.size,
+      bagSize: item.bagSize,
       protein: item.protein,
       toppings: item.toppings,
       quantity: item.quantity,
@@ -111,10 +114,12 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
     const orderItems = cart.map(item => ({
       productId: item.productId,
       productName: item.productName,
+      productCategory: item.productCategory,
       name: item.name || item.productName,
       quantity: item.quantity,
       price: item.price,
       size: item.size,
+      bagSize: item.bagSize,
       protein: item.protein,
       toppings: item.toppings,
       isCustomCombo: item.isCustomCombo,

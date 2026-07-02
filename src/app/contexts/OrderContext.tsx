@@ -181,7 +181,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         : {
             productId: item.productId,
             productName: item.productName || item.name,
+            productCategory: item.productCategory,
             size: item.size,
+            bagSize: item.bagSize,
             protein: item.protein,
             toppings: item.toppings,
             quantity: item.quantity ?? 1,
@@ -235,7 +237,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           : {
               productId: item.productId,
               productName: item.productName || item.name,
+              productCategory: item.productCategory,
               size: item.size,
+              bagSize: item.bagSize,
               protein: item.protein,
               toppings: item.toppings,
               quantity: item.quantity ?? 1,

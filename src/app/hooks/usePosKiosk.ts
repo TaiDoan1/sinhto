@@ -13,6 +13,18 @@ function isAndroid(): boolean {
   return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 }
 
+function findScrollableParent(node: EventTarget | null): HTMLElement | null {
+  let el = node instanceof HTMLElement ? node : null;
+  while (el && el !== document.body) {
+    const style = window.getComputedStyle(el);
+    const canScrollY =
+      /(auto|scroll|overlay)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 1;
+    if (canScrollY) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
 /** Mẹo Android Chrome: cuộn 1px để thanh địa chỉ tự ẩn khi cuộn */
 function tryHideAndroidChromeBar() {
   if (!isAndroid()) return;
@@ -74,6 +86,7 @@ export function usePosKiosk() {
   useEffect(() => {
     document.documentElement.classList.add('pos-kiosk');
     document.body.classList.add('pos-kiosk');
+    window.scrollTo(0, 0);
 
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     const prevManifest = manifest?.getAttribute('href') || '';
@@ -106,8 +119,42 @@ export function usePosKiosk() {
     }
 
     const onResize = () => tryHideAndroidChromeBar();
+    const lockWindowScroll = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+
+    let touchStartY = 0;
+    let activeScrollable: HTMLElement | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY || 0;
+      activeScrollable = findScrollableParent(event.target);
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+
+      const currentY = event.touches[0]?.clientY || 0;
+      const deltaY = currentY - touchStartY;
+      const scrollable = activeScrollable || findScrollableParent(event.target);
+
+      if (!scrollable) {
+        event.preventDefault();
+        return;
+      }
+
+      const atTop = scrollable.scrollTop <= 0;
+      const atBottom =
+        scrollable.scrollTop + scrollable.clientHeight >= scrollable.scrollHeight - 1;
+
+      if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+        event.preventDefault();
+      }
+    };
+
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
+    window.addEventListener('scroll', lockWindowScroll, { passive: true });
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
 
     return () => {
       document.documentElement.classList.remove('pos-kiosk');
@@ -118,6 +165,9 @@ export function usePosKiosk() {
       document.removeEventListener('webkitfullscreenchange', syncFullscreen);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
+      window.removeEventListener('scroll', lockWindowScroll);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }

@@ -2,6 +2,8 @@ import { Plus, Search, Droplets, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { PROTEIN_LEVELS_BY_SIZE, resolveCupPrice } from '../../config/menuPricing';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
 
 export interface Product {
   id: string;
@@ -41,12 +43,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
     { id: '700ml', label: '700ml', desc: 'Ly siêu — tập luyện cường độ cao' },
   ];
 
-  const proteinLevelsBySize: Record<string, number[]> = {
-    '250ml': [20, 40],
-    '360ml': [20, 40, 60],
-    '500ml': [20, 40, 60],
-    '700ml': [60, 90],
-  };
+  const proteinLevelsBySize: Record<string, number[]> = PROTEIN_LEVELS_BY_SIZE;
 
   const proteinDesc: Record<number, string> = {
     20: 'Nhẹ nhàng, dễ tiêu hóa',
@@ -56,6 +53,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
   };
 
   const { subscribe } = useSSE();
+  const { priceTable } = useMenuPricing();
 
   useEffect(() => {
     // Load products from backend API
@@ -198,9 +196,15 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
           <div className="space-y-2">
             {activeCategory === 'smoothies' && selectedSize && (
               <div className="pos-filter-bar flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-emerald-700 font-bold">{selectedSize}</span>
                   <span className="text-emerald-700 font-bold">{selectedProtein}g</span>
+                  {selectedProtein !== null && (
+                    <span className="text-gray-600 text-[10px] font-bold">
+                      Giá ly: {resolveCupPrice(selectedSize, selectedProtein, priceTable).toLocaleString('vi-VN')}đ
+                    </span>
+                  )}
+                  <span className="text-emerald-600 text-[10px] font-bold">Vị miễn phí</span>
                 </div>
                 <div className="flex gap-1">
                   <button

@@ -12,6 +12,9 @@ function getInventoryCatalog() {
     ['INV-005', vi('Dua'), 'kg', 0, 2.0, 25000, 'fruit'],
     ['INV-006', vi('Viet quat'), 'kg', 0, 2.0, 150000, 'fruit'],
     ['INV-007', vi('Rau bina'), 'kg', 0, 1.5, 35000, 'fruit'],
+    ['INV-024', vi('Dau tam'), 'kg', 0, 1.5, 120000, 'fruit'],
+    ['INV-025', vi('Phuc bon tu'), 'kg', 0, 1.5, 150000, 'fruit'],
+    ['INV-026', vi('Thanh long'), 'kg', 0, 2.0, 35000, 'fruit'],
     ['INV-008', vi('Sua tuoi'), 'lít', 0, 10.0, 28000, 'dairy'],
     ['INV-009', vi('Sua chua'), 'kg', 0, 4.0, 45000, 'dairy'],
     ['INV-010', 'Whey Protein', 'gói', 0, 20, 30000, 'protein'],
@@ -26,6 +29,7 @@ function getInventoryCatalog() {
     ['INV-020', vi('Mat mia'), 'lít', 0, 1, 15000, 'topping'],
     ['INV-021', vi('Cha la'), 'kg', 0, 1, 40000, 'topping'],
     ['INV-022', vi('Bo hat'), 'kg', 0, 2, 55000, 'topping'],
+    ['INV-023', vi('Hat dac'), 'kg', 0, 1, 35000, 'topping'],
   ];
 }
 

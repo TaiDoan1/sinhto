@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { X, Sparkles, ShieldCheck, ArrowLeft, ArrowRight, Check, MapPin } from 'lucide-react';
 import type { CartItem } from './CustomerCartPanel';
+import { PROTEIN_LEVELS_BY_SIZE } from '../../config/menuPricing';
 
 interface Props {
   isOpen: boolean;
@@ -83,12 +84,7 @@ export function WholesalePackagesModal({ isOpen, onClose, onAddToCart }: Props) 
   // Read actual products from localStorage if available
   const [products, setProducts] = useState(defaultProducts);
 
-  const proteinLevelsBySize: Record<string, number[]> = {
-    '250ml': [20, 40],
-    '360ml': [20, 40, 60],
-    '500ml': [20, 40, 60],
-    '700ml': [60, 90],
-  };
+  const proteinLevelsBySize: Record<string, number[]> = PROTEIN_LEVELS_BY_SIZE;
 
   const handleSizeChange = (newSize: string) => {
     setSelectedSize(newSize);

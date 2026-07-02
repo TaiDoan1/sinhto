@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { UserPlus, Save, X, CheckCircle, Upload, Camera } from 'lucide-react';
 import * as api from '../../utils/api';
+import { useBranches } from '../../contexts/BranchContext';
 
 export interface Employee {
   id: string;
@@ -52,12 +53,6 @@ const initialFormData: EmployeeFormData = {
   password: '',
 };
 
-const branches = [
-  { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 - Quận 3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 - Thủ Đức' },
-];
-
 const positions = [
   { id: 'manager', name: 'Quản Lý Chi Nhánh' },
   { id: 'cashier', name: 'Thu Ngân' },
@@ -68,6 +63,7 @@ const positions = [
 ];
 
 export function EmployeeRegistration() {
+  const { activeBranches } = useBranches();
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -344,7 +340,7 @@ export function EmployeeRegistration() {
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
             >
               <option value="">-- Chọn chi nhánh --</option>
-              {branches.map(branch => (
+              {activeBranches.map(branch => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>

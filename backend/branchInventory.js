@@ -2,7 +2,7 @@
  * Tồn kho theo chi nhánh — branch_inventory + movements.branchId
  */
 
-const BRANCHES = ['CN1', 'CN2', 'CN3'];
+const FALLBACK_BRANCHES = ['CN1', 'CN2', 'CN3'];
 
 function dbRun(db, sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -40,8 +40,22 @@ async function ensureBranchInventorySchema(db) {
   await dbRun(db, "ALTER TABLE inventory_movements ADD COLUMN branchId TEXT DEFAULT 'CN1'").catch(() => {});
 }
 
-async function seedBranchRowsForItem(db, itemId, minStock) {
-  for (const branchId of BRANCHES) {
+async function getBranchIds(db) {
+  try {
+    const rows = await dbAll(
+      db,
+      `SELECT id FROM branches WHERE active = 1 OR active IS TRUE OR active = '1' ORDER BY sortOrder, id`
+    );
+    if (rows.length > 0) return rows.map((r) => r.id);
+  } catch {
+    /* bảng branches chưa có */
+  }
+  return FALLBACK_BRANCHES;
+}
+
+async function seedBranchRowsForItem(db, itemId, minStock, branchIds) {
+  const ids = branchIds || (await getBranchIds(db));
+  for (const branchId of ids) {
     await dbRun(
       db,
       `INSERT INTO branch_inventory (branchId, itemId, currentStock, minStock) VALUES (?, ?, 0, ?)
@@ -51,10 +65,23 @@ async function seedBranchRowsForItem(db, itemId, minStock) {
   }
 }
 
+async function seedBranchInventoryForBranch(db, branchId) {
+  const items = await dbAll(db, 'SELECT id, minStock FROM inventory');
+  for (const item of items) {
+    await dbRun(
+      db,
+      `INSERT INTO branch_inventory (branchId, itemId, currentStock, minStock) VALUES (?, ?, 0, ?)
+       ON CONFLICT (branchId, itemId) DO NOTHING`,
+      [branchId, item.id, item.minStock ?? 0]
+    ).catch(() => {});
+  }
+}
+
 async function migrateGlobalStockToBranches(db) {
   const catalog = await dbAll(db, 'SELECT id, currentStock, minStock FROM inventory');
+  const branchIds = await getBranchIds(db);
   for (const row of catalog) {
-    for (const branchId of BRANCHES) {
+    for (const branchId of branchIds) {
       const exists = await dbGet(
         db,
         'SELECT branchId FROM branch_inventory WHERE branchId = ? AND itemId = ?',
@@ -154,10 +181,12 @@ async function applyBranchInventoryUpdate(db, branchId, items, movements) {
 }
 
 module.exports = {
-  BRANCHES,
+  FALLBACK_BRANCHES,
+  getBranchIds,
   initBranchInventory,
   getInventoryForBranch,
   getMovementsForBranch,
   applyBranchInventoryUpdate,
   seedBranchRowsForItem,
+  seedBranchInventoryForBranch,
 };

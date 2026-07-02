@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat } from 'lu
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { useBranches } from '../../contexts/BranchContext';
 
 export interface Shift {
   id: string;
@@ -23,13 +24,6 @@ export interface Shift {
   checkOut?: string;
 }
 
-const branches = [
-  { id: 'ALL', name: 'Tất cả chi nhánh' },
-  { id: 'CN1', name: 'CN1 - Quận 1' },
-  { id: 'CN2', name: 'CN2 - Quận 3' },
-  { id: 'CN3', name: 'CN3 - Thủ Đức' },
-];
-
 const shiftTemplates = [
   { name: '🌅 Sáng', start: '06:00', end: '14:00', color: 'from-emerald-500 to-yellow-400' },
   { name: '☀️ Chiều', start: '14:00', end: '22:00', color: 'from-blue-400 to-cyan-400' },
@@ -37,6 +31,11 @@ const shiftTemplates = [
 ];
 
 export function ShiftSchedule() {
+  const { activeBranches } = useBranches();
+  const branches = [
+    { id: 'ALL', name: 'Tất cả chi nhánh' },
+    ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
+  ];
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [selectedBranch, setSelectedBranch] = useState('CN1');

@@ -10,7 +10,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const { adminUser, logout } = useAdmin();
 
   const menuItems = [
-    { id: 'overview', label: 'Chi Nhánh', icon: LayoutDashboard },
+    { id: 'overview', label: 'Quản Lý CH', icon: LayoutDashboard },
     { id: 'analytics', label: 'Doanh Thu', icon: TrendingUp },
     { id: 'hr', label: 'Nhân Sự & Lương', icon: Users },
     { id: 'inventory', label: 'Danh Mục NL', icon: Package },

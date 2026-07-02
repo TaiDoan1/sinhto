@@ -34,6 +34,7 @@ import {
   Maximize,
 } from 'lucide-react';
 import { BRAND } from './landing/brand';
+import { LANDING_IMAGES } from '../../config/images';
 
 type ComboDuration = 'weekly' | 'monthly' | 'quarterly';
 
@@ -470,11 +471,11 @@ function IngredientMobileGrid() {
             style={{ background: 'radial-gradient(circle, rgba(13,122,62,0.2) 0%, transparent 70%)' }}
           />
           <img
-            src="/images/fitblend_hero_smoothie.png"
+            src={LANDING_IMAGES.heroSmoothie}
             alt="Ly FitBlend Protein Smoothie"
             className="relative z-10 w-[112px] sm:w-[132px] object-contain drop-shadow-2xl"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = '/images/fitblend_combo_bottles.png';
+              (e.target as HTMLImageElement).src = LANDING_IMAGES.comboBottles;
             }}
           />
         </div>
@@ -934,11 +935,11 @@ export function CustomerLanding({
                   style={{ background: BRAND.orange }}
                 />
                 <img
-                  src="/images/fitblend_combo_bottles.png"
+                  src={LANDING_IMAGES.comboBottles}
                   alt="FitBlend Protein Smoothie"
                   className="relative z-10 w-full max-h-[180px] sm:max-h-[340px] md:max-h-[420px] object-contain drop-shadow-2xl mx-auto"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/images/fitblend_hero_smoothie.png';
+                    (e.target as HTMLImageElement).src = LANDING_IMAGES.heroSmoothie;
                   }}
                 />
             </div>
@@ -1088,11 +1089,11 @@ export function CustomerLanding({
                 />
                 <div className="relative z-10 flex flex-col items-center">
                   <img
-                    src="/images/fitblend_hero_smoothie.png"
+                    src={LANDING_IMAGES.heroSmoothie}
                     alt="Ly FitBlend Protein Smoothie"
                     className="w-36 sm:w-44 md:w-52 object-contain drop-shadow-2xl"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/images/fitblend_combo_bottles.png';
+                      (e.target as HTMLImageElement).src = LANDING_IMAGES.comboBottles;
                     }}
                   />
                   <span className="absolute -top-2 right-2 text-xl opacity-60 pointer-events-none">🍃</span>
@@ -1507,7 +1508,7 @@ export function CustomerLanding({
               style={{ background: `linear-gradient(135deg, ${BRAND.green}12, ${BRAND.orange}15)` }}
             >
               <img
-                src="/images/fitblend_combo_bottles.png"
+                src={LANDING_IMAGES.comboBottles}
                 alt="FitBlend đối tác"
                 className="max-h-48 sm:max-h-64 w-auto object-contain drop-shadow-xl"
                 onError={(e) => {
@@ -1753,7 +1754,7 @@ export function CustomerLanding({
               <ChevronLeft className="w-5 h-5" />
               </button>
                 <img 
-                  src={`/images/menu${activeMenuPage}.jpg`} 
+                  src={LANDING_IMAGES.menuPage(activeMenuPage)} 
               alt={`Menu trang ${activeMenuPage}`}
               className="max-h-[70vh] w-full object-contain rounded-xl"
                 />
@@ -1767,7 +1768,7 @@ export function CustomerLanding({
               </button>
             </div>
               <a
-                href={`/images/menu${activeMenuPage}.jpg`}
+                href={LANDING_IMAGES.menuPage(activeMenuPage)}
             download
             className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold text-white"
             style={{ background: BRAND.orange }}

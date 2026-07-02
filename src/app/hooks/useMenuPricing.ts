@@ -1,17 +1,11 @@
 import { useState, useEffect } from 'react';
 import * as api from '../utils/api';
 import { useSSE } from '../contexts/SSEContext';
-
-const DEFAULT_PRICE_TABLE = {
-  '250ml': { 20: 39000, 40: 59000 },
-  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-  '700ml': { 60: 139000, 90: 159000 },
-};
+import { DEFAULT_MENU_PRICE_TABLE } from '../config/menuPricing';
 
 export function useMenuPricing() {
   const { subscribe } = useSSE();
-  const [priceTable, setPriceTable] = useState<Record<string, Record<number, number>>>(DEFAULT_PRICE_TABLE);
+  const [priceTable, setPriceTable] = useState<Record<string, Record<number, number>>>(DEFAULT_MENU_PRICE_TABLE);
   const [comboToppings, setComboToppings] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 

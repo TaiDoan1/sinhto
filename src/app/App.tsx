@@ -25,6 +25,7 @@ import { SSEProvider } from './contexts/SSEContext';
 import { MenuProvider } from './contexts/MenuContext';
 import { LoyaltyProvider } from './contexts/LoyaltyContext';
 import { EmployeeProvider } from './contexts/EmployeeContext';
+import { BranchProvider } from './contexts/BranchContext';
 import { captureSalesRefFromUrl } from './utils/salesRef';
 import {
   type AppMode,
@@ -231,7 +232,9 @@ export default function App() {
               <AffiliateProvider>
                 <LoyaltyProvider>
                   <EmployeeProvider>
-                    <AppContent />
+                    <BranchProvider>
+                      <AppContent />
+                    </BranchProvider>
                   </EmployeeProvider>
                 </LoyaltyProvider>
               </AffiliateProvider>

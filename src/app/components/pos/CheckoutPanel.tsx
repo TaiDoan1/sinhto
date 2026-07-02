@@ -8,6 +8,13 @@ import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import type { CartItem } from './ModifierModal';
+import { usePaymentQr } from '../../hooks/usePaymentQr';
+import {
+  printBothAfterPayment,
+  printCupLabels,
+  printCustomerReceipt,
+  type PosPrintLine,
+} from '../../utils/posPrint';
 
 type CheckoutStep = 'cart' | 'loyalty' | 'payment';
 
@@ -21,6 +28,7 @@ interface CheckoutPanelProps {
 export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: CheckoutPanelProps) {
   const { addOrder } = useOrders();
   const { addCombo } = useCombos();
+  const { qrImageUrl } = usePaymentQr();
   const {
     addPoints,
     spendPoints,
@@ -43,6 +51,34 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
   const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
   const total = Math.max(0, subtotal - pointsDiscount);
   const estimatedPointsEarned = calcEarnedPoints(total);
+
+  const makeOrderNumber = () =>
+    `ORD-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+
+  const cartToPrintLines = (): PosPrintLine[] =>
+    cart.map((item) => ({
+      productName: item.productName,
+      size: item.size,
+      protein: item.protein,
+      toppings: item.toppings,
+      quantity: item.quantity,
+      price: item.price,
+      isCustomCombo: item.isCustomCombo,
+    }));
+
+  const buildReceipt = (orderNumber: string, now: Date, paymentMethod?: string | null) => ({
+    orderNumber,
+    time: now,
+    staff: 'POS - Nhân viên quầy',
+    paymentMethod: paymentMethod || undefined,
+    lines: cartToPrintLines(),
+    subtotal,
+    discount: pointsDiscount,
+    total,
+    customerName: activeCustomer?.name,
+    customerPhone: activeCustomer?.phone,
+    pointsEarned: estimatedPointsEarned,
+  });
 
   useEffect(() => {
     if (cart.length === 0) setCheckoutStep('cart');
@@ -139,7 +175,12 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
       }
     }
 
-    setTimeout(() => handlePrint(), 100);
+    const orderNumber = makeOrderNumber();
+    const now = new Date();
+    setTimeout(
+      () => printBothAfterPayment(buildReceipt(orderNumber, now, selectedPayment), cartToPrintLines()),
+      100
+    );
 
     onClearCart();
     setShowPaymentConfirm(false);
@@ -148,50 +189,14 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
     resetLoyalty();
   };
 
-  const handlePrint = () => {
+  const handlePrintCupLabels = () => {
     const now = new Date();
-    const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    printCupLabels(cartToPrintLines(), { orderNumber: makeOrderNumber(), time: now });
+  };
 
-    const printContent = `
-FitBlend Smoothie Bar
-================================
-BILL BẾP - KITCHEN ORDER
-================================
-Mã ĐH: ${orderNumber}
-Thời gian: ${now.toLocaleTimeString('vi-VN')}
-NV Order: POS - Nhân viên quầy
---------------------------------
-${cart.map((item, idx) => `
-${idx + 1}. ${item.productName}
-   Size: ${item.size}
-   Protein: ${item.protein}g
-   Toppings: ${item.toppings.join(', ') || 'Không'}
-   SL: ${item.quantity}
-`).join('\n')}
-================================
-Tổng tiền: ${total.toLocaleString('vi-VN')}đ
-${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.phone})\n+ Thêm: ${estimatedPointsEarned} điểm\n` : ''}
-    `.trim();
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>In Hóa Đơn</title>
-            <style>
-              body { font-family: monospace; width: 58mm; margin: 0; padding: 10px; }
-              pre { white-space: pre-wrap; margin: 0; font-size: 12px; }
-            </style>
-          </head>
-          <body>
-            <pre>${printContent}</pre>
-            <script>window.print(); window.close();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
+  const handlePrintCustomerReceipt = () => {
+    const now = new Date();
+    printCustomerReceipt(buildReceipt(makeOrderNumber(), now, selectedPayment));
   };
 
   const renderTotals = (showLoyaltyLines: boolean) => (
@@ -390,14 +395,24 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
                 ZaloPay
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="pos-cart-btn-primary w-full bg-gray-700 active:bg-gray-800 text-white rounded-xl flex items-center justify-center gap-2"
-            >
-              <Printer className="w-5 h-5" />
-              In Bill
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handlePrintCupLabels}
+                className="pos-cart-btn-primary bg-amber-600 active:bg-amber-700 text-white rounded-xl flex items-center justify-center gap-2"
+              >
+                <Printer className="w-5 h-5" />
+                Tem ly
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintCustomerReceipt}
+                className="pos-cart-btn-primary bg-gray-700 active:bg-gray-800 text-white rounded-xl flex items-center justify-center gap-2"
+              >
+                <Printer className="w-5 h-5" />
+                Bill khách
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -410,7 +425,15 @@ ${activeCustomer ? `Tích lũy: Khách ${activeCustomer.name} (${activeCustomer.
                 <h3 className="text-xl font-bold text-center mb-4">Quét Mã QR Để Thanh Toán</h3>
                 <div className="bg-gray-100 p-4 rounded-lg mb-4">
                   <div className="aspect-square bg-white flex items-center justify-center">
-                    <QrCode className="w-48 h-48 text-gray-400" />
+                    {qrImageUrl ? (
+                      <img
+                        src={qrImageUrl}
+                        alt="QR thanh toán"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <QrCode className="w-48 h-48 text-gray-400" />
+                    )}
                   </div>
                 </div>
                 <div className="text-center mb-4">

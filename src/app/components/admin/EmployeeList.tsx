@@ -3,13 +3,7 @@ import { Search, Edit2, Trash2, X, Save, User } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
-
-const branches = [
-  { id: 'ALL', name: 'Tất cả chi nhánh' },
-  { id: 'CN1', name: 'CN1 - Quận 1' },
-  { id: 'CN2', name: 'CN2 - Quận 3' },
-  { id: 'CN3', name: 'CN3 - Thủ Đức' },
-];
+import { useBranches } from '../../contexts/BranchContext';
 
 const positions = [
   { id: 'manager', name: 'Quản Lý' },
@@ -21,6 +15,11 @@ const positions = [
 ];
 
 export function EmployeeList() {
+  const { activeBranches } = useBranches();
+  const branchOptions = [
+    { id: 'ALL', name: 'Tất cả chi nhánh' },
+    ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
+  ];
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
@@ -106,7 +105,7 @@ export function EmployeeList() {
           onChange={e => setBranchFilter(e.target.value)}
           className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
         >
-          {branches.map(b => (
+          {branchOptions.map(b => (
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </select>
@@ -234,7 +233,7 @@ export function EmployeeList() {
                   onChange={e => setEditForm({ ...editForm, branch: e.target.value })}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                 >
-                  {branches.filter(b => b.id !== 'ALL').map(b => (
+                  {activeBranches.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>

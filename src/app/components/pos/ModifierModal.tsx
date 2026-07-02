@@ -2,6 +2,8 @@ import { X, Check, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
+import { DEFAULT_MENU_PRICE_TABLE, resolveCupPrice } from '../../config/menuPricing';
+import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
 import { useInventory } from '../../contexts/InventoryContext';
 
 interface ModifierModalProps {
@@ -29,37 +31,11 @@ export interface CartItem {
   rawComboData?: any;
 }
 
-const COMBO_TOPPINGS = [
-  { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
-  { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
-  { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
-  { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
-];
+const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;
 
-const defaultToppings = [
-  { name: 'Sữa hạt 100%', price: 15000 },
-  { name: 'Sữa A2', price: 20000 },
-  { name: 'Bột đậu hà lan', price: 20000 },
-  { name: 'Whey Gold Standard', price: 39000 },
-  { name: 'Collagen', price: 49000 },
-  { name: 'Yến mạch', price: 10000 },
-  { name: 'Hạt chia', price: 10000 },
-  { name: 'Dừa sấy giòn', price: 10000 },
-  { name: 'Cỏ ngọt', price: 10000 },
-  { name: 'Mật ong', price: 15000 },
-  { name: 'Mật mía', price: 3000 },
-  { name: 'Chà là', price: 5000 },
-  { name: 'Bơ hạnh nhân', price: 10000 },
-  { name: 'Bơ đậu phộng', price: 20000 },
-  { name: 'Bơ hạt điều', price: 15000 },
-];
+const defaultToppings = DEFAULT_TOPPINGS;
 
-const priceTable: Record<string, Record<number, number>> = {
-  '250ml': { 20: 39000, 40: 59000 },
-  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-  '700ml': { 60: 139000, 90: 159000 },
-};
+const priceTable: Record<string, Record<number, number>> = DEFAULT_MENU_PRICE_TABLE;
 
 export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalProps) {
   const initialSize = (product as any).initialSize || '360ml';
@@ -96,7 +72,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   };
 
   const calculatePrice = () => {
-    const tablePrice = priceLookup[selectedSize]?.[selectedProtein] || product.basePrice;
+    const tablePrice = resolveCupPrice(selectedSize, selectedProtein, priceLookup);
     
     // Topping lẻ
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
@@ -252,7 +228,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
                   }`}
                 >
                   <div className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : 'text-emerald-700'}`}>
-                    +{topping.price.toLocaleString()}đ
+                    {formatToppingPrice(topping.price)}
                   </div>
                   <div className="pos-topping-name font-black leading-tight">{topping.name}</div>
                   {isSelected && (

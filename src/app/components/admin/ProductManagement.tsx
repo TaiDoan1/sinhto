@@ -1,8 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Edit2, Trash2, Plus, X, Settings, List, Coffee, Globe, Upload, CheckCircle2, Clock } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Settings, List, Coffee, Globe, Upload, CheckCircle2, Clock, QrCode } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import {
+  PRODUCT_IMAGE_PICKER_OPTIONS,
+  isUploadedImage,
+  normalizeImageUrl,
+} from '../../config/images';
+import { DEFAULT_MENU_PRICE_TABLE } from '../../config/menuPricing';
 
 interface Product {
   id: string;
@@ -13,31 +19,12 @@ interface Product {
   description?: string;
 }
 
-const defaultPriceTable = {
-  '250ml': { 20: 39000, 40: 59000 },
-  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-  '700ml': { 60: 139000, 90: 159000 },
-};
+const defaultPriceTable = DEFAULT_MENU_PRICE_TABLE;
 
-const availableImages = [
-  { path: '🍓', label: 'Dâu Tây (Emoji)' },
-  { path: '🥭', label: 'Xoài (Emoji)' },
-  { path: '🥑', label: 'Bơ (Emoji)' },
-  { path: '🍌', label: 'Chuối (Emoji)' },
-  { path: '🍫', label: 'Cacao (Emoji)' },
-  { path: '🥛', label: 'Sữa (Emoji)' },
-  { path: '✨', label: 'Topping (Emoji)' },
-  { path: '📦', label: 'Combo (Emoji)' },
-  { path: '/images/strawberry_smoothie.png', label: 'Hình ảnh Dâu Tây' },
-  { path: '/images/mango_smoothie.png', label: 'Hình ảnh Xoài/Nhiệt đới' },
-  { path: '/images/cacao_oat_smoothie.png', label: 'Hình ảnh Cacao/Cà phê' },
-  { path: '/images/fitblend_hero_smoothie.png', label: 'Hình ảnh Bơ/Matcha' },
-  { path: '/images/fitblend_combo_bottles.png', label: 'Hình ảnh Combo/Chai' },
-];
+const availableImages = PRODUCT_IMAGE_PICKER_OPTIONS;
 
 export function ProductManagement() {
-  const [activeSubTab, setActiveSubTab] = useState<'products' | 'prices' | 'toppings' | 'sync'>('products');
+  const [activeSubTab, setActiveSubTab] = useState<'products' | 'prices' | 'toppings' | 'payment' | 'sync'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [priceTable, setPriceTable] = useState<any>(defaultPriceTable);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -45,9 +32,10 @@ export function ProductManagement() {
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     category: 'smoothies',
     image: '🍓',
-    basePrice: 79000
+    basePrice: 0
   });
   const [comboToppings, setComboToppings] = useState<any[]>([]);
+  const [paymentQrImageUrl, setPaymentQrImageUrl] = useState<string>('');
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success'>('idle');
   const [quickEntryText, setQuickEntryText] = useState('');
@@ -67,6 +55,10 @@ export function ProductManagement() {
       .then((data) => { if (Array.isArray(data)) setComboToppings(data); })
       .catch(() => {});
 
+    api.fetchSetting('paymentQrImageUrl')
+      .then((data) => { if (typeof data === 'string') setPaymentQrImageUrl(data); })
+      .catch(() => {});
+
     const unsubCreate = subscribe('PRODUCT_CREATED', (data) => {
       setProducts(prev => {
         if (prev.some(p => p.id === data.id)) return prev;
@@ -82,10 +74,17 @@ export function ProductManagement() {
       setProducts(prev => prev.filter(p => p.id !== data.id));
     });
 
+    const unsubSetting = subscribe('SETTING_UPDATED', (data: { key: string; value: unknown }) => {
+      if (data?.key === 'paymentQrImageUrl') {
+        setPaymentQrImageUrl(typeof data.value === 'string' ? data.value : '');
+      }
+    });
+
     return () => {
       unsubCreate();
       unsubUpdate();
       unsubDelete();
+      unsubSetting();
     };
   }, [subscribe]);
 
@@ -109,14 +108,14 @@ export function ProductManagement() {
       id: `${newProduct.category === 'toppings' ? 'TP' : 'SM'}-${Date.now()}`,
       name: newProduct.name,
       category: newProduct.category as any,
-      basePrice: Number(newProduct.basePrice || 0),
+      basePrice: newProduct.category === 'smoothies' ? 0 : Number(newProduct.basePrice || 0),
       image: newProduct.image || '🥤',
       description: newProduct.description || ''
     };
     try {
       await api.saveProduct(product);
       setShowAddModal(false);
-      setNewProduct({ category: 'smoothies', image: '🍓', basePrice: 79000 });
+      setNewProduct({ category: 'smoothies', image: '🍓', basePrice: 0 });
     } catch (err) {
       console.error('Failed to add product:', err);
       alert('Lỗi lưu sản phẩm. Vui lòng thử lại.');
@@ -125,8 +124,11 @@ export function ProductManagement() {
 
   const handleSaveEdit = async () => {
     if (!editingProduct) return;
+    const payload = editingProduct.category === 'smoothies'
+      ? { ...editingProduct, basePrice: 0 }
+      : editingProduct;
     try {
-      await api.saveProduct(editingProduct);
+      await api.saveProduct(payload);
       setEditingProduct(null);
     } catch (err) {
       console.error('Failed to update product:', err);
@@ -193,6 +195,18 @@ export function ProductManagement() {
     }
   };
 
+  const handleUploadPaymentQr = async (file: File) => {
+    try {
+      const imageUrl = normalizeImageUrl(await api.uploadImage(file));
+      setPaymentQrImageUrl(imageUrl);
+      await api.saveSetting('paymentQrImageUrl', imageUrl);
+      alert('✅ Đã cập nhật QR thanh toán!');
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi upload QR. Vui lòng thử lại.');
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       {/* Header & Tabs */}
@@ -215,6 +229,7 @@ export function ProductManagement() {
             { id: 'products', label: 'Sinh tố & Món chính', icon: <Coffee className="w-4 h-4" /> },
             { id: 'toppings', label: 'Combo Topping', icon: <List className="w-4 h-4" /> },
             { id: 'prices', label: 'Bảng giá Size (ml)', icon: <Settings className="w-4 h-4" /> },
+            { id: 'payment', label: 'Thanh toán (QR)', icon: <QrCode className="w-4 h-4" /> },
             { id: 'sync', label: 'Đồng bộ Cửa hàng', icon: <Globe className="w-4 h-4" /> },
           ].map(tab => (
             <button
@@ -253,7 +268,11 @@ export function ProductManagement() {
                   <h3 className="font-extrabold text-gray-800 truncate mt-1 text-sm">{product.name}</h3>
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{product.description || 'Chưa có mô tả'}</p>
                 </div>
-                <p className="text-emerald-750 font-black text-sm">{product.basePrice.toLocaleString('vi-VN')}đ</p>
+                <p className="text-emerald-750 font-black text-sm">
+                  {product.category === 'smoothies'
+                    ? 'Miễn phí (giá theo size)'
+                    : `${product.basePrice.toLocaleString('vi-VN')}đ`}
+                </p>
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -279,7 +298,9 @@ export function ProductManagement() {
                     <span className="text-xs text-gray-500 block mt-0.5">Mã: {topping.id}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-emerald-700">{topping.basePrice.toLocaleString()}đ</span>
+                    <span className="font-bold text-sm text-emerald-700">
+                      {topping.basePrice <= 0 ? 'Miễn phí' : `${topping.basePrice.toLocaleString()}đ`}
+                    </span>
                     <button onClick={() => handleDeleteProduct(topping.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 className="w-4.5 h-4.5" /></button>
                   </div>
                 </div>
@@ -345,6 +366,73 @@ export function ProductManagement() {
         </div>
       )}
 
+      {activeSubTab === 'payment' && (
+        <div className="bg-gray-50 p-6 rounded-xl border">
+          <h3 className="text-lg font-black text-gray-800 mb-2">QR thanh toán</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Admin upload QR (ảnh) để POS hiển thị ở bước thanh toán QR.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="bg-white p-4 rounded-xl border">
+              <div className="text-xs font-bold text-gray-400 mb-2">Preview</div>
+              <div className="aspect-square bg-gray-50 border rounded-xl overflow-hidden flex items-center justify-center">
+                {paymentQrImageUrl ? (
+                  <img
+                    src={paymentQrImageUrl}
+                    alt="QR thanh toán"
+                    className="w-full h-full object-contain bg-white"
+                  />
+                ) : (
+                  <div className="text-center text-gray-400">
+                    <QrCode className="w-16 h-16 mx-auto" />
+                    <div className="text-sm font-bold mt-2">Chưa có QR</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border space-y-3">
+              <div>
+                <div className="text-xs font-bold text-gray-400 mb-1">QR hiện tại</div>
+                <div className="text-sm font-mono break-all text-gray-700">
+                  {paymentQrImageUrl || '(trống)'}
+                </div>
+              </div>
+
+              <label className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md cursor-pointer">
+                <Upload className="w-4 h-4" />
+                <span>Upload QR mới</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) await handleUploadPaymentQr(file);
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm('Xóa QR thanh toán?')) return;
+                  setPaymentQrImageUrl('');
+                  try {
+                    await api.saveSetting('paymentQrImageUrl', '');
+                  } catch {}
+                }}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2.5 rounded-xl font-bold"
+              >
+                Xóa QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Product Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
@@ -367,19 +455,25 @@ export function ProductManagement() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">Giá bán cơ bản (đ)</label>
-                  <input type="number" value={newProduct.basePrice || ''} onChange={e => setNewProduct({...newProduct, basePrice: Number(e.target.value)})} className="w-full px-3.5 py-2 border rounded-xl focus:outline-none font-bold" />
+                  {newProduct.category === 'smoothies' ? (
+                    <p className="w-full px-3.5 py-2 border rounded-xl bg-gray-50 text-sm font-bold text-emerald-700">
+                      Miễn phí — giá tính theo bảng Size & Protein
+                    </p>
+                  ) : (
+                    <input type="number" value={newProduct.basePrice || ''} onChange={e => setNewProduct({...newProduct, basePrice: Number(e.target.value)})} className="w-full px-3.5 py-2 border rounded-xl focus:outline-none font-bold" />
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-gray-400">Hình ảnh / Biểu tượng đại diện</label>
                 <div className="flex gap-2">
-                  <select value={newProduct.image?.startsWith('/uploads/') ? 'custom' : newProduct.image} onChange={e => {
+                  <select value={isUploadedImage(newProduct.image || '') ? 'custom' : newProduct.image} onChange={e => {
                     if (e.target.value !== 'custom') {
                       setNewProduct({...newProduct, image: e.target.value});
                     }
                   }} className="flex-1 px-3.5 py-2 border rounded-xl focus:outline-none">
                     {availableImages.map(img => <option key={img.path} value={img.path}>{img.label} {img.path.length <= 4 ? `(${img.path})` : ''}</option>)}
-                    {newProduct.image?.startsWith('/uploads/') && <option value="custom">Ảnh tự upload (Đang dùng)</option>}
+                    {isUploadedImage(newProduct.image || '') && <option value="custom">Ảnh tự upload (Đang dùng)</option>}
                   </select>
                   <label className="bg-gray-100 hover:bg-gray-200 border cursor-pointer px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
                     <Upload className="w-4 h-4 text-gray-650" />
@@ -388,7 +482,7 @@ export function ProductManagement() {
                       const file = e.target.files?.[0];
                       if (file) {
                         try {
-                          const imageUrl = await api.uploadImage(file);
+                          const imageUrl = normalizeImageUrl(await api.uploadImage(file));
                           setNewProduct({...newProduct, image: imageUrl});
                         } catch (err) {
                           console.error(err);
@@ -437,19 +531,25 @@ export function ProductManagement() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">Giá bán cơ bản (đ)</label>
-                  <input type="number" value={editingProduct.basePrice} onChange={e => setEditingProduct({...editingProduct, basePrice: Number(e.target.value)})} className="w-full px-3.5 py-2 border rounded-xl focus:outline-none font-bold text-emerald-800" />
+                  {editingProduct.category === 'smoothies' ? (
+                    <p className="w-full px-3.5 py-2 border rounded-xl bg-gray-50 text-sm font-bold text-emerald-700">
+                      Miễn phí — giá tính theo bảng Size & Protein
+                    </p>
+                  ) : (
+                    <input type="number" value={editingProduct.basePrice} onChange={e => setEditingProduct({...editingProduct, basePrice: Number(e.target.value)})} className="w-full px-3.5 py-2 border rounded-xl focus:outline-none font-bold text-emerald-800" />
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-gray-400">Hình ảnh / Biểu tượng đại diện</label>
                 <div className="flex gap-2">
-                  <select value={editingProduct.image?.startsWith('/uploads/') ? 'custom' : editingProduct.image} onChange={e => {
+                  <select value={isUploadedImage(editingProduct.image || '') ? 'custom' : editingProduct.image} onChange={e => {
                     if (e.target.value !== 'custom') {
                       setEditingProduct({...editingProduct, image: e.target.value});
                     }
                   }} className="flex-1 px-3.5 py-2 border rounded-xl focus:outline-none">
                     {availableImages.map(img => <option key={img.path} value={img.path}>{img.label} {img.path.length <= 4 ? `(${img.path})` : ''}</option>)}
-                    {editingProduct.image?.startsWith('/uploads/') && <option value="custom">Ảnh tự upload (Đang dùng)</option>}
+                    {isUploadedImage(editingProduct.image || '') && <option value="custom">Ảnh tự upload (Đang dùng)</option>}
                   </select>
                   <label className="bg-gray-100 hover:bg-gray-200 border cursor-pointer px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
                     <Upload className="w-4 h-4 text-gray-650" />
@@ -458,7 +558,7 @@ export function ProductManagement() {
                       const file = e.target.files?.[0];
                       if (file) {
                         try {
-                          const imageUrl = await api.uploadImage(file);
+                          const imageUrl = normalizeImageUrl(await api.uploadImage(file));
                           setEditingProduct({...editingProduct, image: imageUrl});
                         } catch (err) {
                           console.error(err);

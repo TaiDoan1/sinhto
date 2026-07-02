@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import { ArrowLeft, MapPin, Banknote, QrCode, ShieldCheck, Ticket, Landmark, CheckCircle2 } from 'lucide-react';
+import { useBranches } from '../../contexts/BranchContext';
 
 interface Props {
   total: number;
   onClose: () => void;
   onPlaceOrder: (form: { name: string; phone: string; address: string; paymentMethod: string; branchId?: string; promoCode?: string }) => void;
 }
-
-const branches = [
-  { id: 'CN1', name: 'Chi Nhánh 1 – Quận 1', address: '123 Nguyễn Huệ, Bến Nghé, Q.1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 – Quận 3', address: '456 Lê Văn Sỹ, P.14, Q.3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 – Thủ Đức', address: '789 Võ Văn Ngân, Linh Chiểu, TP.Thủ Đức' },
-];
 
 const inputStyle = {
   background: '#f5f5f5',
@@ -23,7 +18,21 @@ const inputStyle = {
 const inputFocusClass = 'outline-none transition-all w-full px-4 py-3.5 text-sm font-medium';
 
 export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
-  const [form, setForm] = useState({ name: '', phone: '', address: '', paymentMethod: 'cash', branchId: 'CN1', promoCode: '' });
+  const { activeBranches } = useBranches();
+  const branches = activeBranches.map((b) => ({
+    id: b.id,
+    name: b.name,
+    address: b.address,
+  }));
+  const defaultBranchId = branches[0]?.id || 'CN1';
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    paymentMethod: 'cash',
+    branchId: defaultBranchId,
+    promoCode: '',
+  });
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoMsg, setPromoMsg] = useState('');
 

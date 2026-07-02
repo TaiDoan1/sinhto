@@ -81,6 +81,8 @@ dist-ssr/
 # Database / temporary data files
 data/
 backend/uploads/
+public/images/uploads/*
+!public/images/uploads/.gitkeep
 backend/sinhto.db
 
 # Internal credentials reference (do not commit)

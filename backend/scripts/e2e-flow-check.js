@@ -196,7 +196,7 @@ async function main() {
 
   const checkIn = await req('PATCH', `/shifts/${shiftId}/checkin`, {
     action: 'in',
-    photo: '/uploads/e2e-test.jpg',
+    photo: '/images/uploads/e2e-test.jpg',
   });
   if (checkIn.ok && checkIn.data?.checkIn) ok('Check-in NV', new Date(checkIn.data.checkIn).toLocaleTimeString('vi-VN'));
   else fail('Check-in NV', JSON.stringify(checkIn.data));

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useCombos } from '../../contexts/ComboContext';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { getWholesaleAccounts, saveWholesaleAccounts, type WholesaleAccount } from '../customer/CustomerApp';
+import { PROTEIN_LEVELS_BY_SIZE } from '../../config/menuPricing';
 
 const weekDayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
@@ -226,12 +227,7 @@ function WholesalePanel() {
   const [regProductId, setRegProductId] = useState('SM-13'); // Default Avocado
   const [menuProductsList, setMenuProductsList] = useState<any[]>([]);
 
-  const proteinLevelsBySize: Record<string, number[]> = {
-    '250ml': [20, 40],
-    '360ml': [20, 40, 60],
-    '500ml': [20, 40, 60],
-    '700ml': [60, 90],
-  };
+  const proteinLevelsBySize: Record<string, number[]> = PROTEIN_LEVELS_BY_SIZE;
 
   const PACKAGES = [
     { name: 'Combo Sỉ 10 Ly', cups: 10, months: 1, price: 590000 },

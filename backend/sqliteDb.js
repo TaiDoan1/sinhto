@@ -2,6 +2,9 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const { removeDiacritics } = require('./vietnamese');
+const { PRODUCT } = require('./imagePaths');
+const { DEFAULT_MENU_PRICE_TABLE } = require('./menuPricing');
+const { DEFAULT_COMBO_TOPPINGS } = require('./menuToppings');
 
 function vi(str) {
   return removeDiacritics(str);
@@ -143,21 +146,14 @@ async function seedIfEmpty(db) {
   const settingsCount = (await get(db, 'SELECT COUNT(*) as count FROM settings')).count;
   if (settingsCount === 0) {
     console.log('Seeding default settings (SQLite)...');
-    const defaultPriceTable = {
-      '250ml': { 20: 39000, 40: 59000 },
-      '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-      '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-      '700ml': { 60: 139000, 90: 159000 },
-    };
+    const defaultPriceTable = DEFAULT_MENU_PRICE_TABLE;
     await run(db, 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
       'menuPriceTable',
       JSON.stringify(defaultPriceTable),
     ]);
     await run(db, 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
       'menuComboToppings',
-      JSON.stringify([
-        { id: 'healthy-boost', name: 'Healthy Boost', items: vi('Yen mach + Hat chia'), price: 25000 },
-      ]),
+      JSON.stringify(DEFAULT_COMBO_TOPPINGS),
     ]);
     await run(db, 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['loyaltyEarnRate', '1000']);
     await run(db, 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['loyaltyRedeemValue', '1000']);
@@ -167,8 +163,8 @@ async function seedIfEmpty(db) {
   if (productCount === 0) {
     console.log('Seeding products (SQLite)...');
     const products = [
-      ['SM-01', vi('Dau hat chia'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Strawberry Chia'],
-      ['SM-10', vi('Xoai cam'), 'smoothies', 59000, '/images/mango_smoothie.png', 'Mango Orange'],
+      ['SM-01', vi('Dau hat chia'), 'smoothies', 0, PRODUCT.strawberry, 'Strawberry Chia'],
+      ['SM-10', vi('Xoai cam'), 'smoothies', 0, PRODUCT.mango, 'Mango Orange'],
       ['TP-01', vi('Sua hat 100%'), 'toppings', 15000, '🥛', ''],
       ['CB-01', 'Fat Loss Plan', 'combo', 449000, '📦', vi('Giam mo 7 ngay')],
     ];
@@ -270,6 +266,15 @@ async function init() {
       minStock REAL,
       PRIMARY KEY (branchId, itemId)
     )`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      active INTEGER DEFAULT 1,
+      sortOrder INTEGER DEFAULT 0,
+      createdAt TEXT
+    )`,
     "ALTER TABLE inventory_movements ADD COLUMN branchId TEXT DEFAULT 'CN1'",
   ];
   for (const sql of migrations) {
@@ -293,6 +298,15 @@ async function init() {
   }).catch(() => {});
 
   await seedIfEmpty(db);
+
+  const { DEFAULT_BRANCHES } = require('./branches');
+  for (const b of DEFAULT_BRANCHES) {
+    await run(
+      db,
+      `INSERT OR IGNORE INTO branches (id, name, address, phone, active, sortOrder, createdAt) VALUES (?,?,?,?,?,?,?)`,
+      [b.id, b.name, b.address, b.phone, b.active ? 1 : 0, b.sortOrder, new Date().toISOString()]
+    ).catch(() => {});
+  }
 
   const { getInventoryCatalog } = require('./storeSeeds');
   for (const item of getInventoryCatalog()) {

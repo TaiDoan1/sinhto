@@ -4,40 +4,40 @@ import { Plus, Search, X, Zap, Droplets, Package, ChevronRight, ChevronLeft } fr
 import * as api from '../../utils/api';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
+import { DEFAULT_MENU_PRICE_TABLE, PROTEIN_LEVELS_BY_SIZE, resolveCupPrice } from '../../config/menuPricing';
+import { DEFAULT_TOPPING_PRODUCTS } from '../../config/menuToppings';
+import { PRODUCT_IMAGES } from '../../config/images';
+
+const P = PRODUCT_IMAGES;
 
 // Inline product data based on FitBlend menu
 const defaultProducts: CustomerProduct[] = [
-  { id: 'SM-01', name: 'Dâu hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Chia · Giảm mỡ' },
-  { id: 'SM-02', name: 'Dâu chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Banana · Tone dáng' },
-  { id: 'SM-03', name: 'Mãng cầu dâu', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Soursop Strawberry · Detox' },
-  { id: 'SM-04', name: 'Dâu cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Strawberry Orange · Vitamin C' },
-  { id: 'SM-05', name: 'Dâu tằm hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Mulberry Chia · Chống oxy hoá' },
-  { id: 'SM-06', name: 'Phúc bồn tử hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/strawberry_smoothie.png', description: 'Raspberry Chia · Năng lượng' },
-  { id: 'SM-07', name: 'Chuối hạt chia', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Banana Chia · Tăng cơ' },
-  { id: 'SM-08', name: 'Chanh dây chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Passionfruit Banana · Refresh' },
-  { id: 'SM-09', name: 'Xoài thơm', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Pineapple · Tropical' },
-  { id: 'SM-10', name: 'Xoài cam', category: 'smoothies' as const, basePrice: 59000, image: '/images/mango_smoothie.png', description: 'Mango Orange · Vitamin' },
-  { id: 'SM-11', name: 'Cacao yến mạch', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Cacao Oat · Năng lượng bền' },
-  { id: 'SM-12', name: 'Cà phê chuối', category: 'smoothies' as const, basePrice: 59000, image: '/images/cacao_oat_smoothie.png', description: 'Coffee Banana · Pre-workout' },
-  { id: 'SM-13', name: 'Bơ', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado · Healthy fat' },
-  { id: 'SM-14', name: 'Bơ chuối', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Avocado Banana · Siêu béo tốt' },
-  { id: 'SM-15', name: 'Matcha', category: 'smoothies' as const, basePrice: 79000, image: '/images/fitblend_hero_smoothie.png', description: 'Matcha · Antioxidant' },
+  { id: 'SM-01', name: 'Dâu hạt chia', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Strawberry Chia · Giảm mỡ' },
+  { id: 'SM-02', name: 'Dâu chuối', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Strawberry Banana · Tone dáng' },
+  { id: 'SM-03', name: 'Mãng cầu dâu', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Soursop Strawberry · Detox' },
+  { id: 'SM-04', name: 'Dâu cam', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Strawberry Orange · Vitamin C' },
+  { id: 'SM-05', name: 'Dâu tằm hạt chia', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Mulberry Chia · Chống oxy hoá' },
+  { id: 'SM-06', name: 'Phúc bồn tử hạt chia', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Raspberry Chia · Năng lượng' },
+  { id: 'SM-07', name: 'Chuối hạt chia', category: 'smoothies' as const, basePrice: 0, image: P.cacaoOat, description: 'Banana Chia · Tăng cơ' },
+  { id: 'SM-08', name: 'Chanh dây chuối', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Passionfruit Banana · Refresh' },
+  { id: 'SM-09', name: 'Xoài thơm', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Mango Pineapple · Tropical' },
+  { id: 'SM-10', name: 'Xoài cam', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Mango Orange · Vitamin' },
+  { id: 'SM-11', name: 'Cacao yến mạch', category: 'smoothies' as const, basePrice: 0, image: P.cacaoOat, description: 'Cacao Oat · Năng lượng bền' },
+  { id: 'SM-12', name: 'Cà phê chuối', category: 'smoothies' as const, basePrice: 0, image: P.cacaoOat, description: 'Coffee Banana · Pre-workout' },
+  { id: 'SM-13', name: 'Bơ', category: 'smoothies' as const, basePrice: 0, image: P.hero, description: 'Avocado · Healthy fat' },
+  { id: 'SM-14', name: 'Bơ chuối', category: 'smoothies' as const, basePrice: 0, image: P.hero, description: 'Avocado Banana · Siêu béo tốt' },
+  { id: 'SM-15', name: 'Matcha', category: 'smoothies' as const, basePrice: 0, image: P.hero, description: 'Matcha · Antioxidant' },
+  { id: 'SM-16', name: 'Dâu tằm yến mạch', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Mulberry Oat · Mới' },
+  { id: 'SM-17', name: 'Phúc bồn tử yến mạch', category: 'smoothies' as const, basePrice: 0, image: P.strawberry, description: 'Raspberry Oat · Mới' },
+  { id: 'SM-18', name: 'Thanh long chuối', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Dragonfruit Banana · Mới' },
+  { id: 'SM-19', name: 'Thanh long yến mạch', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Dragonfruit Oat · Phải thử' },
+  { id: 'SM-20', name: 'Xoài dâu', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Mango Strawberry · Mới' },
+  { id: 'SM-21', name: 'Xoài chuối', category: 'smoothies' as const, basePrice: 0, image: P.mango, description: 'Mango Banana · Mới' },
+  { id: 'SM-22', name: 'Cacao chuối', category: 'smoothies' as const, basePrice: 0, image: P.cacaoOat, description: 'Cacao Banana · Bán chạy' },
+  { id: 'SM-23', name: 'Matcha chuối', category: 'smoothies' as const, basePrice: 0, image: P.hero, description: 'Matcha Banana · Mới' },
+  { id: 'SM-24', name: 'Matcha yến mạch', category: 'smoothies' as const, basePrice: 0, image: P.hero, description: 'Matcha Oat · Mới' },
 
-  { id: 'TP-01', name: 'Sữa hạt 100%', category: 'toppings' as const, basePrice: 15000, image: '🥛' },
-  { id: 'TP-02', name: 'Sữa A2', category: 'toppings' as const, basePrice: 20000, image: '🥛' },
-  { id: 'TP-03', name: 'Bột đậu hà lan', category: 'toppings' as const, basePrice: 20000, image: '🫛' },
-  { id: 'TP-04', name: 'Whey Gold Standard', category: 'toppings' as const, basePrice: 39000, image: '💪' },
-  { id: 'TP-05', name: 'Collagen', category: 'toppings' as const, basePrice: 49000, image: '✨' },
-  { id: 'TP-06', name: 'Yến mạch', category: 'toppings' as const, basePrice: 10000, image: '🌾' },
-  { id: 'TP-07', name: 'Hạt chia', category: 'toppings' as const, basePrice: 10000, image: '🌾' },
-  { id: 'TP-08', name: 'Dừa sấy giòn', category: 'toppings' as const, basePrice: 10000, image: '🥥' },
-  { id: 'TP-09', name: 'Cỏ ngọt', category: 'toppings' as const, basePrice: 10000, image: '🌿' },
-  { id: 'TP-10', name: 'Mật ong', category: 'toppings' as const, basePrice: 15000, image: '🍯' },
-  { id: 'TP-11', name: 'Mật mía', category: 'toppings' as const, basePrice: 3000, image: '🍯' },
-  { id: 'TP-12', name: 'Chà là', category: 'toppings' as const, basePrice: 5000, image: '🌴' },
-  { id: 'TP-13', name: 'Bơ hạnh nhân', category: 'toppings' as const, basePrice: 10000, image: '🥜' },
-  { id: 'TP-14', name: 'Bơ đậu phộng', category: 'toppings' as const, basePrice: 20000, image: '🥜' },
-  { id: 'TP-15', name: 'Bơ hạt điều', category: 'toppings' as const, basePrice: 15000, image: '🥜' },
+  ...DEFAULT_TOPPING_PRODUCTS,
 
   { id: 'CB-01', name: 'Fat Loss Plan', category: 'combo' as const, basePrice: 449000, image: '📦', description: 'Giảm mỡ 7 ngày' },
   { id: 'CB-02', name: 'Muscle Build Plan', category: 'combo' as const, basePrice: 669000, image: '📦', description: 'Tăng cơ 7 ngày' },
@@ -82,12 +82,7 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
     { id: '700ml', label: 'Siêu (700ml)', desc: 'Cực đại cho tập luyện nặng' },
   ];
 
-  const proteinLevelsBySize: Record<string, number[]> = {
-    '250ml': [20, 40],
-    '360ml': [20, 40, 60],
-    '500ml': [20, 40, 60],
-    '700ml': [60, 90],
-  };
+  const proteinLevelsBySize: Record<string, number[]> = PROTEIN_LEVELS_BY_SIZE;
 
   const proteinDesc: Record<number, string> = {
     20: 'Nhẹ nhàng, dễ tiêu hóa',
@@ -96,21 +91,15 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
     90: 'Tối ưu cho vận động viên',
   };
 
-  const getProductPriceForSizeAndProtein = (product: CustomerProduct, size: string, protein: number | null) => {
+  const getProductPriceForSizeAndProtein = (size: string, protein: number | null) => {
     const prot = protein !== null ? protein : (proteinLevelsBySize[size]?.[0] || 20);
-    const price = priceTable[size]?.[prot];
-    if (price) return price;
-
-    const prices = {
-      '250ml': 39000,
-      '360ml': 59000,
-      '500ml': 79000,
-      '700ml': 119000,
-    };
-    const base = prices[size as keyof typeof prices] || 59000;
-    const diff = product.basePrice - 59000;
-    return base + (diff > 0 ? diff : 0);
+    return resolveCupPrice(size, prot, priceTable);
   };
+
+  const cupPriceLabel =
+    activeCategory === 'smoothies' && selectedSize && selectedProtein !== null
+      ? getProductPriceForSizeAndProtein(selectedSize, selectedProtein)
+      : null;
 
   useEffect(() => {
     if (menuProducts.length > 0) {
@@ -248,9 +237,14 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
           <div className="space-y-4 animate-fade-in">
             {activeCategory === 'smoothies' && (
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-[20px] px-4 py-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-[#00b14f] font-black text-xs bg-white px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{selectedSize}</span>
                   <span className="text-[#00b14f] font-black text-xs bg-white px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{selectedProtein}g Protein</span>
+                  {cupPriceLabel != null && (
+                    <span className="text-zinc-600 font-bold text-xs">
+                      Giá ly: {cupPriceLabel.toLocaleString('vi-VN')}đ
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -267,9 +261,8 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
             {/* List of Flavors in Full Width Cards */}
             <div className="grid gap-3 animate-fade-in">
               {filtered.map(product => {
-                const displayPrice = activeCategory === 'smoothies' && selectedSize
-                  ? getProductPriceForSizeAndProtein(product, selectedSize, selectedProtein)
-                  : product.basePrice;
+                const isSmoothie = product.category === 'smoothies';
+                const displayPrice = !isSmoothie ? product.basePrice : null;
 
                 return (
                   <button
@@ -308,7 +301,7 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
                           <p className="text-[11px] text-zinc-400 mt-0.5 leading-normal">{product.description}</p>
                         )}
                         <span className="font-black text-xs text-[#00b14f] block mt-1">
-                          {displayPrice.toLocaleString('vi-VN')}đ
+                          {isSmoothie ? 'Miễn phí' : `${displayPrice!.toLocaleString('vi-VN')}đ`}
                         </span>
                       </div>
                     </div>

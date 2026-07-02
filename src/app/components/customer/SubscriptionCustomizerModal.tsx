@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { X, Minus, Plus, Check, Calendar, ArrowLeft, ArrowRight, ShieldCheck, ShoppingCart, HelpCircle } from 'lucide-react';
+import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPING_PRODUCTS } from '../../config/menuToppings';
 
 export interface SubscriptionConfig {
   planId: 'fat-loss' | 'muscle-build' | 'elite-mass';
@@ -35,32 +36,14 @@ const FLAVORS = [
   { name: 'Dứa thơm • Xoài thơm', desc: 'Pineapple • Mango Pineapple', image: '🍍' },
 ];
 
-// Single Toppings
-const SINGLE_TOPPINGS = [
-  { name: 'Mật mía', price: 0, isFree: true, image: '🌾' },
-  { name: 'Sữa hạt 100%', price: 15000, image: '🥛' },
-  { name: 'Sữa A2', price: 20000, image: '🥛' },
-  { name: 'Bột đậu hà lan', price: 20000, image: '🫛' },
-  { name: 'Whey Gold Standard', price: 39000, image: '💪' },
-  { name: 'Collagen', price: 49000, image: '✨' },
-  { name: 'Yến mạch', price: 10000, image: '🌾' },
-  { name: 'Hạt chia', price: 10000, image: '🌾' },
-  { name: 'Dừa sấy giòn', price: 10000, image: '🥥' },
-  { name: 'Cỏ ngọt (Stevia)', price: 10000, image: '🌿' },
-  { name: 'Mật ong', price: 15000, image: '🍯' },
-  { name: 'Chà là', price: 5000, image: '🌴' },
-  { name: 'Bơ đậu phộng', price: 10000, image: '🥜' },
-  { name: 'Bơ hạnh nhân', price: 20000, image: '🥜' },
-  { name: 'Bơ hạt điều', price: 15000, image: '🥜' },
-];
+const SINGLE_TOPPINGS = DEFAULT_TOPPING_PRODUCTS.map((p) => ({
+  name: p.name,
+  price: p.basePrice,
+  isFree: p.basePrice <= 0,
+  image: p.image,
+}));
 
-// Combo Toppings
-const COMBO_TOPPINGS = [
-  { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000, image: '🌿' },
-  { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold Standard + Sữa A2', price: 49000, originalPrice: 59000, save: 10000, image: '💪' },
-  { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000, image: '✨' },
-  { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000, image: '🥜' },
-];
+const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;
 
 const PLAN_DATA = {
   'fat-loss': {

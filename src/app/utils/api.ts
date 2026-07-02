@@ -1,5 +1,7 @@
 // API Client utility for fetching and communicating with Express backend
 
+import { normalizeImageUrl } from '../config/images';
+
 const BASE_URL = '/api';
 const DEFAULT_TIMEOUT_MS = 15000;
 
@@ -157,7 +159,7 @@ export async function uploadImage(file: File) {
   });
   if (!res.ok) throw new Error('Failed to upload image');
   const data = await res.json();
-  return data.imageUrl; // returns `/uploads/filename`
+  return normalizeImageUrl(data.imageUrl);
 }
 
 // --- PRODUCTS ---
@@ -202,6 +204,51 @@ export async function employeeLogin(username: string, password: string) {
 export async function fetchEmployees() {
   const res = await fetch(`${BASE_URL}/employees`);
   if (!res.ok) throw new Error('Failed to fetch employees');
+  return res.json();
+}
+
+export async function fetchBranches(activeOnly = false) {
+  const qs = activeOnly ? '?active=1' : '';
+  const res = await fetch(`${BASE_URL}/branches${qs}`);
+  if (!res.ok) throw new Error('Failed to fetch branches');
+  return res.json();
+}
+
+export async function saveBranch(branch: {
+  id?: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  active?: boolean;
+  sortOrder?: number;
+}) {
+  if (branch.id) {
+    const putRes = await fetch(`${BASE_URL}/branches/${branch.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(branch),
+    });
+    if (putRes.ok) return putRes.json();
+    if (putRes.status !== 404) throw new Error('Failed to save branch');
+  }
+  const res = await fetch(`${BASE_URL}/branches`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(branch),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to save branch');
+  }
+  return res.json();
+}
+
+export async function deleteBranch(id: string) {
+  const res = await fetch(`${BASE_URL}/branches/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to delete branch');
+  }
   return res.json();
 }
 

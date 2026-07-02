@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS } from '../../config/menuToppings';
 
 interface CustomComboBuilderProps {
   onAddToCart: (combo: any) => void;
@@ -55,25 +56,9 @@ const FLAVORS = [
   { name: 'Dứa thơm • Xoài thơm', desc: 'Pineapple • Mango Pineapple', image: '🍍' },
 ];
 
-const SINGLE_TOPPINGS = [
-  { name: 'Sữa hạt 100%', price: 15000 },
-  { name: 'Sữa A2', price: 20000 },
-  { name: 'Bột đậu hà lan', price: 20000 },
-  { name: 'Whey Gold Standard', price: 39000 },
-  { name: 'Collagen', price: 49000 },
-  { name: 'Yến mạch', price: 10000 },
-  { name: 'Hạt chia', price: 10000 },
-  { name: 'Dừa sấy giòn', price: 10000 },
-  { name: 'Cỏ ngọt', price: 10000 },
-  { name: 'Mật ong', price: 15000 },
-];
+const SINGLE_TOPPINGS = DEFAULT_TOPPINGS;
 
-const COMBO_TOPPINGS = [
-  { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
-  { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
-  { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
-  { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
-];
+const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;
 
 const DAYS_OF_WEEK = [
   'Thứ 2',

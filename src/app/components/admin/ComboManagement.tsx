@@ -3,15 +3,14 @@ import { useCombos } from '../../contexts/ComboContext';
 import { useAdmin } from '../../contexts/AdminContext';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { Coffee, Truck } from 'lucide-react';
-
-const branches = [
-  { id: 'all', name: 'Tất cả chi nhánh' },
-  { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 - Quận 3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 - Thủ Đức' },
-];
+import { useBranches } from '../../contexts/BranchContext';
 
 export function ComboManagement() {
+  const { activeBranches } = useBranches();
+  const branches = [
+    { id: 'all', name: 'Tất cả chi nhánh' },
+    ...activeBranches.map((b) => ({ id: b.id, name: b.name })),
+  ];
   const { combos, getTodayDeliveries } = useCombos();
   const { adminUser } = useAdmin();
   const [branchFilter, setBranchFilter] = useState('all');

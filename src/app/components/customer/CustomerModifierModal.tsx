@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
+import { DEFAULT_MENU_PRICE_TABLE, PROTEIN_LEVELS_BY_SIZE, proteinLevelsFromPriceTable, resolveCupPrice } from '../../config/menuPricing';
+import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
 
 interface Props {
   product: { id: string; name: string; basePrice: number; image: string; description?: string };
@@ -10,44 +12,13 @@ interface Props {
   onAdd: (item: any) => void;
 }
 
-const COMBO_TOPPINGS = [
-  { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
-  { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
-  { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
-  { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
-];
+const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;
 
-const defaultToppings = [
-  { name: 'Sữa hạt 100%', price: 15000 },
-  { name: 'Sữa A2', price: 20000 },
-  { name: 'Bột đậu hà lan', price: 20000 },
-  { name: 'Whey Gold Standard', price: 39000 },
-  { name: 'Collagen', price: 49000 },
-  { name: 'Yến mạch', price: 10000 },
-  { name: 'Hạt chia', price: 10000 },
-  { name: 'Dừa sấy giòn', price: 10000 },
-  { name: 'Cỏ ngọt', price: 10000 },
-  { name: 'Mật ong', price: 15000 },
-  { name: 'Mật mía', price: 3000 },
-  { name: 'Chà là', price: 5000 },
-  { name: 'Bơ hạnh nhân', price: 10000 },
-  { name: 'Bơ đậu phộng', price: 20000 },
-  { name: 'Bơ hạt điều', price: 15000 },
-];
+const defaultToppings = DEFAULT_TOPPINGS;
 
-const defaultPriceTable: Record<string, Record<number, number>> = {
-  '250ml': { 20: 39000, 40: 59000 },
-  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-  '700ml': { 60: 139000, 90: 159000 },
-};
+const defaultPriceTable: Record<string, Record<number, number>> = DEFAULT_MENU_PRICE_TABLE;
 
-const proteinLevelsBySize: Record<string, number[]> = {
-  '250ml': [20, 40],
-  '360ml': [20, 40, 60],
-  '500ml': [20, 40, 60],
-  '700ml': [60, 90],
-};
+const proteinLevelsBySize: Record<string, number[]> = PROTEIN_LEVELS_BY_SIZE;
 
 const sizeLabels: Record<string, string> = {
   '250ml': 'Nhỏ',
@@ -71,6 +42,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
   const comboList = (comboListFromApi as typeof COMBO_TOPPINGS).length > 0
     ? (comboListFromApi as typeof COMBO_TOPPINGS)
     : COMBO_TOPPINGS;
+  const proteinLevels = proteinLevelsFromPriceTable(dynamicPriceTable);
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>
@@ -85,7 +57,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
   };
 
   const calcPrice = () => {
-    const tablePrice = dynamicPriceTable[size]?.[protein] || product.basePrice;
+    const tablePrice = resolveCupPrice(size, protein, dynamicPriceTable);
     
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
       const topping = toppings.find(t => t.name === name);
@@ -102,7 +74,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
 
   const handleSizeChange = (newSize: string) => {
     setSize(newSize);
-    const available = proteinLevelsBySize[newSize] || [20, 40];
+    const available = proteinLevels[newSize] || proteinLevelsBySize[newSize] || [20];
     if (!available.includes(protein)) {
       setProtein(available[0]);
     }
@@ -153,7 +125,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
           <div className="space-y-3">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kích cỡ</label>
             <div className="grid grid-cols-4 gap-2">
-              {Object.keys(proteinLevelsBySize).map(s => (
+              {Object.keys(proteinLevels).map(s => (
                 <button key={s} onClick={() => handleSizeChange(s)}
                   className={`py-3 rounded-2xl font-bold text-sm transition-all ${size === s ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                   {sizeLabels[s] || s}
@@ -165,7 +137,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
           <div className="space-y-3">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mức Protein</label>
             <div className="flex flex-wrap gap-2">
-              {proteinLevelsBySize[size]?.map(l => (
+              {(proteinLevels[size] || proteinLevelsBySize[size] || [20]).map(l => (
                 <button key={l} onClick={() => setProtein(l)}
                   className={`py-2.5 px-6 rounded-xl font-bold text-sm transition-all ${protein === l ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                   {l}g
@@ -211,7 +183,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
                           isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
                         }`}
                         style={{ height: '76px' }}>
-                        <span className="text-[10px] font-black text-emerald-700">+{t.price.toLocaleString()}đ</span>
+                        <span className="text-[10px] font-black text-emerald-700">{formatToppingPrice(t.price)}</span>
                         <span className="text-xs font-bold text-gray-800 leading-tight">{t.name}</span>
                       </button>
                     );

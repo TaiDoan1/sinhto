@@ -14,16 +14,12 @@ import {
   Truck, Copy, CheckCircle2, Phone, MapPin, Clock, MessageCircle,
   ChevronRight, Package, AlertCircle,
 } from 'lucide-react';
-
-const branches = [
-  { id: 'CN1', name: 'Chi Nhánh 1 - Quận 1' },
-  { id: 'CN2', name: 'Chi Nhánh 2 - Quận 3' },
-  { id: 'CN3', name: 'Chi Nhánh 3 - Thủ Đức' },
-];
+import { useBranches } from '../../contexts/BranchContext';
 
 type Tab = 'today' | 'done' | 'all';
 
 export function ComboShipBoard() {
+  const { activeBranches } = useBranches();
   const { combos, confirmDelivery, postponeDelivery, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage, loadForBranch } = useInventory();
 
@@ -126,7 +122,7 @@ export function ComboShipBoard() {
             <p className="text-gray-500 text-sm mt-1">Thay nhóm Zalo SHIP COMBO — quản lý tập trung</p>
           </div>
           <div className="space-y-3">
-            {branches.map((b) => (
+            {activeBranches.map((b) => (
               <button
                 key={b.id}
                 onClick={() => handleSelectBranch(b.id)}
@@ -142,7 +138,7 @@ export function ComboShipBoard() {
     );
   }
 
-  const branchName = branches.find((b) => b.id === branchId)?.name || branchId;
+  const branchName = activeBranches.find((b) => b.id === branchId)?.name || branchId;
 
   return (
     <div className="min-h-screen bg-gray-50">

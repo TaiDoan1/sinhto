@@ -5,6 +5,10 @@
       "destination": "https://sinhto.onrender.com/api/:path*"
     },
     {
+      "source": "/images/uploads/:path*",
+      "destination": "https://sinhto.onrender.com/images/uploads/:path*"
+    },
+    {
       "source": "/uploads/:path*",
       "destination": "https://sinhto.onrender.com/uploads/:path*"
     },

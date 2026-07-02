@@ -14,7 +14,9 @@ const {
   getMovementsForBranch,
   applyBranchInventoryUpdate,
   seedBranchRowsForItem,
+  seedBranchInventoryForBranch,
 } = require('./branchInventory');
+const { normalizeBranch, nextBranchId, parseBranchRow, DEFAULT_BRANCHES } = require('./branches');
 const { normalizePhoneVN, phonesMatch } = require('./phoneUtils');
 
 const app = express();
@@ -24,12 +26,16 @@ let db;
 app.use(cors());
 app.use(express.json());
 
-// Initialize uploads folder for storing images
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Mọi ảnh — public/images/ (upload con: public/images/uploads/)
+const imagesDir = path.join(__dirname, '../public/images');
+const uploadsDir = path.join(imagesDir, 'uploads');
+for (const dir of [imagesDir, uploadsDir]) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
-// Serve uploads folder as a static route
+app.use('/images', express.static(imagesDir));
+// Tương thích URL cũ /uploads/...
 app.use('/uploads', express.static(uploadsDir));
 
 // Multer storage configuration
@@ -99,7 +105,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     return res.status(400).json({ error: 'Please upload a file' });
   }
   // Return relative URL to file
-  const fileUrl = `/uploads/${req.file.filename}`;
+  const fileUrl = `/images/uploads/${req.file.filename}`;
   res.json({ imageUrl: fileUrl });
 });
 
@@ -601,6 +607,99 @@ function parseEmployeeRow(row) {
   return employee;
 }
 
+// --- BRANCHES API ---
+app.get('/api/branches', (req, res) => {
+  const activeOnly = req.query.active === '1' || req.query.active === 'true';
+  const sql = activeOnly
+    ? `SELECT * FROM branches WHERE active = 1 OR active IS TRUE ORDER BY sortOrder, id`
+    : `SELECT * FROM branches ORDER BY sortOrder, id`;
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const list = (rows || []).map(parseBranchRow);
+    if (list.length === 0) {
+      return res.json(DEFAULT_BRANCHES.map((b) => ({ ...b, createdAt: b.createdAt || '' })));
+    }
+    res.json(list);
+  });
+});
+
+app.get('/api/branches/:id', (req, res) => {
+  db.get('SELECT * FROM branches WHERE id = ?', [req.params.id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Không tìm thấy chi nhánh' });
+    res.json(parseBranchRow(row));
+  });
+});
+
+app.post('/api/branches', async (req, res) => {
+  try {
+    const body = normalizeBranch(req.body);
+    const existing = await new Promise((resolve, reject) => {
+      db.all('SELECT id FROM branches', [], (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+    const id = body.id || nextBranchId(existing.map((r) => r.id));
+    const branch = {
+      ...body,
+      id,
+      createdAt: new Date().toISOString(),
+      sortOrder: body.sortOrder || existing.length + 1,
+    };
+    if (!branch.name) return res.status(400).json({ error: 'Tên chi nhánh là bắt buộc' });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO branches (id, name, address, phone, active, sortOrder, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [branch.id, branch.name, branch.address, branch.phone, branch.active ? 1 : 0, branch.sortOrder, branch.createdAt],
+        function onRun(err) {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    await seedBranchInventoryForBranch(db, branch.id);
+    const created = parseBranchRow(branch);
+    broadcast('BRANCH_CREATED', created);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/branches/:id', (req, res) => {
+  const { id } = req.params;
+  const body = normalizeBranch({ ...req.body, id });
+  if (!body.name) return res.status(400).json({ error: 'Tên chi nhánh là bắt buộc' });
+
+  db.run(
+    `UPDATE branches SET name = ?, address = ?, phone = ?, active = ?, sortOrder = ? WHERE id = ?`,
+    [body.name, body.address, body.phone, body.active ? 1 : 0, body.sortOrder, id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy chi nhánh' });
+      const updated = parseBranchRow(body);
+      broadcast('BRANCH_UPDATED', updated);
+      res.json(updated);
+    }
+  );
+});
+
+app.delete('/api/branches/:id', (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT COUNT(*) AS cnt FROM employees WHERE branch = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row && row.cnt > 0) {
+      return res.status(400).json({ error: 'Chi nhánh còn nhân viên — chuyển NV sang CN khác trước khi xóa' });
+    }
+    db.run(`DELETE FROM branches WHERE id = ?`, [id], function(delErr) {
+      if (delErr) return res.status(500).json({ error: delErr.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy chi nhánh' });
+      broadcast('BRANCH_DELETED', { id });
+      res.json({ success: true, id });
+    });
+  });
+});
+
 // --- EMPLOYEES API ---
 app.get('/api/employees', (req, res) => {
   db.all("SELECT * FROM employees", (err, rows) => {
@@ -765,7 +864,7 @@ app.post('/api/settings', (req, res) => {
   const raw = typeof value === 'string' ? value : JSON.stringify(value);
   const stringValue = convertMaybeJson(raw);
   db.run(
-    "INSERT INTO settings (key, value) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
     [key, stringValue],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });

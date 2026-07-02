@@ -1,5 +1,10 @@
 const { removeDiacritics } = require('./vietnamese');
 const { getInventoryCatalog, getSampleEmployees } = require('./storeSeeds');
+const { PRODUCT } = require('./imagePaths');
+const { DEFAULT_MENU_PRICE_TABLE } = require('./menuPricing');
+const { DEFAULT_COMBO_TOPPINGS, getToppingProductRows } = require('./menuToppings');
+const { getSmoothieProductRows } = require('./menuFlavors');
+const { DEFAULT_BRANCHES } = require('./branches');
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS inventory (
@@ -113,6 +118,16 @@ CREATE TABLE IF NOT EXISTS employees (
   password TEXT,
   photo TEXT,
   "customData" TEXT DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS branches (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  active BOOLEAN DEFAULT TRUE,
+  "sortOrder" INTEGER DEFAULT 0,
+  "createdAt" TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shifts (
@@ -253,6 +268,17 @@ async function upsertSetting(pool, key, value) {
   );
 }
 
+async function syncBranches(pool) {
+  for (const b of DEFAULT_BRANCHES) {
+    await pool.query(
+      `INSERT INTO branches (id, name, address, phone, active, "sortOrder", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO NOTHING`,
+      [b.id, b.name, b.address, b.phone, b.active, b.sortOrder, new Date().toISOString()]
+    );
+  }
+}
+
 async function initSchemaAndSeeds(pool) {
   await pool.query(SCHEMA_SQL);
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "lastDeliveredAt" TEXT`).catch(() => {});
@@ -298,6 +324,20 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS "branchId" TEXT DEFAULT 'CN1'`).catch(() => {});
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS branches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      active BOOLEAN DEFAULT TRUE,
+      "sortOrder" INTEGER DEFAULT 0,
+      "createdAt" TEXT
+    )
+  `).catch(() => {});
+
+  await syncBranches(pool);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS combo_transfers (
       id TEXT PRIMARY KEY,
       combo_order_id TEXT NOT NULL,
@@ -313,18 +353,8 @@ async function initSchemaAndSeeds(pool) {
 
   if ((await countRows(pool, 'settings')) === 0) {
     console.log('Seeding default settings...');
-    const defaultPriceTable = {
-      '250ml': { 20: 39000, 40: 59000 },
-      '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-      '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-      '700ml': { 60: 139000, 90: 159000 },
-    };
-    const defaultCombos = [
-      { id: 'healthy-boost', name: 'Healthy Boost', items: vi('Yen mach + Hat chia + Co ngot'), price: 25000, originalPrice: 30000, save: 5000 },
-      { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sua A2', price: 49000, originalPrice: 59000, save: 10000 },
-      { id: 'beauty-blend', name: 'Beauty Blend', items: vi('Collagen + Sua hat + Mat ong'), price: 65000, originalPrice: 79000, save: 14000 },
-      { id: 'nutty-crunch', name: 'Nutty Crunch', items: vi('Bo dau phong + Dua say + Cha la'), price: 29000, originalPrice: 35000, save: 6000 },
-    ];
+    const defaultPriceTable = DEFAULT_MENU_PRICE_TABLE;
+    const defaultCombos = DEFAULT_COMBO_TOPPINGS;
     await upsertSetting(pool, 'menuPriceTable', defaultPriceTable);
     await upsertSetting(pool, 'menuComboToppings', defaultCombos);
     await upsertSetting(pool, 'loyaltyEarnRate', '1000');
@@ -357,36 +387,31 @@ async function initSchemaAndSeeds(pool) {
   if ((await countRows(pool, 'products')) === 0) {
     console.log('Seeding default products...');
     const products = [
-      ['SM-01', vi('Dau hat chia'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Strawberry Chia'],
-      ['SM-02', vi('Dau chuoi'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Strawberry Banana'],
-      ['SM-03', vi('Mang cau dau'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Soursop Strawberry'],
-      ['SM-04', vi('Dau cam'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Strawberry Orange'],
-      ['SM-05', vi('Dau tam hat chia'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Mulberry Chia'],
-      ['SM-06', vi('Phuc bon tu hat chia'), 'smoothies', 59000, '/images/strawberry_smoothie.png', 'Raspberry Chia'],
-      ['SM-07', vi('Chuoi hat chia'), 'smoothies', 59000, '/images/cacao_oat_smoothie.png', 'Banana Chia'],
-      ['SM-08', vi('Chanh day chuoi'), 'smoothies', 59000, '/images/mango_smoothie.png', 'Passionfruit Banana'],
-      ['SM-09', vi('Xoai thom'), 'smoothies', 59000, '/images/mango_smoothie.png', 'Mango Pineapple'],
-      ['SM-10', vi('Xoai cam'), 'smoothies', 59000, '/images/mango_smoothie.png', 'Mango Orange'],
-      ['SM-11', vi('Cacao yen mach'), 'smoothies', 59000, '/images/cacao_oat_smoothie.png', 'Cacao Oat'],
-      ['SM-12', vi('Ca phe chuoi'), 'smoothies', 59000, '/images/cacao_oat_smoothie.png', 'Coffee Banana'],
-      ['SM-13', vi('Bo'), 'smoothies', 79000, '/images/fitblend_hero_smoothie.png', 'Avocado'],
-      ['SM-14', vi('Bo chuoi'), 'smoothies', 79000, '/images/fitblend_hero_smoothie.png', 'Avocado Banana'],
-      ['SM-15', 'Matcha', 'smoothies', 79000, '/images/fitblend_hero_smoothie.png', 'Matcha'],
-      ['TP-01', vi('Sua hat 100%'), 'toppings', 15000, '🥛', ''],
-      ['TP-02', vi('Sua A2'), 'toppings', 20000, '🥛', ''],
-      ['TP-03', vi('Bot dau ha lan'), 'toppings', 20000, '🫛', ''],
-      ['TP-04', 'Whey Gold Standard', 'toppings', 39000, '💪', ''],
-      ['TP-05', 'Collagen', 'toppings', 49000, '✨', ''],
-      ['TP-06', vi('Yen mach'), 'toppings', 10000, '🌾', ''],
-      ['TP-07', vi('Hat chia'), 'toppings', 10000, '🌾', ''],
-      ['TP-08', vi('Dua say gion'), 'toppings', 10000, '🥥', ''],
-      ['TP-09', vi('Co ngot'), 'toppings', 10000, '🌿', ''],
-      ['TP-10', vi('Mat ong'), 'toppings', 15000, '🍯', ''],
-      ['TP-11', vi('Mat mia'), 'toppings', 3000, '🍯', ''],
-      ['TP-12', vi('Cha la'), 'toppings', 5000, '🌴', ''],
-      ['TP-13', vi('Bo hanh nhan'), 'toppings', 10000, '🥜', ''],
-      ['TP-14', vi('Bo dau phong'), 'toppings', 20000, '🥜', ''],
-      ['TP-15', vi('Bo hat dieu'), 'toppings', 15000, '🥜', ''],
+      ['SM-01', vi('Dau hat chia'), 'smoothies', 0, PRODUCT.strawberry, 'Strawberry Chia'],
+      ['SM-02', vi('Dau chuoi'), 'smoothies', 0, PRODUCT.strawberry, 'Strawberry Banana'],
+      ['SM-03', vi('Mang cau dau'), 'smoothies', 0, PRODUCT.strawberry, 'Soursop Strawberry'],
+      ['SM-04', vi('Dau cam'), 'smoothies', 0, PRODUCT.strawberry, 'Strawberry Orange'],
+      ['SM-05', vi('Dau tam chuoi'), 'smoothies', 0, PRODUCT.strawberry, 'Mulberry Banana'],
+      ['SM-06', vi('Phuc bon tu chuoi'), 'smoothies', 0, PRODUCT.strawberry, 'Raspberry Banana'],
+      ['SM-07', vi('Chuoi hat chia'), 'smoothies', 0, PRODUCT.cacaoOat, 'Banana Chia'],
+      ['SM-08', vi('Chanh day chuoi'), 'smoothies', 0, PRODUCT.mango, 'Passionfruit Banana'],
+      ['SM-09', vi('Xoai thom'), 'smoothies', 0, PRODUCT.mango, 'Mango Pineapple'],
+      ['SM-10', vi('Xoai cam'), 'smoothies', 0, PRODUCT.mango, 'Mango Orange'],
+      ['SM-11', vi('Cacao yen mach'), 'smoothies', 0, PRODUCT.cacaoOat, 'Cacao Oat'],
+      ['SM-12', vi('Ca phe chuoi'), 'smoothies', 0, PRODUCT.cacaoOat, 'Coffee Banana'],
+      ['SM-13', vi('Bo'), 'smoothies', 0, PRODUCT.hero, 'Avocado'],
+      ['SM-14', vi('Bo chuoi'), 'smoothies', 0, PRODUCT.hero, 'Avocado Banana'],
+      ['SM-15', 'Matcha', 'smoothies', 0, PRODUCT.hero, 'Matcha'],
+      ['SM-16', vi('Dau tam yen mach'), 'smoothies', 0, PRODUCT.strawberry, 'Mulberry Oat'],
+      ['SM-17', vi('Phuc bon tu yen mach'), 'smoothies', 0, PRODUCT.strawberry, 'Raspberry Oat'],
+      ['SM-18', vi('Thanh long chuoi'), 'smoothies', 0, PRODUCT.mango, 'Dragonfruit Banana'],
+      ['SM-19', vi('Thanh long yen mach'), 'smoothies', 0, PRODUCT.mango, 'Dragonfruit Oat'],
+      ['SM-20', vi('Xoai dau'), 'smoothies', 0, PRODUCT.mango, 'Mango Strawberry'],
+      ['SM-21', vi('Xoai chuoi'), 'smoothies', 0, PRODUCT.mango, 'Mango Banana'],
+      ['SM-22', vi('Cacao chuoi'), 'smoothies', 0, PRODUCT.cacaoOat, 'Cacao Banana'],
+      ['SM-23', vi('Matcha chuoi'), 'smoothies', 0, PRODUCT.hero, 'Matcha Banana'],
+      ['SM-24', vi('Matcha yen mach'), 'smoothies', 0, PRODUCT.hero, 'Matcha Oat'],
+      ...getToppingProductRows(),
       ['CB-01', 'Fat Loss Plan', 'combo', 449000, '📦', vi('Giam mo 7 ngay')],
       ['CB-02', 'Muscle Build Plan', 'combo', 669000, '📦', vi('Tang co 7 ngay')],
       ['CB-03', 'Elite Mass Plan', 'combo', 899000, '📦', vi('Tang can 7 ngay')],
@@ -454,6 +479,85 @@ async function initSchemaAndSeeds(pool) {
       item
     );
   }
+
+  await syncCanonicalMenuV2(pool);
+  await syncCanonicalMenuV3(pool);
+  await syncCanonicalMenuV4(pool);
+  await syncCanonicalMenuV5(pool);
+}
+
+async function syncCanonicalMenuV5(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v5';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Refreshing canonical price table + combo toppings (v5)...');
+  await upsertSetting(pool, 'menuPriceTable', DEFAULT_MENU_PRICE_TABLE);
+  await upsertSetting(pool, 'menuComboToppings', DEFAULT_COMBO_TOPPINGS);
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString() });
+}
+
+async function syncCanonicalMenuV4(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v4';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Syncing 24 smoothie flavors (upsert + rename SM-05/06)...');
+
+  for (const row of getSmoothieProductRows()) {
+    const [id, name, category, basePrice, image, description] = row;
+    await pool.query(
+      `INSERT INTO products (id, name, category, "basePrice", image, description)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         "basePrice" = EXCLUDED."basePrice",
+         image = EXCLUDED.image,
+         description = EXCLUDED.description`,
+      [id, name, category, basePrice, image, description]
+    );
+  }
+
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString(), flavors: 24 });
+}
+
+async function syncCanonicalMenuV3(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v3';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Syncing smoothie flavors — vị miễn phí, giá theo size/protein...');
+  await pool.query(`UPDATE products SET "basePrice" = 0 WHERE category = 'smoothies'`);
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString() });
+}
+
+async function syncCanonicalMenuV2(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v2';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Syncing canonical menu (price table + toppings v2)...');
+
+  await upsertSetting(pool, 'menuPriceTable', DEFAULT_MENU_PRICE_TABLE);
+  await upsertSetting(pool, 'menuComboToppings', DEFAULT_COMBO_TOPPINGS);
+
+  for (const row of getToppingProductRows()) {
+    const [id, name, category, basePrice, image, description] = row;
+    await pool.query(
+      `INSERT INTO products (id, name, category, "basePrice", image, description)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         "basePrice" = EXCLUDED."basePrice",
+         image = EXCLUDED.image,
+         description = EXCLUDED.description`,
+      [id, name, category, basePrice, image, description]
+    );
+  }
+
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString() });
 }
 
 module.exports = { initSchemaAndSeeds, SCHEMA_SQL };

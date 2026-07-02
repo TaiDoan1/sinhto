@@ -11,23 +11,15 @@ interface Product {
   description?: string;
 }
 
-const defaultPriceTable = {
-  '250ml': { 20: 39000, 40: 59000 },
-  '360ml': { 20: 59000, 40: 79000, 60: 99000 },
-  '500ml': { 20: 79000, 40: 99000, 60: 119000 },
-  '700ml': { 60: 139000, 90: 159000 },
-};
-
-const availableImages = [
-  { path: '/images/strawberry_smoothie.png', label: 'Dâu Tây' },
-  { path: '/images/mango_smoothie.png', label: 'Xoài/Nhiệt đới' },
-  { path: '/images/cacao_oat_smoothie.png', label: 'Cacao/Cà phê' },
-  { path: '/images/fitblend_hero_smoothie.png', label: 'Bơ/Matcha' },
-  { path: '/images/fitblend_combo_bottles.png', label: 'Combo/Chai' },
-];
-
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { POS_PRODUCT_IMAGE_OPTIONS, PRODUCT_IMAGES } from '../../config/images';
+import { DEFAULT_MENU_PRICE_TABLE } from '../../config/menuPricing';
+import { DEFAULT_COMBO_TOPPINGS } from '../../config/menuToppings';
+
+const defaultPriceTable = DEFAULT_MENU_PRICE_TABLE;
+
+const availableImages = POS_PRODUCT_IMAGE_OPTIONS;
 
 export function MenuManagement() {
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'prices' | 'toppings'>('products');
@@ -37,7 +29,7 @@ export function MenuManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     category: 'smoothies',
-    image: '/images/strawberry_smoothie.png',
+    image: PRODUCT_IMAGES.strawberry,
     basePrice: 79000
   });
   const [comboToppings, setComboToppings] = useState<any[]>([]);
@@ -61,12 +53,7 @@ export function MenuManagement() {
       });
 
     // Load combos from API, fallback to localStorage/default
-    const defaultCombos = [
-      { id: 'healthy-boost', name: 'Healthy Boost', items: 'Yến mạch + Hạt chia + Cỏ ngọt', price: 25000, originalPrice: 30000, save: 5000 },
-      { id: 'protein-plus', name: 'Protein Plus', items: 'Whey Gold + Sữa A2', price: 49000, originalPrice: 59000, save: 10000 },
-      { id: 'beauty-blend', name: 'Beauty Blend', items: 'Collagen + Sữa hạt + Mật ong', price: 65000, originalPrice: 79000, save: 14000 },
-      { id: 'nutty-crunch', name: 'Nutty Crunch', items: 'Bơ đậu phộng + Dừa sấy + Chà là', price: 29000, originalPrice: 35000, save: 6000 },
-    ];
+    const defaultCombos = DEFAULT_COMBO_TOPPINGS;
 
     api.fetchSetting('menuComboToppings')
       .then(data => {

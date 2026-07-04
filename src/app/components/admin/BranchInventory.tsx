@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Package, Plus, TrendingDown, Truck, X, Coffee, Layers3, Save, Search } from 'lucide-react';
+import { Plus, Truck, X, Coffee, Layers3, Save, Search } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 import * as api from '../../utils/api';
 
@@ -21,6 +21,8 @@ type ProductInventoryState = {
   toppings: Record<string, number>;
 };
 
+type EditingProduct = { product: MenuProduct; type: 'smoothie' | 'topping' } | null;
+
 const PRODUCT_VOLUMES = ['360ml', '500ml', '700ml'];
 const PRODUCT_SIZES = ['S', 'M', 'L'];
 
@@ -29,34 +31,20 @@ const EMPTY_PRODUCT_INVENTORY: ProductInventoryState = {
   toppings: {},
 };
 
-function stockStatus(current: number, min: number): 'critical' | 'warning' | 'ok' {
-  if (current <= 0) return 'critical';
-  if (current <= min) return 'warning';
-  return 'ok';
-}
-
 export function BranchInventory({ branchId }: BranchInventoryProps) {
-  const {
-    inventory,
-    loadForBranch,
-    purchaseStock,
-    isWarehouseReady,
-    getLowStockItems,
-    getOutOfStockItems,
-  } = useInventory();
+  const { inventory, loadForBranch, purchaseStock, isWarehouseReady } = useInventory();
 
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'products'>('ingredients');
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseItemId, setPurchaseItemId] = useState('');
   const [purchaseQty, setPurchaseQty] = useState('');
   const [purchaseSupplier, setPurchaseSupplier] = useState('');
   const [purchaseNote, setPurchaseNote] = useState('');
   const [purchaseSaving, setPurchaseSaving] = useState(false);
-  const [ingredientSearch, setIngredientSearch] = useState('');
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productInventory, setProductInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
   const [productSaving, setProductSaving] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<EditingProduct>(null);
 
   useEffect(() => {
     loadForBranch(branchId);
@@ -83,22 +71,6 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
       .catch(() => setProductInventory(EMPTY_PRODUCT_INVENTORY));
   }, [branchId]);
 
-  const criticalItems = getOutOfStockItems();
-  const warningItems = getLowStockItems();
-  const okItems = inventory.filter(
-    (item) => stockStatus(item.currentStock, item.minStock) === 'ok'
-  );
-  const filteredIngredients = useMemo(
-    () =>
-      inventory.filter(
-        (item) =>
-          item.name.toLowerCase().includes(ingredientSearch.toLowerCase()) ||
-          item.id.toLowerCase().includes(ingredientSearch.toLowerCase())
-      ),
-    [inventory, ingredientSearch]
-  );
-  const flavorIngredients = filteredIngredients.filter((item) => item.category !== 'topping');
-  const toppingIngredients = filteredIngredients.filter((item) => item.category === 'topping');
   const smoothies = useMemo(
     () =>
       products.filter(
@@ -119,6 +91,11 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
       ),
     [products, productSearch]
   );
+
+  const totalSmoothieStock = (productId: string) => {
+    const variants = productInventory.smoothies[productId] || {};
+    return Object.values(variants).reduce((sum, v) => sum + (Number(v) || 0), 0);
+  };
 
   const openPurchase = (itemId?: string) => {
     setPurchaseItemId(itemId || '');
@@ -179,339 +156,202 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     setProductSaving(true);
     try {
       await api.saveSetting(`branchProductInventory_${branchId}`, productInventory);
-      alert('Đã lưu kho sản phẩm theo chi nhánh.');
+      return true;
     } catch (err) {
       console.error(err);
       alert('Lưu kho sản phẩm thất bại.');
+      return false;
     } finally {
       setProductSaving(false);
     }
   };
 
-  const renderIngredientTable = (items: typeof inventory) => {
-    if (items.length === 0) {
-      return (
-        <div className="bg-white rounded-lg shadow-md p-6 text-center text-sm text-gray-500">
-          Không có nguyên liệu nào khớp tìm kiếm.
-        </div>
-      );
-    }
-    return (
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b-2 border-gray-200">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Mã</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Nguyên Liệu</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Tồn Kho</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Mức Tối Thiểu</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Trạng Thái</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {items.map((item) => {
-              const status = stockStatus(item.currentStock, item.minStock);
-              return (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-600">{item.id}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-800">{item.name}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`font-bold ${
-                        status === 'critical'
-                          ? 'text-red-600'
-                          : status === 'warning'
-                            ? 'text-emerald-700'
-                            : 'text-green-600'
-                      }`}
-                    >
-                      {item.currentStock} {item.unit}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-gray-700">
-                    {item.minStock} {item.unit}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {status === 'critical' && (
-                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                        Hết hàng
-                      </span>
-                    )}
-                    {status === 'warning' && (
-                      <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
-                        Sắp hết
-                      </span>
-                    )}
-                    {status === 'ok' && (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                        Đủ dùng
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => openPurchase(item.id)}
-                      className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-sm font-semibold transition-colors"
-                    >
-                      Nhập kho
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
+  const handleSaveEditingProduct = async () => {
+    const ok = await saveProductInventory();
+    if (ok) setEditingProduct(null);
   };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Tồn Kho — {branchId}</h2>
-          <p className="text-sm text-gray-500 mt-1">Quản lý riêng kho nguyên liệu và kho sản phẩm bán ra</p>
+          <p className="text-sm text-gray-500 mt-1">Bấm vào Vị hoặc Topping để thêm/sửa tồn kho</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="bg-white rounded-lg shadow-sm border p-1 flex">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ingredients')}
-              className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 ${
-                activeTab === 'ingredients' ? 'bg-emerald-700 text-white' : 'text-gray-600'
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              Nguyên liệu
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 ${
-                activeTab === 'products' ? 'bg-emerald-700 text-white' : 'text-gray-600'
-              }`}
-            >
-              <Layers3 className="w-4 h-4" />
-              Kho sản phẩm
-            </button>
-          </div>
-
-          {activeTab === 'ingredients' ? (
-            <button
-              type="button"
-              onClick={() => openPurchase()}
-              className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Nhập Kho
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={saveProductInventory}
-              disabled={productSaving}
-              className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-60"
-            >
-              <Save className="w-5 h-5" />
-              {productSaving ? 'Đang lưu...' : 'Lưu kho sản phẩm'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => openPurchase()}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Nhập Kho
+          </button>
         </div>
       </div>
 
-      {activeTab === 'ingredients' ? (
-        <>
-          {!isWarehouseReady && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-amber-800">
-              <p className="font-bold">Chưa có phiếu nhập kho tại chi nhánh này</p>
-              <p className="text-sm mt-1">POS {branchId} không thể bán cho đến khi nhập kho lần đầu.</p>
-            </div>
-          )}
+      {!isWarehouseReady && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-amber-800">
+          <p className="font-bold">Chưa có phiếu nhập kho tại chi nhánh này</p>
+          <p className="text-sm mt-1">POS {branchId} không thể bán cho đến khi nhập kho lần đầu (bấm "Nhập Kho").</p>
+        </div>
+      )}
 
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg p-4 shadow-lg">
-              <div className="flex items-center gap-3 mb-2">
-                <AlertTriangle className="w-6 h-6" />
-                <div className="text-sm opacity-90">Hết hàng</div>
-              </div>
-              <div className="text-3xl font-bold">{criticalItems.length}</div>
-            </div>
-
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-lg p-4 shadow-lg">
-              <div className="flex items-center gap-3 mb-2">
-                <TrendingDown className="w-6 h-6" />
-                <div className="text-sm opacity-90">Sắp hết</div>
-              </div>
-              <div className="text-3xl font-bold">{warningItems.length}</div>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-4 shadow-lg">
-              <div className="flex items-center gap-3 mb-2">
-                <Package className="w-6 h-6" />
-                <div className="text-sm opacity-90">Đủ dùng</div>
-              </div>
-              <div className="text-3xl font-bold">{okItems.length}</div>
-            </div>
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Tìm vị hoặc topping..."
+              className="w-full pl-10 pr-4 py-2 border rounded-lg"
+            />
           </div>
+        </div>
 
-          {inventory.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600 text-lg">Chưa có danh mục nguyên liệu</p>
-            </div>
-          ) : (
-            <>
-              <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-                <div className="relative max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={ingredientSearch}
-                    onChange={(e) => setIngredientSearch(e.target.value)}
-                    placeholder="Tìm nguyên liệu vị hoặc topping..."
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="mb-8">
-                <div className="flex items-center gap-2 mb-3">
-                  <Coffee className="w-5 h-5 text-emerald-700" />
-                  <h3 className="text-lg font-bold text-gray-800">Nguyên Liệu Vị</h3>
-                  <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-semibold">
-                    {flavorIngredients.length}
-                  </span>
-                </div>
-                {renderIngredientTable(flavorIngredients)}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Layers3 className="w-5 h-5 text-violet-700" />
-                  <h3 className="text-lg font-bold text-gray-800">Nguyên Liệu Topping</h3>
-                  <span className="text-xs text-violet-700 bg-violet-50 px-2 py-1 rounded-full font-semibold">
-                    {toppingIngredients.length}
-                  </span>
-                </div>
-                {renderIngredientTable(toppingIngredients)}
-              </div>
-            </>
-          )}
-        </>
-      ) : (
-        <div className="space-y-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-blue-900">
-            <p className="font-bold">Kho sản phẩm theo luồng bán hàng</p>
-            <p className="text-sm mt-1">
-              Tách riêng theo <strong>Vị</strong> và <strong>Topping</strong>. Mỗi vị có 3 dung tích
-              <strong> 360 / 500 / 700</strong>, trong mỗi dung tích có 3 size túi
-              <strong> S / M / L</strong>.
-            </p>
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Coffee className="w-5 h-5 text-emerald-700" />
+            <h3 className="text-lg font-bold text-gray-800">Kho Vị</h3>
           </div>
-
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Tìm vị hoặc topping..."
-                className="w-full pl-10 pr-4 py-2 border rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Coffee className="w-5 h-5 text-emerald-700" />
-              <h3 className="text-lg font-bold text-gray-800">Kho Vị</h3>
-            </div>
-            <div className="space-y-3">
-              {smoothies.map((product) => (
-                <div key={product.id} className="border rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
-                      <div className="font-bold text-gray-900">{product.name}</div>
-                    </div>
-                    <div className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-semibold">
-                      Vị
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                    {PRODUCT_VOLUMES.map((volume) => (
-                      <div key={volume} className="border rounded-lg p-3 bg-gray-50">
-                        <div className="text-sm font-bold text-emerald-800 mb-3">{volume}</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {PRODUCT_SIZES.map((size) => {
-                            const variantKey = `${volume}-${size}`;
-                            return (
-                              <label key={variantKey} className="block">
-                                <div className="text-xs text-gray-500 font-semibold mb-1">Size {size}</div>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={productInventory.smoothies[product.id]?.[variantKey] ?? 0}
-                                  onChange={(e) =>
-                                    setSmoothieVariantStock(
-                                      product.id,
-                                      variantKey,
-                                      Number(e.target.value || 0)
-                                    )
-                                  }
-                                  className="w-full border rounded-lg px-2 py-2 font-bold text-gray-800 bg-white"
-                                />
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {smoothies.length === 0 && (
-                <div className="text-sm text-gray-500">Không có vị nào khớp tìm kiếm.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Layers3 className="w-5 h-5 text-emerald-700" />
-              <h3 className="text-lg font-bold text-gray-800">Kho Topping</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {toppings.map((product) => (
-                <div key={product.id} className="border rounded-xl p-4 bg-gray-50">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {smoothies.map((product) => {
+              const total = totalSmoothieStock(product.id);
+              return (
+                <button
+                  type="button"
+                  key={product.id}
+                  onClick={() => setEditingProduct({ product, type: 'smoothie' })}
+                  className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+                >
                   <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
-                      <div className="font-bold text-gray-900">{product.name}</div>
-                    </div>
-                    <span className="text-xs text-violet-700 bg-violet-50 px-2 py-1 rounded-full font-semibold">
+                    <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">
+                      Vị
+                    </span>
+                  </div>
+                  <div className="font-bold text-gray-900 mb-2">{product.name}</div>
+                  <div className={`text-2xl font-black ${total <= 0 ? 'text-red-500' : 'text-emerald-700'}`}>
+                    {total} <span className="text-xs font-bold text-gray-400">túi</span>
+                  </div>
+                </button>
+              );
+            })}
+            {smoothies.length === 0 && (
+              <div className="col-span-full text-sm text-gray-500">Không có vị nào khớp tìm kiếm.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Layers3 className="w-5 h-5 text-violet-700" />
+            <h3 className="text-lg font-bold text-gray-800">Kho Topping</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {toppings.map((product) => {
+              const qty = productInventory.toppings[product.id] ?? 0;
+              return (
+                <button
+                  type="button"
+                  key={product.id}
+                  onClick={() => setEditingProduct({ product, type: 'topping' })}
+                  className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-violet-50 hover:border-violet-300 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
+                    <span className="text-[10px] text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full font-semibold">
                       Topping
                     </span>
                   </div>
-                  <label className="block">
-                    <div className="text-xs text-gray-500 font-semibold mb-1">Số lượng khả dụng</div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productInventory.toppings[product.id] ?? 0}
-                      onChange={(e) => setToppingStock(product.id, Number(e.target.value || 0))}
-                      className="w-full border rounded-lg px-3 py-2 font-bold text-gray-800 bg-white"
-                    />
-                  </label>
-                </div>
-              ))}
-              {toppings.length === 0 && (
-                <div className="text-sm text-gray-500">Không có topping nào khớp tìm kiếm.</div>
-              )}
+                  <div className="font-bold text-gray-900 mb-2">{product.name}</div>
+                  <div className={`text-2xl font-black ${qty <= 0 ? 'text-red-500' : 'text-violet-700'}`}>
+                    {qty} <span className="text-xs font-bold text-gray-400">phần</span>
+                  </div>
+                </button>
+              );
+            })}
+            {toppings.length === 0 && (
+              <div className="col-span-full text-sm text-gray-500">Không có topping nào khớp tìm kiếm.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                {editingProduct.type === 'smoothie' ? (
+                  <Coffee className="w-6 h-6 text-emerald-600" />
+                ) : (
+                  <Layers3 className="w-6 h-6 text-violet-600" />
+                )}
+                {editingProduct.product.name}
+              </h3>
+              <button type="button" onClick={() => setEditingProduct(null)}>
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
+
+            {editingProduct.type === 'smoothie' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                {PRODUCT_VOLUMES.map((volume) => (
+                  <div key={volume} className="border rounded-lg p-3 bg-gray-50">
+                    <div className="text-sm font-bold text-emerald-800 mb-3">{volume}</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PRODUCT_SIZES.map((size) => {
+                        const variantKey = `${volume}-${size}`;
+                        return (
+                          <label key={variantKey} className="block">
+                            <div className="text-xs text-gray-500 font-semibold mb-1">Size {size}</div>
+                            <input
+                              autoFocus={volume === PRODUCT_VOLUMES[0] && size === PRODUCT_SIZES[0]}
+                              type="number"
+                              min="0"
+                              value={productInventory.smoothies[editingProduct.product.id]?.[variantKey] ?? 0}
+                              onChange={(e) =>
+                                setSmoothieVariantStock(
+                                  editingProduct.product.id,
+                                  variantKey,
+                                  Number(e.target.value || 0)
+                                )
+                              }
+                              className="w-full border rounded-lg px-2 py-2 font-bold text-gray-800 bg-white"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Số lượng khả dụng</label>
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  value={productInventory.toppings[editingProduct.product.id] ?? 0}
+                  onChange={(e) => setToppingStock(editingProduct.product.id, Number(e.target.value || 0))}
+                  className="w-full border rounded-lg px-3 py-2 font-bold text-gray-800 bg-white"
+                />
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSaveEditingProduct}
+              disabled={productSaving}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
+            >
+              <Save className="w-5 h-5" />
+              {productSaving ? 'Đang lưu...' : 'Lưu tồn kho'}
+            </button>
           </div>
         </div>
       )}
@@ -537,24 +377,11 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   required
                 >
                   <option value="">-- Chọn --</option>
-                  <optgroup label="Vị">
-                    {inventory
-                      .filter((item) => item.category !== 'topping')
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} (còn {item.currentStock} {item.unit})
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Topping">
-                    {inventory
-                      .filter((item) => item.category === 'topping')
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} (còn {item.currentStock} {item.unit})
-                        </option>
-                      ))}
-                  </optgroup>
+                  {inventory.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} (còn {item.currentStock} {item.unit})
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

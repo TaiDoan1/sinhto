@@ -247,7 +247,7 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                 <Coffee className="w-5 h-5 text-emerald-700" />
                 <h3 className="text-lg font-black text-gray-800">Kho Vị</h3>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {smoothieProducts.map((product) => {
                   const total = totalSmoothieStock(product.id);
                   return (
@@ -257,15 +257,39 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                       onClick={() => setEditingProduct({ product, type: 'smoothie' })}
                       className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-1">
                         <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
                         <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-black">
                           Vị
                         </span>
                       </div>
-                      <div className="font-black text-gray-900 mb-2">{product.name}</div>
-                      <div className={`text-2xl font-black ${total <= 0 ? 'text-red-500' : 'text-emerald-700'}`}>
-                        {total} <span className="text-xs font-bold text-gray-400">túi</span>
+                      <div className="font-black text-gray-900 mb-3 flex items-center justify-between">
+                        <span>{product.name}</span>
+                        <span className={`text-sm font-black ${total <= 0 ? 'text-red-500' : 'text-emerald-700'}`}>
+                          {total} túi
+                        </span>
+                      </div>
+                      <div className="space-y-1 border-t border-gray-200 pt-2">
+                        {PRODUCT_VOLUMES.map((volume) => {
+                          const values = PRODUCT_SIZES.map(
+                            (size) => productInventory.smoothies[product.id]?.[`${volume}-${size}`] ?? 0
+                          );
+                          return (
+                            <div key={volume} className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-gray-500 w-12 shrink-0">{volume}</span>
+                              <span className="flex gap-2.5">
+                                {PRODUCT_SIZES.map((size, i) => (
+                                  <span
+                                    key={size}
+                                    className={`font-black ${values[i] <= 0 ? 'text-gray-300' : 'text-emerald-700'}`}
+                                  >
+                                    {size}:{values[i]}
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </button>
                   );
@@ -365,53 +389,70 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
 
       {editingProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                 {editingProduct.type === 'smoothie' ? (
-                  <Coffee className="w-6 h-6 text-emerald-600" />
+                  <Coffee className="w-6 h-6 text-emerald-600 shrink-0" />
                 ) : (
-                  <Layers3 className="w-6 h-6 text-violet-600" />
+                  <Layers3 className="w-6 h-6 text-violet-600 shrink-0" />
                 )}
                 {editingProduct.product.name}
               </h3>
-              <button type="button" onClick={() => setEditingProduct(null)}>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              >
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
+            <p className="text-xs text-gray-400 font-semibold mb-5">{editingProduct.product.id}</p>
 
             {editingProduct.type === 'smoothie' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                {PRODUCT_VOLUMES.map((volume) => (
-                  <div key={volume} className="border rounded-lg p-3 bg-gray-50">
-                    <div className="text-sm font-bold text-emerald-800 mb-3">{volume}</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {PRODUCT_SIZES.map((size) => {
-                        const variantKey = `${volume}-${size}`;
-                        return (
-                          <label key={variantKey} className="block">
-                            <div className="text-xs text-gray-500 font-semibold mb-1">Size {size}</div>
-                            <input
-                              autoFocus={volume === PRODUCT_VOLUMES[0] && size === PRODUCT_SIZES[0]}
-                              type="number"
-                              min="0"
-                              value={productInventory.smoothies[editingProduct.product.id]?.[variantKey] ?? 0}
-                              onChange={(e) =>
-                                setSmoothieVariantStock(
-                                  editingProduct.product.id,
-                                  variantKey,
-                                  Number(e.target.value || 0)
-                                )
-                              }
-                              className="w-full border rounded-lg px-2 py-2 font-bold text-gray-800 bg-white"
-                            />
-                          </label>
-                        );
-                      })}
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                  {PRODUCT_VOLUMES.map((volume) => (
+                    <div key={volume} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div className="text-sm font-black text-emerald-700 mb-3 text-center uppercase tracking-wide">
+                        {volume}
+                      </div>
+                      <div className="space-y-2.5">
+                        {PRODUCT_SIZES.map((size) => {
+                          const variantKey = `${volume}-${size}`;
+                          return (
+                            <div key={variantKey} className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-gray-500 whitespace-nowrap">
+                                Size {size}
+                              </span>
+                              <input
+                                autoFocus={volume === PRODUCT_VOLUMES[0] && size === PRODUCT_SIZES[0]}
+                                type="number"
+                                min="0"
+                                value={productInventory.smoothies[editingProduct.product.id]?.[variantKey] ?? 0}
+                                onChange={(e) =>
+                                  setSmoothieVariantStock(
+                                    editingProduct.product.id,
+                                    variantKey,
+                                    Number(e.target.value || 0)
+                                  )
+                                }
+                                className="w-20 text-center border border-gray-300 rounded-lg px-2 py-1.5 font-bold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 mb-4">
+                  <span className="text-sm font-semibold text-emerald-800">Tổng cộng</span>
+                  <span className="text-lg font-black text-emerald-700">
+                    {totalSmoothieStock(editingProduct.product.id)} túi
+                  </span>
+                </div>
+              </>
             ) : (
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Số lượng khả dụng</label>
@@ -421,7 +462,7 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                   min="0"
                   value={productInventory.toppings[editingProduct.product.id] ?? 0}
                   onChange={(e) => setToppingStock(editingProduct.product.id, Number(e.target.value || 0))}
-                  className="w-full border rounded-lg px-3 py-2 font-bold text-gray-800 bg-white"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 />
               </div>
             )}

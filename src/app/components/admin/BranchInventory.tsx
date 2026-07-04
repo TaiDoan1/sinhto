@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Truck, X, Coffee, Layers3, Save, Search } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
+import { useSSE } from '../../contexts/SSEContext';
 import * as api from '../../utils/api';
 
 interface BranchInventoryProps {
@@ -31,8 +32,21 @@ const EMPTY_PRODUCT_INVENTORY: ProductInventoryState = {
   toppings: {},
 };
 
+const productInventoryKeyFor = (branchId: string) => `branchProductInventory_${branchId}`;
+
+function parseProductInventory(data: unknown): ProductInventoryState {
+  if (data && typeof data === 'object') {
+    return {
+      smoothies: (data as ProductInventoryState).smoothies || {},
+      toppings: (data as ProductInventoryState).toppings || {},
+    };
+  }
+  return { smoothies: {}, toppings: {} };
+}
+
 export function BranchInventory({ branchId }: BranchInventoryProps) {
   const { inventory, loadForBranch, purchaseStock, isWarehouseReady } = useInventory();
+  const { subscribe } = useSSE();
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseItemId, setPurchaseItemId] = useState('');
@@ -51,25 +65,25 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   }, [branchId, loadForBranch]);
 
   useEffect(() => {
-    const productInventoryKey = `branchProductInventory_${branchId}`;
-
     api.fetchProducts()
       .then((data) => setProducts((data || []).filter((p: MenuProduct) => p.category !== 'combo')))
       .catch(() => setProducts([]));
 
-    api.fetchSetting(productInventoryKey)
-      .then((data) => {
-        if (data && typeof data === 'object') {
-          setProductInventory({
-            smoothies: (data as ProductInventoryState).smoothies || {},
-            toppings: (data as ProductInventoryState).toppings || {},
-          });
-        } else {
-          setProductInventory(EMPTY_PRODUCT_INVENTORY);
-        }
-      })
+    api.fetchSetting(productInventoryKeyFor(branchId))
+      .then((data) => setProductInventory(parseProductInventory(data)))
       .catch(() => setProductInventory(EMPTY_PRODUCT_INVENTORY));
   }, [branchId]);
+
+  // Đồng bộ realtime: máy khác (POS/Admin khác) nhập kho xong thì cập nhật ngay, không cần tải lại trang.
+  useEffect(() => {
+    const key = productInventoryKeyFor(branchId);
+    const unsubscribe = subscribe('SETTING_UPDATED', (payload: { key: string; value: unknown }) => {
+      if (payload?.key === key) {
+        setProductInventory(parseProductInventory(payload.value));
+      }
+    });
+    return unsubscribe;
+  }, [branchId, subscribe]);
 
   const smoothies = useMemo(
     () =>
@@ -152,23 +166,42 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     }));
   };
 
-  const saveProductInventory = async () => {
+  const handleSaveEditingProduct = async () => {
+    if (!editingProduct) return;
     setProductSaving(true);
     try {
-      await api.saveSetting(`branchProductInventory_${branchId}`, productInventory);
-      return true;
+      const key = productInventoryKeyFor(branchId);
+      // Lấy bản mới nhất từ server trước khi lưu, để không ghi đè thay đổi
+      // của máy khác (VD: nhân viên khác vừa nhập kho vị/topping khác lúc này).
+      let latest = EMPTY_PRODUCT_INVENTORY;
+      try {
+        latest = parseProductInventory(await api.fetchSetting(key));
+      } catch {
+        // Chưa từng lưu kho sản phẩm cho chi nhánh này — bắt đầu từ rỗng.
+      }
+
+      const merged: ProductInventoryState = {
+        smoothies: { ...latest.smoothies },
+        toppings: { ...latest.toppings },
+      };
+
+      if (editingProduct.type === 'smoothie') {
+        merged.smoothies[editingProduct.product.id] = {
+          ...(productInventory.smoothies[editingProduct.product.id] || {}),
+        };
+      } else {
+        merged.toppings[editingProduct.product.id] = productInventory.toppings[editingProduct.product.id] ?? 0;
+      }
+
+      await api.saveSetting(key, merged);
+      setProductInventory(merged);
+      setEditingProduct(null);
     } catch (err) {
       console.error(err);
-      alert('Lưu kho sản phẩm thất bại.');
-      return false;
+      alert('Lưu tồn kho thất bại. Vui lòng thử lại.');
     } finally {
       setProductSaving(false);
     }
-  };
-
-  const handleSaveEditingProduct = async () => {
-    const ok = await saveProductInventory();
-    if (ok) setEditingProduct(null);
   };
 
   return (

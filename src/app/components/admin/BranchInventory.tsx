@@ -52,6 +52,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   const [purchaseSupplier, setPurchaseSupplier] = useState('');
   const [purchaseNote, setPurchaseNote] = useState('');
   const [purchaseSaving, setPurchaseSaving] = useState(false);
+  const [ingredientSearch, setIngredientSearch] = useState('');
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productInventory, setProductInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
@@ -87,6 +88,17 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   const okItems = inventory.filter(
     (item) => stockStatus(item.currentStock, item.minStock) === 'ok'
   );
+  const filteredIngredients = useMemo(
+    () =>
+      inventory.filter(
+        (item) =>
+          item.name.toLowerCase().includes(ingredientSearch.toLowerCase()) ||
+          item.id.toLowerCase().includes(ingredientSearch.toLowerCase())
+      ),
+    [inventory, ingredientSearch]
+  );
+  const flavorIngredients = filteredIngredients.filter((item) => item.category !== 'topping');
+  const toppingIngredients = filteredIngredients.filter((item) => item.category === 'topping');
   const smoothies = useMemo(
     () =>
       products.filter(
@@ -174,6 +186,85 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     } finally {
       setProductSaving(false);
     }
+  };
+
+  const renderIngredientTable = (items: typeof inventory) => {
+    if (items.length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center text-sm text-gray-500">
+          Không có nguyên liệu nào khớp tìm kiếm.
+        </div>
+      );
+    }
+    return (
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b-2 border-gray-200">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Mã</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Nguyên Liệu</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Tồn Kho</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Mức Tối Thiểu</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Trạng Thái</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {items.map((item) => {
+              const status = stockStatus(item.currentStock, item.minStock);
+              return (
+                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-600">{item.id}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-800">{item.name}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span
+                      className={`font-bold ${
+                        status === 'critical'
+                          ? 'text-red-600'
+                          : status === 'warning'
+                            ? 'text-emerald-700'
+                            : 'text-green-600'
+                      }`}
+                    >
+                      {item.currentStock} {item.unit}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-700">
+                    {item.minStock} {item.unit}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {status === 'critical' && (
+                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                        Hết hàng
+                      </span>
+                    )}
+                    {status === 'warning' && (
+                      <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                        Sắp hết
+                      </span>
+                    )}
+                    {status === 'ok' && (
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                        Đủ dùng
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => openPurchase(item.id)}
+                      className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-sm font-semibold transition-colors"
+                    >
+                      Nhập kho
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   return (
@@ -271,73 +362,42 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
               <p className="text-gray-600 text-lg">Chưa có danh mục nguyên liệu</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b-2 border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Mã</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Nguyên Liệu</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Tồn Kho</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Mức Tối Thiểu</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Trạng Thái</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {inventory.map((item) => {
-                    const status = stockStatus(item.currentStock, item.minStock);
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-600">{item.id}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">{item.name}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`font-bold ${
-                              status === 'critical'
-                                ? 'text-red-600'
-                                : status === 'warning'
-                                  ? 'text-emerald-700'
-                                  : 'text-green-600'
-                            }`}
-                          >
-                            {item.currentStock} {item.unit}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-700">
-                          {item.minStock} {item.unit}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {status === 'critical' && (
-                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                              Hết hàng
-                            </span>
-                          )}
-                          {status === 'warning' && (
-                            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
-                              Sắp hết
-                            </span>
-                          )}
-                          {status === 'ok' && (
-                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                              Đủ dùng
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => openPurchase(item.id)}
-                            className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-sm font-semibold transition-colors"
-                          >
-                            Nhập kho
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={ingredientSearch}
+                    onChange={(e) => setIngredientSearch(e.target.value)}
+                    placeholder="Tìm nguyên liệu vị hoặc topping..."
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <Coffee className="w-5 h-5 text-emerald-700" />
+                  <h3 className="text-lg font-bold text-gray-800">Nguyên Liệu Vị</h3>
+                  <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-semibold">
+                    {flavorIngredients.length}
+                  </span>
+                </div>
+                {renderIngredientTable(flavorIngredients)}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Layers3 className="w-5 h-5 text-violet-700" />
+                  <h3 className="text-lg font-bold text-gray-800">Nguyên Liệu Topping</h3>
+                  <span className="text-xs text-violet-700 bg-violet-50 px-2 py-1 rounded-full font-semibold">
+                    {toppingIngredients.length}
+                  </span>
+                </div>
+                {renderIngredientTable(toppingIngredients)}
+              </div>
+            </>
           )}
         </>
       ) : (
@@ -477,11 +537,24 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   required
                 >
                   <option value="">-- Chọn --</option>
-                  {inventory.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} (còn {item.currentStock} {item.unit})
-                    </option>
-                  ))}
+                  <optgroup label="Vị">
+                    {inventory
+                      .filter((item) => item.category !== 'topping')
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} (còn {item.currentStock} {item.unit})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Topping">
+                    {inventory
+                      .filter((item) => item.category === 'topping')
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} (còn {item.currentStock} {item.unit})
+                        </option>
+                      ))}
+                  </optgroup>
                 </select>
               </div>
               <div>

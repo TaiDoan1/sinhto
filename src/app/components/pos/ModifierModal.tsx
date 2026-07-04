@@ -1,5 +1,5 @@
 import { X, Check, ArrowLeft } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
 import { DEFAULT_MENU_PRICE_TABLE, resolveCupPrice } from '../../config/menuPricing';
@@ -44,11 +44,9 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   const initialProtein = (product as any).initialProtein !== undefined && (product as any).initialProtein !== null
     ? (product as any).initialProtein
     : 20;
-  const defaultBagSize = initialSize === '360ml' ? 'S' : initialSize === '500ml' ? 'M' : 'L';
 
   const [selectedSize] = useState(initialSize);
   const [selectedProtein] = useState<number>(initialProtein);
-  const [selectedBagSize, setSelectedBagSize] = useState<'S' | 'M' | 'L'>(defaultBagSize);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
   const { products } = useMenu();
@@ -61,7 +59,16 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
     : COMBO_TOPPINGS;
   const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
   const priceLookup = Object.keys(dynamicPriceTable).length > 0 ? dynamicPriceTable : priceTable;
-  const { checkCartStock, formatShortageMessage, isWarehouseReady } = useInventory();
+  const { checkCartStock, formatShortageMessage, isWarehouseReady, productInventory } = useInventory();
+
+  // Kho quyết định size túi (S/M/L) theo vị + ml — nhân viên không cần chọn khi bán.
+  // Ưu tiên túi còn hàng theo thứ tự S → M → L, mặc định S nếu chưa nhập kho sản phẩm.
+  const resolvedBagSize = useMemo<'S' | 'M' | 'L'>(() => {
+    const variants = productInventory.smoothies?.[product.id] || {};
+    const bagOrder: Array<'S' | 'M' | 'L'> = ['S', 'M', 'L'];
+    const withStock = bagOrder.find((bag) => (variants[`${selectedSize}-${bag}`] ?? 0) > 0);
+    return withStock || 'S';
+  }, [productInventory, product.id, selectedSize]);
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>
@@ -112,7 +119,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       productName: product.name,
       productCategory: product.category || 'smoothies',
       size: selectedSize,
-      bagSize: selectedBagSize,
+      bagSize: resolvedBagSize,
       protein: selectedProtein,
       toppings: finalToppingsList,
       quantity: 1,
@@ -134,7 +141,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       productName: product.name,
       productCategory: product.category || 'smoothies',
       size: selectedSize,
-      bagSize: selectedBagSize,
+      bagSize: resolvedBagSize,
       protein: selectedProtein,
       toppings: finalToppingsList,
       price: calculatePrice(),
@@ -160,7 +167,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
           <div>
             <h2 className="text-lg font-black leading-tight">{product.name}</h2>
             <p className="text-sm opacity-90 mt-0.5 font-semibold">
-              {selectedSize} · Túi {selectedBagSize} · Protein {selectedProtein}g
+              {selectedSize} · Protein {selectedProtein}g
             </p>
           </div>
         </div>
@@ -172,31 +179,6 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
 
       {/* Main Configurations Grid */}
       <div className="pos-modifier-body flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-        <div className="pos-modifier-section bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="text-sm font-black text-blue-800 uppercase tracking-wider mb-2">0. Chọn size túi theo kho sản phẩm</h3>
-          <div className="grid grid-cols-3 gap-2">
-            {(['S', 'M', 'L'] as const).map((bag) => {
-              const active = selectedBagSize === bag;
-              return (
-                <button
-                  key={bag}
-                  type="button"
-                  onClick={() => setSelectedBagSize(bag)}
-                  className={`rounded-xl border-2 px-3 py-3 text-center font-black transition-all ${
-                    active
-                      ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-blue-200 bg-white text-blue-800'
-                  }`}
-                >
-                  Size {bag}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-blue-700 mt-2 font-medium">
-            Đang bán: {selectedSize} · Túi {selectedBagSize}
-          </p>
-        </div>
 
         {/* Row 1: Combo Topping */}
         <div className="pos-modifier-section bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-150">

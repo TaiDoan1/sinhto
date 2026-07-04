@@ -259,7 +259,7 @@ function POSInterfaceInner() {
             ) : activeTab === 'combos' ? (
               <CustomerComboHub variant="pos" branchId={branchId} className="p-2 h-full overflow-auto" />
             ) : activeTab === 'warehouse' ? (
-              <InventoryManagement />
+              <InventoryManagement branchId={branchId} />
             ) : activeTab === 'admin' ? (
               <MenuManagement />
             ) : activeTab === 'macro' ? (

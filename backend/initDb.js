@@ -434,16 +434,6 @@ async function initSchemaAndSeeds(pool) {
     for (const e of sampleEmployees) {
       await pool.query(employeeInsertSql, e);
     }
-  } else {
-    const existing = await pool.query('SELECT id FROM employees');
-    const existingIds = new Set(existing.rows.map((r) => r.id));
-    const missing = sampleEmployees.filter((e) => !existingIds.has(e[0]));
-    if (missing.length > 0) {
-      console.log(`Syncing ${missing.length} missing employees...`);
-      for (const e of missing) {
-        await pool.query(employeeInsertSql, e);
-      }
-    }
   }
 
   if ((await countRows(pool, 'inventory')) === 0) {

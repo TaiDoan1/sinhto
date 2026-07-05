@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "cd backend && npm start",
-    "build": "bash build.sh",
+    "build": "vite build",
+    "build:railway": "bash build.sh",
     "dev": "concurrently \"npm run backend\" \"vite\"",
     "backend": "node backend/index.js",
     "db:up": "docker compose up -d",

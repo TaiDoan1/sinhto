@@ -1,7 +1,11 @@
 const { Pool } = require('pg');
+const dns = require('dns').promises;
 const { initSchemaAndSeeds } = require('./initDb');
 const { run: runNoDiacriticsMigration } = require('./migrateNoDiacritics');
 const { init: initSqlite } = require('./sqliteDb');
+
+// Force IPv4 resolution
+dns.setDefaultResultOrder('ipv4first');
 
 let pool;
 let dbMode = 'postgres';
@@ -123,14 +127,43 @@ async function initDatabase() {
     process.env.PGSSLMODE === 'require' ||
     /\.supabase\.co\b/i.test(connectionString);
 
-  pool = new Pool({
-    connectionString,
-    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-    max: parseInt(process.env.PG_POOL_MAX || '20', 10),
-  });
+  // Try connection with retry logic for IPv6 timeout issues
+  let connected = false;
+  let lastError = null;
 
-  await pool.query('SELECT 1');
-  console.log('PostgreSQL connected.');
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      pool = new Pool({
+        connectionString,
+        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+        max: parseInt(process.env.PG_POOL_MAX || '20', 10),
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 15000,
+      });
+
+      await pool.query('SELECT 1');
+      console.log('PostgreSQL connected.');
+      connected = true;
+      break;
+    } catch (err) {
+      lastError = err;
+      console.log(`Connection attempt ${attempt} failed:`, err.message);
+      if (pool) {
+        try {
+          await pool.end();
+        } catch (e) {
+          // ignore cleanup errors
+        }
+      }
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 2000 * attempt)); // Wait 2s, 4s before retry
+      }
+    }
+  }
+
+  if (!connected) {
+    throw lastError || new Error('Failed to connect to database after 3 attempts');
+  }
 
   const db = createAdapter(pool);
   await initSchemaAndSeeds(pool);

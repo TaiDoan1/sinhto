@@ -52,7 +52,7 @@ INSERT INTO inventory (id, name, unit, "currentStock", "minStock", cost, categor
 ('INV-022', 'Bo hat', 'kg', 0, 2, 55000, 'topping'),
 ('INV-023', 'Hat dac', 'kg', 0, 1, 35000, 'topping');
 
--- Create admin account
+-- Create admin account (position: manager)
 -- Username: nhondo
 -- Password: 123 (hashed)
 INSERT INTO employees (id, "fullName", "employeeId", email, phone, "idNumber", "dateOfBirth", address, branch, position, "baseSalary", "startDate", username, password, photo, "customData")
@@ -66,7 +66,7 @@ VALUES (
   '2000-01-01',
   '',
   '',
-  'admin',
+  'manager',
   0,
   NOW()::text,
   'nhondo',

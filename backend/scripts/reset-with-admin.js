@@ -98,7 +98,7 @@ async function resetSqlite(db) {
       );
     }
 
-    // Create admin account
+    // Create admin account (position: manager)
     const adminPassword = hashPassword('123');
     await run(
       db,
@@ -114,7 +114,7 @@ async function resetSqlite(db) {
         '2000-01-01',
         '',
         '',
-        'admin',
+        'manager',
         0,
         new Date().toISOString(),
         'nhondo',

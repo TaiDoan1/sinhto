@@ -123,47 +123,17 @@ async function initDatabase() {
 
   const connectionString = process.env.DATABASE_URL;
   dbMode = 'postgres';
-  const needsSsl =
-    process.env.PGSSLMODE === 'require' ||
-    /\.supabase\.co\b/i.test(connectionString);
 
-  // Try connection with retry logic for IPv6 timeout issues
-  let connected = false;
-  let lastError = null;
+  pool = new Pool({
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+  });
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      pool = new Pool({
-        connectionString,
-        ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-        max: parseInt(process.env.PG_POOL_MAX || '20', 10),
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 15000,
-      });
-
-      await pool.query('SELECT 1');
-      console.log('PostgreSQL connected.');
-      connected = true;
-      break;
-    } catch (err) {
-      lastError = err;
-      console.log(`Connection attempt ${attempt} failed:`, err.message);
-      if (pool) {
-        try {
-          await pool.end();
-        } catch (e) {
-          // ignore cleanup errors
-        }
-      }
-      if (attempt < 3) {
-        await new Promise(r => setTimeout(r, 2000 * attempt)); // Wait 2s, 4s before retry
-      }
-    }
-  }
-
-  if (!connected) {
-    throw lastError || new Error('Failed to connect to database after 3 attempts');
-  }
+  await pool.query('SELECT 1');
+  console.log('PostgreSQL connected.');
 
   const db = createAdapter(pool);
   await initSchemaAndSeeds(pool);

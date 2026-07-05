@@ -1,4 +1,4 @@
-import { UserPlus, Phone, Mail, Calendar, Users, Edit2, Trash2, X, Save } from 'lucide-react';
+import { UserPlus, UserCheck, Phone, Mail, Calendar, Users, Edit2, Trash2, X, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -38,6 +38,9 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
   const [showForm, setShowForm] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Employee> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showPending, setShowPending] = useState(false);
+  const [pendingEmployees, setPendingEmployees] = useState<Employee[]>([]);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const { subscribe } = useSSE();
 
   const load = () => {
@@ -71,6 +74,29 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
   const openAdd = () => {
     setEditForm({ ...emptyEmployee, branch: branchId });
     setShowForm(true);
+  };
+
+  const openPending = async () => {
+    try {
+      const all = await api.fetchEmployees();
+      setPendingEmployees(all.filter((e: Employee) => !e.branch));
+      setShowPending(true);
+    } catch (err) {
+      alert('Không tải được danh sách hàng chờ');
+    }
+  };
+
+  const assignFromPending = async (emp: Employee) => {
+    setAssigningId(emp.id);
+    try {
+      await api.saveEmployee({ ...emp, branch: branchId, password: undefined });
+      setPendingEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gán chi nhánh thất bại');
+    } finally {
+      setAssigningId(null);
+    }
   };
 
   const openEdit = (emp: Employee) => {
@@ -117,14 +143,24 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
         <h2 className="text-2xl font-bold text-gray-800">
           Nhân viên {branchName ? `— ${branchName}` : ''} ({employees.length})
         </h2>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-        >
-          <UserPlus className="w-5 h-5" />
-          Thêm nhân viên
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={openPending}
+            className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            <UserCheck className="w-5 h-5" />
+            Chọn từ hàng chờ
+          </button>
+          <button
+            type="button"
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+          >
+            <UserPlus className="w-5 h-5" />
+            Thêm nhân viên
+          </button>
+        </div>
       </div>
 
       {employees.length === 0 ? (
@@ -275,6 +311,48 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
                 <Save className="w-5 h-5" />
                 {saving ? 'Đang lưu...' : 'Lưu nhân viên'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPending && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+              <h3 className="text-lg font-bold">Nhân viên chờ phân bổ</h3>
+              <button type="button" onClick={() => setShowPending(false)}>
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6">
+              {pendingEmployees.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Không có nhân viên nào đang chờ phân bổ.</p>
+              ) : (
+                <div className="space-y-3">
+                  {pendingEmployees.map((emp) => (
+                    <div
+                      key={emp.id}
+                      className="flex items-center justify-between gap-4 border rounded-lg p-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-800">{emp.fullName}</p>
+                        <p className="text-xs text-gray-500">
+                          {emp.employeeId} · {POSITION_LABELS[emp.position] || emp.position}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => assignFromPending(emp)}
+                        disabled={assigningId === emp.id}
+                        className="shrink-0 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                      >
+                        {assigningId === emp.id ? 'Đang gán...' : `Gán vào ${branchId}`}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

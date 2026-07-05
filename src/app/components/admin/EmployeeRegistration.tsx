@@ -330,22 +330,24 @@ export function EmployeeRegistration() {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Chi Nhánh <span className="text-red-500">*</span>
+              Chi Nhánh
             </label>
             <select
               name="branch"
               value={formData.branch}
               onChange={handleInputChange}
-              required
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
             >
-              <option value="">-- Chọn chi nhánh --</option>
+              <option value="">-- Chờ phân bổ (chưa gắn chi nhánh) --</option>
               {activeBranches.map(branch => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Để trống để nhân viên vào hàng chờ — quản lý chi nhánh sẽ chọn và gán sau.
+            </p>
           </div>
 
           <div>

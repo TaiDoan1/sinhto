@@ -18,6 +18,7 @@ export function EmployeeList() {
   const { activeBranches } = useBranches();
   const branchOptions = [
     { id: 'ALL', name: 'Tất cả chi nhánh' },
+    { id: 'UNASSIGNED', name: '🕐 Chờ phân bổ' },
     ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
   ];
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -66,7 +67,11 @@ export function EmployeeList() {
   };
 
   const filteredEmployees = employees
-    .filter(emp => branchFilter === 'ALL' || emp.branch === branchFilter)
+    .filter(emp => {
+      if (branchFilter === 'ALL') return true;
+      if (branchFilter === 'UNASSIGNED') return !emp.branch;
+      return emp.branch === branchFilter;
+    })
     .filter(emp =>
       emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,13 +160,17 @@ export function EmployeeList() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
+                      {emp.branch ? (
+                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-100 rounded text-xs font-semibold text-amber-700">Chờ phân bổ</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{getPositionName(emp.position)}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{emp.phone}</td>
                     <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]" title={emp.email}>{emp.email}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
-                      {emp.baseSalary.toLocaleString('vi-VN')}đ
+                      {(emp.baseSalary || 0).toLocaleString('vi-VN')}đ
                     </td>
                     <td className="px-4 py-3 font-mono text-gray-700">{emp.username}</td>
                     <td className="px-4 py-3 font-mono text-gray-500">{emp.password}</td>
@@ -233,6 +242,7 @@ export function EmployeeList() {
                   onChange={e => setEditForm({ ...editForm, branch: e.target.value })}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                 >
+                  <option value="">🕐 Chờ phân bổ (bỏ khỏi chi nhánh)</option>
                   {activeBranches.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}

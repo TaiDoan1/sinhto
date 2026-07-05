@@ -124,16 +124,24 @@ async function initDatabase() {
   const connectionString = process.env.DATABASE_URL;
   dbMode = 'postgres';
 
+  const isSupabase = /supabase\.co/i.test(connectionString);
+
   pool = new Pool({
     connectionString,
-    ssl: { rejectUnauthorized: false },
-    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
-    connectionTimeoutMillis: 10000,
+    ssl: isSupabase ? { rejectUnauthorized: false } : false,
+    max: parseInt(process.env.PG_POOL_MAX || '20', 10),
+    connectionTimeoutMillis: 20000,
     idleTimeoutMillis: 30000,
   });
 
-  await pool.query('SELECT 1');
-  console.log('PostgreSQL connected.');
+  try {
+    await pool.query('SELECT 1');
+    console.log('PostgreSQL connected successfully.');
+  } catch (err) {
+    console.error('Database connection failed:', err.message);
+    // Don't throw - let the server start anyway for diagnostics
+    console.warn('Continuing startup despite database error...');
+  }
 
   const db = createAdapter(pool);
   await initSchemaAndSeeds(pool);

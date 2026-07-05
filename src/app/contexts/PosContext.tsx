@@ -4,6 +4,7 @@ import type { Employee } from '../types/employee';
 import { isOnlineSalesPosition } from '../types/employee';
 
 const SESSION_KEY = 'pos_session';
+const DEVICE_BRANCH_KEY = 'pos_device_branch';
 
 /** Nhân viên được dùng máy POS tại chi nhánh của mình */
 const POS_POSITIONS = new Set(['cashier', 'bartender', 'manager', 'server']);
@@ -20,6 +21,9 @@ interface PosContextType {
   session: PosSession | null;
   isLoggedIn: boolean;
   isLoading: boolean;
+  deviceBranchId: string | null;
+  setDeviceBranchId: (branchId: string) => void;
+  clearDeviceBranch: () => void;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -38,6 +42,7 @@ function toSession(employee: Employee): PosSession {
 
 export function PosProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PosSession | null>(null);
+  const [deviceBranchId, setDeviceBranchIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,11 +54,22 @@ export function PosProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(SESSION_KEY);
       }
     }
+    setDeviceBranchIdState(localStorage.getItem(DEVICE_BRANCH_KEY));
     setIsLoading(false);
   }, []);
 
+  const setDeviceBranchId = (branchId: string) => {
+    localStorage.setItem(DEVICE_BRANCH_KEY, branchId);
+    setDeviceBranchIdState(branchId);
+  };
+
+  const clearDeviceBranch = () => {
+    localStorage.removeItem(DEVICE_BRANCH_KEY);
+    setDeviceBranchIdState(null);
+  };
+
   const login = async (username: string, password: string) => {
-    const employee = await api.employeeLogin(username.trim(), password);
+    const employee = await api.employeeLogin(username.trim(), password, deviceBranchId || undefined);
     if (isOnlineSalesPosition(employee.position)) {
       throw new Error('Tài khoản CSKH — vui lòng đăng nhập tại cổng /cs');
     }
@@ -76,7 +92,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, login, logout }}>
+    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout }}>
       {children}
     </PosContext.Provider>
   );

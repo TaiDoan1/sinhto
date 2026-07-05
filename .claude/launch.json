@@ -5,7 +5,15 @@
       "name": "frontend",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["index.js"],
+      "cwd": "backend",
+      "port": 5005
     }
   ]
 }

@@ -188,11 +188,11 @@ export async function deleteProduct(id: string) {
 }
 
 // --- EMPLOYEES ---
-export async function employeeLogin(username: string, password: string) {
+export async function employeeLogin(username: string, password: string, branchId?: string) {
   const res = await fetchWithTimeout(`${BASE_URL}/auth/employee-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, branchId }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

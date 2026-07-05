@@ -588,7 +588,7 @@ app.delete('/api/products/:id', (req, res) => {
 
 // --- EMPLOYEE AUTH ---
 app.post('/api/auth/employee-login', (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, branchId } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Vui lòng nhập tên đăng nhập và mật khẩu' });
   }
@@ -596,6 +596,9 @@ app.post('/api/auth/employee-login', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row || !verifyPassword(password, row.password)) {
       return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng' });
+    }
+    if (branchId && row.branch !== branchId) {
+      return res.status(403).json({ error: 'Tài khoản không thuộc chi nhánh này. Máy POS này chỉ đăng nhập được tài khoản của chi nhánh đã gán.' });
     }
     const employee = parseEmployeeRow(row);
     res.json(employee);

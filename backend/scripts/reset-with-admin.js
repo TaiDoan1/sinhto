@@ -181,7 +181,7 @@ async function resetPostgres(pool) {
         '2000-01-01',
         '',
         '',
-        'admin',
+        'manager',
         0,
         new Date().toISOString(),
         'nhondo',

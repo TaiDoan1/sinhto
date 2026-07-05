@@ -247,6 +247,8 @@ async function init() {
     "ALTER TABLE shifts ADD COLUMN checkOutPhoto TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN salesStaffId TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN salesStaffName TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN staffId TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN shiftId TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN customerType TEXT DEFAULT 'combo'",
     "ALTER TABLE customer_care_assignments ADD COLUMN fbName TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN pipelineStage TEXT DEFAULT 'nurturing'",

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
+import { useOrders } from '../../contexts/OrderContext';
 import { SHIFT_TEMPLATES, POSITION_LABELS, BRANCH_LABELS, canCancelShift } from '../../types/employee';
 import type { ProfileFieldConfig } from '../../types/employee';
 import { AttendanceCamera } from './AttendanceCamera';
@@ -28,6 +29,7 @@ function todayStr() {
 
 export function EmployeePortal() {
   const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, cancelShift, checkIn, checkOut } = useEmployee();
+  const { orders, history } = useOrders();
   const [tab, setTab] = useState<Tab>('attendance');
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,7 @@ export function EmployeePortal() {
   const [requesting, setRequesting] = useState(false);
   const [cameraMode, setCameraMode] = useState<'in' | 'out' | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -90,8 +93,15 @@ export function EmployeePortal() {
     if (!todayShift || !cameraMode) return;
     try {
       const photoUrl = await api.uploadImage(file);
-      if (cameraMode === 'in') await checkIn(todayShift.id, photoUrl);
-      else await checkOut(todayShift.id, photoUrl);
+      if (cameraMode === 'in') {
+        await checkIn(todayShift.id, photoUrl);
+      } else {
+        const shiftOrders = [...orders, ...history].filter(o => o.shiftId === todayShift.id);
+        const count = shiftOrders.length;
+        const total = shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+        await checkOut(todayShift.id, photoUrl);
+        setShiftSummary({ count, total });
+      }
       setCameraMode(null);
     } catch {
       alert('Chấm công thất bại. Vui lòng thử lại.');
@@ -365,6 +375,33 @@ export function EmployeePortal() {
           onCapture={handleAttendanceCapture}
           onCancel={() => setCameraMode(null)}
         />
+      )}
+
+      {shiftSummary && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Kết ca thành công!</h3>
+            <p className="text-sm text-gray-500 mb-4">Tổng kết ca làm việc của bạn</p>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Số đơn đã bán</span>
+                <span className="font-bold text-gray-900">{shiftSummary.count} đơn</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Doanh thu</span>
+                <span className="font-bold text-emerald-700">{shiftSummary.total.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShiftSummary(null)}
+              className="w-full mt-5 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-xl font-bold"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

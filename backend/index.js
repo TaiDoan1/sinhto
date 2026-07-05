@@ -193,11 +193,11 @@ app.post('/api/orders', (req, res) => {
   const orderNumber = order.orderNumber || Math.floor(Math.random() * 1000) + 1;
   const time = order.time || new Date().toISOString();
 
-  const finishInsert = (salesStaffId, salesStaffName) => {
+  const finishInsert = (salesStaffId, salesStaffName, shiftId) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
-      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -221,6 +221,8 @@ app.post('/api/orders', (req, res) => {
       order.stockDeducted ? 1 : 0,
       salesStaffId || order.salesStaffId || '',
       salesStaffName || order.salesStaffName || '',
+      order.staffId || '',
+      shiftId || '',
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -231,6 +233,8 @@ app.post('/api/orders', (req, res) => {
         orderNumber,
         salesStaffId: salesStaffId || order.salesStaffId || '',
         salesStaffName: salesStaffName || order.salesStaffName || '',
+        staffId: order.staffId || '',
+        shiftId: shiftId || '',
       };
 
       const phone = order.customerPhone;
@@ -258,14 +262,25 @@ app.post('/api/orders', (req, res) => {
     });
   };
 
+  const resolveShiftThenInsert = (salesStaffId, salesStaffName) => {
+    if (!order.staffId) return finishInsert(salesStaffId, salesStaffName, '');
+    db.get(
+      "SELECT id FROM shifts WHERE employeeId = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
+      [order.staffId],
+      (shiftErr, shiftRow) => {
+        finishInsert(salesStaffId, salesStaffName, shiftRow ? shiftRow.id : '');
+      }
+    );
+  };
+
   const refCode = order.salesRefCode || order.salesStaffRef;
   if (!order.salesStaffId && refCode) {
     resolveSalesRef(refCode, (refErr, staff) => {
       if (refErr) return res.status(500).json({ error: refErr.message });
-      finishInsert(staff?.id, staff?.fullName);
+      resolveShiftThenInsert(staff?.id, staff?.fullName);
     });
   } else {
-    finishInsert(order.salesStaffId, order.salesStaffName);
+    resolveShiftThenInsert(order.salesStaffId, order.salesStaffName);
   }
 });
 

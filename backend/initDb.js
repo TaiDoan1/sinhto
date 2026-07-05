@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS orders (
   "paymentMethod" TEXT,
   "stockDeducted" INTEGER,
   "salesStaffId" TEXT,
-  "salesStaffName" TEXT
+  "salesStaffName" TEXT,
+  "staffId" TEXT,
+  "shiftId" TEXT
 );
 
 CREATE TABLE IF NOT EXISTS wholesale_accounts (
@@ -290,6 +292,8 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveredCups" INTEGER DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionAmount" INTEGER DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionStatus" TEXT DEFAULT 'pending'`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "staffId" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shiftId" TEXT`).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS delivery_logs (

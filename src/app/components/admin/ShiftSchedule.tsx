@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
+import { useOrders } from '../../contexts/OrderContext';
 
 export interface Shift {
   id: string;
@@ -40,6 +41,18 @@ export function ShiftSchedule() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [selectedBranch, setSelectedBranch] = useState('CN1');
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
+  const { orders, history } = useOrders();
+  const shiftStats = useMemo(() => {
+    const map = new Map<string, { count: number; total: number }>();
+    for (const o of [...orders, ...history]) {
+      if (!o.shiftId) continue;
+      const stat = map.get(o.shiftId) || { count: 0, total: 0 };
+      stat.count += 1;
+      stat.total += o.total || 0;
+      map.set(o.shiftId, stat);
+    }
+    return map;
+  }, [orders, history]);
   const [selectedCell, setSelectedCell] = useState<{employeeId: string, date: string} | null>(null);
   const [substituteModal, setSubstituteModal] = useState<{shift: Shift} | null>(null);
 
@@ -511,6 +524,11 @@ export function ShiftSchedule() {
                             </div>
                           </div>
                           <div className="text-xs font-semibold">{shift.startTime} - {shift.endTime}</div>
+                          {(shift.status === 'in_progress' || shift.status === 'completed') && shiftStats.has(shift.id) && (
+                            <div className="mt-1 text-[11px] bg-white/20 rounded px-1.5 py-0.5 inline-block">
+                              {shiftStats.get(shift.id)!.count} đơn · {shiftStats.get(shift.id)!.total.toLocaleString('vi-VN')}đ
+                            </div>
+                          )}
                           {shift.isSubstitute && shift.originalEmployeeName && (
                             <div className="mt-1 pt-1 border-t border-white/30">
                               <div className="text-xs opacity-90">

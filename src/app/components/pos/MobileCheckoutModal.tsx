@@ -1,6 +1,7 @@
 import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
+import { usePos } from '../../contexts/PosContext';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
@@ -28,6 +29,8 @@ interface MobileCheckoutModalProps {
 
 export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onClearCart }: MobileCheckoutModalProps) {
   const { addOrder } = useOrders();
+  const { session } = usePos();
+  const staffName = session?.employeeName || 'POS - Nhân viên quầy';
   const { addCombo } = useCombos();
   const { qrImageUrl } = usePaymentQr();
   const {
@@ -71,7 +74,7 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
   const buildReceipt = (orderNumber: string, now: Date, paymentMethod?: string | null) => ({
     orderNumber,
     time: now,
-    staff: 'POS - Nhân viên quầy',
+    staff: staffName,
     paymentMethod: paymentMethod || undefined,
     lines: cartToPrintLines(),
     subtotal,
@@ -133,7 +136,8 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
       items: orderItems,
       status: 'preparing',
       total: total,
-      staff: 'POS - Nhân viên quầy'
+      staff: staffName,
+      staffId: session?.employeeId || '',
     });
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');
@@ -148,7 +152,7 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
             customerPhone: item.rawComboData.customerPhone || activeCustomer?.phone || '',
             totalPrice: item.price,
             branchId,
-            staff: 'POS - Nhân viên quầy',
+            staff: staffName,
             status: 'pending',
             planName: item.name,
           });

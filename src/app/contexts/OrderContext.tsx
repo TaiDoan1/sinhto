@@ -26,6 +26,8 @@ export interface Order {
   salesStaffId?: string;
   salesStaffName?: string;
   stockDeducted?: boolean;
+  staffId?: string;
+  shiftId?: string;
 }
 
 interface OrderContextType {

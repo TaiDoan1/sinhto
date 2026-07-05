@@ -1,6 +1,7 @@
 import { Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
+import { usePos } from '../../contexts/PosContext';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
@@ -27,6 +28,8 @@ interface CheckoutPanelProps {
 
 export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: CheckoutPanelProps) {
   const { addOrder } = useOrders();
+  const { session } = usePos();
+  const staffName = session?.employeeName || 'POS - Nhân viên quầy';
   const { addCombo } = useCombos();
   const { qrImageUrl } = usePaymentQr();
   const {
@@ -70,7 +73,7 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
   const buildReceipt = (orderNumber: string, now: Date, paymentMethod?: string | null) => ({
     orderNumber,
     time: now,
-    staff: 'POS - Nhân viên quầy',
+    staff: staffName,
     paymentMethod: paymentMethod || undefined,
     lines: cartToPrintLines(),
     subtotal,
@@ -132,7 +135,8 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
       items: orderItems,
       status: 'preparing',
       total: total,
-      staff: 'POS - Nhân viên quầy',
+      staff: staffName,
+      staffId: session?.employeeId || '',
       customerName: activeCustomer?.name,
       customerPhone: activeCustomer?.phone,
     });
@@ -149,7 +153,7 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
             customerPhone: item.rawComboData.customerPhone || activeCustomer?.phone || '',
             totalPrice: item.price,
             branchId,
-            staff: 'POS - Nhân viên quầy',
+            staff: staffName,
             status: 'pending',
             planName: item.name,
           });

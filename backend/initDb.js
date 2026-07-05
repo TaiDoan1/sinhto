@@ -269,6 +269,9 @@ async function upsertSetting(pool, key, value) {
 }
 
 async function syncBranches(pool) {
+  const existing = await pool.query('SELECT COUNT(*)::int AS count FROM branches');
+  if (existing.rows[0].count > 0) return;
+
   for (const b of DEFAULT_BRANCHES) {
     await pool.query(
       `INSERT INTO branches (id, name, address, phone, active, "sortOrder", "createdAt")

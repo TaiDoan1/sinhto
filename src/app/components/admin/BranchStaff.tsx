@@ -1,4 +1,4 @@
-import { UserPlus, UserCheck, Phone, Mail, Calendar, Users, Edit2, Trash2, X, Save } from 'lucide-react';
+import { UserPlus, Phone, Mail, Calendar, Users, Edit2, Trash2, X, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -143,24 +143,14 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
         <h2 className="text-2xl font-bold text-gray-800">
           Nhân viên {branchName ? `— ${branchName}` : ''} ({employees.length})
         </h2>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={openPending}
-            className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg font-semibold transition-colors"
-          >
-            <UserCheck className="w-5 h-5" />
-            Chọn từ hàng chờ
-          </button>
-          <button
-            type="button"
-            onClick={openAdd}
-            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-          >
-            <UserPlus className="w-5 h-5" />
-            Thêm nhân viên
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={openPending}
+          className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+        >
+          <UserPlus className="w-5 h-5" />
+          Thêm nhân viên
+        </button>
       </div>
 
       {employees.length === 0 ? (
@@ -169,7 +159,7 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
           <p className="text-gray-600 text-lg">Chưa có nhân viên tại chi nhánh này</p>
           <button
             type="button"
-            onClick={openAdd}
+            onClick={openPending}
             className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-2 rounded-lg font-semibold"
           >
             Thêm nhân viên đầu tiên
@@ -353,6 +343,16 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
                   ))}
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPending(false);
+                  openAdd();
+                }}
+                className="w-full mt-4 py-2.5 border-2 border-dashed border-gray-300 text-gray-500 hover:border-emerald-400 hover:text-emerald-700 rounded-lg text-sm font-semibold"
+              >
+                Không tìm thấy? Tạo nhân viên mới
+              </button>
             </div>
           </div>
         </div>

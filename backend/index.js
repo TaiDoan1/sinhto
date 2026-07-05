@@ -617,7 +617,7 @@ function parseEmployeeRow(row) {
 app.get('/api/branches', (req, res) => {
   const activeOnly = req.query.active === '1' || req.query.active === 'true';
   const sql = activeOnly
-    ? `SELECT * FROM branches WHERE active = 1 OR active IS TRUE ORDER BY sortOrder, id`
+    ? `SELECT * FROM branches WHERE active IS TRUE ORDER BY sortOrder, id`
     : `SELECT * FROM branches ORDER BY sortOrder, id`;
   db.all(sql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });

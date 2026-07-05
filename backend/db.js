@@ -127,7 +127,6 @@ async function initDatabase() {
     connectionString,
     ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
     max: parseInt(process.env.PG_POOL_MAX || '20', 10),
-    family: 4, // Force IPv4 to avoid Supabase IPv6 timeout
   });
 
   await pool.query('SELECT 1');

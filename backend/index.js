@@ -1,3 +1,6 @@
+// Force IPv4 to prevent Supabase IPv6 timeout
+require('dns').setDefaultResultOrder('ipv4first');
+
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');

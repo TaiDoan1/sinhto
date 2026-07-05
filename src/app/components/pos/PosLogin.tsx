@@ -6,6 +6,7 @@ import { fetchBranches } from '../../utils/api';
 interface BranchOption {
   id: string;
   name: string;
+  address?: string;
 }
 
 function DeviceBranchSetup() {
@@ -14,6 +15,7 @@ function DeviceBranchSetup() {
   const [selected, setSelected] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const selectedBranch = branches.find((b) => b.id === selected);
 
   useEffect(() => {
     fetchBranches(true)
@@ -57,9 +59,23 @@ function DeviceBranchSetup() {
                     : 'border-gray-200 hover:border-emerald-300'
                 }`}
               >
-                {b.name}
+                <div>{b.name}</div>
+                {b.address && (
+                  <div className="text-xs font-normal text-gray-500 mt-0.5">{b.address}</div>
+                )}
               </button>
             ))}
+
+            {selectedBranch && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+                <p className="font-bold text-amber-900">Xác nhận máy này thuộc:</p>
+                <p className="text-amber-800">{selectedBranch.name}</p>
+                {selectedBranch.address && (
+                  <p className="text-amber-700 text-xs mt-0.5">{selectedBranch.address}</p>
+                )}
+              </div>
+            )}
+
             <button
               type="button"
               disabled={!selected}

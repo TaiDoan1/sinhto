@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Clock, DollarSign, Check } from 'lucide-react';
+import { ProductSelector } from './ProductSelector';
 import * as api from '../../utils/api';
 
 interface OrderItem {
@@ -27,32 +28,16 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showProductSelector, setShowProductSelector] = useState(false);
 
   const totalPrice = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const handleAddItem = () => {
-    setOrderItems([
-      ...orderItems,
-      {
-        productId: '',
-        productName: 'Combo mới',
-        size: 'M',
-        protein: 40,
-        toppings: [],
-        quantity: 1,
-        price: 0,
-      },
-    ]);
+  const handleAddProduct = (product: any) => {
+    setOrderItems([...orderItems, product]);
   };
 
   const handleRemoveItem = (index: number) => {
     setOrderItems(orderItems.filter((_, i) => i !== index));
-  };
-
-  const handleUpdateItem = (index: number, field: string, value: any) => {
-    const newItems = [...orderItems];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setOrderItems(newItems);
   };
 
   const handleSubmitOrder = async () => {
@@ -196,9 +181,9 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
       {/* Order Items */}
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-gray-800">Sản Phẩm</h3>
+          <h3 className="text-lg font-bold text-gray-800">Sản Phẩm ({orderItems.length})</h3>
           <button
-            onClick={handleAddItem}
+            onClick={() => setShowProductSelector(true)}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -209,69 +194,33 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
         {orderItems.length === 0 ? (
           <p className="text-center text-gray-500 py-8">Chưa có sản phẩm nào</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {orderItems.map((item, index) => (
-              <div key={index} className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <input
-                    type="text"
-                    value={item.productName}
-                    onChange={(e) => handleUpdateItem(index, 'productName', e.target.value)}
-                    placeholder="Tên sản phẩm"
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <select
-                    value={item.size || ''}
-                    onChange={(e) => handleUpdateItem(index, 'size', e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">-- Chọn size (ml) --</option>
-                    <option value="360ml">360ml</option>
-                    <option value="500ml">500ml</option>
-                    <option value="700ml">700ml</option>
-                  </select>
+              <div key={index} className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg p-4 flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900">{item.productName}</div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    {item.size} • {item.protein}g Protein
+                  </div>
+                  {item.toppings.length > 0 && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      Vị: {item.toppings.join(', ')}
+                    </div>
+                  )}
+                  <div className="flex gap-4 mt-2 text-sm">
+                    <span>
+                      <span className="text-gray-600">SL:</span> <span className="font-semibold">{item.quantity}</span>
+                    </span>
+                    <span>
+                      <span className="text-gray-600">Giá:</span> <span className="font-semibold">{item.price.toLocaleString('vi-VN')} đ</span>
+                    </span>
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  <input
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                    placeholder="Số lượng"
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <input
-                    type="number"
-                    value={item.protein || ''}
-                    onChange={(e) => handleUpdateItem(index, 'protein', parseInt(e.target.value) || 40)}
-                    placeholder="Protein (g)"
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <input
-                    type="number"
-                    value={item.price}
-                    onChange={(e) => handleUpdateItem(index, 'price', parseInt(e.target.value) || 0)}
-                    placeholder="Giá"
-                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    value={item.toppings?.join(', ') || ''}
-                    onChange={(e) => handleUpdateItem(index, 'toppings', e.target.value.split(',').map(t => t.trim()).filter(t => t))}
-                    placeholder="Vị/Toppings (cách nhau bằng dấu phẩy)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
                 <button
                   onClick={() => handleRemoveItem(index)}
-                  className="text-red-600 hover:text-red-800 flex items-center gap-1 text-sm"
+                  className="text-red-600 hover:text-red-800 ml-3 shrink-0"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  Xóa
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             ))}
@@ -309,6 +258,14 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
       >
         {loading ? 'Đang tạo đơn...' : 'Tạo Đơn'}
       </button>
+
+      {/* Product Selector Modal */}
+      {showProductSelector && (
+        <ProductSelector
+          onAdd={handleAddProduct}
+          onClose={() => setShowProductSelector(false)}
+        />
+      )}
     </div>
   );
 }

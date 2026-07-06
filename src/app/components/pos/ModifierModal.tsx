@@ -59,7 +59,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
     : COMBO_TOPPINGS;
   const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
   const priceLookup = Object.keys(dynamicPriceTable).length > 0 ? dynamicPriceTable : priceTable;
-  const { checkCartStock, formatShortageMessage, isWarehouseReady, productInventory } = useInventory();
+  const { checkCartStock, formatShortageMessage, productInventory } = useInventory();
 
   // Kho quyết định size túi (S/M/L) theo vị + ml — nhân viên không cần chọn khi bán.
   // Ưu tiên túi còn hàng theo thứ tự S → M → L, mặc định S nếu chưa nhập kho sản phẩm.
@@ -124,11 +124,6 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       toppings: finalToppingsList,
       quantity: 1,
     };
-
-    if (!isWarehouseReady) {
-      alert('Chưa nhập kho. Admin cần nhập nguyên liệu trước khi bán.');
-      return;
-    }
 
     const check = checkCartStock([line]);
     if (!check.ok) {

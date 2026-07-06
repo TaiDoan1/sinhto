@@ -182,30 +182,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return {
         ok: false,
         shortages: [
-          { itemId: '_warehouse', itemName: 'Kho hang', need: 1, have: 0, unit: 'lan' },
+          { itemId: '_warehouse', itemName: 'Chi nhanh', need: 1, have: 0, unit: 'lan' },
         ],
       };
     }
-    if (!isWarehouseReady) {
-      return {
-        ok: false,
-        shortages: [
-          {
-            itemId: '_warehouse',
-            itemName: 'Kho hang',
-            need: 1,
-            have: 0,
-            unit: 'lan',
-          },
-        ],
-      };
-    }
-    return checkStockAvailability(lines, inventory);
+    return checkProductStock(lines);
   };
 
   const formatShortageMessage = (shortages: StockShortage[]) => {
     if (shortages.some((s) => s.itemId === '_warehouse')) {
-      return 'Chưa có phiếu nhập kho tại chi nhánh này. Admin cần nhập kho trong Chi nhánh → Tồn Kho trước khi bán.';
+      return 'Chưa chọn chi nhánh. Vui lòng đăng nhập lại máy POS.';
     }
     return shortages
       .map(
@@ -304,10 +290,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   const deductStockForOrder = (orderId: string, lines: CartStockLine[], staff: string): boolean => {
+    // Kho theo dung tich (checkProductStock, via checkCartStock) la nguon su that
+    // de chan ban hang. Tru kho nguyen lieu ben duoi la ghi nhan song song,
+    // khong lam that bai don hang neu nguyen lieu thieu/chua nhap.
     const check = checkCartStock(lines);
     if (!check.ok) return false;
-    const productCheck = checkProductStock(lines);
-    if (!productCheck.ok) return false;
 
     const needed = aggregateIngredients(lines);
     if (needed.length > 0) {

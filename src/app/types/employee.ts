@@ -70,6 +70,7 @@ export function isOnlineSalesPosition(position: string): boolean {
 
 export const POSITION_LABELS: Record<string, string> = {
   manager: 'Quan Ly Chi Nhanh',
+  store_manager: 'Quan Ly Cua Hang',
   cashier: 'Thu Ngan',
   bartender: 'Pha Che',
   server: 'Phuc Vu',

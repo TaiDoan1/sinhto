@@ -8,8 +8,15 @@ interface SidebarProps {
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const { adminUser, logout } = useAdmin();
+  const isStoreManager = adminUser?.position === 'store_manager';
 
-  const menuItems = [
+  // Store manager chỉ thấy Nhân Sự & Lương menu
+  const storeManagerMenu = [
+    { id: 'hr', label: 'Nhân Sự & Lương', icon: Users },
+  ];
+
+  // Admin thấy tất cả menu items
+  const allMenuItems = [
     { id: 'overview', label: 'Quản Lý CH', icon: LayoutDashboard },
     { id: 'analytics', label: 'Doanh Thu', icon: TrendingUp },
     { id: 'hr', label: 'Nhân Sự & Lương', icon: Users },
@@ -20,6 +27,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'online-sales', label: 'Bán Hàng Online', icon: Globe },
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
   ];
+
+  const menuItems = isStoreManager ? storeManagerMenu : allMenuItems;
 
   return (
     <div className="w-64 bg-gradient-to-b from-emerald-700 to-blue-800 text-white h-screen fixed left-0 top-0 flex flex-col z-40">

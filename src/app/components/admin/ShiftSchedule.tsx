@@ -5,6 +5,7 @@ import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useOrders } from '../../contexts/OrderContext';
+import { useAdmin } from '../../contexts/AdminContext';
 
 export interface Shift {
   id: string;
@@ -34,14 +35,16 @@ const shiftTemplates = [
 ];
 
 export function ShiftSchedule() {
+  const { adminUser } = useAdmin();
+  const isStoreManager = adminUser?.position === 'store_manager';
   const { activeBranches } = useBranches();
   const branches = [
-    { id: 'ALL', name: 'Tất cả chi nhánh' },
+    ...(isStoreManager ? [{ id: 'ALL', name: 'Tất cả chi nhánh' }] : []),
     ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
   ];
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState('CN1');
+  const [selectedBranch, setSelectedBranch] = useState(isStoreManager ? 'ALL' : 'CN1');
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const { orders, history } = useOrders();
   const shiftStats = useMemo(() => {

@@ -7,7 +7,7 @@ const SESSION_KEY = 'pos_session';
 const DEVICE_BRANCH_KEY = 'pos_device_branch';
 
 /** Nhân viên được dùng máy POS tại chi nhánh của mình */
-const POS_POSITIONS = new Set(['cashier', 'bartender', 'manager', 'server']);
+const POS_POSITIONS = new Set(['cashier', 'bartender', 'manager', 'store_manager', 'server']);
 
 export interface PosSession {
   employeeId: string;
@@ -79,7 +79,14 @@ export function PosProvider({ children }: { children: ReactNode }) {
     if (!employee.branch) {
       throw new Error('Tài khoản chưa gắn chi nhánh. Liên hệ Admin.');
     }
-    const sess = toSession(employee);
+
+    // Store manager can check in at any branch via deviceBranchId
+    let sessionBranch = employee.branch;
+    if (employee.position === 'store_manager' && deviceBranchId) {
+      sessionBranch = deviceBranchId;
+    }
+
+    const sess = { ...toSession(employee), branchId: sessionBranch };
     setSession(sess);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
     localStorage.setItem('pos_branch', sess.branchId);
@@ -95,8 +102,13 @@ export function PosProvider({ children }: { children: ReactNode }) {
         (s) => s.status !== 'in_progress' && s.status !== 'completed' && s.status !== 'rejected'
       );
 
+      // Store manager can check in shifts from any branch
+      const eligibleForBranch = employee.position === 'store_manager'
+        ? eligible
+        : eligible.filter((s) => s.branch === sessionBranch);
+
       const currentHour = new Date().getHours();
-      const matchingNow = eligible.find((s) => {
+      const matchingNow = eligibleForBranch.find((s) => {
         const startHour = parseInt(s.startTime.split(':')[0], 10);
         const endHour = parseInt(s.endTime.split(':')[0], 10);
         if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua dem
@@ -104,7 +116,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       });
 
       const shiftToCheckIn =
-        matchingNow || [...eligible].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+        matchingNow || [...eligibleForBranch].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
 
       if (shiftToCheckIn) {
         await api.shiftCheckIn(shiftToCheckIn.id, 'in');

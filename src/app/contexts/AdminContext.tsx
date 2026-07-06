@@ -3,7 +3,7 @@ import * as api from '../utils/api';
 import type { Employee } from '../types/employee';
 
 const SESSION_KEY = 'admin_session';
-const ALLOWED_POSITIONS = new Set(['manager']);
+const ALLOWED_POSITIONS = new Set(['manager', 'store_manager']);
 
 interface AdminContextType {
   adminUser: Employee | null;

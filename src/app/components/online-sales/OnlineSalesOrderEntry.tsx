@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useInventory } from '../../contexts/InventoryContext';
-import { ModifierModal, type CartItem } from '../pos/ModifierModal';
+import type { CartItem } from '../pos/ModifierModal';
 import { ProductSelector } from './ProductSelector';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
@@ -13,14 +13,6 @@ import type { Employee } from '../../types/employee';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
-
-interface Product {
-  id: string;
-  name: string;
-  basePrice: number;
-  image?: string;
-  category?: string;
-}
 
 interface Props {
   employee: Employee;
@@ -43,22 +35,12 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [claimComboNow, setClaimComboNow] = useState(true);
   const [notes, setNotes] = useState('');
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-
-  useEffect(() => {
-    api.fetchProducts()
-      .then((data) => setProducts(data))
-      .catch(console.error)
-      .finally(() => setProductsLoading(false));
-  }, []);
 
   useEffect(() => {
     if (prefill) {
@@ -380,37 +362,16 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                     onCancel={() => setShowProductSelector(false)}
                   />
                 ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                      <button
-                        type="button"
-                        onClick={() => setShowProductSelector(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Thêm sản phẩm
-                      </button>
-                    </div>
-                    {productsLoading ? (
-                      <div className="flex justify-center py-10">
-                        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto">
-                        {products.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setSelectedProduct(p)}
-                            className="text-left p-3 rounded-xl border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
-                          >
-                            <p className="font-semibold text-sm text-gray-900 line-clamp-2">{p.name}</p>
-                            <p className="text-indigo-700 font-bold text-sm mt-1">{p.basePrice.toLocaleString('vi-VN')}đ</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowProductSelector(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm sản phẩm
+                    </button>
                   </div>
                 )}
               </div>
@@ -490,18 +451,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           )}
         </div>
       </div>
-
-      {selectedProduct && (
-        <ModifierModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onAddToCart={(item) => {
-            setCart((prev) => [...prev, item]);
-            setSelectedProduct(null);
-          }}
-        />
-      )}
-
 
       {showComboBuilder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">

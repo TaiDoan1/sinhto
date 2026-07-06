@@ -334,6 +334,42 @@ async function initSchemaAndSeeds(pool) {
 
   await pool.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS "branchId" TEXT DEFAULT 'CN1'`).catch(() => {});
 
+  // Add platform column to customer_care_assignments (Facebook, Zalo, etc.)
+  await pool.query(`ALTER TABLE customer_care_assignments ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'facebook'`).catch(() => {});
+
+  // CSKH check-in/out tracking
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cskh_checkins (
+      id TEXT PRIMARY KEY,
+      "cskhId" TEXT NOT NULL,
+      "cskhName" TEXT NOT NULL,
+      "checkinTime" TEXT NOT NULL,
+      "checkoutTime" TEXT,
+      status TEXT DEFAULT 'active',
+      date TEXT NOT NULL,
+      "branchId" TEXT,
+      notes TEXT,
+      "createdAt" TEXT
+    )
+  `).catch(() => {});
+
+  // Delivery alerts for reminding about upcoming orders
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS delivery_alerts (
+      id TEXT PRIMARY KEY,
+      "comboOrderId" TEXT NOT NULL,
+      "customerName" TEXT,
+      "customerPhone" TEXT,
+      "deliveryTime" TEXT NOT NULL,
+      "scheduledAlertTime" TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      "alertMethod" TEXT DEFAULT 'email,zalo',
+      "sentAt" TEXT,
+      "sentTo" TEXT,
+      "createdAt" TEXT
+    )
+  `).catch(() => {});
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS branches (
       id TEXT PRIMARY KEY,

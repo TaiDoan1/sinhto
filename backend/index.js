@@ -11,6 +11,7 @@ const { hashPassword, verifyPassword, isHashed } = require('./password');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
 const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
+const { registerCskhRoutes } = require('./cskhApi');
 const {
   initBranchInventory,
   getInventoryForBranch,
@@ -1827,6 +1828,7 @@ async function start() {
       upsertCareAssignment,
     });
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
+    registerCskhRoutes(app, db, { broadcast });
     initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

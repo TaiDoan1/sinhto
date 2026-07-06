@@ -2,35 +2,45 @@ import { Clock, Package, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 
-const sourceColors = {
+const sourceColors: Record<string, string> = {
   counter: 'bg-green-500',
   web: 'bg-emerald-600',
-  offline: 'bg-emerald-500'
+  mobile: 'bg-emerald-500',
+  online_sales: 'bg-pink-500',
 };
 
-const sourceLabels = {
+const sourceLabels: Record<string, string> = {
   counter: 'Tại Quầy',
   web: 'Đặt Web',
-  offline: 'Offline'
+  mobile: 'Mobile',
+  online_sales: 'Bán Online',
 };
 
-const statusLabels = {
-  confirm: 'Xác Nhận',
-  prepare: 'Pha Chế',
+const statusLabels: Record<string, string> = {
+  pending: 'Chờ Xử Lý',
+  preparing: 'Pha Chế',
   ready: 'Hoàn Thành',
-  deliver: 'Đã Giao'
+  delivering: 'Đang Giao',
+  completed: 'Đã Giao',
 };
 
 interface BranchOrdersProps {
   branchId: string;
 }
 
+function isToday(d: Date) {
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
 export function BranchOrders({ branchId }: BranchOrdersProps) {
-  const { orders: allOrders } = useOrders();
+  const { orders: allOrders, history } = useOrders();
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Filter orders by branch
-  const orders = allOrders.filter(order => order.branchId === branchId);
+  // Filter orders by branch + hôm nay (bao gồm cả đơn đã hoàn thành nằm trong history)
+  const orders = [...allOrders, ...history].filter(
+    order => order.branchId === branchId && isToday(order.time)
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -43,8 +53,8 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
     return Math.floor((currentTime.getTime() - orderTime.getTime()) / 60000);
   };
 
-  const activeOrders = orders.filter(o => o.status !== 'deliver');
-  const completedOrders = orders.filter(o => o.status === 'deliver');
+  const activeOrders = orders.filter(o => o.status !== 'completed');
+  const completedOrders = orders.filter(o => o.status === 'completed');
 
   return (
     <div>
@@ -93,9 +103,9 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                       </div>
 
                       <div className="mb-3">
-                        {order.items.map((item, idx) => (
+                        {order.items.map((item: any, idx: number) => (
                           <div key={idx} className="text-sm text-gray-700 ml-2">
-                            • {item}
+                            • {typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`}
                           </div>
                         ))}
                       </div>
@@ -106,8 +116,8 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                         </div>
                         <div className="flex gap-2">
                           <span className={`px-3 py-1 rounded text-sm font-semibold ${
-                            order.status === 'confirm' ? 'bg-yellow-100 text-yellow-700' :
-                            order.status === 'prepare' ? 'bg-emerald-100 text-emerald-800' :
+                            order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            order.status === 'preparing' ? 'bg-emerald-100 text-emerald-800' :
                             'bg-green-100 text-green-700'
                           }`}>
                             {statusLabels[order.status]}
@@ -140,7 +150,11 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                           <span className="text-sm text-gray-600">• {order.staff}</span>
                         </div>
                         <div className="text-sm text-gray-600 ml-2">
-                          {order.items.join(', ')}
+                          {order.items
+                            .map((item: any) =>
+                              typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`
+                            )
+                            .join(', ')}
                         </div>
                       </div>
                       <div className="text-right">

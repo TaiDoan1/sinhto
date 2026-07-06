@@ -323,12 +323,14 @@ export function ShiftSchedule() {
     }
   };
 
-  const getShift = (employeeId: string, date: string) =>
-    shifts.find(s =>
-      s.employeeId === employeeId && s.date === date &&
-      (shiftBranch ? s.branch === shiftBranch : true) &&
-      s.status !== 'pending' && s.status !== 'rejected'
-    );
+  const getShiftsForCell = (employeeId: string, date: string) =>
+    shifts
+      .filter(s =>
+        s.employeeId === employeeId && s.date === date &&
+        (shiftBranch ? s.branch === shiftBranch : true) &&
+        s.status !== 'pending' && s.status !== 'rejected'
+      )
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const pendingShifts = shifts.filter(s => s.status === 'pending');
 
@@ -491,94 +493,100 @@ export function ShiftSchedule() {
                 </td>
                 {weekDays.map((day, i) => {
                   const dateStr = day.toISOString().split('T')[0];
-                  const shift = getShift(emp.id, dateStr);
+                  const dayShifts = getShiftsForCell(emp.id, dateStr);
+                  const isPicking = selectedCell?.employeeId === emp.id && selectedCell?.date === dateStr;
 
                   return (
                     <td key={i} className="border border-gray-200 p-1 align-top">
-                      {shift ? (
-                        <div className={`relative bg-gradient-to-r ${shift.shiftType === 'morning' ? 'from-emerald-500 to-yellow-400' : shift.shiftType === 'afternoon' ? 'from-blue-400 to-cyan-400' : 'from-purple-400 to-pink-400'} text-white rounded-lg p-2 shadow-sm group`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold">
-                              {shift.shiftType === 'morning' ? '🌅' : shift.shiftType === 'afternoon' ? '☀️' : '🌙'}
-                            </span>
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => handleTogglePin(shift.id)}
-                                className={`p-1 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
-                                title={shift.isPinned ? 'Bỏ ghim' : 'Ghim'}
-                              >
-                                <Pin className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => setSubstituteModal({ shift })}
-                                className="p-1 bg-white/20 hover:bg-white/30 rounded"
-                                title="Thay ca"
-                              >
-                                <Repeat className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteShift(shift.id)}
-                                className="p-1 bg-red-500 rounded hover:bg-red-600"
-                                title="Xóa"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                      <div className="space-y-1">
+                        {dayShifts.map((shift) => (
+                          <div key={shift.id} className={`relative bg-gradient-to-r ${shift.shiftType === 'morning' ? 'from-emerald-500 to-yellow-400' : shift.shiftType === 'afternoon' ? 'from-blue-400 to-cyan-400' : 'from-purple-400 to-pink-400'} text-white rounded-lg p-2 shadow-sm group`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold">
+                                {shift.shiftType === 'morning' ? '🌅' : shift.shiftType === 'afternoon' ? '☀️' : '🌙'}
+                              </span>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleTogglePin(shift.id)}
+                                  className={`p-1 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
+                                  title={shift.isPinned ? 'Bỏ ghim' : 'Ghim'}
+                                >
+                                  <Pin className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => setSubstituteModal({ shift })}
+                                  className="p-1 bg-white/20 hover:bg-white/30 rounded"
+                                  title="Thay ca"
+                                >
+                                  <Repeat className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteShift(shift.id)}
+                                  className="p-1 bg-red-500 rounded hover:bg-red-600"
+                                  title="Xóa"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
+                            <div className="text-xs font-semibold">{shift.startTime} - {shift.endTime}</div>
+                            {(() => {
+                              const hasClosingSnapshot =
+                                shift.status === 'completed' && shift.closingOrderCount != null;
+                              const stat = hasClosingSnapshot
+                                ? { count: shift.closingOrderCount!, total: shift.closingRevenue || 0 }
+                                : shiftStats.get(shift.id);
+                              if (!stat || (shift.status !== 'in_progress' && shift.status !== 'completed')) return null;
+                              return (
+                                <div className="mt-1 text-[11px] bg-white/20 rounded px-1.5 py-0.5 inline-block">
+                                  {stat.count} đơn · {stat.total.toLocaleString('vi-VN')}đ
+                                </div>
+                              );
+                            })()}
+                            {shift.isSubstitute && shift.originalEmployeeName && (
+                              <div className="mt-1 pt-1 border-t border-white/30">
+                                <div className="text-xs opacity-90">
+                                  <span className="font-semibold">Thay:</span> {shift.originalEmployeeName}
+                                </div>
+                                <button
+                                  onClick={() => handleCancelSubstitute(shift.id)}
+                                  className="mt-1 text-xs underline hover:no-underline"
+                                >
+                                  Hủy thay ca
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-xs font-semibold">{shift.startTime} - {shift.endTime}</div>
-                          {(() => {
-                            const hasClosingSnapshot =
-                              shift.status === 'completed' && shift.closingOrderCount != null;
-                            const stat = hasClosingSnapshot
-                              ? { count: shift.closingOrderCount!, total: shift.closingRevenue || 0 }
-                              : shiftStats.get(shift.id);
-                            if (!stat || (shift.status !== 'in_progress' && shift.status !== 'completed')) return null;
-                            return (
-                              <div className="mt-1 text-[11px] bg-white/20 rounded px-1.5 py-0.5 inline-block">
-                                {stat.count} đơn · {stat.total.toLocaleString('vi-VN')}đ
-                              </div>
-                            );
-                          })()}
-                          {shift.isSubstitute && shift.originalEmployeeName && (
-                            <div className="mt-1 pt-1 border-t border-white/30">
-                              <div className="text-xs opacity-90">
-                                <span className="font-semibold">Thay:</span> {shift.originalEmployeeName}
-                              </div>
+                        ))}
+
+                        {isPicking ? (
+                          <div className="space-y-1">
+                            {shiftTemplates.map((tpl) => (
                               <button
-                                onClick={() => handleCancelSubstitute(shift.id)}
-                                className="mt-1 text-xs underline hover:no-underline"
+                                key={tpl.name}
+                                onClick={() => handleAddShift(emp.id, dateStr, tpl)}
+                                className={`w-full bg-gradient-to-r ${tpl.color} text-white rounded-lg p-2 text-xs font-bold hover:shadow-lg transition-all`}
                               >
-                                Hủy thay ca
+                                {tpl.name}
                               </button>
-                            </div>
-                          )}
-                        </div>
-                      ) : selectedCell?.employeeId === emp.id && selectedCell?.date === dateStr ? (
-                        <div className="space-y-1">
-                          {shiftTemplates.map((tpl) => (
+                            ))}
                             <button
-                              key={tpl.name}
-                              onClick={() => handleAddShift(emp.id, dateStr, tpl)}
-                              className={`w-full bg-gradient-to-r ${tpl.color} text-white rounded-lg p-2 text-xs font-bold hover:shadow-lg transition-all`}
+                              onClick={() => setSelectedCell(null)}
+                              className="w-full bg-gray-200 text-gray-700 rounded-lg p-1 text-xs font-semibold hover:bg-gray-300"
                             >
-                              {tpl.name}
+                              Hủy
                             </button>
-                          ))}
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => setSelectedCell(null)}
-                            className="w-full bg-gray-200 text-gray-700 rounded-lg p-1 text-xs font-semibold hover:bg-gray-300"
+                            onClick={() => setSelectedCell({ employeeId: emp.id, date: dateStr })}
+                            className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 ? 'min-h-[60px]' : 'py-1'}`}
+                            title="Thêm ca"
                           >
-                            Hủy
+                            <div className={dayShifts.length === 0 ? 'text-2xl' : 'text-sm'}>+</div>
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setSelectedCell({ employeeId: emp.id, date: dateStr })}
-                          className="w-full h-full min-h-[60px] flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg"
-                        >
-                          <div className="text-2xl">+</div>
-                        </button>
-                      )}
+                        )}
+                      </div>
                     </td>
                   );
                 })}

@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ChevronDown, ChevronUp, Printer } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, Printer, X } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { aggregateShiftItems, printShiftClosingReceipt } from '../../utils/posPrint';
+
+function formatItemLine(item: any) {
+  return typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`;
+}
 
 interface ShiftRow {
   id: string;
@@ -45,7 +49,7 @@ const statusMeta: Record<string, { label: string; className: string; icon: typeo
 export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const [date, setDate] = useState(todayStr());
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailShift, setDetailShift] = useState<ShiftRow | null>(null);
   const { subscribe } = useSSE();
   const { orders, history } = useOrders();
   const allOrders = useMemo(() => [...orders, ...history], [orders, history]);
@@ -145,8 +149,6 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
             const meta = statusMeta[shift.status] || statusMeta.scheduled;
             const StatusIcon = meta.icon;
             const stat = getStat(shift);
-            const isExpanded = expandedId === shift.id;
-            const items = isExpanded ? aggregateShiftItems(getShiftOrders(shift)) : [];
             return (
               <div key={shift.id} className="bg-white rounded-lg shadow-md p-5">
                 <div className="flex justify-between items-start gap-4">
@@ -189,12 +191,12 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                 <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                   <button
                     type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : shift.id)}
+                    onClick={() => setDetailShift(shift)}
                     disabled={stat.count === 0}
                     className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    Sản phẩm đã bán
+                    <ListOrdered className="w-3.5 h-3.5" />
+                    Xem chi tiết đơn hàng
                   </button>
                   <button
                     type="button"
@@ -206,24 +208,58 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                     In bill
                   </button>
                 </div>
-
-                {isExpanded && (
-                  <div className="mt-2 bg-gray-50 rounded-lg p-3 space-y-1">
-                    {items.length === 0 ? (
-                      <p className="text-xs text-gray-400">Không có dữ liệu sản phẩm</p>
-                    ) : (
-                      items.map((it) => (
-                        <div key={it.productName} className="flex justify-between text-xs">
-                          <span className="text-gray-700">{it.productName} x{it.quantity}</span>
-                          <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {detailShift && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">{detailShift.employeeName}</h3>
+                <p className="text-sm text-gray-500">
+                  {detailShift.startTime} - {detailShift.endTime} · {getStat(detailShift).count} đơn ·{' '}
+                  {getStat(detailShift).total.toLocaleString('vi-VN')}đ
+                </p>
+              </div>
+              <button type="button" onClick={() => setDetailShift(null)}>
+                <X className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              {getShiftOrders(detailShift)
+                .sort((a, b) => a.time.getTime() - b.time.getTime())
+                .map((order) => (
+                  <div key={order.id} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="font-semibold text-gray-800 text-sm">{order.id}</span>
+                      <span className="text-xs text-gray-500">
+                        {order.time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="space-y-0.5 mb-2">
+                      {(order.items || []).map((item: any, idx: number) => (
+                        <div key={idx} className="text-xs text-gray-600">
+                          • {formatItemLine(item)}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t text-sm">
+                      {order.customerPhone && <span className="text-gray-500">{order.customerPhone}</span>}
+                      <span className="font-bold text-emerald-700 ml-auto">
+                        {(order.total || 0).toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              {getShiftOrders(detailShift).length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Không có đơn hàng nào</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

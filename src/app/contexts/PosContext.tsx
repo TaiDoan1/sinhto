@@ -84,14 +84,28 @@ export function PosProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
     localStorage.setItem('pos_branch', sess.branchId);
 
-    // Tu dong check-in vao ca hom nay (neu co) de kh khi dang xuat POS
+    // Tu dong check-in vao ca hom nay (neu co) de khi dang xuat POS
     // luon tim duoc ca dang mo va hien man hinh ket ca.
+    // Nhan vien co the co nhieu ca/ngay (VD ca sang + ca toi) nen phai
+    // chon dung ca khop voi gio hien tai, khong chi lay ca dau tien tim thay.
     try {
       const today = new Date().toISOString().split('T')[0];
-      const todayShifts = await api.fetchShifts({ employeeId: employee.id, date: today });
-      const shiftToCheckIn = (todayShifts || []).find(
-        (s: any) => s.status !== 'in_progress' && s.status !== 'completed' && s.status !== 'rejected'
+      const todayShifts = (await api.fetchShifts({ employeeId: employee.id, date: today })) as any[];
+      const eligible = (todayShifts || []).filter(
+        (s) => s.status !== 'in_progress' && s.status !== 'completed' && s.status !== 'rejected'
       );
+
+      const currentHour = new Date().getHours();
+      const matchingNow = eligible.find((s) => {
+        const startHour = parseInt(s.startTime.split(':')[0], 10);
+        const endHour = parseInt(s.endTime.split(':')[0], 10);
+        if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua dem
+        return currentHour >= startHour && currentHour < endHour;
+      });
+
+      const shiftToCheckIn =
+        matchingNow || [...eligible].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+
       if (shiftToCheckIn) {
         await api.shiftCheckIn(shiftToCheckIn.id, 'in');
       }

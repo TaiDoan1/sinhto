@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
-  Loader2, CheckCircle2, CreditCard, Banknote, X,
+  Loader2, CheckCircle2, CreditCard, Banknote, X, Store,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
-import { useInventory } from '../../contexts/InventoryContext';
 import { ProductGrid, type Product } from '../pos/ProductGrid';
 import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
+import { BRANCH_LABELS } from '../../types/employee';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
@@ -22,7 +22,6 @@ interface Props {
 
 export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) {
   const { addOrder } = useOrders();
-  const { checkCartStock, formatShortageMessage, isWarehouseReady } = useInventory();
 
   const [mode, setMode] = useState<OrderMode>('retail');
   const [customer, setCustomer] = useState({
@@ -30,6 +29,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     phone: prefill?.phone || '',
     address: prefill?.address || '',
   });
+  const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [markPaid, setMarkPaid] = useState(true);
   const [claimComboNow, setClaimComboNow] = useState(true);
@@ -105,20 +105,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     setSubmitting(true);
     setSuccessMsg('');
     try {
-      const stockLines = cart.map((item) => ({
-        productId: item.productId,
-        productName: item.productName || item.name,
-        size: item.size,
-        protein: item.protein,
-        toppings: item.toppings,
-        quantity: item.quantity,
-      }));
-      const stockCheck = checkCartStock(stockLines);
-      if (!stockCheck.ok) {
-        alert(`Không thể tạo đơn:\n${formatShortageMessage(stockCheck.shortages)}`);
-        return;
-      }
-
       const orderItems = cart.map((item) => ({
         productId: item.productId,
         productName: item.productName || item.name,
@@ -131,22 +117,25 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }));
 
       const now = new Date();
-      const ok = addOrder({
-        branchId: employee.branch || 'CN1',
-        source: 'online_sales',
-        items: orderItems,
-        status: markPaid ? 'completed' : 'pending',
-        total: cartTotal,
-        customerName: customer.name.trim(),
-        customerPhone: customer.phone.trim(),
-        deliveryAddress: customer.address.trim(),
-        paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
-        paidAt: markPaid ? now : undefined,
-        completedAt: markPaid ? now : undefined,
-        ...staffPayload(),
-      });
+      const ok = addOrder(
+        {
+          branchId: deliveryBranch,
+          source: 'online_sales',
+          items: orderItems,
+          status: markPaid ? 'completed' : 'pending',
+          total: cartTotal,
+          customerName: customer.name.trim(),
+          customerPhone: customer.phone.trim(),
+          deliveryAddress: customer.address.trim(),
+          paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
+          paidAt: markPaid ? now : undefined,
+          completedAt: markPaid ? now : undefined,
+          ...staffPayload(),
+        },
+        { skipStockCheck: true }
+      );
       if (!ok) {
-        alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhờ Admin nhập kho.');
+        alert('Tạo đơn thất bại. Vui lòng thử lại.');
         return;
       }
 
@@ -198,7 +187,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         items: raw,
         totalPrice: pendingCombo.price,
         status: 'pending',
-        branchId: employee.branch || 'CN1',
+        branchId: deliveryBranch,
         staff: `CSKH - ${employee.fullName}`,
         notes: notes.trim(),
         salesRefCode: employee.username,
@@ -299,6 +288,20 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm h-20 resize-none"
               />
             </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5" /> Chi nhánh gần khách nhất (nhận đơn)
+              </label>
+              <select
+                value={deliveryBranch}
+                onChange={(e) => setDeliveryBranch(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+              >
+                {Object.entries(BRANCH_LABELS).map(([id, label]) => (
+                  <option key={id} value={id}>{label}</option>
+                ))}
+              </select>
+            </div>
             <textarea
               placeholder="Ghi chú đơn hàng (tuỳ chọn)"
               value={notes}
@@ -369,9 +372,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                           product={selectedProduct}
                           onClose={() => setSelectedProduct(null)}
                           onAddToCart={handleAddToCart}
+                          theme="purple"
                         />
                       ) : (
-                        <ProductGrid onProductClick={setSelectedProduct} />
+                        <ProductGrid onProductClick={setSelectedProduct} theme="purple" />
                       )}
                     </div>
                   </div>

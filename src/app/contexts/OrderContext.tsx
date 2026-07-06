@@ -34,7 +34,7 @@ interface OrderContextType {
   orders: Order[];
   history: Order[];
   offlineQueueLength: number;
-  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>) => boolean;
+  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }) => boolean;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
 }
@@ -174,7 +174,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [offlineQueue]);
 
-  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>): boolean => {
+  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }): boolean => {
     const now = new Date();
     const tempId = `ORD-${Date.now()}`;
     const stockLines = (orderData.items || []).map((item) =>
@@ -203,7 +203,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       stockDeducted: false,
     };
 
-    if (newOrder.paidAt && retailLines.length > 0) {
+    if (options?.skipStockCheck) {
+      // Chi nhánh nhận đơn sẽ tự trừ kho khi họ hoàn tất đơn (xem updateOrderStatus).
+      newOrder.stockDeducted = retailLines.length === 0;
+    } else if (newOrder.paidAt && retailLines.length > 0) {
       const success = deductStockForOrder(tempId, retailLines, newOrder.staff || 'System');
       if (!success) return false;
       newOrder.stockDeducted = true;

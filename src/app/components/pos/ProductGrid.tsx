@@ -16,7 +16,35 @@ export interface Product {
 
 interface ProductGridProps {
   onProductClick: (product: Product) => void;
+  theme?: 'emerald' | 'purple';
 }
+
+const GRID_THEMES = {
+  emerald: {
+    activeTab: 'bg-emerald-700 text-white shadow-sm',
+    searchFocus: 'focus:border-emerald-600',
+    sizeCard: 'hover:bg-emerald-50/50 hover:border-emerald-500',
+    sizeIcon: 'bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white',
+    backLink: 'hover:text-emerald-700',
+    filterBar: 'bg-emerald-50 border-emerald-200',
+    filterTag: 'text-emerald-700',
+    freeText: 'text-emerald-600',
+    smallBtn: 'text-emerald-700 border-emerald-300',
+    addIcon: 'bg-emerald-700',
+  },
+  purple: {
+    activeTab: 'bg-purple-700 text-white shadow-sm',
+    searchFocus: 'focus:border-purple-600',
+    sizeCard: 'hover:bg-purple-50/50 hover:border-purple-500',
+    sizeIcon: 'bg-purple-100 group-hover:bg-purple-600 text-purple-700 group-hover:text-white',
+    backLink: 'hover:text-purple-700',
+    filterBar: 'bg-purple-50 border-purple-200',
+    filterTag: 'text-purple-700',
+    freeText: 'text-purple-600',
+    smallBtn: 'text-purple-700 border-purple-300',
+    addIcon: 'bg-purple-700',
+  },
+} as const;
 
 export const getMenuProducts = (): Promise<Product[]> => {
   return api.fetchProducts();
@@ -29,7 +57,8 @@ const categories = [
 ];
 
 
-export function ProductGrid({ onProductClick }: ProductGridProps) {
+export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridProps) {
+  const t = GRID_THEMES[theme];
   const [activeCategory, setActiveCategory] = useState<'smoothies' | 'toppings' | 'combo'>('smoothies');
   const [searchTerm, setSearchTerm] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -107,7 +136,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
               }}
               className={`pos-cat-btn flex flex-col items-center justify-center rounded-lg font-medium transition-all ${
                 activeCategory === cat.id
-                  ? 'bg-emerald-700 text-white shadow-sm'
+                  ? t.activeTab
                   : 'bg-gray-100 text-gray-700 active:bg-gray-200'
               }`}
             >
@@ -125,7 +154,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
             placeholder="Tìm sản phẩm..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pos-search-input w-full pl-10 pr-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-emerald-600"
+            className={`pos-search-input w-full pl-10 pr-3 border-2 border-gray-200 rounded-lg focus:outline-none ${t.searchFocus}`}
           />
         </div>
       </div>
@@ -145,9 +174,9 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                 <button
                   key={s.id}
                   onClick={() => setSelectedSize(s.id)}
-                  className="pos-size-card bg-white hover:bg-emerald-50/50 border-2 border-gray-200 hover:border-emerald-500 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer"
+                  className={`pos-size-card bg-white border-2 border-gray-200 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer ${t.sizeCard}`}
                 >
-                  <div className="pos-size-icon rounded-lg bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black transition-colors">
+                  <div className={`pos-size-icon rounded-lg flex items-center justify-center font-black transition-colors ${t.sizeIcon}`}>
                     {s.id.replace('ml', '')}
                     <span className="text-[9px] ml-0.5 font-bold">ml</span>
                   </div>
@@ -170,9 +199,9 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                 <button
                   key={level}
                   onClick={() => setSelectedProtein(level)}
-                  className="pos-size-card bg-white hover:bg-emerald-50/50 border-2 border-gray-200 hover:border-emerald-500 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer"
+                  className={`pos-size-card bg-white border-2 border-gray-200 shadow-sm transition-all text-left flex flex-col group active:scale-95 cursor-pointer ${t.sizeCard}`}
                 >
-                  <div className="pos-size-icon rounded-lg bg-emerald-100 group-hover:bg-emerald-600 text-emerald-700 group-hover:text-white flex items-center justify-center font-black transition-colors">
+                  <div className={`pos-size-icon rounded-lg flex items-center justify-center font-black transition-colors ${t.sizeIcon}`}>
                     {level}g
                   </div>
                   <div>
@@ -185,7 +214,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
             <div className="text-center mt-4">
               <button
                 onClick={() => setSelectedSize('')}
-                className="text-xs font-bold text-gray-500 hover:text-emerald-700 underline"
+                className={`text-xs font-bold text-gray-500 underline ${t.backLink}`}
               >
                 Quay lại bước chọn dung tích (ml)
               </button>
@@ -195,22 +224,22 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
           /* Products Grid list (Flavors) */
           <div className="space-y-2">
             {activeCategory === 'smoothies' && selectedSize && (
-              <div className="pos-filter-bar flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5">
+              <div className={`pos-filter-bar flex items-center justify-between rounded-lg px-2 py-1.5 border ${t.filterBar}`}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-emerald-700 font-bold">{selectedSize}</span>
-                  <span className="text-emerald-700 font-bold">{selectedProtein}g</span>
+                  <span className={`font-bold ${t.filterTag}`}>{selectedSize}</span>
+                  <span className={`font-bold ${t.filterTag}`}>{selectedProtein}g</span>
                   {selectedProtein !== null && (
                     <span className="text-gray-600 text-[10px] font-bold">
                       Giá ly: {resolveCupPrice(selectedSize, selectedProtein, priceTable).toLocaleString('vi-VN')}đ
                     </span>
                   )}
-                  <span className="text-emerald-600 text-[10px] font-bold">Vị miễn phí</span>
+                  <span className={`text-[10px] font-bold ${t.freeText}`}>Vị miễn phí</span>
                 </div>
                 <div className="flex gap-1">
                   <button
                     type="button"
                     onClick={() => setSelectedProtein(null)}
-                    className="text-[10px] font-bold text-emerald-700 bg-white border border-emerald-300 px-2 py-0.5 rounded"
+                    className={`text-[10px] font-bold bg-white border px-2 py-0.5 rounded ${t.smallBtn}`}
                   >
                     Đổi Protein
                   </button>
@@ -220,7 +249,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                       setSelectedSize('');
                       setSelectedProtein(null);
                     }}
-                    className="text-[10px] font-bold text-emerald-700 bg-white border border-emerald-300 px-2 py-0.5 rounded"
+                    className={`text-[10px] font-bold bg-white border px-2 py-0.5 rounded ${t.smallBtn}`}
                   >
                     Đổi ly
                   </button>
@@ -256,7 +285,7 @@ export function ProductGrid({ onProductClick }: ProductGridProps) {
                     <div className="pos-flavor-name font-bold text-gray-800 text-center line-clamp-2 w-full">
                       {product.name}
                     </div>
-                    <div className="pos-flavor-add bg-emerald-700 text-white rounded-full p-1.5">
+                    <div className={`pos-flavor-add text-white rounded-full p-1.5 ${t.addIcon}`}>
                       <Plus className="w-4 h-4" />
                     </div>
                   </button>

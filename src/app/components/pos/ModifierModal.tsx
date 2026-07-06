@@ -16,7 +16,39 @@ interface ModifierModalProps {
   };
   onClose: () => void;
   onAddToCart: (item: CartItem) => void;
+  theme?: 'emerald' | 'purple';
 }
+
+const MODIFIER_THEMES = {
+  emerald: {
+    header: 'from-emerald-700 to-emerald-600',
+    comboSection: 'from-emerald-50 to-teal-50 border-emerald-100',
+    comboTitle: 'text-emerald-800',
+    comboSubtitle: 'text-emerald-600',
+    comboBadge: 'bg-emerald-600',
+    comboCardSelected: 'border-emerald-600 bg-white shadow-lg',
+    comboNameSelected: 'text-emerald-700',
+    comboCheckBg: 'bg-emerald-600',
+    comboPrice: 'text-emerald-700',
+    toppingSelected: 'bg-emerald-600 border-emerald-600 text-white shadow-md font-bold',
+    toppingPrice: 'text-emerald-700',
+    footer: 'from-emerald-600 to-emerald-500',
+  },
+  purple: {
+    header: 'from-purple-700 to-purple-600',
+    comboSection: 'from-purple-50 to-violet-50 border-purple-100',
+    comboTitle: 'text-purple-800',
+    comboSubtitle: 'text-purple-600',
+    comboBadge: 'bg-purple-600',
+    comboCardSelected: 'border-purple-600 bg-white shadow-lg',
+    comboNameSelected: 'text-purple-700',
+    comboCheckBg: 'bg-purple-600',
+    comboPrice: 'text-purple-700',
+    toppingSelected: 'bg-purple-600 border-purple-600 text-white shadow-md font-bold',
+    toppingPrice: 'text-purple-700',
+    footer: 'from-purple-600 to-purple-500',
+  },
+} as const;
 
 export interface CartItem {
   productId: string;
@@ -39,7 +71,8 @@ const defaultToppings = DEFAULT_TOPPINGS;
 
 const priceTable: Record<string, Record<number, number>> = DEFAULT_MENU_PRICE_TABLE;
 
-export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalProps) {
+export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald' }: ModifierModalProps) {
+  const t = MODIFIER_THEMES[theme];
   const initialSize = (product as any).initialSize || '360ml';
   const initialProtein = (product as any).initialProtein !== undefined && (product as any).initialProtein !== null
     ? (product as any).initialProtein
@@ -148,7 +181,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
   return (
     <div className="pos-modifier flex flex-col h-full bg-white rounded-lg shadow border border-gray-150 overflow-hidden text-gray-800 min-h-0">
       {/* Header */}
-      <div className="pos-modifier-header bg-gradient-to-r from-emerald-700 to-emerald-600 text-white px-3 py-2.5 flex justify-between items-center flex-shrink-0">
+      <div className={`pos-modifier-header bg-gradient-to-r ${t.header} text-white px-3 py-2.5 flex justify-between items-center flex-shrink-0`}>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -176,13 +209,13 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
       <div className="pos-modifier-body flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
 
         {/* Row 1: Combo Topping */}
-        <div className="pos-modifier-section bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-150">
+        <div className={`pos-modifier-section bg-gradient-to-br rounded-lg border ${t.comboSection}`}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-black text-emerald-800 uppercase tracking-wider">🌟 1. Combo Topping (Siêu tiết kiệm)</h3>
-              <p className="text-xs text-emerald-600 font-medium mt-0.5">Nhấp chọn Combo để áp dụng nhanh bộ topping ưu đãi</p>
+              <h3 className={`text-sm font-black uppercase tracking-wider ${t.comboTitle}`}>🌟 1. Combo Topping (Siêu tiết kiệm)</h3>
+              <p className={`text-xs font-medium mt-0.5 ${t.comboSubtitle}`}>Nhấp chọn Combo để áp dụng nhanh bộ topping ưu đãi</p>
             </div>
-            <span className="bg-emerald-600 text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge">SIÊU RẺ</span>
+            <span className={`text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge ${t.comboBadge}`}>SIÊU RẺ</span>
           </div>
           <div className="pos-combo-grid grid grid-cols-2 gap-3">
             {comboList.map(combo => {
@@ -193,23 +226,23 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
                   onClick={() => toggleCombo(combo.id)}
                   className={`pos-combo-card p-4 rounded-xl border-2 text-left relative flex flex-col justify-between ${
                     isSelected
-                      ? 'border-emerald-600 bg-white shadow-lg'
+                      ? t.comboCardSelected
                       : 'border-gray-200 bg-white'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className={`pos-combo-name text-base font-black leading-tight ${isSelected ? 'text-emerald-700' : 'text-gray-950'}`}>{combo.name}</p>
+                      <p className={`pos-combo-name text-base font-black leading-tight ${isSelected ? t.comboNameSelected : 'text-gray-950'}`}>{combo.name}</p>
                       <p className="text-sm text-gray-500 font-bold mt-1 leading-snug line-clamp-2">{combo.items}</p>
                     </div>
                     {isSelected && (
-                      <span className="bg-emerald-600 text-white p-1.5 rounded-full flex-shrink-0 ml-2">
+                      <span className={`text-white p-1.5 rounded-full flex-shrink-0 ml-2 ${t.comboCheckBg}`}>
                         <Check className="w-5 h-5" />
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                    <span className="text-base font-black text-emerald-700">{(combo.price).toLocaleString()}đ</span>
+                    <span className={`text-base font-black ${t.comboPrice}`}>{(combo.price).toLocaleString()}đ</span>
                     <span className="text-sm text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
                     <span className="ml-auto text-xs bg-rose-50 text-rose-600 font-black px-2 py-0.5 rounded whitespace-nowrap">
                       -{(combo.save || 0) / 1000}k
@@ -234,11 +267,11 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
                   onClick={() => toggleTopping(topping.name)}
                   className={`pos-topping-card rounded-xl font-medium text-left relative border-2 flex flex-col justify-between ${
                     isSelected
-                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-md font-bold'
+                      ? t.toppingSelected
                       : 'bg-white border-gray-200 text-gray-850'
                   }`}
                 >
-                  <div className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : 'text-emerald-700'}`}>
+                  <div className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
                     {formatToppingPrice(topping.price)}
                   </div>
                   <div className="pos-topping-name font-black leading-tight">{topping.name}</div>
@@ -263,7 +296,7 @@ export function ModifierModal({ product, onClose, onAddToCart }: ModifierModalPr
 
         <button
           onClick={handleAddToCart}
-          className="pos-modifier-footer-btn flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-3 rounded-lg font-black tracking-wider shadow-md flex items-center justify-center gap-2"
+          className={`pos-modifier-footer-btn flex-1 bg-gradient-to-r ${t.footer} text-white py-3 rounded-lg font-black tracking-wider shadow-md flex items-center justify-center gap-2`}
         >
           XÁC NHẬN & THÊM VÀO GIỎ ({calculatePrice().toLocaleString('vi-VN')}đ)
         </button>

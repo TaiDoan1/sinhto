@@ -1,9 +1,10 @@
-import { ArrowLeft, Users, Package, ShoppingBag, Truck, MapPin, Phone, Pencil } from 'lucide-react';
+import { ArrowLeft, Users, Package, ShoppingBag, Truck, MapPin, Phone, Pencil, Clock } from 'lucide-react';
 import { useState } from 'react';
 import { BranchStaff } from './BranchStaff';
 import { BranchInventory } from './BranchInventory';
 import { BranchOrders } from './BranchOrders';
 import { BranchComboDeliveries } from './BranchComboDeliveries';
+import { BranchShiftClosings } from './BranchShiftClosings';
 import type { Branch } from '../../types/branch';
 
 interface BranchDetailProps {
@@ -13,7 +14,7 @@ interface BranchDetailProps {
 }
 
 export function BranchDetail({ branch, onBack, onEdit }: BranchDetailProps) {
-  const [activeTab, setActiveTab] = useState<'staff' | 'inventory' | 'orders' | 'combos'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'inventory' | 'orders' | 'combos' | 'shifts'>('staff');
 
   const renderContent = () => {
     switch (activeTab) {
@@ -25,6 +26,8 @@ export function BranchDetail({ branch, onBack, onEdit }: BranchDetailProps) {
         return <BranchOrders branchId={branch.id} />;
       case 'combos':
         return <BranchComboDeliveries branchId={branch.id} />;
+      case 'shifts':
+        return <BranchShiftClosings branchId={branch.id} />;
       default:
         return <BranchStaff branchId={branch.id} branchName={branch.name} />;
     }
@@ -75,6 +78,7 @@ export function BranchDetail({ branch, onBack, onEdit }: BranchDetailProps) {
             { id: 'staff' as const, label: 'Nhân Viên', icon: Users },
             { id: 'inventory' as const, label: 'Tồn Kho', icon: Package },
             { id: 'orders' as const, label: 'Đơn Hàng', icon: ShoppingBag },
+            { id: 'shifts' as const, label: 'Kết Ca', icon: Clock },
             { id: 'combos' as const, label: 'Lịch Giao Combo', icon: Truck },
           ].map((tab) => (
             <button

@@ -56,6 +56,7 @@ const initialFormData: EmployeeFormData = {
 const positions = [
   { id: 'manager', name: 'Quản Lý Chi Nhánh' },
   { id: 'store_manager', name: 'Quản Lý Cửa Hàng' },
+  { id: 'cskh', name: 'Chăm Sóc Khách Hàng' },
   { id: 'cashier', name: 'Thu Ngân' },
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },

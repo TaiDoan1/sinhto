@@ -4,7 +4,9 @@ import { CskhCheckin } from './CskhCheckin';
 import { OnlineOrderCreation } from './OnlineOrderCreation';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { CustomerManagement } from './CustomerManagement';
+import { useAdmin } from '../../contexts/AdminContext';
 import * as api from '../../utils/api';
+import type { Employee } from '../../types/employee';
 
 export type CskhTab = 'checkin' | 'orders' | 'customers' | 'alerts';
 
@@ -19,11 +21,28 @@ interface CskhSession {
 }
 
 export function CskhOnlineApp() {
+  const { isLoggedIn } = useAdmin();
   const [activeTab, setActiveTab] = useState<CskhTab>('checkin');
   const [currentSession, setCurrentSession] = useState<CskhSession | null>(null);
   const [cskhId, setCskhId] = useState('');
   const [cskhName, setCskhName] = useState('');
+  const [cskhEmployees, setCskhEmployees] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadCskhEmployees();
+  }, []);
+
+  const loadCskhEmployees = async () => {
+    try {
+      const employees = await api.fetchEmployees();
+      const cskhStaff = employees.filter((e: Employee) => e.position === 'cskh');
+      setCskhEmployees(cskhStaff);
+    } catch (error) {
+      console.error('Failed to load CSKH employees:', error);
+    }
+  };
 
   const tabs: { id: CskhTab; label: string; icon: typeof Users }[] = [
     { id: 'checkin', label: 'Check-in/out', icon: Clock },
@@ -32,9 +51,18 @@ export function CskhOnlineApp() {
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
 
+  const handleSelectEmployee = (employeeId: string) => {
+    const employee = cskhEmployees.find((e) => e.id === employeeId);
+    if (employee) {
+      setSelectedEmployeeId(employeeId);
+      setCskhId(employee.id);
+      setCskhName(employee.fullName);
+    }
+  };
+
   const handleCheckin = async () => {
-    if (!cskhId || !cskhName) {
-      alert('Vui lòng nhập ID và tên CSKH');
+    if (!cskhId || !cskhName || !selectedEmployeeId) {
+      alert('Vui lòng chọn nhân viên CSKH');
       return;
     }
     setLoading(true);
@@ -89,28 +117,25 @@ export function CskhOnlineApp() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ID CSKH
+                  Chọn nhân viên CSKH *
                 </label>
-                <input
-                  type="text"
-                  value={cskhId}
-                  onChange={(e) => setCskhId(e.target.value)}
-                  placeholder="e.g., CSKH-001"
+                <select
+                  value={selectedEmployeeId}
+                  onChange={(e) => handleSelectEmployee(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tên CSKH
-                </label>
-                <input
-                  type="text"
-                  value={cskhName}
-                  onChange={(e) => setCskhName(e.target.value)}
-                  placeholder="e.g., Nguyễn Văn A"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">-- Chọn nhân viên --</option>
+                  {cskhEmployees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.fullName} ({emp.employeeId})
+                    </option>
+                  ))}
+                </select>
+                {cskhEmployees.length === 0 && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Chưa có nhân viên CSKH. Admin tạo ở Nhân Sự & Lương trước.
+                  </p>
+                )}
               </div>
 
               <button

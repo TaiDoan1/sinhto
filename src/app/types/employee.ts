@@ -62,7 +62,7 @@ export const SHIFT_TEMPLATES = [
   { id: 'evening', name: 'Ca Toi', start: '22:00', end: '06:00', icon: '🌙' },
 ];
 
-export const ONLINE_SALES_POSITIONS = ['online_sales', 'customer_care'] as const;
+export const ONLINE_SALES_POSITIONS = ['online_sales', 'customer_care', 'cskh'] as const;
 
 export function isOnlineSalesPosition(position: string): boolean {
   return (ONLINE_SALES_POSITIONS as readonly string[]).includes(position);
@@ -71,6 +71,7 @@ export function isOnlineSalesPosition(position: string): boolean {
 export const POSITION_LABELS: Record<string, string> = {
   manager: 'Quan Ly Chi Nhanh',
   store_manager: 'Quan Ly Cua Hang',
+  cskh: 'Cham Soc Khach Hang',
   cashier: 'Thu Ngan',
   bartender: 'Pha Che',
   server: 'Phuc Vu',

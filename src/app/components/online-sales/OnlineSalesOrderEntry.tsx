@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
-  Loader2, CheckCircle2, CreditCard, Banknote,
+  Loader2, CheckCircle2, CreditCard, Banknote, X,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useInventory } from '../../contexts/InventoryContext';
-import type { CartItem } from '../pos/ModifierModal';
-import { ProductSelector } from './ProductSelector';
+import { ProductGrid, type Product } from '../pos/ProductGrid';
+import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
@@ -35,7 +35,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [claimComboNow, setClaimComboNow] = useState(true);
   const [notes, setNotes] = useState('');
 
-  const [showProductSelector, setShowProductSelector] = useState(false);
+  const [showProductGrid, setShowProductGrid] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
@@ -69,18 +70,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     return true;
   };
 
-  const handleAddProductFromSelector = (product: any) => {
-    const cartItem: CartItem = {
-      productId: product.productId,
-      productName: product.productName || product.name,
-      name: product.productName || product.name,
-      quantity: product.quantity,
-      price: product.price,
-      size: product.size,
-      protein: product.protein,
-      toppings: product.toppings,
-    };
-    setCart((prev) => [...prev, cartItem]);
+  const handleAddToCart = (item: CartItem) => {
+    setCart((prev) => [...prev, item]);
+    setSelectedProduct(null);
   };
 
   const logActivity = async (activityType: string, content: string) => {
@@ -356,17 +348,39 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           {mode === 'retail' ? (
             <>
               <div className="bg-white rounded-2xl border border-indigo-100 p-5">
-                {showProductSelector ? (
-                  <ProductSelector
-                    onAdd={handleAddProductFromSelector}
-                    onCancel={() => setShowProductSelector(false)}
-                  />
+                {showProductGrid || selectedProduct ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProductGrid(false);
+                          setSelectedProduct(null);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="h-[560px] rounded-xl overflow-hidden border border-gray-100">
+                      {selectedProduct ? (
+                        <ModifierModal
+                          product={selectedProduct}
+                          onClose={() => setSelectedProduct(null)}
+                          onAddToCart={handleAddToCart}
+                        />
+                      ) : (
+                        <ProductGrid onProductClick={setSelectedProduct} />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
                     <button
                       type="button"
-                      onClick={() => setShowProductSelector(true)}
+                      onClick={() => setShowProductGrid(true)}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
                     >
                       <Plus className="w-4 h-4" />

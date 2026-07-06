@@ -9,6 +9,8 @@ interface SelectedProduct {
   quantity: number;
   price: number;
   protein: number;
+  productName?: string;
+  productId?: string;
 }
 
 interface ProductSelectorProps {
@@ -79,6 +81,8 @@ export function ProductSelector({ onAdd, onClose }: ProductSelectorProps) {
     onAdd({
       id: `${selectedProduct}_${Date.now()}`,
       name: currentProduct?.name || 'Sản phẩm',
+      productName: currentProduct?.name || 'Sản phẩm',
+      productId: selectedProduct,
       size: selectedSize,
       toppings: selectedToppings,
       quantity,
@@ -86,7 +90,6 @@ export function ProductSelector({ onAdd, onClose }: ProductSelectorProps) {
       protein: currentSize?.protein || 40,
     });
 
-    // Reset
     setSelectedSize('');
     setSelectedProduct('');
     setSelectedToppings([]);

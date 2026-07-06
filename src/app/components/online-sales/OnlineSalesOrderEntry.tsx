@@ -6,6 +6,7 @@ import {
 import { useOrders } from '../../contexts/OrderContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { ModifierModal, type CartItem } from '../pos/ModifierModal';
+import { ProductSelector } from './ProductSelector';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
@@ -45,6 +46,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showProductSelector, setShowProductSelector] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
@@ -83,6 +85,20 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       return false;
     }
     return true;
+  };
+
+  const handleAddProductFromSelector = (product: any) => {
+    const cartItem: CartItem = {
+      productId: product.productId,
+      productName: product.productName || product.name,
+      name: product.productName || product.name,
+      quantity: product.quantity,
+      price: product.price,
+      size: product.size,
+      protein: product.protein,
+      toppings: product.toppings,
+    };
+    setCart((prev) => [...prev, cartItem]);
   };
 
   const logActivity = async (activityType: string, content: string) => {
@@ -357,8 +373,18 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         <div className="lg:col-span-8 space-y-4">
           {mode === 'retail' ? (
             <>
-              <div className="bg-white rounded-2xl border border-indigo-100 p-5">
-                <h3 className="font-bold text-gray-900 mb-3">Chọn sản phẩm</h3>
+              <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSelector(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Thêm sản phẩm
+                  </button>
+                </div>
                 {productsLoading ? (
                   <div className="flex justify-center py-10">
                     <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
@@ -464,6 +490,13 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             setCart((prev) => [...prev, item]);
             setSelectedProduct(null);
           }}
+        />
+      )}
+
+      {showProductSelector && (
+        <ProductSelector
+          onAdd={handleAddProductFromSelector}
+          onClose={() => setShowProductSelector(false)}
         />
       )}
 

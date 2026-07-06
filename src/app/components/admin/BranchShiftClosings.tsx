@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
+import { aggregateShiftItems, printShiftClosingReceipt } from '../../utils/posPrint';
 
 interface ShiftRow {
   id: string;
@@ -44,8 +45,10 @@ const statusMeta: Record<string, { label: string; className: string; icon: typeo
 export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const [date, setDate] = useState(todayStr());
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { subscribe } = useSSE();
   const { orders, history } = useOrders();
+  const allOrders = useMemo(() => [...orders, ...history], [orders, history]);
 
   const load = () => {
     api
@@ -90,6 +93,23 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
     return liveStats.get(shift.id) || { count: 0, total: 0 };
   };
 
+  const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => o.shiftId === shift.id);
+
+  const handlePrintShift = (shift: ShiftRow) => {
+    const shiftOrders = getShiftOrders(shift);
+    const stat = getStat(shift);
+    printShiftClosingReceipt({
+      employeeName: shift.employeeName,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      checkIn: shift.checkIn ? new Date(shift.checkIn) : undefined,
+      checkOut: shift.checkOut ? new Date(shift.checkOut) : undefined,
+      items: aggregateShiftItems(shiftOrders),
+      orderCount: stat.count,
+      totalRevenue: stat.total,
+    });
+  };
+
   const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
   const dayTotal = sorted.reduce((sum, s) => sum + getStat(s).total, 0);
   const closedCount = sorted.filter((s) => s.status === 'completed').length;
@@ -125,6 +145,8 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
             const meta = statusMeta[shift.status] || statusMeta.scheduled;
             const StatusIcon = meta.icon;
             const stat = getStat(shift);
+            const isExpanded = expandedId === shift.id;
+            const items = isExpanded ? aggregateShiftItems(getShiftOrders(shift)) : [];
             return (
               <div key={shift.id} className="bg-white rounded-lg shadow-md p-5">
                 <div className="flex justify-between items-start gap-4">
@@ -163,6 +185,42 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                     <div className="font-bold text-emerald-700">{stat.total.toLocaleString('vi-VN')}đ</div>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isExpanded ? null : shift.id)}
+                    disabled={stat.count === 0}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    Sản phẩm đã bán
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintShift(shift)}
+                    disabled={stat.count === 0}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    In bill
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="mt-2 bg-gray-50 rounded-lg p-3 space-y-1">
+                    {items.length === 0 ? (
+                      <p className="text-xs text-gray-400">Không có dữ liệu sản phẩm</p>
+                    ) : (
+                      items.map((it) => (
+                        <div key={it.productName} className="flex justify-between text-xs">
+                          <span className="text-gray-700">{it.productName} x{it.quantity}</span>
+                          <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

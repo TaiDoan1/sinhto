@@ -33,6 +33,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
+import { aggregateShiftItems, printShiftClosingReceipt } from '../../utils/posPrint';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -113,9 +114,24 @@ function POSInterfaceInner() {
         return {
           count: shiftOrders.length,
           total: shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0),
+          items: aggregateShiftItems(shiftOrders),
         };
       })()
     : null;
+
+  const handlePrintClosingBill = () => {
+    if (!closingShift || !shiftClosingSummary) return;
+    printShiftClosingReceipt({
+      employeeName: closingShift.employeeName,
+      startTime: closingShift.startTime,
+      endTime: closingShift.endTime,
+      checkIn: closingShift.checkIn ? new Date(closingShift.checkIn) : undefined,
+      checkOut: new Date(),
+      items: shiftClosingSummary.items,
+      orderCount: shiftClosingSummary.count,
+      totalRevenue: shiftClosingSummary.total,
+    });
+  };
 
   const handleConfirmClosing = async () => {
     if (!closingShift) return;
@@ -392,7 +408,30 @@ function POSInterfaceInner() {
                 </span>
               </div>
             </div>
-            <div className="flex gap-2 mt-5">
+
+            {shiftClosingSummary.items.length > 0 && (
+              <div className="text-left mt-4">
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Sản phẩm đã bán</p>
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-40 overflow-y-auto">
+                  {shiftClosingSummary.items.map((it) => (
+                    <div key={it.productName} className="flex justify-between text-xs">
+                      <span className="text-gray-700">{it.productName} x{it.quantity}</span>
+                      <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handlePrintClosingBill}
+              className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
+            >
+              🖨️ In bill kết ca
+            </button>
+
+            <div className="flex gap-2 mt-3">
               <button
                 type="button"
                 onClick={() => setClosingShift(null)}

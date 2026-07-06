@@ -177,3 +177,74 @@ export function printBothAfterPayment(
   printCupLabels(cupLines, { orderNumber: receipt.orderNumber, time: receipt.time });
   setTimeout(() => printCustomerReceipt(receipt), 400);
 }
+
+export interface ShiftItemSummary {
+  productName: string;
+  quantity: number;
+  revenue: number;
+}
+
+/** Gộp sản phẩm đã bán trong ca từ danh sách đơn hàng (mỗi đơn có items: any[]) */
+export function aggregateShiftItems(orders: { items: any[] }[]): ShiftItemSummary[] {
+  const map = new Map<string, ShiftItemSummary>();
+  for (const order of orders) {
+    for (const item of order.items || []) {
+      const productName = typeof item === 'string' ? item : item.productName || item.name || 'Khác';
+      const quantity = typeof item === 'string' ? 1 : item.quantity || 1;
+      const price = typeof item === 'string' ? 0 : item.price || 0;
+      const cur = map.get(productName) || { productName, quantity: 0, revenue: 0 };
+      cur.quantity += quantity;
+      cur.revenue += price * quantity;
+      map.set(productName, cur);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
+}
+
+export interface ShiftClosingReceiptData {
+  employeeName: string;
+  startTime: string;
+  endTime: string;
+  checkIn?: Date;
+  checkOut?: Date;
+  items: ShiftItemSummary[];
+  orderCount: number;
+  totalRevenue: number;
+}
+
+/** Bill kết ca — tổng hợp sản phẩm đã bán trong ca, đưa quản lý/nhân viên đối chiếu */
+export function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
+  const itemsHtml = data.items
+    .map(
+      (it) => `
+<div style="display:flex;justify-content:space-between;margin-bottom:4px">
+  <span>${it.productName} x${it.quantity}</span>
+  <span>${it.revenue.toLocaleString('vi-VN')}đ</span>
+</div>`
+    )
+    .join('');
+
+  const html = `
+    <div class="center bold" style="font-size:14px">FITBLEND</div>
+    <div class="center" style="font-size:11px">Bill Kết Ca</div>
+    <div class="line"></div>
+    <div style="font-size:11px">
+      NV: ${data.employeeName}<br/>
+      Ca: ${data.startTime} - ${data.endTime}<br/>
+      Vào ca: ${data.checkIn ? data.checkIn.toLocaleString('vi-VN') : '—'}<br/>
+      Kết ca: ${data.checkOut ? data.checkOut.toLocaleString('vi-VN') : '—'}
+    </div>
+    <div class="line"></div>
+    <div class="bold" style="margin-bottom:6px">Sản phẩm đã bán</div>
+    ${itemsHtml || '<div style="font-size:11px">Không có đơn hàng</div>'}
+    <div class="line"></div>
+    <div style="display:flex;justify-content:space-between"><span>Số đơn</span><span>${data.orderCount} đơn</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;margin-top:4px">
+      <span>TỔNG DOANH THU</span><span>${data.totalRevenue.toLocaleString('vi-VN')}đ</span>
+    </div>
+    <div class="line"></div>
+    <div class="center" style="font-size:11px">Cảm ơn bạn đã làm việc chăm chỉ 💪</div>
+  `;
+
+  openPrintWindow('Bill kết ca', html);
+}

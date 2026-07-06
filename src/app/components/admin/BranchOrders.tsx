@@ -1,6 +1,15 @@
-import { Clock, Package, CheckCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Clock, Package, CheckCircle, Phone, Zap, Turtle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { normalizePhoneVN } from '../../utils/phone';
+
+const FAST_THRESHOLD_MIN = 15;
+
+function formatTime(d?: Date) {
+  if (!d) return '—';
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
 
 const sourceColors: Record<string, string> = {
   counter: 'bg-green-500',
@@ -35,12 +44,24 @@ function isToday(d: Date) {
 
 export function BranchOrders({ branchId }: BranchOrdersProps) {
   const { orders: allOrders, history } = useOrders();
+  const { customers } = useLoyalty();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Filter orders by branch + hôm nay (bao gồm cả đơn đã hoàn thành nằm trong history)
   const orders = [...allOrders, ...history].filter(
     order => order.branchId === branchId && isToday(order.time)
   );
+
+  const loyaltyPhones = useMemo(
+    () => new Set(customers.filter(c => c.points > 0).map(c => normalizePhoneVN(c.phone))),
+    [customers]
+  );
+
+  const getLoyaltyPhone = (phone?: string) => {
+    if (!phone) return null;
+    const normalized = normalizePhoneVN(phone);
+    return loyaltyPhones.has(normalized) ? phone : null;
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -51,6 +72,18 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
 
   const getElapsedMinutes = (orderTime: Date) => {
     return Math.floor((currentTime.getTime() - orderTime.getTime()) / 60000);
+  };
+
+  const SpeedTag = ({ minutes }: { minutes: number }) => {
+    const isFast = minutes <= FAST_THRESHOLD_MIN;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+        isFast ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+      }`}>
+        {isFast ? <Zap className="w-3 h-3" /> : <Turtle className="w-3 h-3" />}
+        {isFast ? 'Nhanh' : 'Chậm'} ({minutes}p)
+      </span>
+    );
   };
 
   const activeOrders = orders.filter(o => o.status !== 'completed');
@@ -83,23 +116,35 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
               <div className="space-y-3">
                 {activeOrders.map(order => {
                   const elapsed = getElapsedMinutes(order.time);
-                  const isOverdue = elapsed > 15;
+                  const isOverdue = elapsed > FAST_THRESHOLD_MIN;
+                  const loyaltyPhone = getLoyaltyPhone(order.customerPhone);
 
                   return (
                     <div key={order.id} className="bg-white rounded-lg shadow-md p-5">
                       <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <div className={`${sourceColors[order.source]} text-white px-3 py-1 rounded text-sm font-semibold`}>
                             {sourceLabels[order.source]}
                           </div>
                           <span className="font-bold text-gray-800">{order.id}</span>
                           <span className="text-sm text-gray-600">• {order.staff}</span>
+                          {loyaltyPhone && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold">
+                              <Phone className="w-3 h-3" />
+                              {loyaltyPhone}
+                            </span>
+                          )}
                         </div>
 
                         <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : 'text-gray-600'}`}>
                           <Clock className="w-4 h-4" />
                           <span className="text-sm font-semibold">{elapsed}m</span>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                        <span>Đặt lúc: {formatTime(order.time)}</span>
+                        <SpeedTag minutes={elapsed} />
                       </div>
 
                       <div className="mb-3">
@@ -138,34 +183,52 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                 Đã Hoàn Thành ({completedOrders.length})
               </h3>
               <div className="space-y-3">
-                {completedOrders.map(order => (
-                  <div key={order.id} className="bg-gray-50 rounded-lg p-5 border border-gray-200">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className={`${sourceColors[order.source]} text-white px-3 py-1 rounded text-sm font-semibold`}>
-                            {sourceLabels[order.source]}
+                {completedOrders.map(order => {
+                  const loyaltyPhone = getLoyaltyPhone(order.customerPhone);
+                  const durationMin = order.completedAt
+                    ? Math.max(0, Math.round((order.completedAt.getTime() - order.time.getTime()) / 60000))
+                    : null;
+
+                  return (
+                    <div key={order.id} className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <div className={`${sourceColors[order.source]} text-white px-3 py-1 rounded text-sm font-semibold`}>
+                              {sourceLabels[order.source]}
+                            </div>
+                            <span className="font-bold text-gray-800">{order.id}</span>
+                            <span className="text-sm text-gray-600">• {order.staff}</span>
+                            {loyaltyPhone && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold">
+                                <Phone className="w-3 h-3" />
+                                {loyaltyPhone}
+                              </span>
+                            )}
                           </div>
-                          <span className="font-bold text-gray-800">{order.id}</span>
-                          <span className="text-sm text-gray-600">• {order.staff}</span>
+                          <div className="flex items-center gap-3 text-xs text-gray-500 mb-2 ml-2">
+                            <span>Đặt lúc: {formatTime(order.time)}</span>
+                            <span>Xong lúc: {formatTime(order.completedAt)}</span>
+                            {durationMin !== null && <SpeedTag minutes={durationMin} />}
+                          </div>
+                          <div className="text-sm text-gray-600 ml-2">
+                            {order.items
+                              .map((item: any) =>
+                                typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`
+                              )
+                              .join(', ')}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600 ml-2">
-                          {order.items
-                            .map((item: any) =>
-                              typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`
-                            )
-                            .join(', ')}
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-800">
+                            {order.total.toLocaleString('vi-VN')}đ
+                          </div>
+                          <span className="text-xs text-green-600 font-semibold">✓ Đã giao</span>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-800">
-                          {order.total.toLocaleString('vi-VN')}đ
-                        </div>
-                        <span className="text-xs text-green-600 font-semibold">✓ Đã giao</span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

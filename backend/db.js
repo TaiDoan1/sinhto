@@ -24,7 +24,7 @@ function toPg(sql, params = []) {
     .replace(/\bMAX\s*\(\s*0\s*,\s*points\s*-\s*\?/gi, 'GREATEST(0, points - ?')
     .replace(/\?/g, () => `$${++i}`);
   const upsertSettings =
-    /INSERT INTO settings \(key, value\) VALUES/i.test(sql) &&
+    /INSERT INTO settings \(key, value\) VALUES/i.test(text) &&
     /INSERT OR REPLACE/i.test(sql);
   const finalText = upsertSettings
     ? `${text} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`

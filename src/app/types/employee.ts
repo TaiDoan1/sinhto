@@ -76,8 +76,6 @@ export const POSITION_LABELS: Record<string, string> = {
   bartender: 'Pha Che',
   server: 'Phuc Vu',
   cleaner: 'Ve Sinh',
-  online_sales: 'Ban Hang Online',
-  customer_care: 'Ban Hang Online',
 };
 
 export const BRANCH_LABELS: Record<string, string> = {

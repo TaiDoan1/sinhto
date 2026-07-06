@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Menu, X } from 'lucide-react';
 import { Sidebar } from './components/admin/Sidebar';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { BranchOverview } from './components/admin/BranchOverview';
@@ -68,6 +69,7 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
 function AdminShell() {
   const { isLoggedIn, isLoading } = useAdmin();
   const [adminView, setAdminView] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -94,10 +96,43 @@ function AdminShell() {
     }
   };
 
+  const handleViewChange = (view: string) => {
+    setAdminView(view);
+    setSidebarOpen(false); // Close sidebar on mobile after selecting
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
-      <Sidebar activeView={adminView} onViewChange={setAdminView} />
-      <div className="ml-64 p-8">{renderContent()}</div>
+      {/* Mobile hamburger button */}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="sm:hidden fixed top-4 left-4 z-50 p-2 bg-emerald-700 text-white rounded-lg"
+      >
+        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
+      {/* Sidebar - responsive */}
+      <div
+        className={`fixed inset-0 z-40 sm:relative sm:inset-auto transition-all ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+        }`}
+      >
+        <Sidebar activeView={adminView} onViewChange={handleViewChange} />
+      </div>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 sm:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main content */}
+      <div className="sm:ml-64 p-4 sm:p-8 pt-16 sm:pt-8">
+        {renderContent()}
+      </div>
     </div>
   );
 }

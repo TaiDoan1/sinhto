@@ -31,7 +31,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const menuItems = isStoreManager ? storeManagerMenu : allMenuItems;
 
   return (
-    <div className="w-64 bg-gradient-to-b from-emerald-700 to-blue-800 text-white h-screen fixed left-0 top-0 flex flex-col z-40">
+    <div className="w-64 bg-gradient-to-b from-emerald-700 to-blue-800 text-white h-screen sm:h-screen sm:fixed sm:left-0 sm:top-0 flex flex-col z-40">
       <div className="p-6 border-b border-emerald-600">
         <h1 className="text-2xl font-bold">FitBlend</h1>
         <p className="text-sm text-blue-200 mt-1">Admin Dashboard</p>

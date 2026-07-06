@@ -34,23 +34,22 @@ export function HRManagement() {
 
   return (
     <div>
-      <div className="mb-6 bg-white rounded-xl shadow-lg p-2 overflow-x-auto">
-        <div className="flex gap-2 min-w-min sm:min-w-0">
+      <div className="mb-4 bg-white rounded-lg shadow p-1 overflow-x-auto">
+        <div className="flex gap-1 min-w-min sm:gap-2 sm:min-w-0">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 sm:flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all whitespace-nowrap ${
+                className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 px-1 sm:px-4 py-1.5 sm:py-2 rounded font-semibold text-xs sm:text-sm transition-all whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 <Icon className="w-4 sm:w-5 h-4 sm:h-5" />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+                <span className="text-xs sm:text-sm leading-tight">{tab.label}</span>
               </button>
             );
           })}

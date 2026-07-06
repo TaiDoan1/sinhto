@@ -54,7 +54,7 @@ const POS_TABS: {
 function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout } = usePos();
   const branchId = session?.branchId || '';
-  const { orders } = useBranchOrders(branchId);
+  const { orders, history } = useBranchOrders(branchId);
   const { getTodayDeliveries } = useBranchCombos(branchId);
   const { isWarehouseReady, loadForBranch } = useInventory();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
@@ -64,6 +64,8 @@ function POSInterfaceInner() {
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [currentShifts, setCurrentShifts] = useState<Shift[]>([]);
   const [showStaffList, setShowStaffList] = useState(false);
+  const [closingShift, setClosingShift] = useState<Shift | null>(null);
+  const [closingSubmitting, setClosingSubmitting] = useState(false);
 
   useEffect(() => {
     if (branchId) {
@@ -85,10 +87,48 @@ function POSInterfaceInner() {
     return { type: 'evening', name: 'Ca Tối', color: 'bg-emerald-100 text-emerald-800' };
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (!session) return;
+    try {
+      const activeShifts = (await api.fetchShifts({
+        employeeId: session.employeeId,
+        status: 'in_progress',
+      })) as Shift[];
+      if (activeShifts.length > 0) {
+        setClosingShift(activeShifts[0]);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to check active shift:', err);
+    }
     if (confirm('Đăng xuất máy POS?')) {
       logout();
       setCart([]);
+    }
+  };
+
+  const shiftClosingSummary = closingShift
+    ? (() => {
+        const shiftOrders = [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
+        return {
+          count: shiftOrders.length,
+          total: shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0),
+        };
+      })()
+    : null;
+
+  const handleConfirmClosing = async () => {
+    if (!closingShift) return;
+    setClosingSubmitting(true);
+    try {
+      await api.shiftCheckIn(closingShift.id, 'out');
+      logout();
+      setCart([]);
+      setClosingShift(null);
+    } catch (err) {
+      alert('Kết ca thất bại. Vui lòng thử lại.');
+    } finally {
+      setClosingSubmitting(false);
     }
   };
 
@@ -330,6 +370,47 @@ function POSInterfaceInner() {
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
         />
+      )}
+
+      {closingShift && shiftClosingSummary && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <LogOut className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Kết ca trước khi đăng xuất</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {closingShift.startTime} - {closingShift.endTime}
+            </p>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Số đơn đã bán</span>
+                <span className="font-bold text-gray-900">{shiftClosingSummary.count} đơn</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Doanh thu</span>
+                <span className="font-bold text-emerald-700">
+                  {shiftClosingSummary.total.toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setClosingShift(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={closingSubmitting}
+                onClick={handleConfirmClosing}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
+              >
+                {closingSubmitting ? 'Đang kết ca...' : 'Xác nhận kết ca'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -146,7 +146,9 @@ CREATE TABLE IF NOT EXISTS shifts (
   branch TEXT DEFAULT '',
   "requestedBy" TEXT DEFAULT 'admin',
   "checkInPhoto" TEXT DEFAULT '',
-  "checkOutPhoto" TEXT DEFAULT ''
+  "checkOutPhoto" TEXT DEFAULT '',
+  "closingOrderCount" INTEGER,
+  "closingRevenue" INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -294,6 +296,8 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionStatus" TEXT DEFAULT 'pending'`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "staffId" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shiftId" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingOrderCount" INTEGER`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingRevenue" INTEGER`).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS delivery_logs (

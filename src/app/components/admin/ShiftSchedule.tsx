@@ -23,6 +23,8 @@ export interface Shift {
   requestedBy?: 'admin' | 'employee';
   checkIn?: string;
   checkOut?: string;
+  closingOrderCount?: number;
+  closingRevenue?: number;
 }
 
 const shiftTemplates = [
@@ -524,11 +526,19 @@ export function ShiftSchedule() {
                             </div>
                           </div>
                           <div className="text-xs font-semibold">{shift.startTime} - {shift.endTime}</div>
-                          {(shift.status === 'in_progress' || shift.status === 'completed') && shiftStats.has(shift.id) && (
-                            <div className="mt-1 text-[11px] bg-white/20 rounded px-1.5 py-0.5 inline-block">
-                              {shiftStats.get(shift.id)!.count} đơn · {shiftStats.get(shift.id)!.total.toLocaleString('vi-VN')}đ
-                            </div>
-                          )}
+                          {(() => {
+                            const hasClosingSnapshot =
+                              shift.status === 'completed' && shift.closingOrderCount != null;
+                            const stat = hasClosingSnapshot
+                              ? { count: shift.closingOrderCount!, total: shift.closingRevenue || 0 }
+                              : shiftStats.get(shift.id);
+                            if (!stat || (shift.status !== 'in_progress' && shift.status !== 'completed')) return null;
+                            return (
+                              <div className="mt-1 text-[11px] bg-white/20 rounded px-1.5 py-0.5 inline-block">
+                                {stat.count} đơn · {stat.total.toLocaleString('vi-VN')}đ
+                              </div>
+                            );
+                          })()}
                           {shift.isSubstitute && shift.originalEmployeeName && (
                             <div className="mt-1 pt-1 border-t border-white/30">
                               <div className="text-xs opacity-90">

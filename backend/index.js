@@ -845,15 +845,41 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
     if (photo) updated[photoField] = photo;
     if (action === 'in') updated.status = 'in_progress';
     if (action === 'out') updated.status = 'completed';
-    db.run(
-      `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ? WHERE id = ?`,
-      [updated.checkIn || '', updated.checkOut || '', updated.status, updated.checkInPhoto || '', updated.checkOutPhoto || '', id],
-      function(err2) {
-        if (err2) return res.status(500).json({ error: err2.message });
-        broadcast('SHIFT_UPDATED', updated);
-        res.json(updated);
-      }
-    );
+
+    const finishUpdate = () => {
+      db.run(
+        `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ?, closingOrderCount = ?, closingRevenue = ? WHERE id = ?`,
+        [
+          updated.checkIn || '',
+          updated.checkOut || '',
+          updated.status,
+          updated.checkInPhoto || '',
+          updated.checkOutPhoto || '',
+          updated.closingOrderCount ?? null,
+          updated.closingRevenue ?? null,
+          id,
+        ],
+        function(err2) {
+          if (err2) return res.status(500).json({ error: err2.message });
+          broadcast('SHIFT_UPDATED', updated);
+          res.json(updated);
+        }
+      );
+    };
+
+    if (action === 'out') {
+      db.get(
+        "SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?",
+        [id],
+        (snapErr, snapRow) => {
+          updated.closingOrderCount = snapErr ? 0 : (snapRow?.cnt || 0);
+          updated.closingRevenue = snapErr ? 0 : (snapRow?.rev || 0);
+          finishUpdate();
+        }
+      );
+    } else {
+      finishUpdate();
+    }
   });
 });
 

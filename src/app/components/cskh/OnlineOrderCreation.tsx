@@ -212,7 +212,7 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
           <div className="space-y-4">
             {orderItems.map((item, index) => (
               <div key={index} className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <input
                     type="text"
                     value={item.productName}
@@ -220,11 +220,31 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
                     placeholder="Tên sản phẩm"
                     className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <select
+                    value={item.size || ''}
+                    onChange={(e) => handleUpdateItem(index, 'size', e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">-- Chọn size (ml) --</option>
+                    <option value="360ml">360ml</option>
+                    <option value="500ml">500ml</option>
+                    <option value="700ml">700ml</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                   <input
                     type="number"
                     value={item.quantity}
                     onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                     placeholder="Số lượng"
+                    className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <input
+                    type="number"
+                    value={item.protein || ''}
+                    onChange={(e) => handleUpdateItem(index, 'protein', parseInt(e.target.value) || 40)}
+                    placeholder="Protein (g)"
                     className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <input
@@ -235,6 +255,17 @@ export function OnlineOrderCreation({ cskhId, cskhName }: OnlineOrderCreationPro
                     className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={item.toppings?.join(', ') || ''}
+                    onChange={(e) => handleUpdateItem(index, 'toppings', e.target.value.split(',').map(t => t.trim()).filter(t => t))}
+                    placeholder="Vị/Toppings (cách nhau bằng dấu phẩy)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
                 <button
                   onClick={() => handleRemoveItem(index)}
                   className="text-red-600 hover:text-red-800 flex items-center gap-1 text-sm"

@@ -83,6 +83,21 @@ export function PosProvider({ children }: { children: ReactNode }) {
     setSession(sess);
     localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
     localStorage.setItem('pos_branch', sess.branchId);
+
+    // Tu dong check-in vao ca hom nay (neu co) de kh khi dang xuat POS
+    // luon tim duoc ca dang mo va hien man hinh ket ca.
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const todayShifts = await api.fetchShifts({ employeeId: employee.id, date: today });
+      const shiftToCheckIn = (todayShifts || []).find(
+        (s: any) => s.status !== 'in_progress' && s.status !== 'completed' && s.status !== 'rejected'
+      );
+      if (shiftToCheckIn) {
+        await api.shiftCheckIn(shiftToCheckIn.id, 'in');
+      }
+    } catch (err) {
+      console.error('Auto check-in failed:', err);
+    }
   };
 
   const logout = () => {

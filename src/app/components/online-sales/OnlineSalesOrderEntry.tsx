@@ -373,35 +373,44 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         <div className="lg:col-span-8 space-y-4">
           {mode === 'retail' ? (
             <>
-              <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowProductSelector(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Thêm sản phẩm
-                  </button>
-                </div>
-                {productsLoading ? (
-                  <div className="flex justify-center py-10">
-                    <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                  </div>
+              <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+                {showProductSelector ? (
+                  <ProductSelector
+                    onAdd={handleAddProductFromSelector}
+                    onCancel={() => setShowProductSelector(false)}
+                  />
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto">
-                    {products.map((p) => (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
                       <button
-                        key={p.id}
                         type="button"
-                        onClick={() => setSelectedProduct(p)}
-                        className="text-left p-3 rounded-xl border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                        onClick={() => setShowProductSelector(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
                       >
-                        <p className="font-semibold text-sm text-gray-900 line-clamp-2">{p.name}</p>
-                        <p className="text-indigo-700 font-bold text-sm mt-1">{p.basePrice.toLocaleString('vi-VN')}đ</p>
+                        <Plus className="w-4 h-4" />
+                        Thêm sản phẩm
                       </button>
-                    ))}
+                    </div>
+                    {productsLoading ? (
+                      <div className="flex justify-center py-10">
+                        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto">
+                        {products.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setSelectedProduct(p)}
+                            className="text-left p-3 rounded-xl border border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                          >
+                            <p className="font-semibold text-sm text-gray-900 line-clamp-2">{p.name}</p>
+                            <p className="text-indigo-700 font-bold text-sm mt-1">{p.basePrice.toLocaleString('vi-VN')}đ</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -493,12 +502,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         />
       )}
 
-      {showProductSelector && (
-        <ProductSelector
-          onAdd={handleAddProductFromSelector}
-          onClose={() => setShowProductSelector(false)}
-        />
-      )}
 
       {showComboBuilder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">

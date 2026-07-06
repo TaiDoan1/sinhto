@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { Plus, Minus, ArrowLeft } from 'lucide-react';
 
 interface SelectedProduct {
   id: string;
@@ -15,7 +15,7 @@ interface SelectedProduct {
 
 interface ProductSelectorProps {
   onAdd: (product: SelectedProduct) => void;
-  onClose: () => void;
+  onCancel: () => void;
 }
 
 const SIZES = [
@@ -43,7 +43,7 @@ const TOPPINGS = [
   'Nước dừa',
 ];
 
-export function ProductSelector({ onAdd, onClose }: ProductSelectorProps) {
+export function ProductSelector({ onAdd, onCancel }: ProductSelectorProps) {
   const [step, setStep] = useState<'size' | 'product' | 'toppings' | 'checkout'>('size');
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>('');
@@ -90,13 +90,14 @@ export function ProductSelector({ onAdd, onClose }: ProductSelectorProps) {
       protein: currentSize?.protein || 40,
     });
 
+    // Reset form
     setSelectedSize('');
     setSelectedProduct('');
     setSelectedToppings([]);
     setQuantity(1);
     setCustomPrice('');
     setStep('size');
-    onClose();
+    onCancel();
   };
 
   const handleBack = () => {
@@ -112,202 +113,204 @@ export function ProductSelector({ onAdd, onClose }: ProductSelectorProps) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-end z-50 p-4">
-      <div className="bg-white w-full max-w-2xl rounded-t-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-800">
-            {step === 'size' && 'Chọn Size (ml)'}
-            {step === 'product' && `${selectedSize} - Chọn Sản Phẩm`}
-            {step === 'toppings' && `${currentProduct?.name} - Chọn Vị`}
-            {step === 'checkout' && 'Xác Nhận Đơn Hàng'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+  const getTitle = () => {
+    if (step === 'size') return 'Chọn Size (ml)';
+    if (step === 'product') return `${selectedSize} - Chọn Sản Phẩm`;
+    if (step === 'toppings') return `${currentProduct?.name} - Chọn Vị`;
+    return 'Xác Nhận Đơn Hàng';
+  };
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Step 1: Size Selection */}
-          {step === 'size' && (
-            <div className="space-y-4">
-              <p className="text-gray-600 mb-6">Chọn size (ml) trước tiên</p>
-              <div className="grid grid-cols-1 gap-3">
-                {SIZES.map((size) => (
-                  <button
-                    key={size.id}
-                    onClick={() => handleSizeSelect(size.id)}
-                    className="p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-lg">{size.label}</div>
-                        <div className="text-sm text-gray-600">{size.protein}g Protein</div>
-                      </div>
-                      <div className="text-emerald-600">→</div>
-                    </div>
-                  </button>
-                ))}
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        {step !== 'size' && (
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+            type="button"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+        <h3 className="font-bold text-lg text-gray-900">{getTitle()}</h3>
+        {step === 'size' && (
+          <button
+            onClick={onCancel}
+            className="ml-auto text-gray-500 hover:text-gray-700 font-semibold text-sm"
+            type="button"
+          >
+            Hủy
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      <div>
+        {/* Step 1: Size Selection */}
+        {step === 'size' && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">Chọn size (ml) trước tiên</p>
+            {SIZES.map((size) => (
+              <button
+                key={size.id}
+                onClick={() => handleSizeSelect(size.id)}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
+                type="button"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-base">{size.label}</div>
+                    <div className="text-sm text-gray-600">{size.protein}g Protein</div>
+                  </div>
+                  <div className="text-indigo-600">→</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Step 2: Product Selection */}
+        {step === 'product' && (
+          <div className="space-y-3">
+            {PRODUCTS.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => handleProductSelect(product.id)}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
+                type="button"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-bold">{product.name}</div>
+                    <div className="text-sm text-gray-600">{product.price.toLocaleString('vi-VN')} đ</div>
+                  </div>
+                  <div className="text-indigo-600">→</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Step 3: Toppings Selection */}
+        {step === 'toppings' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Chọn vị (toppings) - có thể chọn nhiều</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TOPPINGS.map((topping) => (
+                <button
+                  key={topping}
+                  onClick={() => handleToppingToggle(topping)}
+                  className={`p-3 rounded-lg font-semibold transition-all text-sm ${
+                    selectedToppings.includes(topping)
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  type="button"
+                >
+                  {topping}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setStep('checkout')}
+              className="w-full py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 mt-4"
+              type="button"
+            >
+              Tiếp tục →
+            </button>
+          </div>
+        )}
+
+        {/* Step 4: Checkout */}
+        {step === 'checkout' && (
+          <div className="space-y-4">
+            {/* Summary */}
+            <div className="bg-indigo-50 rounded-xl p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Sản phẩm:</span>
+                <span className="font-semibold">{currentProduct?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Size:</span>
+                <span className="font-semibold">{selectedSize}</span>
+              </div>
+              {selectedToppings.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Vị:</span>
+                  <span className="font-semibold text-right">{selectedToppings.join(', ')}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-indigo-100">
+                <span className="text-gray-600">Protein:</span>
+                <span className="font-semibold">{currentSize?.protein}g</span>
               </div>
             </div>
-          )}
 
-          {/* Step 2: Product Selection */}
-          {step === 'product' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3">
-                {PRODUCTS.map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => handleProductSelect(product.id)}
-                    className="p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold">{product.name}</div>
-                        <div className="text-sm text-gray-600">{product.price.toLocaleString('vi-VN')} đ</div>
-                      </div>
-                      <div className="text-emerald-600">→</div>
-                    </div>
-                  </button>
-                ))}
+            {/* Quantity */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Số lượng</label>
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="p-1.5 hover:bg-white rounded"
+                  type="button"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-12 text-center font-bold border-0 bg-transparent"
+                />
+                <button
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="p-1.5 hover:bg-white rounded"
+                  type="button"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
+            </div>
+
+            {/* Price */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Giá</label>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-sm text-gray-600">Mặc định:</span>
+                <span className="text-xl font-bold text-indigo-600">
+                  {(customPrice ? parseInt(customPrice) : currentProduct?.price || 0).toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <input
+                type="number"
+                placeholder="Nhập giá tùy chỉnh (nếu cần)"
+                value={customPrice}
+                onChange={(e) => setCustomPrice(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={handleBack}
-                className="w-full mt-4 py-2 text-gray-600 hover:text-gray-800 font-semibold"
+                className="flex-1 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+                type="button"
               >
                 ← Quay lại
               </button>
+              <button
+                onClick={handleCheckout}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+                type="button"
+              >
+                ✓ Thêm vào đơn
+              </button>
             </div>
-          )}
-
-          {/* Step 3: Toppings Selection */}
-          {step === 'toppings' && (
-            <div className="space-y-4">
-              <p className="text-gray-600">Chọn vị (toppings) - có thể chọn nhiều</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {TOPPINGS.map((topping) => (
-                  <button
-                    key={topping}
-                    onClick={() => handleToppingToggle(topping)}
-                    className={`p-3 rounded-lg font-semibold transition-all ${
-                      selectedToppings.includes(topping)
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {topping}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleBack}
-                  className="flex-1 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  ← Quay lại
-                </button>
-                <button
-                  onClick={() => setStep('checkout')}
-                  className="flex-1 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700"
-                >
-                  Tiếp tục →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Checkout */}
-          {step === 'checkout' && (
-            <div className="space-y-6">
-              {/* Summary */}
-              <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Sản phẩm:</span>
-                    <span className="font-semibold">{currentProduct?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Size:</span>
-                    <span className="font-semibold">{selectedSize}</span>
-                  </div>
-                  {selectedToppings.length > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Vị:</span>
-                      <span className="font-semibold">{selectedToppings.join(', ')}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between pt-2 border-t">
-                    <span className="text-gray-600">Protein:</span>
-                    <span className="font-semibold">{currentSize?.protein}g</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Số lượng</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    <Minus className="w-5 h-5" />
-                  </button>
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="flex-1 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg px-3 py-2"
-                  />
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Price */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Giá</label>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-sm text-gray-600">Mặc định:</span>
-                  <span className="text-2xl font-bold text-emerald-600">
-                    {(customPrice ? parseInt(customPrice) : currentProduct?.price || 0).toLocaleString('vi-VN')} đ
-                  </span>
-                </div>
-                <input
-                  type="number"
-                  placeholder="Nhập giá tùy chỉnh (nếu cần)"
-                  value={customPrice}
-                  onChange={(e) => setCustomPrice(e.target.value)}
-                  className="w-full mt-3 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleBack}
-                  className="flex-1 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  ← Quay lại
-                </button>
-                <button
-                  onClick={handleCheckout}
-                  className="flex-1 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700"
-                >
-                  ✓ Thêm vào đơn
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -637,6 +637,19 @@ export async function markDeliveryLogAlerted(id: string) {
   return res.json();
 }
 
+export async function changeComboBranch(id: string, branchId: string) {
+  const res = await fetch(`${BASE_URL}/combo-subscriptions/${id}/branch`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branchId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to change combo branch');
+  }
+  return res.json();
+}
+
 export async function transferComboSales(body: {
   comboIds: string[];
   toSalesId: string;

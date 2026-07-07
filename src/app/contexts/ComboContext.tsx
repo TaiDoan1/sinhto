@@ -65,6 +65,7 @@ interface ComboContextType {
   confirmDelivery: (comboId: string, performedBy: string, branchId: string, shipNote?: string) => Promise<boolean>;
   postponeDelivery: (comboId: string, note?: string) => Promise<boolean>;
   rescheduleDelivery: (comboId: string, deliveryDate: string, deliveryTime: string, note?: string) => Promise<boolean>;
+  changeComboBranch: (comboId: string, branchId: string) => Promise<boolean>;
   refreshCombos: () => Promise<void>;
   getTodayDeliveries: (branchId?: string) => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
@@ -344,6 +345,19 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Admin: đổi chi nhánh phụ trách cả combo — kéo theo lịch giao còn pending sang chi nhánh mới
+  const changeComboBranch = async (comboId: string, branchId: string) => {
+    try {
+      const result = await api.changeComboBranch(comboId, branchId);
+      const normalized = normalizeCombo(result);
+      setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
+      return true;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Đổi chi nhánh thất bại');
+      return false;
+    }
+  };
+
   const addNotification = (notif: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => {
     const newNotif: ComboNotification = {
       ...notif,
@@ -374,6 +388,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
         confirmDelivery,
         postponeDelivery,
         rescheduleDelivery,
+        changeComboBranch,
         refreshCombos,
         getTodayDeliveries,
         markNotificationAsRead,

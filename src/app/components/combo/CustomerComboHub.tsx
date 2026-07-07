@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
+import { useBranches } from '../../contexts/BranchContext';
+import * as api from '../../utils/api';
 import {
   normalizeComboItems,
   getComboProgress,
@@ -13,8 +15,17 @@ import {
 } from '../../utils/comboUtils';
 import {
   Search, Phone, MapPin, Package, Copy, CheckCircle2, Pause, Play,
-  Truck, User, Calendar, ChevronDown, ChevronUp, MessageCircle, AlertCircle,
+  Truck, User, Calendar, ChevronDown, ChevronUp, MessageCircle, AlertCircle, Clock,
 } from 'lucide-react';
+
+interface DeliveryLogDetail {
+  id: string;
+  deliveryDate: string;
+  deliveryTime: string;
+  status: string;
+  productName: string;
+  branchId: string;
+}
 
 export type CustomerComboHubVariant = 'pos' | 'admin' | 'cskh';
 
@@ -56,10 +67,13 @@ function ComboCustomerCard({
   onPostpone,
   onReschedule,
   onSaveEdit,
+  onChangeBranch,
   claiming,
   delivering,
   postponing,
   rescheduling,
+  changingBranch,
+  branchOptions,
 }: {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
@@ -72,20 +86,54 @@ function ComboCustomerCard({
   onPostpone?: (note: string) => void;
   onReschedule?: (date: string, time: string, note?: string) => void;
   onSaveEdit?: (address: string, notes: string) => void;
+  onChangeBranch?: (branchId: string) => void;
   claiming?: boolean;
   delivering?: boolean;
   postponing?: boolean;
   rescheduling?: boolean;
+  changingBranch?: boolean;
+  branchOptions?: { id: string; name: string }[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const [shipNote, setShipNote] = useState('');
   const [editAddress, setEditAddress] = useState(combo.deliveryAddress || '');
+  const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLogDetail[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [editNotes, setEditNotes] = useState(combo.notes || '');
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [rescheduleTime, setRescheduleTime] = useState(combo.deliveryTime || '08:00');
+  const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
+
+  useEffect(() => {
+    if (!expanded) return;
+    let cancelled = false;
+    setLogsLoading(true);
+    api
+      .fetchDeliveryLogs({ comboOrderId: combo.id })
+      .then((rows: any[]) => {
+        if (cancelled) return;
+        setDeliveryLogs(
+          rows.map((r) => ({
+            id: r.id,
+            deliveryDate: r.deliveryDate,
+            deliveryTime: r.deliveryTime || '08:00',
+            status: r.status,
+            productName: r.productName,
+            branchId: r.branchId,
+          }))
+        );
+      })
+      .catch(() => setDeliveryLogs([]))
+      .finally(() => {
+        if (!cancelled) setLogsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [expanded, combo.id]);
 
   const progress = getComboProgress(combo);
   const todayItem = getComboItemForToday(combo);
@@ -322,17 +370,80 @@ function ComboCustomerCard({
 
         {expanded && (
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 text-sm">
-            <div>
-              <div className="text-xs font-bold text-gray-400 uppercase mb-2">Lịch 7 ngày</div>
-              <div className="grid grid-cols-2 gap-1">
-                {items.map((item, i) => (
-                  <div key={i} className="text-xs bg-gray-50 rounded-lg px-2 py-1.5">
-                    <span className="font-semibold text-gray-500">{item.dayLabel}: </span>
-                    <span className="text-gray-800">{item.productName}</span>
-                  </div>
-                ))}
+            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+              <div className="text-xs font-bold text-gray-400 uppercase mb-1">Chi tiết đơn hàng</div>
+              <div className="flex items-center gap-1.5 text-gray-700">
+                <User className="w-3.5 h-3.5 text-gray-400" /> {combo.customerName} ({combo.customerPhone})
               </div>
+              {combo.deliveryAddress && (
+                <div className="flex items-start gap-1.5 text-gray-700">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" /> {combo.deliveryAddress}
+                </div>
+              )}
+              <div className="text-gray-700">{combo.planName || 'Combo FitBlend'} · {combo.totalPrice.toLocaleString('vi-VN')}đ</div>
             </div>
+
+            <div>
+              <div className="text-xs font-bold text-gray-400 uppercase mb-2">Lịch giao chi tiết</div>
+              {logsLoading ? (
+                <p className="text-xs text-gray-400">Đang tải...</p>
+              ) : deliveryLogs.length === 0 ? (
+                <div className="grid grid-cols-2 gap-1">
+                  {items.map((item, i) => (
+                    <div key={i} className="text-xs bg-gray-50 rounded-lg px-2 py-1.5">
+                      <span className="font-semibold text-gray-500">{item.dayLabel}: </span>
+                      <span className="text-gray-800">{item.productName}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {deliveryLogs.map((log) => (
+                    <div key={log.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                      <div className="flex items-center gap-1.5 text-gray-700">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                        {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
+                        <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
+                        {log.deliveryTime}
+                        <span className="text-gray-500">· {log.productName}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
+                        log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-200 text-gray-600'
+                      }`}>
+                        {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {variant === 'admin' && onChangeBranch && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold text-gray-400 uppercase">Chi nhánh phụ trách</div>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white"
+                  >
+                    {(branchOptions || []).map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => onChangeBranch(selectedBranch)}
+                    disabled={changingBranch || selectedBranch === combo.branchId}
+                    className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold disabled:opacity-40"
+                  >
+                    {changingBranch ? '...' : 'Chuyển chi nhánh'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {(variant === 'admin' || variant === 'cskh') && onSaveEdit && (
               <div className="space-y-2">
@@ -389,8 +500,9 @@ export function CustomerComboHub({
   className = '',
   defaultStatusFilter,
 }: CustomerComboHubProps) {
-  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, rescheduleDelivery, isLoading } = useCombos();
+  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, rescheduleDelivery, changeComboBranch, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
+  const { activeBranches } = useBranches();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'due' | 'pending' | 'active' | 'paused' | 'completed'>(
@@ -400,6 +512,7 @@ export function CustomerComboHub({
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [postponingId, setPostponingId] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [changingBranchId, setChangingBranchId] = useState<string | null>(null);
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
@@ -507,6 +620,15 @@ export function CustomerComboHub({
       await rescheduleDelivery(combo.id, date, time);
     } finally {
       setReschedulingId(null);
+    }
+  };
+
+  const handleChangeBranch = async (combo: ComboSubscription, branchId: string) => {
+    setChangingBranchId(combo.id);
+    try {
+      await changeComboBranch(combo.id, branchId);
+    } finally {
+      setChangingBranchId(null);
     }
   };
 
@@ -622,6 +744,13 @@ export function CustomerComboHub({
                   ? (address, notes) => updateCombo(combo.id, { deliveryAddress: address, notes })
                   : undefined
               }
+              onChangeBranch={
+                variant === 'admin'
+                  ? (branchId) => handleChangeBranch(combo, branchId)
+                  : undefined
+              }
+              changingBranch={changingBranchId === combo.id}
+              branchOptions={activeBranches.map((b) => ({ id: b.id, name: b.name }))}
             />
           ))}
         </div>

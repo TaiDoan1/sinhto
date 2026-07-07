@@ -504,7 +504,9 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       const threshold = now + withinMinutes * 60 * 1000;
       const due = rows
         .map((r) => {
-          const scheduledAt = new Date(`${r.delivery_date}T${(r.delivery_time || '08:00')}:00`).getTime();
+          // Gio giao la gio dia phuong (Viet Nam, UTC+7) — ghi ro offset de khong phu thuoc
+          // vao timezone cua may chu (Railway mac dinh chay UTC, khac may dev).
+          const scheduledAt = new Date(`${r.delivery_date}T${(r.delivery_time || '08:00')}:00+07:00`).getTime();
           return { row: r, scheduledAt };
         })
         .filter((x) => !Number.isNaN(x.scheduledAt) && x.scheduledAt <= threshold)

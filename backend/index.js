@@ -1698,6 +1698,39 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
   });
 });
 
+// Admin: doi chi nhanh phu trach ca combo — keo theo tat ca lich giao con "pending"
+// sang chi nhanh moi de dong bo (chi nhanh cu khong con thay trong hang doi/Combo cua ho nua)
+app.patch('/api/combo-subscriptions/:id/branch', (req, res) => {
+  const { id } = req.params;
+  const { branchId } = req.body || {};
+  if (!branchId) return res.status(400).json({ error: 'branchId required' });
+  const now = new Date().toISOString();
+  db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Combo not found' });
+    db.run(
+      'UPDATE combo_subscriptions SET branchId = ?, updatedAt = ? WHERE id = ?',
+      [branchId, now, id],
+      (updateErr) => {
+        if (updateErr) return res.status(500).json({ error: updateErr.message });
+        db.run(
+          `UPDATE delivery_logs SET branch_id = ?, updated_at = ? WHERE combo_order_id = ? AND status = 'pending'`,
+          [branchId, now, id],
+          (logErr) => {
+            if (logErr) return res.status(500).json({ error: logErr.message });
+            db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
+              if (e || !updated) return res.status(500).json({ error: 'Failed to fetch updated combo' });
+              const parsed = parseComboRow(updated);
+              broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+              res.json(parsed);
+            });
+          }
+        );
+      }
+    );
+  });
+});
+
 app.post('/api/combo-subscriptions/:id/claim', (req, res) => {
   const { id } = req.params;
   const { employeeId, employeeName } = req.body;

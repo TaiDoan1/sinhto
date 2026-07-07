@@ -1,31 +1,20 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { useBranches } from '../../contexts/BranchContext';
-import * as api from '../../utils/api';
 import {
-  normalizeComboItems,
   getComboProgress,
   getComboItemForToday,
   getCombosDueToday,
   formatZaloShipMessage,
   getRecipeIngredientsForComboItem,
-  parseDeliveryLog,
   wasDeliveredToday,
 } from '../../utils/comboUtils';
 import {
   Search, Phone, MapPin, Package, Copy, CheckCircle2, Pause, Play,
-  Truck, User, Calendar, ChevronDown, ChevronUp, MessageCircle, AlertCircle, Clock,
+  Truck, User, Calendar, ChevronRight, MessageCircle, AlertCircle,
 } from 'lucide-react';
-
-interface DeliveryLogDetail {
-  id: string;
-  deliveryDate: string;
-  deliveryTime: string;
-  status: string;
-  productName: string;
-  branchId: string;
-}
+import { ComboDetailDrawer } from './ComboDetailDrawer';
 
 export type CustomerComboHubVariant = 'pos' | 'admin' | 'cskh';
 
@@ -66,14 +55,11 @@ function ComboCustomerCard({
   onDeliver,
   onPostpone,
   onReschedule,
-  onSaveEdit,
-  onChangeBranch,
+  onOpenDetail,
   claiming,
   delivering,
   postponing,
   rescheduling,
-  changingBranch,
-  branchOptions,
 }: {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
@@ -85,59 +71,20 @@ function ComboCustomerCard({
   onDeliver?: (note: string) => void;
   onPostpone?: (note: string) => void;
   onReschedule?: (date: string, time: string, note?: string) => void;
-  onSaveEdit?: (address: string, notes: string) => void;
-  onChangeBranch?: (branchId: string) => void;
+  onOpenDetail: () => void;
   claiming?: boolean;
   delivering?: boolean;
   postponing?: boolean;
   rescheduling?: boolean;
-  changingBranch?: boolean;
-  branchOptions?: { id: string; name: string }[];
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [shipNote, setShipNote] = useState('');
-  const [editAddress, setEditAddress] = useState(combo.deliveryAddress || '');
-  const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLogDetail[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [editNotes, setEditNotes] = useState(combo.notes || '');
   const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [rescheduleTime, setRescheduleTime] = useState(combo.deliveryTime || '08:00');
-  const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
-
-  useEffect(() => {
-    if (!expanded) return;
-    let cancelled = false;
-    setLogsLoading(true);
-    api
-      .fetchDeliveryLogs({ comboOrderId: combo.id })
-      .then((rows: any[]) => {
-        if (cancelled) return;
-        setDeliveryLogs(
-          rows.map((r) => ({
-            id: r.id,
-            deliveryDate: r.deliveryDate,
-            deliveryTime: r.deliveryTime || '08:00',
-            status: r.status,
-            productName: r.productName,
-            branchId: r.branchId,
-          }))
-        );
-      })
-      .catch(() => setDeliveryLogs([]))
-      .finally(() => {
-        if (!cancelled) setLogsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [expanded, combo.id]);
 
   const progress = getComboProgress(combo);
   const todayItem = getComboItemForToday(combo);
-  const items = normalizeComboItems(combo.items);
   const dueToday = !wasDeliveredToday(combo) && combo.status === 'active';
   const ingredients = getRecipeIngredientsForComboItem(todayItem);
 
@@ -145,16 +92,6 @@ function ComboCustomerCard({
     await navigator.clipboard.writeText(formatZaloShipMessage(combo, shipNote));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleSave = async () => {
-    if (!onSaveEdit) return;
-    setSaving(true);
-    try {
-      await onSaveEdit(editAddress, editNotes);
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
@@ -270,10 +207,10 @@ function ComboCustomerCard({
               Hoàn thành
             </button>
           )}
-          <button type="button" onClick={() => setExpanded(!expanded)}
+          <button type="button" onClick={onOpenDetail}
             className="ml-auto flex items-center gap-1 px-2 py-1.5 text-xs text-gray-500 font-semibold">
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             Chi tiết
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
@@ -368,123 +305,6 @@ function ComboCustomerCard({
           </div>
         )}
 
-        {expanded && (
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 text-sm">
-            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
-              <div className="text-xs font-bold text-gray-400 uppercase mb-1">Chi tiết đơn hàng</div>
-              <div className="flex items-center gap-1.5 text-gray-700">
-                <User className="w-3.5 h-3.5 text-gray-400" /> {combo.customerName} ({combo.customerPhone})
-              </div>
-              {combo.deliveryAddress && (
-                <div className="flex items-start gap-1.5 text-gray-700">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" /> {combo.deliveryAddress}
-                </div>
-              )}
-              <div className="text-gray-700">{combo.planName || 'Combo FitBlend'} · {combo.totalPrice.toLocaleString('vi-VN')}đ</div>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-gray-400 uppercase mb-2">Lịch giao chi tiết</div>
-              {logsLoading ? (
-                <p className="text-xs text-gray-400">Đang tải...</p>
-              ) : deliveryLogs.length === 0 ? (
-                <div className="grid grid-cols-2 gap-1">
-                  {items.map((item, i) => (
-                    <div key={i} className="text-xs bg-gray-50 rounded-lg px-2 py-1.5">
-                      <span className="font-semibold text-gray-500">{item.dayLabel}: </span>
-                      <span className="text-gray-800">{item.productName}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {deliveryLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
-                      <div className="flex items-center gap-1.5 text-gray-700">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
-                        <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
-                        {log.deliveryTime}
-                        <span className="text-gray-500">· {log.productName}</span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
-                        log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
-                        'bg-gray-200 text-gray-600'
-                      }`}>
-                        {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {variant === 'admin' && onChangeBranch && (
-              <div className="space-y-1.5">
-                <div className="text-xs font-bold text-gray-400 uppercase">Chi nhánh phụ trách</div>
-                <div className="flex gap-2">
-                  <select
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white"
-                  >
-                    {(branchOptions || []).map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => onChangeBranch(selectedBranch)}
-                    disabled={changingBranch || selectedBranch === combo.branchId}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold disabled:opacity-40"
-                  >
-                    {changingBranch ? '...' : 'Chuyển chi nhánh'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {(variant === 'admin' || variant === 'cskh') && onSaveEdit && (
-              <div className="space-y-2">
-                <input
-                  value={editAddress}
-                  onChange={(e) => setEditAddress(e.target.value)}
-                  placeholder="Địa chỉ giao"
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-                <textarea
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Ghi chú (topping, độ ngọt...)"
-                  rows={2}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-                <button type="button" onClick={handleSave} disabled={saving}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">
-                  {saving ? 'Đang lưu...' : 'Lưu địa chỉ & ghi chú'}
-                </button>
-              </div>
-            )}
-
-            {parseDeliveryLog(combo.deliveryLog).length > 0 && (
-              <div>
-                <div className="text-xs font-bold text-gray-400 uppercase mb-1">Lịch sử giao</div>
-                {parseDeliveryLog(combo.deliveryLog).slice().reverse().slice(0, 5).map((e, i) => (
-                  <div key={i} className="text-xs text-gray-500 py-0.5">
-                    {new Date(e.date).toLocaleDateString('vi-VN')} — {e.productName}
-                    {e.note ? ` (${e.note})` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="text-xs text-gray-400">
-              Chi nhánh: {combo.branchId} · {combo.totalPrice.toLocaleString('vi-VN')}đ
-              · Giao: {combo.deliveryDays.map((d) => (d === 0 ? 'CN' : `T${d + 1}`)).join(', ')}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -513,6 +333,7 @@ export function CustomerComboHub({
   const [postponingId, setPostponingId] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [changingBranchId, setChangingBranchId] = useState<string | null>(null);
+  const [detailComboId, setDetailComboId] = useState<string | null>(null);
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
@@ -739,22 +560,35 @@ export function CustomerComboHub({
                   : undefined
               }
               rescheduling={reschedulingId === combo.id}
-              onSaveEdit={
-                variant !== 'pos'
-                  ? (address, notes) => updateCombo(combo.id, { deliveryAddress: address, notes })
-                  : undefined
-              }
-              onChangeBranch={
-                variant === 'admin'
-                  ? (branchId) => handleChangeBranch(combo, branchId)
-                  : undefined
-              }
-              changingBranch={changingBranchId === combo.id}
-              branchOptions={activeBranches.map((b) => ({ id: b.id, name: b.name }))}
+              onOpenDetail={() => setDetailComboId(combo.id)}
             />
           ))}
         </div>
       )}
+
+      {detailComboId && (() => {
+        const detailCombo = combos.find((c) => c.id === detailComboId);
+        if (!detailCombo) return null;
+        return (
+          <ComboDetailDrawer
+            combo={detailCombo}
+            variant={variant}
+            onClose={() => setDetailComboId(null)}
+            onSaveEdit={
+              variant !== 'pos'
+                ? (address, notes) => updateCombo(detailCombo.id, { deliveryAddress: address, notes })
+                : undefined
+            }
+            onChangeBranch={
+              variant === 'admin'
+                ? (branchId) => handleChangeBranch(detailCombo, branchId)
+                : undefined
+            }
+            changingBranch={changingBranchId === detailCombo.id}
+            branchOptions={activeBranches.map((b) => ({ id: b.id, name: b.name }))}
+          />
+        );
+      })()}
     </div>
   );
 }

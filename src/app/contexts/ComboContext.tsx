@@ -41,6 +41,7 @@ export interface ComboSubscription {
   deliveredCups?: number;
   commissionAmount?: number;
   commissionStatus?: 'pending' | 'approved' | 'paid';
+  deliveryTime?: string;
 }
 
 export interface ComboNotification {
@@ -63,6 +64,7 @@ interface ComboContextType {
   claimCombo: (comboId: string, employeeId: string, employeeName: string) => Promise<void>;
   confirmDelivery: (comboId: string, performedBy: string, branchId: string, shipNote?: string) => Promise<boolean>;
   postponeDelivery: (comboId: string, note?: string) => Promise<boolean>;
+  rescheduleDelivery: (comboId: string, deliveryDate: string, deliveryTime: string, note?: string) => Promise<boolean>;
   refreshCombos: () => Promise<void>;
   getTodayDeliveries: (branchId?: string) => ComboSubscription[];
   markNotificationAsRead: (notificationId: string) => void;
@@ -314,6 +316,34 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Đổi ngày/giờ giao gần nhất theo yêu cầu khách — CSKH hoặc chi nhánh (POS) đều gọi được
+  const rescheduleDelivery = async (comboId: string, deliveryDate: string, deliveryTime: string, note?: string) => {
+    const combo = combos.find((c) => c.id === comboId);
+    if (!combo) return false;
+
+    try {
+      const pendingLogs = await api.fetchDeliveryLogs({ comboOrderId: comboId, status: 'pending' });
+      if (!pendingLogs.length) {
+        alert('Không còn lịch giao pending để đổi.');
+        return false;
+      }
+      const nearest = pendingLogs[0];
+      const result = await api.rescheduleDeliveryLog(nearest.id, { deliveryDate, deliveryTime, note });
+      const normalized = normalizeCombo(result.combo);
+      setCombos((prev) => prev.map((c) => (c.id === comboId ? normalized : c)));
+      addNotification({
+        comboId,
+        customerName: combo.customerName,
+        type: 'update',
+        message: `Đã đổi lịch giao ${combo.customerName} sang ${deliveryDate} lúc ${deliveryTime}`,
+      });
+      return true;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Đổi lịch giao thất bại');
+      return false;
+    }
+  };
+
   const addNotification = (notif: Omit<ComboNotification, 'id' | 'timestamp' | 'isRead'>) => {
     const newNotif: ComboNotification = {
       ...notif,
@@ -343,6 +373,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
         claimCombo,
         confirmDelivery,
         postponeDelivery,
+        rescheduleDelivery,
         refreshCombos,
         getTodayDeliveries,
         markNotificationAsRead,

@@ -175,6 +175,37 @@ function POSInterfaceInner() {
     setCart([...cart, item]);
   };
 
+  // Combo tại quầy đã thu tiền ngay (nằm chung giỏ hàng) — nhưng vẫn phải tạo
+  // ra 1 gói combo subscription thật (giống bên CSKH) để sinh lịch giao hàng ngày.
+  const handleCreateComboSubscription = async (combo: any) => {
+    const raw = combo.rawComboData || {};
+    const duration = raw.duration || 'monthly';
+    const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
+    try {
+      await api.createComboSubscription({
+        customerName: combo.customerName || raw.customerName || '',
+        customerPhone: combo.customerPhone || raw.customerPhone || '',
+        deliveryAddress: raw.deliveryAddress || '',
+        planName: combo.name,
+        comboType: duration === 'weekly' ? 'weekly' : 'monthly',
+        comboDuration: duration,
+        startDate: startIso,
+        nextDelivery: startIso,
+        deliveryDays: [1, 2, 3, 4, 5],
+        items: raw,
+        totalPrice: combo.price,
+        status: 'active',
+        branchId,
+        deliveryTime: raw.deliveryTime || '08:00',
+        staff: `POS - ${session?.employeeName || ''}`,
+        careStaffId: session?.employeeId,
+        careStaffName: session?.employeeName,
+      });
+    } catch (err) {
+      console.error('Tạo combo subscription từ POS thất bại:', err);
+    }
+  };
+
   const handleRemoveItem = (index: number) => {
     setCart(cart.filter((_, idx) => idx !== index));
   };
@@ -372,6 +403,7 @@ function POSInterfaceInner() {
                   rawComboData: combo.rawComboData,
                 });
                 setSelectedProduct(null);
+                handleCreateComboSubscription(combo);
               }}
             />
           </div>

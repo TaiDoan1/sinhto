@@ -95,6 +95,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
     tom.setDate(tom.getDate() + 1);
     return tom.toISOString().split('T')[0];
   });
+  const [deliveryTime, setDeliveryTime] = useState<string>('08:00');
 
   const [selectedFlavors, setSelectedFlavors] = useState<string[]>(
     Array(7).fill(FLAVORS[0].name)
@@ -113,6 +114,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
       setDuration(d.duration || 'weekly');
       setQuantity(d.quantity || 1);
       setStartDate(d.startDate || '');
+      setDeliveryTime(d.deliveryTime || '08:00');
       setSelectedFlavors(d.selectedFlavors || Array(7).fill(FLAVORS[0].name));
       setSelectedCombos(d.selectedCombos || []);
       setSelectedSingleToppings(d.selectedSingleToppings || []);
@@ -293,6 +295,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         selectedCombos,
         selectedSingleToppings,
         startDate,
+        deliveryTime,
         name: plan.name,
         finalPrice,
         customerName,
@@ -303,6 +306,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
       toppings: [
         `Khách hàng: ${customerName} (${customerPhone})`,
         `Ngày bắt đầu: ${formattedStartDate}`,
+        `Giờ giao: ${deliveryTime}`,
         ...selectedFlavors.map((f, idx) => `${DAYS_OF_WEEK[idx]}: ${f}`),
         ...toppingsDisplayList
       ],
@@ -576,11 +580,22 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
                   {/* Custom Start Date Picker */}
                   <div className="space-y-2">
                     <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block ml-1">Hoặc chọn ngày tùy ý</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={startDate}
                       min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                       onChange={e => setStartDate(e.target.value)}
+                      className="max-w-xs w-full bg-white text-gray-800 px-5 py-3.5 rounded-2xl border border-gray-250 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-extrabold text-sm"
+                    />
+                  </div>
+
+                  {/* Delivery Time */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block ml-1">Giờ giao mỗi ngày (có thể đổi sau)</label>
+                    <input
+                      type="time"
+                      value={deliveryTime}
+                      onChange={e => setDeliveryTime(e.target.value)}
                       className="max-w-xs w-full bg-white text-gray-800 px-5 py-3.5 rounded-2xl border border-gray-250 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-extrabold text-sm"
                     />
                   </div>
@@ -773,6 +788,11 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500 font-bold">Ngày bắt đầu:</span>
                       <span className="text-emerald-700 font-black text-base">{new Date(startDate).toLocaleDateString('vi-VN')}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500 font-bold">Giờ giao mỗi ngày:</span>
+                      <span className="text-emerald-700 font-black text-base">{deliveryTime}</span>
                     </div>
 
                     <div className="flex items-start justify-between text-sm">

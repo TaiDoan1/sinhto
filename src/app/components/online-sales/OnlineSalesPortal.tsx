@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -15,8 +15,9 @@ import { PIPELINE_STAGES, buildWebLink } from './constants';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
+import { DeliveryAlerts } from './DeliveryAlerts';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -212,6 +213,7 @@ export function OnlineSalesPortal() {
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
+    { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
 
   return (
@@ -400,6 +402,8 @@ export function OnlineSalesPortal() {
             {view === 'combo' && (
               <CustomerComboHub {...comboHubProps} />
             )}
+
+            {view === 'alerts' && <DeliveryAlerts />}
       </main>
 
       {selectedAssignment && activeEmployee && (

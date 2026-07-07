@@ -603,6 +603,40 @@ export async function changeDeliveryLogBranch(id: string, branchId: string) {
   return res.json();
 }
 
+export async function rescheduleDeliveryLog(
+  id: string,
+  body: { deliveryDate?: string; deliveryTime?: string; note?: string }
+) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/reschedule`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to reschedule delivery');
+  }
+  return res.json();
+}
+
+export async function fetchUpcomingDeliveryAlerts(params?: { minutes?: number; branchId?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.minutes) qs.set('minutes', String(params.minutes));
+  if (params?.branchId) qs.set('branchId', params.branchId);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/delivery-logs/upcoming-alerts${query ? `?${query}` : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch upcoming delivery alerts');
+  return res.json();
+}
+
+export async function markDeliveryLogAlerted(id: string) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/alert-sent`, {
+    method: 'PATCH',
+  });
+  if (!res.ok) throw new Error('Failed to mark delivery alert as sent');
+  return res.json();
+}
+
 export async function transferComboSales(body: {
   comboIds: string[];
   toSalesId: string;

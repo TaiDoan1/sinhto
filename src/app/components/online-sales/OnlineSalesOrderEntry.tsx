@@ -189,6 +189,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         totalPrice: pendingCombo.price,
         status: 'pending',
         branchId: deliveryBranch,
+        deliveryTime: raw.deliveryTime || '08:00',
         staff: `CSKH - ${employee.fullName}`,
         notes: notes.trim(),
         salesRefCode: employee.username,

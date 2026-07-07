@@ -54,10 +54,12 @@ function ComboCustomerCard({
   onComplete,
   onDeliver,
   onPostpone,
+  onReschedule,
   onSaveEdit,
   claiming,
   delivering,
   postponing,
+  rescheduling,
 }: {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
@@ -68,10 +70,12 @@ function ComboCustomerCard({
   onComplete?: () => void;
   onDeliver?: (note: string) => void;
   onPostpone?: (note: string) => void;
+  onReschedule?: (date: string, time: string, note?: string) => void;
   onSaveEdit?: (address: string, notes: string) => void;
   claiming?: boolean;
   delivering?: boolean;
   postponing?: boolean;
+  rescheduling?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [shipNote, setShipNote] = useState('');
@@ -79,6 +83,9 @@ function ComboCustomerCard({
   const [editNotes, setEditNotes] = useState(combo.notes || '');
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [rescheduleTime, setRescheduleTime] = useState(combo.deliveryTime || '08:00');
 
   const progress = getComboProgress(combo);
   const todayItem = getComboItemForToday(combo);
@@ -137,7 +144,12 @@ function ComboCustomerCard({
         {/* Hôm nay */}
         {combo.status === 'active' && todayItem && (
           <div className="mt-3 bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-            <div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Hôm nay</div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-bold text-emerald-700 uppercase">Hôm nay</div>
+              {combo.deliveryTime && (
+                <div className="text-[10px] font-bold text-emerald-700">Giờ giao: {combo.deliveryTime}</div>
+              )}
+            </div>
             <div className="font-bold text-sm text-gray-900">
               {todayItem.productName} · {todayItem.size} · {todayItem.protein}g protein
             </div>
@@ -255,6 +267,59 @@ function ComboCustomerCard({
           </div>
         )}
 
+        {/* Đổi ngày/giờ giao theo yêu cầu khách — CSKH và chi nhánh (POS) đều đổi được */}
+        {combo.status === 'active' && onReschedule && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            {!showReschedule ? (
+              <button
+                type="button"
+                onClick={() => setShowReschedule(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-bold"
+              >
+                <Calendar className="w-4 h-4" />
+                Đổi ngày/giờ giao gần nhất
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    className="w-full text-sm border rounded-lg px-3 py-2"
+                  />
+                  <input
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    className="w-full text-sm border rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReschedule(false)}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReschedule(rescheduleDate, rescheduleTime);
+                      setShowReschedule(false);
+                    }}
+                    disabled={rescheduling}
+                    className="flex-1 py-2 rounded-xl bg-gray-800 text-white text-sm font-bold disabled:opacity-60"
+                  >
+                    {rescheduling ? 'Đang lưu...' : 'Xác nhận đổi lịch'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {expanded && (
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 text-sm">
             <div>
@@ -324,7 +389,7 @@ export function CustomerComboHub({
   className = '',
   defaultStatusFilter,
 }: CustomerComboHubProps) {
-  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, isLoading } = useCombos();
+  const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, rescheduleDelivery, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
 
   const [search, setSearch] = useState('');
@@ -334,6 +399,7 @@ export function CustomerComboHub({
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [postponingId, setPostponingId] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
@@ -432,6 +498,15 @@ export function CustomerComboHub({
       await postponeDelivery(combo.id, note);
     } finally {
       setPostponingId(null);
+    }
+  };
+
+  const handleReschedule = async (combo: ComboSubscription, date: string, time: string) => {
+    setReschedulingId(combo.id);
+    try {
+      await rescheduleDelivery(combo.id, date, time);
+    } finally {
+      setReschedulingId(null);
     }
   };
 
@@ -536,6 +611,12 @@ export function CustomerComboHub({
                   ? (note) => handlePostpone(combo, note)
                   : undefined
               }
+              onReschedule={
+                combo.status === 'active'
+                  ? (date, time) => handleReschedule(combo, date, time)
+                  : undefined
+              }
+              rescheduling={reschedulingId === combo.id}
               onSaveEdit={
                 variant !== 'pos'
                   ? (address, notes) => updateCombo(combo.id, { deliveryAddress: address, notes })

@@ -1561,8 +1561,8 @@ app.post('/api/combo-subscriptions', (req, res) => {
     startDate, nextDelivery, deliveryDays, items, totalPrice, status, branchId,
     deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
-    lastDeliveredAt, deliveryLog, totalCups, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    lastDeliveredAt, deliveryLog, totalCups, deliveryTime, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -1573,11 +1573,23 @@ app.post('/api/combo-subscriptions', (req, res) => {
     body.closedByStaffId || null, body.closedByStaffName || null,
     body.closedAt || null, body.assignedAt || null,
     body.pauseStartDate || null, body.pauseEndDate || null, body.notes || '',
-    normStr(body.staff) || '', null, '[]', body.totalCups || 7, now, now
+    normStr(body.staff) || '', null, '[]', body.totalCups || 7, body.deliveryTime || '08:00', now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
-    db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, row) => {
+    db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], async (e, row) => {
       if (e || !row) return res.status(500).json({ error: 'Failed to fetch created combo' });
+      // Combo ban thang tai quay (POS) — da thu tien nen tao ngay o trang thai active,
+      // sinh lich giao luon thay vi cho buoc "chot" nhu ben CSKH.
+      if (row.status === 'active') {
+        try {
+          await generateDeliveryLogsForCombo(db, row);
+          row = await new Promise((resolve) => {
+            db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e2, row2) => resolve(row2));
+          });
+        } catch (genErr) {
+          console.error('generateDeliveryLogsForCombo (create active):', genErr.message);
+        }
+      }
       const created = parseComboRow(row);
       if (row.customerPhone && careStaffId && careStaffName) {
         upsertCareAssignment(
@@ -1630,7 +1642,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
-        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, updatedAt = ?
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1659,6 +1671,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.lastDeliveredAt ?? row.lastDeliveredAt,
         merged.deliveryLog ?? row.deliveryLog ?? '[]',
         merged.totalCups ?? row.totalCups ?? 7,
+        merged.deliveryTime ?? row.deliveryTime ?? '08:00',
         now,
         id,
       ],

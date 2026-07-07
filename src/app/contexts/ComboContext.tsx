@@ -48,10 +48,11 @@ export interface ComboNotification {
   id: string;
   comboId: string;
   customerName: string;
-  type: 'update' | 'pause' | 'resume' | 'claim' | 'deliver';
+  type: 'update' | 'pause' | 'resume' | 'claim' | 'deliver' | 'branch_assigned';
   message: string;
   timestamp: Date;
   isRead: boolean;
+  branchId?: string;
 }
 
 interface ComboContextType {
@@ -145,7 +146,19 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     });
     const unsubUpdate = subscribe('COMBO_SUBSCRIPTION_UPDATED', (data) => {
       const normalized = normalizeCombo(data);
-      setCombos((prev) => prev.map((c) => (c.id === normalized.id ? normalized : c)));
+      setCombos((prev) => {
+        const old = prev.find((c) => c.id === normalized.id);
+        if (old && old.branchId !== normalized.branchId && normalized.status === 'active') {
+          addNotification({
+            comboId: normalized.id,
+            customerName: normalized.customerName,
+            type: 'branch_assigned',
+            message: `Combo ${normalized.planName || ''} của ${normalized.customerName} vừa được phân bổ về chi nhánh này — cần chuẩn bị và giao`,
+            branchId: normalized.branchId,
+          });
+        }
+        return prev.map((c) => (c.id === normalized.id ? normalized : c));
+      });
     });
     return () => {
       unsubCreate();

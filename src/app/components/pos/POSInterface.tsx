@@ -56,7 +56,8 @@ function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout } = usePos();
   const branchId = session?.branchId || '';
   const { orders, history } = useBranchOrders(branchId);
-  const { getTodayDeliveries } = useBranchCombos(branchId);
+  const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
+  const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
   const { isWarehouseReady, loadForBranch } = useInventory();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
 
@@ -324,6 +325,41 @@ function POSInterfaceInner() {
       {!isWarehouseReady && (
         <div className="pos-warehouse-banner shrink-0 mx-1 mt-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs font-medium">
           ⚠️ Chưa nhập kho — không thể bán. Admin: Chi nhánh → Tồn Kho → Nhập kho.
+        </div>
+      )}
+
+      {branchComboAlerts.length > 0 && (
+        <div className="shrink-0 mx-1 mt-1 space-y-1">
+          {branchComboAlerts.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-purple-50 border border-purple-200 rounded text-purple-900 text-xs font-semibold"
+            >
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Package className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">🔔 {n.message}</span>
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('combos');
+                    markNotificationAsRead(n.id);
+                  }}
+                  className="px-2 py-1 rounded bg-purple-600 text-white text-xs font-bold"
+                >
+                  Xem
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markNotificationAsRead(n.id)}
+                  className="px-2 py-1 rounded border border-purple-300 text-purple-700 text-xs font-bold"
+                >
+                  Bỏ qua
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

@@ -9,12 +9,14 @@ const sourceColors: Record<string, string> = {
   counter: 'bg-green-500',
   mobile: 'bg-emerald-600',
   web: 'bg-emerald-500',
+  online_sales: 'bg-purple-600',
 };
 
 const sourceLabels: Record<string, string> = {
   counter: 'Tại Quầy',
   mobile: 'Đặt Online',
   web: 'Web',
+  online_sales: 'CSKH Chốt Đơn',
 };
 
 export function OrderQueue({ branchId }: { branchId: string }) {
@@ -94,7 +96,7 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                 </div>
 
                 {/* Customer Info for Online Orders */}
-                {order.source === 'mobile' && (
+                {(order.source === 'mobile' || order.source === 'online_sales') && (
                   <div className="mb-3 bg-emerald-50 rounded-lg p-3 border border-emerald-100 text-sm">
                     <div className="flex justify-between font-bold text-blue-800 mb-1">
                       <span>{order.customerName}</span>

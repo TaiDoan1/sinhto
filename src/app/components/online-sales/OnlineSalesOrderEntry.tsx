@@ -122,14 +122,15 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           branchId: deliveryBranch,
           source: 'online_sales',
           items: orderItems,
-          status: markPaid ? 'completed' : 'pending',
+          // Luôn "pending" để chi nhánh nhận đơn thấy trong Hàng đợi và tự pha chế/giao —
+          // dù khách đã thanh toán hay chưa, đơn vẫn cần chi nhánh xử lý xong mới "completed".
+          status: 'pending',
           total: cartTotal,
           customerName: customer.name.trim(),
           customerPhone: customer.phone.trim(),
           deliveryAddress: customer.address.trim(),
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
           paidAt: markPaid ? now : undefined,
-          completedAt: markPaid ? now : undefined,
           ...staffPayload(),
         },
         { skipStockCheck: true }
@@ -334,7 +335,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             {mode === 'retail' && (
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
-                Khách đã thanh toán (chốt doanh thu ngay)
+                Khách đã thanh toán trước (chi nhánh không cần thu tiền)
               </label>
             )}
             {mode === 'combo' && (

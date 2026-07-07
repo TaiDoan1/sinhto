@@ -17,6 +17,7 @@ interface ModifierModalProps {
   onClose: () => void;
   onAddToCart: (item: CartItem) => void;
   theme?: 'emerald' | 'purple';
+  skipStockCheck?: boolean;
 }
 
 const MODIFIER_THEMES = {
@@ -71,7 +72,7 @@ const defaultToppings = DEFAULT_TOPPINGS;
 
 const priceTable: Record<string, Record<number, number>> = DEFAULT_MENU_PRICE_TABLE;
 
-export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald' }: ModifierModalProps) {
+export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald', skipStockCheck = false }: ModifierModalProps) {
   const t = MODIFIER_THEMES[theme];
   const initialSize = (product as any).initialSize || '360ml';
   const initialProtein = (product as any).initialProtein !== undefined && (product as any).initialProtein !== null
@@ -158,10 +159,12 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
       quantity: 1,
     };
 
-    const check = checkCartStock([line]);
-    if (!check.ok) {
-      alert(`Không đủ nguyên liệu:\n${formatShortageMessage(check.shortages)}`);
-      return;
+    if (!skipStockCheck) {
+      const check = checkCartStock([line]);
+      if (!check.ok) {
+        alert(`Không đủ nguyên liệu:\n${formatShortageMessage(check.shortages)}`);
+        return;
+      }
     }
 
     onAddToCart({

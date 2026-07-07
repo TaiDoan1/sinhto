@@ -373,6 +373,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                           onClose={() => setSelectedProduct(null)}
                           onAddToCart={handleAddToCart}
                           theme="purple"
+                          skipStockCheck
                         />
                       ) : (
                         <ProductGrid onProductClick={setSelectedProduct} theme="purple" />

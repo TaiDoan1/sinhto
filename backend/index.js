@@ -1830,6 +1830,21 @@ async function start() {
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
     registerCskhRoutes(app, db, { broadcast });
     initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
+
+    // Phục vụ frontend đã build (npm run build ở thư mục gốc tạo ra dist/)
+    // — gộp web + API vào 1 service Railway duy nhất, không cần Vercel nữa.
+    const distDir = path.join(__dirname, '../dist');
+    if (fs.existsSync(distDir)) {
+      app.use(express.static(distDir));
+      app.get(/.*/, (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        res.sendFile(path.join(distDir, 'index.html'));
+      });
+      console.log('Da phuc vu frontend tinh tu', distDir);
+    } else {
+      console.warn('Khong tim thay dist/ — chay `npm run build` o thu muc goc truoc khi start de phuc vu frontend.');
+    }
+
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

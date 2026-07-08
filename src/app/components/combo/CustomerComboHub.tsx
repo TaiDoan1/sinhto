@@ -530,7 +530,7 @@ export function CustomerComboHub({
           <p className="font-semibold">Không có combo phù hợp</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto flex-1 pb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0 pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
           {filtered.map((combo) => (
             <ComboCustomerCard
               key={combo.id}

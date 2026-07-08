@@ -381,7 +381,7 @@ function POSInterfaceInner() {
             ) : activeTab === 'orders' ? (
               <OrderQueue branchId={branchId} />
             ) : activeTab === 'combos' ? (
-              <CustomerComboHub variant="pos" branchId={branchId} className="p-2 h-full overflow-auto" />
+              <CustomerComboHub variant="pos" branchId={branchId} className="p-2 h-full min-h-0 overflow-hidden" />
             ) : activeTab === 'warehouse' ? (
               <InventoryManagement branchId={branchId} />
             ) : activeTab === 'admin' ? (
@@ -422,7 +422,7 @@ function POSInterfaceInner() {
 
       {selectedProduct && selectedProduct.category === 'combo' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-black/60">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden h-[95dvh] flex flex-col">
             <CustomComboBuilder
               isPOS={true}
               onClose={() => setSelectedProduct(null)}

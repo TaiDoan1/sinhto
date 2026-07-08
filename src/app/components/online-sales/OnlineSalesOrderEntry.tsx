@@ -476,7 +476,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
       {showComboBuilder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-black/60">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden h-[95dvh] flex flex-col">
             <CustomComboBuilder
               isPOS
               onClose={() => setShowComboBuilder(false)}

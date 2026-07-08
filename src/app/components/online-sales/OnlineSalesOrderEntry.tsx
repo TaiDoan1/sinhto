@@ -9,7 +9,7 @@ import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
-import { BRANCH_LABELS } from '../../types/employee';
+import { useBranches } from '../../contexts/BranchContext';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
@@ -22,6 +22,7 @@ interface Props {
 
 export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) {
   const { addOrder } = useOrders();
+  const { activeBranches } = useBranches();
 
   const [mode, setMode] = useState<OrderMode>('retail');
   const [customer, setCustomer] = useState({
@@ -299,8 +300,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 onChange={(e) => setDeliveryBranch(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
               >
-                {Object.entries(BRANCH_LABELS).map(([id, label]) => (
-                  <option key={id} value={id}>{label}</option>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             </div>

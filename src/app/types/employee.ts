@@ -78,12 +78,6 @@ export const POSITION_LABELS: Record<string, string> = {
   cleaner: 'Ve Sinh',
 };
 
-export const BRANCH_LABELS: Record<string, string> = {
-  CN1: 'Chi Nhanh 1 - Quan 1',
-  CN2: 'Chi Nhanh 2 - Quan 3',
-  CN3: 'Chi Nhanh 3 - Thu Duc',
-};
-
 export const DEFAULT_PROFILE_FIELDS: ProfileFieldConfig[] = [
   { id: 'fullName', label: 'Ho va ten', type: 'text', source: 'builtin', fieldKey: 'fullName', visible: true, editable: false, order: 1 },
   { id: 'employeeId', label: 'Ma nhan vien', type: 'text', source: 'builtin', fieldKey: 'employeeId', visible: true, editable: false, order: 2 },

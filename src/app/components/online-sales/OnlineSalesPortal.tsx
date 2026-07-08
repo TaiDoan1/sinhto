@@ -10,7 +10,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { OnlineSalesDashboard, SalesTask, SalesLead, PipelineStage } from '../../types/onlineSales';
-import { BRANCH_LABELS } from '../../types/employee';
+import { useBranches } from '../../contexts/BranchContext';
 import { PIPELINE_STAGES, buildWebLink } from './constants';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
@@ -71,6 +71,7 @@ const EMPTY_DASHBOARD: OnlineSalesDashboard = {
 
 export function OnlineSalesPortal() {
   const { activeEmployee, logout } = useOnlineSales();
+  const { branchLabel } = useBranches();
   const { combos } = useCombos();
   const { loadForBranch } = useInventory();
   const [view, setView] = useState<View>('dashboard');
@@ -226,7 +227,7 @@ export function OnlineSalesPortal() {
                 <Globe className="w-3.5 h-3.5" /> Bán hàng online · FitBlend
               </p>
               <h1 className="text-xl lg:text-2xl font-black mt-0.5">{activeEmployee.fullName}</h1>
-              <p className="text-indigo-200 text-sm">{BRANCH_LABELS[activeEmployee.branch] || activeEmployee.branch}</p>
+              <p className="text-indigo-200 text-sm">{branchLabel(activeEmployee.branch) || activeEmployee.branch}</p>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button

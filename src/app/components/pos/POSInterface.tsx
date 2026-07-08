@@ -27,7 +27,7 @@ import { PosKioskOverlay, PosFullscreenButton } from './PosKioskOverlay';
 import { PosKioskProvider } from '../../hooks/usePosKiosk';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { useBranchCombos } from '../../hooks/useBranchCombos';
-import { BRANCH_LABELS } from '../../types/employee';
+import { useBranches } from '../../contexts/BranchContext';
 
 import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
@@ -54,6 +54,7 @@ const POS_TABS: {
 
 function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout } = usePos();
+  const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
   const { orders, history } = useBranchOrders(branchId);
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
@@ -236,7 +237,7 @@ function POSInterfaceInner() {
         <div className="flex items-center gap-2 px-2 py-1">
           <div className="font-bold text-emerald-800 pos-header-brand shrink-0">FitBlend POS</div>
           <div className="flex-1 min-w-0 pos-header-meta text-gray-500 truncate">
-            {BRANCH_LABELS[branchId] || branchId} · {session.employeeName}
+            {branchLabel(branchId) || branchId} · {session.employeeName}
           </div>
           <div className="relative shrink-0">
             <button

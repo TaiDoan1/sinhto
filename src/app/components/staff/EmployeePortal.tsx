@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
-import { SHIFT_TEMPLATES, POSITION_LABELS, BRANCH_LABELS, canCancelShift } from '../../types/employee';
+import { useBranches } from '../../contexts/BranchContext';
+import { SHIFT_TEMPLATES, POSITION_LABELS, canCancelShift } from '../../types/employee';
 import type { ProfileFieldConfig } from '../../types/employee';
 import { AttendanceCamera } from './AttendanceCamera';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
@@ -10,11 +11,11 @@ import * as api from '../../utils/api';
 
 type Tab = EmployeeTab;
 
-function getFieldValue(employee: any, field: ProfileFieldConfig): string {
+function getFieldValue(employee: any, field: ProfileFieldConfig, branchLabel: (id: string) => string): string {
   if (field.source === 'custom') return employee.customData?.[field.fieldKey] || '';
   const val = employee[field.fieldKey];
   if (field.fieldKey === 'position') return POSITION_LABELS[val] || val || '';
-  if (field.fieldKey === 'branch') return BRANCH_LABELS[val] || val || '';
+  if (field.fieldKey === 'branch') return branchLabel(val) || val || '';
   return val ?? '';
 }
 
@@ -30,6 +31,7 @@ function todayStr() {
 export function EmployeePortal() {
   const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, cancelShift, checkIn, checkOut } = useEmployee();
   const { orders, history } = useOrders();
+  const { branchLabel } = useBranches();
   const [tab, setTab] = useState<Tab>('attendance');
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -50,7 +52,7 @@ export function EmployeePortal() {
     if (!activeEmployee) return;
     const data: Record<string, string> = {};
     profileFields.filter(f => f.editable).forEach(f => {
-      data[f.id] = getFieldValue(activeEmployee, f);
+      data[f.id] = getFieldValue(activeEmployee, f, branchLabel);
     });
     setEditData(data);
   }, [activeEmployee, profileFields]);
@@ -192,7 +194,7 @@ export function EmployeePortal() {
                     )
                   ) : (
                     <div className="text-gray-800 font-medium py-1">
-                      {field.type === 'date' ? formatDate(getFieldValue(activeEmployee, field)) : getFieldValue(activeEmployee, field) || '—'}
+                      {field.type === 'date' ? formatDate(getFieldValue(activeEmployee, field, branchLabel)) : getFieldValue(activeEmployee, field, branchLabel) || '—'}
                     </div>
                   )}
                 </div>

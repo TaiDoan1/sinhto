@@ -159,6 +159,33 @@ export function usePosKiosk() {
     document.addEventListener('touchstart', onTouchStart, { passive: true });
     document.addEventListener('touchmove', onTouchMove, { passive: false });
 
+    // Body/#root bị khoá position:fixed + overflow:hidden nên trình duyệt không tự
+    // co khung theo bàn phím ảo như trang thường (đặc biệt Android Chrome: layout
+    // viewport không co, chỉ visualViewport co) — tự co .pos-shell theo visualViewport
+    // thật và cuộn ô đang gõ vào giữa vùng còn lại mỗi khi bàn phím hiện/đổi kích thước.
+    const syncViewportHeight = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        document.documentElement.style.setProperty('--pos-vvh', `${vv.height}px`);
+      }
+    };
+    const scrollFocusedIntoView = () => {
+      syncViewportHeight();
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        setTimeout(scrollFocusedIntoView, 300);
+      }
+    };
+    syncViewportHeight();
+    document.addEventListener('focusin', onFocusIn);
+    window.visualViewport?.addEventListener('resize', scrollFocusedIntoView);
+
     return () => {
       document.documentElement.classList.remove('pos-kiosk');
       document.body.classList.remove('pos-kiosk');
@@ -171,6 +198,9 @@ export function usePosKiosk() {
       window.removeEventListener('scroll', lockWindowScroll);
       document.removeEventListener('touchstart', onTouchStart);
       document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('focusin', onFocusIn);
+      window.visualViewport?.removeEventListener('resize', scrollFocusedIntoView);
+      document.documentElement.style.removeProperty('--pos-vvh');
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }

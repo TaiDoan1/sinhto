@@ -27,8 +27,8 @@ html.pos-kiosk #root {
 }
 
 .pos-shell {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--pos-vvh, 100dvh);
+  max-height: var(--pos-vvh, 100dvh);
   width: 100vw;
   max-width: 100vw;
   overscroll-behavior: none;

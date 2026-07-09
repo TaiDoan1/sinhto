@@ -105,7 +105,7 @@ export function EmployeeRegistration() {
       }, 3000);
     } catch (err) {
       console.error('Failed to save employee:', err);
-      alert('Lỗi lưu nhân viên. Vui lòng thử lại.');
+      alert(err instanceof Error ? err.message : 'Lỗi lưu nhân viên. Vui lòng thử lại.');
     }
   };
 

@@ -62,7 +62,7 @@ export function EmployeeList() {
       setEditForm(null);
     } catch (err) {
       console.error('Failed to update employee:', err);
-      alert('Lỗi cập nhật nhân viên.');
+      alert(err instanceof Error ? err.message : 'Lỗi cập nhật nhân viên.');
     }
   };
 
@@ -138,7 +138,6 @@ export function EmployeeList() {
                   <th className="px-4 py-3 min-w-[180px]">Email</th>
                   <th className="px-4 py-3 text-right">Lương CB</th>
                   <th className="px-4 py-3">Username</th>
-                  <th className="px-4 py-3">MK</th>
                   <th className="px-4 py-3 text-center w-24">Thao tác</th>
                 </tr>
               </thead>
@@ -173,7 +172,6 @@ export function EmployeeList() {
                       {(emp.baseSalary || 0).toLocaleString('vi-VN')}đ
                     </td>
                     <td className="px-4 py-3 font-mono text-gray-700">{emp.username}</td>
-                    <td className="px-4 py-3 font-mono text-gray-500">{emp.password}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button

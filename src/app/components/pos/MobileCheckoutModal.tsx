@@ -138,6 +138,7 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
       total: total,
       staff: staffName,
       staffId: session?.employeeId || '',
+      paymentMethod: selectedPayment || undefined,
     });
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');

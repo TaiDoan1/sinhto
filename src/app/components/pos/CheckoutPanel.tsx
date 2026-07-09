@@ -139,6 +139,7 @@ export function CheckoutPanel({ cart, branchId, onRemoveItem, onClearCart }: Che
       staffId: session?.employeeId || '',
       customerName: activeCustomer?.name,
       customerPhone: activeCustomer?.phone,
+      paymentMethod: selectedPayment || undefined,
     });
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');

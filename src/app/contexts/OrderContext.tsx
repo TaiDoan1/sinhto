@@ -22,7 +22,7 @@ export interface Order {
   deliveryAddress?: string;
   shipperName?: string;
   shipperId?: string;
-  paymentMethod?: 'cash' | 'transfer';
+  paymentMethod?: 'cash' | 'transfer' | 'qr' | 'momo' | 'zalopay';
   salesStaffId?: string;
   salesStaffName?: string;
   stockDeducted?: boolean;

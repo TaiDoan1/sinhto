@@ -260,7 +260,10 @@ export async function saveEmployee(employee: any) {
       body: JSON.stringify(employee),
     });
     if (putRes.ok) return putRes.json();
-    if (putRes.status !== 404) throw new Error('Failed to save employee');
+    if (putRes.status !== 404) {
+      const err = await putRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to save employee');
+    }
   }
   const { id: _id, ...payload } = employee;
   const res = await fetch(`${BASE_URL}/employees`, {
@@ -268,7 +271,10 @@ export async function saveEmployee(employee: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to save employee');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to save employee');
+  }
   return res.json();
 }
 

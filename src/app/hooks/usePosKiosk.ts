@@ -107,6 +107,9 @@ export function usePosKiosk() {
         setNeedsFullscreenTap(false);
         setFullscreenFailed(false);
         tryHideAndroidChromeBar();
+      } else if (!isStandaloneDisplay()) {
+        // Mất fullscreen giữa ca (vuốt hệ thống, ESC...) — bật lại lời nhắc để NV chạm lại 1 phát là vào full ngay.
+        setNeedsFullscreenTap(true);
       }
     };
 
@@ -187,6 +190,24 @@ export function usePosKiosk() {
     }
     return ok;
   }, []);
+
+  // Chưa fullscreen (rớt giữa ca, hoặc chưa từng vào) — bắt luôn lần chạm đầu tiên bất kỳ đâu
+  // trong máy POS để tự bật lại full màn hình, NV không cần tìm đúng nút.
+  useEffect(() => {
+    if (isStandalone || isFullscreen) return;
+    const onFirstTap = () => {
+      void requestAppFullscreen().then((ok) => {
+        tryHideAndroidChromeBar();
+        if (ok) {
+          setNeedsFullscreenTap(false);
+          setIsFullscreen(true);
+          setFullscreenFailed(false);
+        }
+      });
+    };
+    document.addEventListener('pointerdown', onFirstTap, { capture: true });
+    return () => document.removeEventListener('pointerdown', onFirstTap, { capture: true });
+  }, [isStandalone, isFullscreen]);
 
   /** Cần nút toàn màn hình khi chưa PWA và chưa fullscreen */
   const showFullscreenButton = !isStandalone && !isFullscreen;

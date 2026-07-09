@@ -121,7 +121,27 @@ export function usePosKiosk() {
       tryHideAndroidChromeBar();
     }
 
-    const onResize = () => tryHideAndroidChromeBar();
+    // Body/#root bị khoá position:fixed + overflow:hidden nên trình duyệt không tự
+    // co khung theo bàn phím ảo như trang thường (đặc biệt Android Chrome: layout
+    // viewport không co, chỉ visualViewport co) — tự co .pos-shell theo visualViewport
+    // thật mỗi khi bàn phím hiện/đổi kích thước hoặc xoay ngang/dọc màn hình.
+    const syncViewportHeight = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        document.documentElement.style.setProperty('--pos-vvh', `${vv.height}px`);
+      }
+    };
+    const scrollFocusedIntoView = () => {
+      syncViewportHeight();
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    const onResize = () => {
+      tryHideAndroidChromeBar();
+      syncViewportHeight();
+    };
     const lockWindowScroll = () => {
       if (window.scrollY !== 0) window.scrollTo(0, 0);
     };
@@ -159,23 +179,6 @@ export function usePosKiosk() {
     document.addEventListener('touchstart', onTouchStart, { passive: true });
     document.addEventListener('touchmove', onTouchMove, { passive: false });
 
-    // Body/#root bị khoá position:fixed + overflow:hidden nên trình duyệt không tự
-    // co khung theo bàn phím ảo như trang thường (đặc biệt Android Chrome: layout
-    // viewport không co, chỉ visualViewport co) — tự co .pos-shell theo visualViewport
-    // thật và cuộn ô đang gõ vào giữa vùng còn lại mỗi khi bàn phím hiện/đổi kích thước.
-    const syncViewportHeight = () => {
-      const vv = window.visualViewport;
-      if (vv) {
-        document.documentElement.style.setProperty('--pos-vvh', `${vv.height}px`);
-      }
-    };
-    const scrollFocusedIntoView = () => {
-      syncViewportHeight();
-      const active = document.activeElement;
-      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
-        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
     const onFocusIn = (event: FocusEvent) => {
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {

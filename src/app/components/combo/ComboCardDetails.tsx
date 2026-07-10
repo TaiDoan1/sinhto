@@ -82,6 +82,11 @@ export function ComboCardDetails({
             {todayItem.toppings && todayItem.toppings.length > 0 && (
               <div className="text-xs text-gray-600 mt-1">+ {todayItem.toppings.join(' · ')}</div>
             )}
+            {combo.notes && (
+              <div className="text-xs text-amber-800 bg-amber-100 border border-amber-200 rounded-lg px-2 py-1 mt-2 font-semibold">
+                ⚠️ {combo.notes}
+              </div>
+            )}
           </div>
         )}
 

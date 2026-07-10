@@ -199,7 +199,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         branchId: deliveryBranch,
         deliveryTime: raw.deliveryTime || '08:00',
         staff: `CSKH - ${employee.fullName}`,
-        notes: notes.trim(),
+        notes: [notes.trim(), (raw.customerNote as string || '').trim()].filter(Boolean).join(' · '),
         salesRefCode: employee.id,
       });
 
@@ -314,7 +314,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               </select>
             </div>
             <textarea
-              placeholder="Ghi chú đơn hàng (tuỳ chọn)"
+              placeholder={
+                mode === 'combo'
+                  ? 'Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)'
+                  : 'Ghi chú đơn hàng (tuỳ chọn)'
+              }
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border text-sm h-16 resize-none"

@@ -170,6 +170,12 @@ export function ComboDetailDrawer({
             )}
           </div>
 
+          {combo.notes && (
+            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-semibold">
+              ⚠️ {combo.notes}
+            </div>
+          )}
+
           <div>
             <div className="text-xs font-bold text-gray-400 uppercase mb-2">Lịch giao chi tiết</div>
             {logsLoading ? (
@@ -244,7 +250,7 @@ export function ComboDetailDrawer({
               <textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="Ghi chú (topping, độ ngọt...)"
+                placeholder="Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)"
                 rows={2}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />

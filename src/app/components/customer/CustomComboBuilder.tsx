@@ -103,6 +103,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
     Array(7).fill(FLAVORS[0].name)
   );
   const [selectedDeliveryDays, setSelectedDeliveryDays] = useState<number[]>([...DAY_MAP]);
+  const [customerNote, setCustomerNote] = useState('');
 
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
   const [selectedSingleToppings, setSelectedSingleToppings] = useState<string[]>([]);
@@ -120,6 +121,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
       setDeliveryTime(d.deliveryTime || '08:00');
       setSelectedFlavors(d.selectedFlavors || Array(7).fill(FLAVORS[0].name));
       setSelectedDeliveryDays(d.deliveryDays || [...DAY_MAP]);
+      setCustomerNote(d.customerNote || '');
       setSelectedCombos(d.selectedCombos || []);
       setSelectedSingleToppings(d.selectedSingleToppings || []);
       setCustomerName(initialData.customerName || '');
@@ -297,6 +299,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         quantity,
         selectedFlavors,
         deliveryDays: selectedDeliveryDays,
+        customerNote,
         selectedCombos,
         selectedSingleToppings,
         startDate,
@@ -315,7 +318,8 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         ...selectedFlavors
           .map((f, idx) => (selectedDeliveryDays.includes(DAY_MAP[idx]) ? `${DAYS_OF_WEEK[idx]}: ${f}` : null))
           .filter(Boolean),
-        ...toppingsDisplayList
+        ...toppingsDisplayList,
+        ...(customerNote.trim() ? [`Ghi chú: ${customerNote.trim()}`] : []),
       ],
     };
 
@@ -622,6 +626,19 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
                       Giao vào các ngày (bấm để bỏ/chọn — ví dụ trừ T7, CN)
                     </label>
                     <DeliveryDayToggle value={selectedDeliveryDays} onChange={setSelectedDeliveryDays} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block ml-1">
+                      Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)
+                    </label>
+                    <textarea
+                      value={customerNote}
+                      onChange={(e) => setCustomerNote(e.target.value)}
+                      placeholder="VD: Trừ các vị có xoài, thanh long. Giao giữ lạnh, không đường."
+                      rows={2}
+                      className="w-full bg-white text-gray-800 px-4 py-3 rounded-2xl border border-gray-250 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-sm resize-none"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

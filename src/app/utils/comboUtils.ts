@@ -210,6 +210,7 @@ export function formatZaloShipMessage(combo: ComboSubscriptionLike, shipNote?: s
   const lines = [
     `📋 Đơn combo - đã thanh toán`,
     `🥤 1 ly ${size} ${protein}gr protein - ${flavor}${toppings}`,
+    combo.notes ? `⚠️ ${combo.notes}` : '',
     shipNote ? `📝 ${shipNote}` : '',
     combo.deliveryAddress ? `📍 ${combo.deliveryAddress}` : '',
     combo.customerPhone ? `📞 tel:${combo.customerPhone}` : '',
@@ -237,6 +238,8 @@ export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
   const toppingNote = Array.isArray(raw.selectedSingleToppings)
     ? (raw.selectedSingleToppings as string[]).join(', ')
     : '';
+  const customerNote = typeof raw.customerNote === 'string' ? raw.customerNote.trim() : '';
+  const notes = [customerNote, toppingNote].filter(Boolean).join(' · ');
 
   return {
     orderId: extras.orderId,
@@ -255,6 +258,6 @@ export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
     status: extras.status || 'pending',
     branchId: extras.branchId,
     staff: extras.staff,
-    notes: toppingNote,
+    notes,
   };
 }

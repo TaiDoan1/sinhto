@@ -5,6 +5,7 @@ import { ComboSubscription } from '../../contexts/ComboContext';
 import { normalizeComboItems, parseDeliveryLog } from '../../utils/comboUtils';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
 import { ComboCardDetails } from './ComboCardDetails';
+import { DeliveryDayToggle } from './DeliveryDayToggle';
 
 interface DeliveryLogDetail {
   id: string;
@@ -33,7 +34,7 @@ interface Props {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
   onClose: () => void;
-  onSaveEdit?: (address: string, notes: string) => void;
+  onSaveEdit?: (address: string, notes: string, deliveryDays: number[]) => void;
   onChangeBranch?: (branchId: string) => void;
   changingBranch?: boolean;
   branchOptions?: { id: string; name: string }[];
@@ -76,6 +77,7 @@ export function ComboDetailDrawer({
   const [logsLoading, setLogsLoading] = useState(true);
   const [editAddress, setEditAddress] = useState(combo.deliveryAddress || '');
   const [editNotes, setEditNotes] = useState(combo.notes || '');
+  const [editDeliveryDays, setEditDeliveryDays] = useState<number[]>(combo.deliveryDays || [1, 2, 3, 4, 5, 6, 0]);
   const [saving, setSaving] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
 
@@ -112,7 +114,7 @@ export function ComboDetailDrawer({
     if (!onSaveEdit) return;
     setSaving(true);
     try {
-      await onSaveEdit(editAddress, editNotes);
+      await onSaveEdit(editAddress, editNotes, editDeliveryDays);
     } finally {
       setSaving(false);
     }
@@ -234,6 +236,10 @@ export function ComboDetailDrawer({
                 rows={2}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold text-gray-400 uppercase">Giao vào các ngày</div>
+                <DeliveryDayToggle value={editDeliveryDays} onChange={setEditDeliveryDays} />
+              </div>
               <button type="button" onClick={handleSave} disabled={saving}
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">
                 {saving ? 'Đang lưu...' : 'Lưu địa chỉ & ghi chú'}

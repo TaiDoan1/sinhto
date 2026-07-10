@@ -1,7 +1,7 @@
 import type { ComboItem, ComboDeliveryLogEntry, ComboSubscriptionLike } from '../types/combo';
 import { lineToIngredients, type RecipeIngredient } from './inventoryRecipes';
 
-const DAY_MAP = [1, 2, 3, 4, 5, 6, 0];
+export const DAY_MAP = [1, 2, 3, 4, 5, 6, 0];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
 const PLAN_SPECS: Record<string, { size: string; protein: number }> = {
@@ -67,11 +67,14 @@ export function normalizeComboItems(items: unknown): ComboItem[] {
       globalToppings.push(...(raw.selectedSingleToppings as string[]));
     }
     if (Array.isArray(raw.selectedFlavors)) {
+      const allowedDays = Array.isArray(raw.deliveryDays) ? (raw.deliveryDays as number[]) : null;
       return raw.selectedFlavors
         .map((flavor, idx) => {
           if (!flavor) return null;
+          const assignedDay = DAY_MAP[idx];
+          if (allowedDays && !allowedDays.includes(assignedDay)) return null;
           return {
-            assignedDay: DAY_MAP[idx],
+            assignedDay,
             dayLabel: DAY_LABELS[idx],
             productName: String(flavor),
             size: specs.size,
@@ -162,7 +165,8 @@ export function getRecipeIngredientsForComboItem(item: ComboItem | null): Recipe
 
 export function calculateTotalCups(raw: Record<string, unknown>): number {
   const flavors = (raw.selectedFlavors as string[])?.filter(Boolean) || [];
-  const perWeek = flavors.length || 7;
+  const allowedDays = Array.isArray(raw.deliveryDays) ? (raw.deliveryDays as number[]) : null;
+  const perWeek = allowedDays?.length || flavors.length || 7;
   const qty = Number(raw.quantity) || 1;
   const duration = (raw.duration as string) || 'weekly';
   const weeks = duration === 'weekly' ? 1 : duration === 'monthly' ? 4 : duration === 'quarterly' ? 12 : 1;
@@ -228,7 +232,7 @@ export function buildComboPayloadFromRaw(raw: Record<string, unknown>, extras: {
   orderId?: string;
 }) {
   const items = normalizeComboItems(raw);
-  const deliveryDays = deriveDeliveryDays(items);
+  const deliveryDays = deriveDeliveryDays(items, raw.deliveryDays as number[] | undefined);
   const startIso = raw.startDate ? new Date(raw.startDate as string).toISOString() : new Date().toISOString();
   const toppingNote = Array.isArray(raw.selectedSingleToppings)
     ? (raw.selectedSingleToppings as string[]).join(', ')

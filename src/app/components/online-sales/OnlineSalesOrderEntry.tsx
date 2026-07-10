@@ -7,6 +7,7 @@ import { useOrders } from '../../contexts/OrderContext';
 import { ProductGrid, type Product } from '../pos/ProductGrid';
 import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
+import { calculateTotalCups } from '../../utils/comboUtils';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
 import { useBranches } from '../../contexts/BranchContext';
@@ -189,8 +190,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         comboDuration: duration,
         startDate: startIso,
         nextDelivery: startIso,
-        deliveryDays: [1, 2, 3, 4, 5],
+        deliveryDays: (raw.deliveryDays as number[]) || [1, 2, 3, 4, 5, 6, 0],
         items: raw,
+        totalCups: calculateTotalCups(raw),
         totalPrice: pendingCombo.price,
         status: 'pending',
         branchId: deliveryBranch,
@@ -512,10 +514,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               isPOS
               onClose={() => setShowComboBuilder(false)}
               onAddToCart={(combo) => {
+                const raw = combo.rawComboData || combo;
                 setPendingCombo({
-                  name: combo.name || `Combo ${combo.duration || 'tuần'}`,
-                  price: combo.finalPrice || combo.totalPrice || 0,
-                  raw: combo,
+                  name: combo.name || `Combo ${raw.duration || 'tuần'}`,
+                  price: raw.finalPrice || combo.price || combo.totalPrice || 0,
+                  raw,
                 });
                 setShowComboBuilder(false);
               }}

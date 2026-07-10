@@ -399,12 +399,13 @@ export function CustomerComboHub({
         if (!detailCombo) return null;
         return (
           <ComboDetailDrawer
+            key={detailCombo.id}
             combo={detailCombo}
             variant={variant}
             onClose={() => setDetailComboId(null)}
             onSaveEdit={
               variant !== 'pos'
-                ? (address, notes) => updateCombo(detailCombo.id, { deliveryAddress: address, notes })
+                ? (address, notes, deliveryDays) => updateCombo(detailCombo.id, { deliveryAddress: address, notes, deliveryDays })
                 : undefined
             }
             onChangeBranch={

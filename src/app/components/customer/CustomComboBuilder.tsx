@@ -3,6 +3,8 @@ import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, Us
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS } from '../../config/menuToppings';
+import { DAY_MAP } from '../../utils/comboUtils';
+import { DeliveryDayToggle } from '../combo/DeliveryDayToggle';
 
 interface CustomComboBuilderProps {
   onAddToCart: (combo: any) => void;
@@ -100,6 +102,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
   const [selectedFlavors, setSelectedFlavors] = useState<string[]>(
     Array(7).fill(FLAVORS[0].name)
   );
+  const [selectedDeliveryDays, setSelectedDeliveryDays] = useState<number[]>([...DAY_MAP]);
 
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
   const [selectedSingleToppings, setSelectedSingleToppings] = useState<string[]>([]);
@@ -116,6 +119,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
       setStartDate(d.startDate || '');
       setDeliveryTime(d.deliveryTime || '08:00');
       setSelectedFlavors(d.selectedFlavors || Array(7).fill(FLAVORS[0].name));
+      setSelectedDeliveryDays(d.deliveryDays || [...DAY_MAP]);
       setSelectedCombos(d.selectedCombos || []);
       setSelectedSingleToppings(d.selectedSingleToppings || []);
       setCustomerName(initialData.customerName || '');
@@ -292,6 +296,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         duration,
         quantity,
         selectedFlavors,
+        deliveryDays: selectedDeliveryDays,
         selectedCombos,
         selectedSingleToppings,
         startDate,
@@ -307,7 +312,9 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
         `Khách hàng: ${customerName} (${customerPhone})`,
         `Ngày bắt đầu: ${formattedStartDate}`,
         `Giờ giao: ${deliveryTime}`,
-        ...selectedFlavors.map((f, idx) => `${DAYS_OF_WEEK[idx]}: ${f}`),
+        ...selectedFlavors
+          .map((f, idx) => (selectedDeliveryDays.includes(DAY_MAP[idx]) ? `${DAYS_OF_WEEK[idx]}: ${f}` : null))
+          .filter(Boolean),
         ...toppingsDisplayList
       ],
     };
@@ -610,28 +617,43 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
                     <p className="text-xs text-gray-500 font-medium">Bấm vào từng ngày bên dưới để chọn vị cụ thể cho khách</p>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block ml-1">
+                      Giao vào các ngày (bấm để bỏ/chọn — ví dụ trừ T7, CN)
+                    </label>
+                    <DeliveryDayToggle value={selectedDeliveryDays} onChange={setSelectedDeliveryDays} />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {DAYS_OF_WEEK.map((day, idx) => (
-                      <button
-                        key={day}
-                        onClick={() => setActiveDayIndex(idx)}
-                        className={`flex items-center justify-between p-4 bg-white hover:bg-emerald-50/10 rounded-2xl border-2 transition-all text-left ${
-                          activeDayIndex === idx ? 'border-emerald-600 bg-emerald-50/20' : 'border-gray-200'
-                        }`}
-                        style={{ minHeight: '68px' }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl bg-emerald-50 w-10 h-10 rounded-xl flex items-center justify-center border border-emerald-100">
-                            {FLAVORS.find(f => f.name === selectedFlavors[idx])?.image || '🥤'}
-                          </span>
-                          <div>
-                            <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block mb-0.5">{day}</span>
-                            <span className="font-extrabold text-gray-950 text-sm">{selectedFlavors[idx]}</span>
+                    {DAYS_OF_WEEK.map((day, idx) => {
+                      const dayActive = selectedDeliveryDays.includes(DAY_MAP[idx]);
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => dayActive && setActiveDayIndex(idx)}
+                          disabled={!dayActive}
+                          className={`flex items-center justify-between p-4 bg-white hover:bg-emerald-50/10 rounded-2xl border-2 transition-all text-left ${
+                            !dayActive
+                              ? 'opacity-40 cursor-not-allowed border-gray-150'
+                              : activeDayIndex === idx ? 'border-emerald-600 bg-emerald-50/20' : 'border-gray-200'
+                          }`}
+                          style={{ minHeight: '68px' }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl bg-emerald-50 w-10 h-10 rounded-xl flex items-center justify-center border border-emerald-100">
+                              {FLAVORS.find(f => f.name === selectedFlavors[idx])?.image || '🥤'}
+                            </span>
+                            <div>
+                              <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block mb-0.5">{day}</span>
+                              <span className="font-extrabold text-gray-950 text-sm">{dayActive ? selectedFlavors[idx] : 'Không giao'}</span>
+                            </div>
                           </div>
-                        </div>
-                        <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">Đổi vị</span>
-                      </button>
-                    ))}
+                          {dayActive && (
+                            <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">Đổi vị</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Inline Flavor Selection Drawer */}
@@ -811,14 +833,19 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
                     <hr className="border-emerald-100" />
 
                     <div className="space-y-2">
-                      <span className="text-gray-500 font-bold text-xs block">Menu 7 ngày đã chọn:</span>
+                      <span className="text-gray-500 font-bold text-xs block">
+                        Menu các ngày giao ({selectedDeliveryDays.length}/7 ngày):
+                      </span>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        {DAYS_OF_WEEK.map((day, idx) => (
-                          <div key={day} className="bg-white p-3 rounded-xl border border-gray-250">
-                            <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block">{day}</span>
-                            <span className="text-xs font-black text-gray-900 block truncate mt-1">{selectedFlavors[idx]}</span>
-                          </div>
-                        ))}
+                        {DAYS_OF_WEEK.map((day, idx) => {
+                          if (!selectedDeliveryDays.includes(DAY_MAP[idx])) return null;
+                          return (
+                            <div key={day} className="bg-white p-3 rounded-xl border border-gray-250">
+                              <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block">{day}</span>
+                              <span className="text-xs font-black text-gray-900 block truncate mt-1">{selectedFlavors[idx]}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

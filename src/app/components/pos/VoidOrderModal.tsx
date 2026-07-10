@@ -75,8 +75,10 @@ export function VoidOrderModal({ order, onClose, onConfirm }: VoidOrderModalProp
           {/* Order Info */}
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-sm text-gray-600 mb-2">Sản phẩm:</div>
-            {order.items.map((item, idx) => (
-              <div key={idx} className="text-sm text-gray-800">• {item}</div>
+            {order.items.map((item: any, idx) => (
+              <div key={idx} className="text-sm text-gray-800">
+                • {typeof item === 'string' ? item : `${item?.quantity ?? 1}x ${item?.name ?? 'Món'}`}
+              </div>
             ))}
             <div className="mt-2 pt-2 border-t border-gray-200">
               <div className="flex justify-between text-sm">

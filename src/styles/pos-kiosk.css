@@ -127,36 +127,38 @@ html.pos-kiosk #root {
   line-height: 1.3;
 }
 
-.pos-product-grid .pos-flavor-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
+.pos-product-grid .pos-flavor-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.pos-product-grid .pos-flavor-card {
-  padding: 0.65rem;
-  border-radius: 0.85rem;
-  border-width: 2px;
+.pos-product-grid .pos-flavor-row {
+  padding: 0.55rem 0.75rem;
+  gap: 0.75rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.pos-product-grid .pos-flavor-card .pos-flavor-img {
-  margin-bottom: 0.5rem;
+.pos-product-grid .pos-flavor-row:last-child {
+  border-bottom: none;
 }
 
-.pos-product-grid .pos-flavor-card .pos-flavor-img span {
-  font-size: 2.75rem !important;
+.pos-product-grid .pos-flavor-row .pos-flavor-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
-.pos-product-grid .pos-flavor-card .pos-flavor-name {
-  font-size: 1rem;
-  font-weight: 800;
-  min-height: 2.5rem;
-  margin-bottom: 0.35rem;
+.pos-product-grid .pos-flavor-row .pos-flavor-thumb span {
+  font-size: 1.5rem !important;
+}
+
+.pos-product-grid .pos-flavor-row .pos-flavor-name {
+  font-size: 0.95rem;
+  font-weight: 700;
   line-height: 1.25;
 }
 
-.pos-product-grid .pos-flavor-card .pos-flavor-price {
-  font-size: 1.15rem;
+.pos-product-grid .pos-flavor-row .pos-flavor-price {
+  font-size: 1rem;
   font-weight: 800;
   color: #047857;
 }
@@ -331,15 +333,6 @@ html.pos-kiosk #root {
   min-height: 3.25rem;
 }
 
-.pos-product-grid .pos-topping-catalog-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.pos-product-grid .pos-topping-catalog-grid .pos-flavor-name {
-  font-size: 1.15rem;
-  min-height: 3rem;
-}
-
 /* ── Hiệu năng POS — giảm lag trên máy 1GB RAM ── */
 html.pos-kiosk .animate-pulse {
   animation: none !important;
@@ -357,7 +350,7 @@ html.pos-kiosk .pos-checkout button:active {
   transform: none !important;
 }
 
-html.pos-kiosk .pos-flavor-card,
+html.pos-kiosk .pos-flavor-row,
 html.pos-kiosk .pos-size-card,
 html.pos-kiosk .pos-combo-card,
 html.pos-kiosk .pos-topping-card {

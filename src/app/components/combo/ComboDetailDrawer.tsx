@@ -4,6 +4,7 @@ import * as api from '../../utils/api';
 import { ComboSubscription } from '../../contexts/ComboContext';
 import { normalizeComboItems, parseDeliveryLog } from '../../utils/comboUtils';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
+import { ComboCardDetails } from './ComboCardDetails';
 
 interface DeliveryLogDetail {
   id: string;
@@ -36,6 +37,18 @@ interface Props {
   onChangeBranch?: (branchId: string) => void;
   changingBranch?: boolean;
   branchOptions?: { id: string; name: string }[];
+  onClaim?: () => void;
+  onActivate?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
+  onComplete?: () => void;
+  onDeliver?: (note: string) => void;
+  onPostpone?: (note: string) => void;
+  onReschedule?: (date: string, time: string, note?: string) => void;
+  claiming?: boolean;
+  delivering?: boolean;
+  postponing?: boolean;
+  rescheduling?: boolean;
 }
 
 export function ComboDetailDrawer({
@@ -46,6 +59,18 @@ export function ComboDetailDrawer({
   onChangeBranch,
   changingBranch,
   branchOptions,
+  onClaim,
+  onActivate,
+  onPause,
+  onResume,
+  onComplete,
+  onDeliver,
+  onPostpone,
+  onReschedule,
+  claiming,
+  delivering,
+  postponing,
+  rescheduling,
 }: Props) {
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLogDetail[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -227,6 +252,23 @@ export function ComboDetailDrawer({
               ))}
             </div>
           )}
+
+          <ComboCardDetails
+            combo={combo}
+            variant={variant}
+            onClaim={onClaim}
+            onActivate={onActivate}
+            onPause={onPause}
+            onResume={onResume}
+            onComplete={onComplete}
+            onDeliver={onDeliver}
+            onPostpone={onPostpone}
+            onReschedule={onReschedule}
+            claiming={claiming}
+            delivering={delivering}
+            postponing={postponing}
+            rescheduling={rescheduling}
+          />
         </div>
       </div>
     </div>

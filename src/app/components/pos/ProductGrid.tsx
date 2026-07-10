@@ -257,7 +257,7 @@ export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridPr
               </div>
             )}
 
-            <div className={`pos-flavor-grid${activeCategory === 'toppings' ? ' pos-topping-catalog-grid' : ''}`}>
+            <div className="pos-flavor-list bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
               {filteredProducts.map(product => (
                   <button
                     key={product.id}
@@ -273,19 +273,19 @@ export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridPr
                         onProductClick(product);
                       }
                     }}
-                    className="pos-flavor-card bg-white rounded-lg shadow flex flex-col items-center border border-gray-100"
+                    className="pos-flavor-row w-full flex items-center text-left"
                   >
-                    <div className="pos-flavor-img w-full aspect-square overflow-hidden rounded-lg bg-gray-50 flex items-center justify-center">
+                    <div className="pos-flavor-thumb shrink-0 overflow-hidden rounded-lg bg-gray-50 flex items-center justify-center">
                       {product.image && typeof product.image === 'string' && (product.image.startsWith('/') || product.image.startsWith('data:')) ? (
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <span>{product.image}</span>
                       )}
                     </div>
-                    <div className="pos-flavor-name font-bold text-gray-800 text-center line-clamp-2 w-full">
+                    <div className="pos-flavor-name flex-1 min-w-0 font-bold text-gray-800 truncate">
                       {product.name}
                     </div>
-                    <div className={`pos-flavor-add text-white rounded-full p-1.5 ${t.addIcon}`}>
+                    <div className={`pos-flavor-add shrink-0 text-white rounded-full p-1.5 ${t.addIcon}`}>
                       <Plus className="w-4 h-4" />
                     </div>
                   </button>

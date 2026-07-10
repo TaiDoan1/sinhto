@@ -6,15 +6,11 @@ import {
   getComboProgress,
   getComboItemForToday,
   getCombosDueToday,
-  formatZaloShipMessage,
-  getRecipeIngredientsForComboItem,
   wasDeliveredToday,
 } from '../../utils/comboUtils';
-import {
-  Search, Phone, MapPin, Package, Copy, CheckCircle2, Pause, Play,
-  Truck, User, Calendar, ChevronRight, MessageCircle, AlertCircle,
-} from 'lucide-react';
+import { Search, Phone, Package, User, ChevronRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { ComboDetailDrawer } from './ComboDetailDrawer';
+import { ComboCardDetails, type ComboActionProps } from './ComboCardDetails';
 
 export type CustomerComboHubVariant = 'pos' | 'admin' | 'cskh';
 
@@ -44,55 +40,60 @@ const STATUS_COLOR: Record<string, string> = {
   completed: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
-function ComboCustomerCard({
-  combo,
-  variant,
-  onClaim,
-  onActivate,
-  onPause,
-  onResume,
-  onComplete,
-  onDeliver,
-  onPostpone,
-  onReschedule,
-  onOpenDetail,
-  claiming,
-  delivering,
-  postponing,
-  rescheduling,
-}: {
-  combo: ComboSubscription;
-  variant: CustomerComboHubVariant;
-  onClaim?: () => void;
-  onActivate?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onComplete?: () => void;
-  onDeliver?: (note: string) => void;
-  onPostpone?: (note: string) => void;
-  onReschedule?: (date: string, time: string, note?: string) => void;
-  onOpenDetail: () => void;
-  claiming?: boolean;
-  delivering?: boolean;
-  postponing?: boolean;
-  rescheduling?: boolean;
-}) {
-  const [shipNote, setShipNote] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleDate, setRescheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [rescheduleTime, setRescheduleTime] = useState(combo.deliveryTime || '08:00');
-
+/**
+ * Card đầy đủ (CSKH/Admin) hoặc dòng gọn (POS) — POS chỉ hiện thông tin cốt lõi
+ * + 1 nút thao tác nhanh theo ngữ cảnh, bấm vào dòng mở ComboDetailDrawer với
+ * toàn bộ chi tiết + thao tác còn lại (dùng chung ComboCardDetails).
+ */
+function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void }) {
+  const { combo, variant, onActivate, onDeliver, onOpenDetail, delivering } = props;
   const progress = getComboProgress(combo);
-  const todayItem = getComboItemForToday(combo);
   const dueToday = !wasDeliveredToday(combo) && combo.status === 'active';
-  const ingredients = getRecipeIngredientsForComboItem(todayItem);
 
-  const copyZalo = async () => {
-    await navigator.clipboard.writeText(formatZaloShipMessage(combo, shipNote));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  if (variant === 'pos') {
+    const quickAction = dueToday && onDeliver
+      ? { label: delivering ? 'Đang giao...' : 'Giao', onClick: () => onDeliver(''), disabled: !!delivering, className: 'bg-emerald-700 text-white' }
+      : combo.status === 'pending' && onActivate
+      ? { label: 'Kích hoạt', onClick: onActivate, disabled: false, className: 'bg-emerald-600 text-white' }
+      : null;
+
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpenDetail}
+        onKeyDown={(e) => { if (e.key === 'Enter') onOpenDetail(); }}
+        className={`self-start w-full flex items-center gap-2 rounded-xl px-3 py-2.5 border bg-white shadow-sm cursor-pointer transition-all text-left ${
+          dueToday ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-gray-200 hover:border-emerald-300'
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-gray-900 text-sm truncate">{combo.customerName}</span>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${STATUS_COLOR[combo.status]}`}>
+              {STATUS_LABEL[combo.status]}
+            </span>
+            {dueToday && (
+              <span className="text-[9px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full shrink-0">Hôm nay</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 truncate mt-0.5">{combo.planName || 'Combo FitBlend'} · {combo.customerPhone}</p>
+        </div>
+        <div className="text-sm font-black text-emerald-700 shrink-0">{progress.label}</div>
+        {quickAction && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); quickAction.onClick(); }}
+            disabled={quickAction.disabled}
+            className={`shrink-0 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${quickAction.className}`}
+          >
+            {quickAction.label}
+          </button>
+        )}
+        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${dueToday ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-gray-200'}`}>
@@ -126,185 +127,7 @@ function ComboCustomerCard({
           </div>
         </div>
 
-        {/* Hôm nay */}
-        {combo.status === 'active' && todayItem && (
-          <div className="mt-3 bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[10px] font-bold text-emerald-700 uppercase">Hôm nay</div>
-              {combo.deliveryTime && (
-                <div className="text-[10px] font-bold text-emerald-700">Giờ giao: {combo.deliveryTime}</div>
-              )}
-            </div>
-            <div className="font-bold text-sm text-gray-900">
-              {todayItem.productName} · {todayItem.size} · {todayItem.protein}g protein
-            </div>
-            {todayItem.toppings && todayItem.toppings.length > 0 && (
-              <div className="text-xs text-gray-600 mt-1">+ {todayItem.toppings.join(' · ')}</div>
-            )}
-          </div>
-        )}
-
-        {combo.deliveryAddress && (
-          <div className="mt-2 flex items-start gap-1.5 text-sm text-gray-700">
-            <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-            <span className="line-clamp-2">{combo.deliveryAddress}</span>
-          </div>
-        )}
-
-        {combo.careStaffName && (
-          <p className="text-xs text-gray-400 mt-1">CS: {combo.careStaffName}</p>
-        )}
-        {variant === 'admin' && combo.commissionAmount != null && combo.commissionAmount > 0 && (
-          <p className="text-xs text-amber-700 mt-1">
-            HH: {combo.commissionAmount.toLocaleString('vi-VN')}đ · {combo.commissionStatus || 'pending'}
-          </p>
-        )}
-
-        {/* Actions row */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={copyZalo}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            {copied ? 'Đã copy!' : 'Copy Zalo'}
-          </button>
-
-          {combo.status === 'pending' && variant === 'cskh' && onClaim && (
-            <button type="button" onClick={onClaim} disabled={claiming}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold disabled:opacity-60">
-              {claiming ? '...' : 'Chốt combo'}
-            </button>
-          )}
-          {combo.status === 'pending' && variant === 'admin' && onClaim && (
-            <button type="button" onClick={onClaim} disabled={claiming}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold disabled:opacity-60">
-              {claiming ? '...' : 'Chốt combo'}
-            </button>
-          )}
-          {combo.status === 'pending' && variant === 'pos' && onActivate && (
-            <button type="button" onClick={onActivate}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold">
-              Kích hoạt tại quầy
-            </button>
-          )}
-          {combo.status === 'active' && onPause && (
-            <button type="button" onClick={onPause}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-xs font-bold">
-              <Pause className="w-3.5 h-3.5" /> Tạm dừng
-            </button>
-          )}
-          {combo.status === 'paused' && onResume && (
-            <button type="button" onClick={onResume}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-              <Play className="w-3.5 h-3.5" /> Kích hoạt lại
-            </button>
-          )}
-          {combo.status !== 'completed' && onComplete && (
-            <button type="button" onClick={onComplete}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold">
-              Hoàn thành
-            </button>
-          )}
-          <button type="button" onClick={onOpenDetail}
-            className="ml-auto flex items-center gap-1 px-2 py-1.5 text-xs text-gray-500 font-semibold">
-            Chi tiết
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Deliver section */}
-        {combo.status === 'active' && dueToday && onDeliver && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-            <input
-              type="text"
-              placeholder="Ghi chú giao (ít ngọt, giao ngay...)"
-              value={shipNote}
-              onChange={(e) => setShipNote(e.target.value)}
-              className="w-full text-sm border rounded-lg px-3 py-2"
-            />
-            {ingredients.length > 0 && (
-              <p className="text-[11px] text-gray-400">
-                Kho: {ingredients.map((i) => `${i.itemName} ${i.quantity.toFixed(2)}${i.unit}`).join(' · ')}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => onDeliver(shipNote)}
-              disabled={delivering}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold disabled:opacity-60"
-            >
-              <Truck className="w-4 h-4" />
-              {delivering ? 'Đang xử lý...' : 'Xác nhận giao & Trừ kho'}
-            </button>
-            {onPostpone && (
-              <button
-                type="button"
-                onClick={() => onPostpone(shipNote)}
-                disabled={postponing}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-orange-200 text-orange-700 text-sm font-bold disabled:opacity-60"
-              >
-                <Calendar className="w-4 h-4" />
-                {postponing ? 'Đang hoãn...' : 'Hoãn giao (không trừ ly)'}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Đổi ngày/giờ giao theo yêu cầu khách — CSKH và chi nhánh (POS) đều đổi được */}
-        {combo.status === 'active' && onReschedule && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            {!showReschedule ? (
-              <button
-                type="button"
-                onClick={() => setShowReschedule(true)}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-bold"
-              >
-                <Calendar className="w-4 h-4" />
-                Đổi ngày/giờ giao gần nhất
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    value={rescheduleDate}
-                    onChange={(e) => setRescheduleDate(e.target.value)}
-                    className="w-full text-sm border rounded-lg px-3 py-2"
-                  />
-                  <input
-                    type="time"
-                    value={rescheduleTime}
-                    onChange={(e) => setRescheduleTime(e.target.value)}
-                    className="w-full text-sm border rounded-lg px-3 py-2"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowReschedule(false)}
-                    className="flex-1 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onReschedule(rescheduleDate, rescheduleTime);
-                      setShowReschedule(false);
-                    }}
-                    disabled={rescheduling}
-                    className="flex-1 py-2 rounded-xl bg-gray-800 text-white text-sm font-bold disabled:opacity-60"
-                  >
-                    {rescheduling ? 'Đang lưu...' : 'Xác nhận đổi lịch'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
+        <ComboCardDetails {...props} />
       </div>
     </div>
   );
@@ -530,7 +353,12 @@ export function CustomerComboHub({
           <p className="font-semibold">Không có combo phù hợp</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0 pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div
+          className={`overflow-y-auto flex-1 min-h-0 pb-4 ${
+            variant === 'pos' ? 'flex flex-col gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'
+          }`}
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {filtered.map((combo) => (
             <ComboCustomerCard
               key={combo.id}
@@ -586,6 +414,30 @@ export function CustomerComboHub({
             }
             changingBranch={changingBranchId === detailCombo.id}
             branchOptions={activeBranches.map((b) => ({ id: b.id, name: b.name }))}
+            claiming={claimingId === detailCombo.id}
+            delivering={deliveringId === detailCombo.id}
+            postponing={postponingId === detailCombo.id}
+            rescheduling={reschedulingId === detailCombo.id}
+            onClaim={detailCombo.status === 'pending' ? () => handleClaim(detailCombo.id) : undefined}
+            onActivate={detailCombo.status === 'pending' ? () => updateComboStatus(detailCombo.id, 'active') : undefined}
+            onPause={detailCombo.status === 'active' ? () => updateComboStatus(detailCombo.id, 'paused') : undefined}
+            onResume={detailCombo.status === 'paused' ? () => updateComboStatus(detailCombo.id, 'active') : undefined}
+            onComplete={detailCombo.status !== 'completed' ? () => updateComboStatus(detailCombo.id, 'completed') : undefined}
+            onDeliver={
+              detailCombo.status === 'active' && dueToday.some((d) => d.id === detailCombo.id)
+                ? (note) => handleDeliver(detailCombo, note)
+                : undefined
+            }
+            onPostpone={
+              detailCombo.status === 'active' && dueToday.some((d) => d.id === detailCombo.id)
+                ? (note) => handlePostpone(detailCombo, note)
+                : undefined
+            }
+            onReschedule={
+              detailCombo.status === 'active'
+                ? (date, time) => handleReschedule(detailCombo, date, time)
+                : undefined
+            }
           />
         );
       })()}

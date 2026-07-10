@@ -89,7 +89,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     const employee = await api.employeeLogin(username, password);
     if (isOnlineSalesPosition(employee.position)) {
-      throw new Error('Tài khoản Bán Hàng Online — vui lòng đăng nhập tại cổng 🛍️ Bán Hàng Online.');
+      throw new Error('Tài khoản Chăm Sóc Khách Hàng — vui lòng đăng nhập tại cổng 🛍️ CSKH.');
     }
     setActiveEmployee(employee);
     localStorage.setItem(SESSION_KEY, JSON.stringify(employee));

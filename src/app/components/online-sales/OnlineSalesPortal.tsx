@@ -224,7 +224,7 @@ export function OnlineSalesPortal() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-indigo-200 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5" /> Bán hàng online · FitBlend
+                <Globe className="w-3.5 h-3.5" /> Chăm sóc khách hàng · FitBlend
               </p>
               <h1 className="text-xl lg:text-2xl font-black mt-0.5">{activeEmployee.fullName}</h1>
               <p className="text-indigo-200 text-sm">{branchLabel(activeEmployee.branch) || activeEmployee.branch}</p>

@@ -24,7 +24,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'products', label: 'Sản Phẩm', icon: ShoppingBag },
     { id: 'combos', label: 'Quản Lý Combo', icon: Coffee },
     { id: 'combo-ship', label: 'Giao Combo Hôm Nay', icon: Truck },
-    { id: 'online-sales', label: 'Bán Hàng Online', icon: Globe },
+    { id: 'online-sales', label: 'Chăm Sóc Khách Hàng', icon: Globe },
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
   ];
 

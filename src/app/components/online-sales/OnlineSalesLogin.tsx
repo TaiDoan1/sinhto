@@ -37,11 +37,11 @@ export function OnlineSalesLogin() {
             <ShoppingBag className="w-8 h-8" />
           </div>
           <p className="text-indigo-200 text-sm font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-            <Globe className="w-4 h-4" /> FitBlend Online Sales
+            <Globe className="w-4 h-4" /> FitBlend CSKH
           </p>
-          <h1 className="text-4xl xl:text-5xl font-black leading-tight mb-4">Bán Hàng Online</h1>
+          <h1 className="text-4xl xl:text-5xl font-black leading-tight mb-4">Chăm Sóc Khách Hàng</h1>
           <p className="text-indigo-100/90 text-lg leading-relaxed mb-8">
-            Cổng làm việc dành cho nhân viên chăm sóc khách hàng online — chốt đơn, theo dõi combo và liên hệ khách trên web.
+            Cổng làm việc dành cho nhân viên chăm sóc khách hàng — chốt đơn, theo dõi combo và liên hệ khách trên web.
           </p>
           <ul className="space-y-3">
             {FEATURES.map((item) => (
@@ -62,7 +62,7 @@ export function OnlineSalesLogin() {
               <ShoppingBag className="w-8 h-8 text-indigo-700" />
             </div>
             <p className="lg:hidden text-indigo-600 text-xs font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1.5">
-              <Globe className="w-3.5 h-3.5" /> FitBlend Online
+              <Globe className="w-3.5 h-3.5" /> FitBlend CSKH
             </p>
             <h2 className="text-2xl lg:text-3xl font-black text-gray-900 lg:text-left">Đăng nhập</h2>
             <p className="text-gray-500 mt-2 text-sm leading-relaxed lg:text-left">

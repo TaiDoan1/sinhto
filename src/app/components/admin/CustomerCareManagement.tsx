@@ -165,9 +165,9 @@ export function CustomerCareManagement() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Bán Hàng Online</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Chăm Sóc Khách Hàng</h1>
           <p className="text-gray-600 mt-1">
-            Quản lý nhân viên bán hàng online — phân bổ khách, theo dõi combo và chuyển nhượng
+            Quản lý nhân viên chăm sóc khách hàng — phân bổ khách, theo dõi combo và chuyển nhượng
           </p>
         </div>
         <button
@@ -229,7 +229,7 @@ export function CustomerCareManagement() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-800">
-            <strong>{pendingCombos.length} combo</strong> đang chờ NV bán hàng online chốt — khách đặt online chưa được gán.
+            <strong>{pendingCombos.length} combo</strong> đang chờ NV CSKH chốt — khách đặt online chưa được gán.
           </p>
         </div>
       )}
@@ -240,13 +240,13 @@ export function CustomerCareManagement() {
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               <Users className="w-5 h-5 text-emerald-600" />
-              Nhân viên online ({csStaff.length})
+              Nhân viên CSKH ({csStaff.length})
             </h2>
           </div>
           <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
             {csStaff.length === 0 ? (
               <p className="p-5 text-sm text-gray-500">
-                Chưa có NV bán hàng online. Tạo tài khoản với chức vụ &quot;Bán Hàng Online&quot; trong mục Nhân Sự.
+                Chưa có NV CSKH. Tạo tài khoản với chức vụ &quot;Chăm Sóc Khách Hàng&quot; trong mục Nhân Sự.
               </p>
             ) : (
               csStaff.map((staff) => {
@@ -279,7 +279,7 @@ export function CustomerCareManagement() {
           {!selectedStaffId ? (
             <div className="bg-white rounded-2xl shadow-md p-12 text-center text-gray-400">
               <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-              <p className="font-semibold text-lg">Chọn nhân viên bán hàng online để xem chi tiết</p>
+              <p className="font-semibold text-lg">Chọn nhân viên CSKH để xem chi tiết</p>
             </div>
           ) : (
             <>

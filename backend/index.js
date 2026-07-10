@@ -741,21 +741,33 @@ app.post('/api/employees', (req, res) => {
   const customData = typeof e.customData === 'object' ? JSON.stringify(e.customData || {}) : (e.customData || '{}');
   const storedPassword = prepareEmployeePassword(e.password);
   const username = (e.username || '').trim();
+  const employeeCode = (e.employeeId || '').trim();
 
   db.get('SELECT id FROM employees WHERE username = ?', [username], (checkErr, existing) => {
     if (checkErr) return res.status(500).json({ error: checkErr.message });
     if (existing) return res.status(400).json({ error: `Tên đăng nhập "${username}" đã được dùng. Vui lòng chọn tên khác.` });
 
-    db.run(
-      `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
-        broadcast('EMPLOYEE_CREATED', created);
-        res.status(201).json(created);
-      }
-    );
+    const checkCode = (cb) => {
+      if (!employeeCode) return cb();
+      db.get('SELECT id FROM employees WHERE employeeId = ?', [employeeCode], (codeErr, codeConflict) => {
+        if (codeErr) return res.status(500).json({ error: codeErr.message });
+        if (codeConflict) return res.status(400).json({ error: `Mã nhân viên "${employeeCode}" đã được dùng. Vui lòng chọn mã khác.` });
+        cb();
+      });
+    };
+
+    checkCode(() => {
+      db.run(
+        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData],
+        function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+          const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
+          broadcast('EMPLOYEE_CREATED', created);
+          res.status(201).json(created);
+        }
+      );
+    });
   });
 });
 
@@ -765,6 +777,7 @@ app.put('/api/employees/:id', (req, res) => {
   const customData = typeof e.customData === 'object' ? JSON.stringify(e.customData || {}) : (e.customData || '{}');
   const storedPassword = e.password ? prepareEmployeePassword(e.password) : undefined;
   const username = (e.username || '').trim();
+  const employeeCode = (e.employeeId || '').trim();
 
   db.get('SELECT password FROM employees WHERE id = ?', [id], (getErr, existing) => {
     if (getErr) return res.status(500).json({ error: getErr.message });
@@ -775,17 +788,28 @@ app.put('/api/employees/:id', (req, res) => {
       if (checkErr) return res.status(500).json({ error: checkErr.message });
       if (conflict) return res.status(400).json({ error: `Tên đăng nhập "${username}" đã được dùng. Vui lòng chọn tên khác.` });
 
-      db.run(
-        `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ? WHERE id = ?`,
-        [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, id],
-        function(err) {
-          if (err) return res.status(500).json({ error: err.message });
-          if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
-          const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
-          broadcast('EMPLOYEE_UPDATED', updated);
-          res.json(updated);
-        }
-      );
+      const checkCode = (cb) => {
+        if (!employeeCode) return cb();
+        db.get('SELECT id FROM employees WHERE employeeId = ? AND id != ?', [employeeCode, id], (codeErr, codeConflict) => {
+          if (codeErr) return res.status(500).json({ error: codeErr.message });
+          if (codeConflict) return res.status(400).json({ error: `Mã nhân viên "${employeeCode}" đã được dùng. Vui lòng chọn mã khác.` });
+          cb();
+        });
+      };
+
+      checkCode(() => {
+        db.run(
+          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ? WHERE id = ?`,
+          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, id],
+          function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
+            const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
+            broadcast('EMPLOYEE_UPDATED', updated);
+            res.json(updated);
+          }
+        );
+      });
     });
   });
 });

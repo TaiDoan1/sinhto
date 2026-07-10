@@ -42,7 +42,7 @@ export function OnlineSalesProvider({ children }: { children: ReactNode }) {
       throw new Error('Phản hồi máy chủ không hợp lệ. Hãy restart backend (npm run dev).');
     }
     if (!isOnlineSalesPosition(employee.position)) {
-      throw new Error('Tài khoản này không thuộc bộ phận Bán Hàng Online. Vui lòng dùng cổng Nhân Viên.');
+      throw new Error('Tài khoản này không thuộc bộ phận Chăm Sóc Khách Hàng. Vui lòng dùng cổng Nhân Viên.');
     }
     setActiveEmployee(employee);
     localStorage.setItem(SESSION_KEY, JSON.stringify(employee));

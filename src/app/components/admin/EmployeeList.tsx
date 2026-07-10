@@ -6,7 +6,9 @@ import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 
 const positions = [
-  { id: 'manager', name: 'Quản Lý' },
+  { id: 'manager', name: 'Quản Lý Chi Nhánh' },
+  { id: 'store_manager', name: 'Quản Lý Cửa Hàng' },
+  { id: 'cskh', name: 'Chăm Sóc Khách Hàng' },
   { id: 'cashier', name: 'Thu Ngân' },
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
@@ -66,20 +68,30 @@ export function EmployeeList() {
     }
   };
 
+  const normalizeText = (value?: string | null) => (value ?? '').toString().trim();
+
   const filteredEmployees = employees
     .filter(emp => {
+      const branchValue = normalizeText(emp.branch);
       if (branchFilter === 'ALL') return true;
-      if (branchFilter === 'UNASSIGNED') return !emp.branch;
-      return emp.branch === branchFilter;
+      if (branchFilter === 'UNASSIGNED') return !branchValue;
+      return branchValue === branchFilter;
     })
-    .filter(emp =>
-      emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.phone.includes(searchTerm) ||
-      emp.username.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => a.branch.localeCompare(b.branch) || a.employeeId.localeCompare(b.employeeId));
+    .filter(emp => {
+      const fullName = normalizeText(emp.fullName).toLowerCase();
+      const employeeId = normalizeText(emp.employeeId).toLowerCase();
+      const email = normalizeText(emp.email).toLowerCase();
+      const phone = normalizeText(emp.phone);
+      const username = normalizeText(emp.username).toLowerCase();
+      const term = normalizeText(searchTerm).toLowerCase();
+
+      return fullName.includes(term) ||
+        employeeId.includes(term) ||
+        email.includes(term) ||
+        phone.includes(searchTerm) ||
+        username.includes(term);
+    })
+    .sort((a, b) => normalizeText(a.branch).localeCompare(normalizeText(b.branch)) || normalizeText(a.employeeId).localeCompare(normalizeText(b.employeeId)));
 
   const getPositionName = (id: string) => positions.find(p => p.id === id)?.name || id;
 

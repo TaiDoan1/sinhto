@@ -317,6 +317,57 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             />
           </div>
 
+          {mode === 'retail' && cart.length > 0 && (
+            <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+              <h3 className="font-bold text-gray-900 mb-3">Giỏ hàng ({cart.length})</h3>
+              <div className="space-y-2 mb-4">
+                {cart.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm truncate">{item.productName}</p>
+                      <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
+                      <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                      <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
+                      <span className="text-sm font-bold text-indigo-700 w-20 text-right">
+                        {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                      </span>
+                      <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t pt-3 space-y-1.5">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>Tiền hàng</span>
+                  <span>{cartTotal.toLocaleString('vi-VN')}đ</span>
+                </div>
+                {Number(shipFee) > 0 && (
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>Phí ship</span>
+                    <span>{Number(shipFee).toLocaleString('vi-VN')}đ</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-bold text-lg">Tổng thu: {(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={handleSubmitRetail}
+                  disabled={submitting}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm disabled:opacity-60 flex items-center gap-2"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Xác nhận đơn lẻ
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3">
             <h3 className="font-bold text-gray-900 text-sm">Thanh toán</h3>
             <div className="grid grid-cols-3 gap-2">
@@ -414,57 +465,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                   </div>
                 )}
               </div>
-
-              {cart.length > 0 && (
-                <div className="bg-white rounded-2xl border border-indigo-100 p-5">
-                  <h3 className="font-bold text-gray-900 mb-3">Giỏ hàng ({cart.length})</h3>
-                  <div className="space-y-2 mb-4">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-sm truncate">{item.productName}</p>
-                          <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
-                          <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                          <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
-                          <span className="text-sm font-bold text-indigo-700 w-20 text-right">
-                            {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                          </span>
-                          <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="border-t pt-3 space-y-1.5">
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span>Tiền hàng</span>
-                      <span>{cartTotal.toLocaleString('vi-VN')}đ</span>
-                    </div>
-                    {Number(shipFee) > 0 && (
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>Phí ship</span>
-                        <span>{Number(shipFee).toLocaleString('vi-VN')}đ</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-bold text-lg">Tổng thu: {(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end pt-3">
-                    <button
-                      type="button"
-                      onClick={handleSubmitRetail}
-                      disabled={submitting}
-                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm disabled:opacity-60 flex items-center gap-2"
-                    >
-                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      Xác nhận đơn lẻ
-                    </button>
-                  </div>
-                </div>
-              )}
             </>
           ) : (
             <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4">

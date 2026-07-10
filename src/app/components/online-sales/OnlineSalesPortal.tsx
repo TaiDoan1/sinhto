@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, X,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -55,6 +55,85 @@ function CustomerRow({
   );
 }
 
+function RetailOrderDetailDrawer({ order, onClose }: { order: Order; onClose: () => void }) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="font-bold text-lg text-gray-900">Chi tiết đơn lẻ</h3>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase">Ngày</p>
+              <p className="font-semibold text-gray-900">{new Date(order.time).toLocaleDateString('vi-VN')}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase">Khách hàng</p>
+              <p className="font-semibold text-gray-900">{order.customerName || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase">Số điện thoại</p>
+              <p className="font-semibold text-gray-900">{order.customerPhone || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase">Chi nhánh nhận đơn</p>
+              <p className="font-semibold text-gray-900">{order.branchId || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs font-bold text-gray-400 uppercase">Địa chỉ</p>
+              <p className="font-semibold text-gray-900">{order.deliveryAddress || '—'}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Ly lẻ</p>
+            <div className="space-y-2">
+              {items.map((item: any, idx: number) => (
+                <div key={idx} className="bg-gray-50 rounded-xl p-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ''}{item.productName || item.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {[item.size, item.protein ? `${item.protein}g protein` : null, Array.isArray(item.toppings) && item.toppings.length ? item.toppings.join(', ') : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  <p className="font-bold text-indigo-700 text-sm shrink-0">
+                    {((item.price || 0) * (item.quantity || 1)).toLocaleString('vi-VN')}đ
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-3 space-y-1.5 text-sm">
+            <div className="flex items-center justify-between text-gray-600">
+              <span>Tiền hàng</span>
+              <span>{order.total.toLocaleString('vi-VN')}đ</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600">
+              <span>Phí ship</span>
+              <span>{(order.shipFee || 0).toLocaleString('vi-VN')}đ</span>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-bold text-lg text-gray-900">
+                Tổng thu: {(order.total + (order.shipFee || 0)).toLocaleString('vi-VN')}đ
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_DASHBOARD: OnlineSalesDashboard = {
   revenueMonth: 0,
   revenueWeek: 0,
@@ -83,6 +162,7 @@ export function OnlineSalesPortal() {
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [search, setSearch] = useState('');
   const [selectedAssignment, setSelectedAssignment] = useState<CustomerCareAssignment | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [leadForm, setLeadForm] = useState({ fbName: '', customerName: '', customerPhone: '', notes: '' });
   const [creatingLead, setCreatingLead] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
@@ -448,7 +528,11 @@ export function OnlineSalesPortal() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {filterOrdersSearch(retailOrders).map((o) => (
-                            <tr key={o.id} className="hover:bg-indigo-50/30 align-top">
+                            <tr
+                              key={o.id}
+                              onClick={() => setSelectedOrder(o)}
+                              className="hover:bg-indigo-50/30 align-top cursor-pointer"
+                            >
                               <td className="px-4 py-3 whitespace-nowrap text-gray-600">
                                 {new Date(o.time).toLocaleDateString('vi-VN')}
                               </td>
@@ -487,6 +571,10 @@ export function OnlineSalesPortal() {
           onClose={() => setSelectedAssignment(null)}
           onUpdated={refreshData}
         />
+      )}
+
+      {selectedOrder && (
+        <RetailOrderDetailDrawer order={selectedOrder} onClose={() => setSelectedOrder(null)} />
       )}
     </div>
   );

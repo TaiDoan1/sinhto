@@ -44,6 +44,9 @@ export interface ComboSubscription {
   deliveryTime?: string;
   shipFee?: number;
   endDate?: string;
+  renewedFromComboId?: string;
+  renewedFromDuration?: string;
+  renewedFromPlanName?: string;
 }
 
 export interface ComboNotification {
@@ -99,6 +102,9 @@ function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
     commissionStatus: raw.commissionStatus as ComboSubscription['commissionStatus'],
     shipFee: raw.shipFee != null ? Number(raw.shipFee) : 0,
     endDate: (raw.endDate as string) || undefined,
+    renewedFromComboId: (raw.renewedFromComboId as string) || undefined,
+    renewedFromDuration: (raw.renewedFromDuration as string) || undefined,
+    renewedFromPlanName: (raw.renewedFromPlanName as string) || undefined,
     startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
     nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
     updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,

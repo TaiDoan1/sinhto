@@ -4,6 +4,7 @@ import {
   Loader2, CheckCircle2, CreditCard, Banknote, X, Store,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useCombos } from '../../contexts/ComboContext';
 import { ProductGrid, type Product } from '../pos/ProductGrid';
 import { ModifierModal, type CartItem } from '../pos/ModifierModal';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
@@ -15,6 +16,13 @@ import { useBranches } from '../../contexts/BranchContext';
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
 
+const STATUS_LABEL_VI: Record<string, string> = {
+  pending: 'Chờ chốt',
+  active: 'Đang chạy',
+  paused: 'Tạm dừng',
+  completed: 'Hoàn thành',
+};
+
 interface Props {
   employee: Employee;
   onComplete?: () => void;
@@ -24,6 +32,7 @@ interface Props {
 export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) {
   const { addOrder } = useOrders();
   const { activeBranches } = useBranches();
+  const { combos } = useCombos();
 
   const [mode, setMode] = useState<OrderMode>('retail');
   const [customer, setCustomer] = useState({
@@ -33,6 +42,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
   const [shipFee, setShipFee] = useState('');
+  const [renewFromComboId, setRenewFromComboId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [markPaid, setMarkPaid] = useState(true);
   const [claimComboNow, setClaimComboNow] = useState(true);
@@ -60,6 +70,12 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     () => cart.reduce((s, i) => s + i.price * i.quantity, 0),
     [cart]
   );
+
+  const previousCombos = useMemo(() => {
+    const phone = customer.phone.trim();
+    if (!phone) return [];
+    return combos.filter((c) => c.customerPhone === phone);
+  }, [combos, customer.phone]);
 
   const validateCustomer = () => {
     if (!customer.name.trim()) {
@@ -180,6 +196,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       const raw = pendingCombo.raw;
       const duration = (raw.duration as string) || 'monthly';
       const startIso = raw.startDate ? new Date(raw.startDate as string).toISOString() : new Date().toISOString();
+      const renewFrom = renewFromComboId ? previousCombos.find((c) => c.id === renewFromComboId) : null;
 
       const created = await api.createComboSubscription({
         customerName: customer.name.trim(),
@@ -201,6 +218,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         staff: `CSKH - ${employee.fullName}`,
         notes: [notes.trim(), (raw.customerNote as string || '').trim()].filter(Boolean).join(' · '),
         salesRefCode: employee.id,
+        renewedFromComboId: renewFrom?.id,
+        renewedFromDuration: renewFrom?.comboDuration,
+        renewedFromPlanName: renewFrom?.planName,
       });
 
       if (claimComboNow && created?.id) {
@@ -220,6 +240,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
       setPendingCombo(null);
       setShipFee('');
+      setRenewFromComboId('');
       setSuccessMsg(`Đã tạo combo ${pendingCombo.name} cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -499,6 +520,23 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                   className="w-full px-3 py-2.5 rounded-xl border text-sm"
                 />
               </div>
+              {previousCombos.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Loại đăng ký</label>
+                  <select
+                    value={renewFromComboId}
+                    onChange={(e) => setRenewFromComboId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                  >
+                    <option value="">Khách mới</option>
+                    {previousCombos.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Gia hạn từ: {c.planName || 'Combo'} ({STATUS_LABEL_VI[c.status]})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

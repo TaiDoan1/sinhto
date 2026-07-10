@@ -7,6 +7,7 @@ import {
   getComboItemForToday,
   getCombosDueToday,
   wasDeliveredToday,
+  getRenewalBadge,
 } from '../../utils/comboUtils';
 import { Search, Phone, Package, User, ChevronRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { ComboDetailDrawer } from './ComboDetailDrawer';
@@ -49,6 +50,11 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
   const { combo, variant, onActivate, onDeliver, onOpenDetail, delivering } = props;
   const progress = getComboProgress(combo);
   const dueToday = !wasDeliveredToday(combo) && combo.status === 'active';
+  const renewalBadge = getRenewalBadge(combo);
+  const renewalBadgeClass =
+    renewalBadge?.tone === 'upgrade' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    renewalBadge?.tone === 'downgrade' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+    'bg-sky-50 text-sky-700 border-sky-200';
 
   if (variant === 'pos') {
     const quickAction = dueToday && onDeliver
@@ -75,6 +81,11 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
             </span>
             {dueToday && (
               <span className="text-[9px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full shrink-0">Hôm nay</span>
+            )}
+            {renewalBadge && (
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${renewalBadgeClass}`}>
+                {renewalBadge.label}
+              </span>
             )}
           </div>
           <p className="text-xs text-gray-500 truncate mt-0.5">{combo.planName || 'Combo FitBlend'} · {combo.customerPhone}</p>
@@ -114,6 +125,11 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
               </span>
               {dueToday && (
                 <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">Giao hôm nay</span>
+              )}
+              {renewalBadge && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${renewalBadgeClass}`}>
+                  {renewalBadge.label}
+                </span>
               )}
             </div>
             <a href={`tel:${combo.customerPhone}`} className="text-sm text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">

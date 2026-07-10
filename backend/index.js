@@ -1507,6 +1507,9 @@ function parseComboRow(row) {
     commissionStatus: row.commissionStatus || 'pending',
     shipFee: row.shipFee != null ? Number(row.shipFee) : 0,
     endDate: row.endDate || null,
+    renewedFromComboId: row.renewedFromComboId || null,
+    renewedFromDuration: row.renewedFromDuration || null,
+    renewedFromPlanName: row.renewedFromPlanName || null,
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1610,8 +1613,9 @@ app.post('/api/combo-subscriptions', (req, res) => {
     startDate, nextDelivery, deliveryDays, items, totalPrice, status, branchId,
     deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
-    lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate,
+    renewedFromComboId, renewedFromDuration, renewedFromPlanName, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -1623,7 +1627,9 @@ app.post('/api/combo-subscriptions', (req, res) => {
     body.closedAt || null, body.assignedAt || null,
     body.pauseStartDate || null, body.pauseEndDate || null, body.notes || '',
     normStr(body.staff) || '', null, '[]', body.totalCups || 7, body.deliveryTime || '08:00',
-    Number(body.shipFee) || 0, endDate, now, now
+    Number(body.shipFee) || 0, endDate,
+    body.renewedFromComboId || null, body.renewedFromDuration || null, body.renewedFromPlanName || null,
+    now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], async (e, row) => {
@@ -1692,7 +1698,8 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
-        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?, updatedAt = ?
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?,
+        renewedFromComboId = ?, renewedFromDuration = ?, renewedFromPlanName = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1724,6 +1731,9 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.deliveryTime ?? row.deliveryTime ?? '08:00',
         merged.shipFee ?? row.shipFee ?? 0,
         merged.endDate ?? row.endDate ?? null,
+        merged.renewedFromComboId ?? row.renewedFromComboId ?? null,
+        merged.renewedFromDuration ?? row.renewedFromDuration ?? null,
+        merged.renewedFromPlanName ?? row.renewedFromPlanName ?? null,
         now,
         id,
       ],

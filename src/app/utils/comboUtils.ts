@@ -196,6 +196,33 @@ export function getComboProgress(combo: ComboSubscriptionLike): {
   };
 }
 
+const DURATION_LABEL: Record<string, string> = {
+  weekly: 'Tuần',
+  monthly: 'Tháng',
+  quarterly: 'Quý',
+};
+
+/** Badge trạng thái gia hạn — so sánh gói mới với gói combo trước đó (nếu có liên kết) */
+export function getRenewalBadge(combo: {
+  comboDuration?: string;
+  renewedFromComboId?: string;
+  renewedFromDuration?: string;
+}): { label: string; tone: 'renew' | 'upgrade' | 'downgrade' } | null {
+  if (!combo.renewedFromComboId) return null;
+  const RANK: Record<string, number> = { weekly: 1, monthly: 2, quarterly: 3 };
+  const from = combo.renewedFromDuration || '';
+  const to = combo.comboDuration || '';
+  const fromRank = RANK[from] || 0;
+  const toRank = RANK[to] || 0;
+  if (fromRank && toRank && toRank > fromRank) {
+    return { label: `⬆️ Nâng cấp ${DURATION_LABEL[from]} → ${DURATION_LABEL[to]}`, tone: 'upgrade' };
+  }
+  if (fromRank && toRank && toRank < fromRank) {
+    return { label: `⬇️ Hạ gói ${DURATION_LABEL[from]} → ${DURATION_LABEL[to]}`, tone: 'downgrade' };
+  }
+  return { label: '🔄 Gia hạn từ combo trước', tone: 'renew' };
+}
+
 /** Tin nhắn gửi nhóm Zalo SHIP COMBO */
 export function formatZaloShipMessage(combo: ComboSubscriptionLike, shipNote?: string): string {
   const item = getComboItemForToday(combo);

@@ -3,7 +3,7 @@ import { X, User, MapPin, Calendar, Clock, Loader2 } from 'lucide-react';
 import * as api from '../../utils/api';
 import { ComboSubscription } from '../../contexts/ComboContext';
 import type { SalesActivity } from '../../types/onlineSales';
-import { normalizeComboItems, parseDeliveryLog } from '../../utils/comboUtils';
+import { normalizeComboItems, parseDeliveryLog, getRenewalBadge } from '../../utils/comboUtils';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
 import { ComboCardDetails } from './ComboCardDetails';
 import { DeliveryDayToggle } from './DeliveryDayToggle';
@@ -92,6 +92,7 @@ export function ComboDetailDrawer({
   const [loggingNote, setLoggingNote] = useState(false);
 
   const items = normalizeComboItems(combo.items);
+  const renewalBadge = getRenewalBadge(combo);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +178,15 @@ export function ComboDetailDrawer({
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[combo.status]}`}>
                 {STATUS_LABEL[combo.status]}
               </span>
+              {renewalBadge && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  renewalBadge.tone === 'upgrade' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  renewalBadge.tone === 'downgrade' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                  'bg-sky-50 text-sky-700 border-sky-200'
+                }`}>
+                  {renewalBadge.label}
+                </span>
+              )}
             </div>
             <a href={`tel:${combo.customerPhone}`} className="text-sm text-emerald-700 font-semibold flex items-center gap-1 mt-1">
               {combo.customerPhone}
@@ -209,6 +219,11 @@ export function ComboDetailDrawer({
             {combo.endDate && (
               <div className="text-gray-500 text-xs">
                 Kết thúc: {new Date(combo.endDate).toLocaleDateString('vi-VN')}
+              </div>
+            )}
+            {combo.renewedFromPlanName && (
+              <div className="text-gray-500 text-xs">
+                Combo trước: {combo.renewedFromPlanName}
               </div>
             )}
           </div>

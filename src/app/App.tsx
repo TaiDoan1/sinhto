@@ -1,50 +1,56 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Menu, X } from 'lucide-react';
-import { Sidebar } from './components/admin/Sidebar';
-import { AdminLogin } from './components/admin/AdminLogin';
-import { BranchOverview } from './components/admin/BranchOverview';
-import { RevenueAnalytics } from './components/admin/RevenueAnalytics';
-import { HRManagement } from './components/admin/HRManagement';
-import { InventoryDashboard } from './components/admin/InventoryDashboard';
-import { POSInterface } from './components/pos/POSInterface';
-import { StaffApp } from './components/staff/StaffApp';
-import { OnlineSalesApp } from './components/online-sales/OnlineSalesApp';
-import { OnlineSalesProvider } from './contexts/OnlineSalesContext';
-import { AdminProvider, useAdmin } from './contexts/AdminContext';
-import { CustomerApp } from './components/customer/CustomerApp';
-import { ComboShipBoard } from './components/combo-ship/ComboShipBoard';
-import { ShipperApp } from './components/shipper/ShipperApp';
-import { ProductManagement } from './components/admin/ProductManagement';
-import { ComboManagement } from './components/admin/ComboManagement';
-import { LoyaltyManagement } from './components/admin/LoyaltyManagement';
-import { StoreManagerApp } from './components/admin/StoreManagerApp';
-import { CustomerCareManagement } from './components/admin/CustomerCareManagement';
-import { OrderProvider } from './contexts/OrderContext';
-import { ComboProvider } from './contexts/ComboContext';
-import { InventoryProvider } from './contexts/InventoryContext';
-import { AffiliateProvider, useAffiliate } from './contexts/AffiliateContext';
-import { SSEProvider } from './contexts/SSEContext';
-import { MenuProvider } from './contexts/MenuContext';
-import { LoyaltyProvider } from './contexts/LoyaltyContext';
-import { EmployeeProvider } from './contexts/EmployeeContext';
-import { BranchProvider } from './contexts/BranchContext';
-import { captureSalesRefFromUrl } from './utils/salesRef';
+import { useState, useEffect, useCallback } from "react";
+import { Menu, X } from "lucide-react";
+import { Sidebar } from "./components/admin/Sidebar";
+import { AdminLogin } from "./components/admin/AdminLogin";
+import { BranchOverview } from "./components/admin/BranchOverview";
+import { RevenueAnalytics } from "./components/admin/RevenueAnalytics";
+import { HRManagement } from "./components/admin/HRManagement";
+import { InventoryDashboard } from "./components/admin/InventoryDashboard";
+import { POSInterface } from "./components/pos/POSInterface";
+import { StaffApp } from "./components/staff/StaffApp";
+import { OnlineSalesApp } from "./components/online-sales/OnlineSalesApp";
+import { OnlineSalesProvider } from "./contexts/OnlineSalesContext";
+import { AdminProvider, useAdmin } from "./contexts/AdminContext";
+import { CustomerApp } from "./components/customer/CustomerApp";
+import { ComboShipBoard } from "./components/combo-ship/ComboShipBoard";
+import { ShipperApp } from "./components/shipper/ShipperApp";
+import { ProductManagement } from "./components/admin/ProductManagement";
+import { ComboManagement } from "./components/admin/ComboManagement";
+import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
+import { StoreManagerApp } from "./components/admin/StoreManagerApp";
+import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
+import { OrderProvider } from "./contexts/OrderContext";
+import { ComboProvider } from "./contexts/ComboContext";
+import { InventoryProvider } from "./contexts/InventoryContext";
+import { AffiliateProvider, useAffiliate } from "./contexts/AffiliateContext";
+import { SSEProvider } from "./contexts/SSEContext";
+import { MenuProvider } from "./contexts/MenuContext";
+import { LoyaltyProvider } from "./contexts/LoyaltyContext";
+import { EmployeeProvider } from "./contexts/EmployeeContext";
+import { BranchProvider } from "./contexts/BranchContext";
+import { captureSalesRefFromUrl } from "./utils/salesRef";
 import {
   type AppMode,
   getModeFromPath,
   navigateToMode,
   isDevEnvironment,
-} from './utils/appMode';
+} from "./utils/appMode";
 
-function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange: (m: AppMode) => void }) {
+function DevModeNavigation({
+  mode,
+  onModeChange,
+}: {
+  mode: AppMode;
+  onModeChange: (m: AppMode) => void;
+}) {
   const items: { id: AppMode; label: string }[] = [
-    { id: 'customer', label: '🛒 Khách' },
-    { id: 'online-sales', label: '🛍️ CSKH' },
-    { id: 'staff', label: '👤 NV' },
-    { id: 'pos', label: '💳 POS' },
-    { id: 'combo-ship', label: '🚚 Giao Combo' },
-    { id: 'admin', label: '⚙️ Admin' },
-    { id: 'store-manager', label: '🏪 Cửa hàng trưởng' },
+    { id: "customer", label: "🛒 Khách" },
+    { id: "online-sales", label: "🛍️ CSKH" },
+    { id: "staff", label: "👤 NV" },
+    { id: "pos", label: "💳 POS" },
+    { id: "combo-ship", label: "🚚 Giao Combo" },
+    { id: "admin", label: "⚙️ Admin" },
+    { id: "store-manager", label: "🏪 Cửa hàng trưởng" },
   ];
 
   return (
@@ -57,7 +63,9 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
             type="button"
             onClick={() => onModeChange(item.id)}
             className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap ${
-              mode === item.id ? 'bg-amber-500 text-white' : 'bg-white text-gray-700'
+              mode === item.id
+                ? "bg-amber-500 text-white"
+                : "bg-white text-gray-700"
             }`}
           >
             {item.label}
@@ -68,26 +76,63 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
   );
 }
 
-function ModeSelectionScreen({ onSelectMode }: { onSelectMode: (mode: AppMode) => void }) {
+function ModeSelectionScreen({
+  onSelectMode,
+}: {
+  onSelectMode: (mode: AppMode) => void;
+}) {
   const cards: Array<{ mode: AppMode; title: string; description: string }> = [
-    { mode: 'admin', title: 'Admin', description: 'Quản lý cửa hàng, kho, doanh thu và nhân sự' },
-    { mode: 'store-manager', title: 'Cửa hàng trưởng', description: 'Đi tới màn hình riêng dành cho cửa hàng trưởng' },
-    { mode: 'online-sales', title: 'Chăm sóc khách hàng', description: 'Xử lý đơn, phản hồi và chăm sóc khách hàng' },
-    { mode: 'pos', title: 'POS', description: 'Thu ngân, tạo đơn và thanh toán nhanh' },
-    { mode: 'staff', title: 'Nhân viên', description: 'Giao diện vận hành cho nhân viên' },
-    { mode: 'shipper', title: 'Shipper', description: 'Theo dõi và giao hàng' },
-    { mode: 'combo-ship', title: 'Giao combo', description: 'Quản lý đơn giao combo' },
-    { mode: 'customer', title: 'Khách hàng', description: 'Trải nghiệm mua hàng cho khách' },
+    {
+      mode: "admin",
+      title: "Admin",
+      description: "Quản lý cửa hàng, kho, doanh thu và nhân sự",
+    },
+    {
+      mode: "store-manager",
+      title: "Cửa hàng trưởng",
+      description: "Đi tới màn hình riêng dành cho cửa hàng trưởng",
+    },
+    {
+      mode: "online-sales",
+      title: "Chăm sóc khách hàng",
+      description: "Xử lý đơn, phản hồi và chăm sóc khách hàng",
+    },
+    {
+      mode: "pos",
+      title: "POS",
+      description: "Thu ngân, tạo đơn và thanh toán nhanh",
+    },
+    {
+      mode: "staff",
+      title: "Nhân viên",
+      description: "Giao diện vận hành cho nhân viên",
+    },
+    { mode: "shipper", title: "Shipper", description: "Theo dõi và giao hàng" },
+    {
+      mode: "combo-ship",
+      title: "Giao combo",
+      description: "Quản lý đơn giao combo",
+    },
+    {
+      mode: "customer",
+      title: "Khách hàng",
+      description: "Trải nghiệm mua hàng cho khách",
+    },
   ];
 
   return (
     <div className="min-h-screen bg-[linear-gradient(135deg,#f0fdf4_0%,#ecfeff_45%,#fff7ed_100%)] p-4 sm:p-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 rounded-[32px] border border-emerald-100 bg-white/80 p-8 text-center shadow-[0_20px_60px_-25px_rgba(16,185,129,0.35)] backdrop-blur">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.35em] text-emerald-700">FitBlend</p>
-          <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">Chọn chức năng để bắt đầu</h1>
+          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.35em] text-emerald-700">
+            FitBlend
+          </p>
+          <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">
+            Chọn chức năng để bắt đầu
+          </h1>
           <p className="mx-auto mt-3 max-w-2xl text-base leading-7 text-slate-600">
-            Mỗi thẻ dưới đây sẽ mở đúng màn hình tương ứng, giúp bạn truy cập nhanh hơn và đẹp mắt hơn.
+            Mỗi thẻ dưới đây sẽ mở đúng màn hình tương ứng, giúp bạn truy cập
+            nhanh hơn và đẹp mắt hơn.
           </p>
         </div>
 
@@ -101,7 +146,9 @@ function ModeSelectionScreen({ onSelectMode }: { onSelectMode: (mode: AppMode) =
             >
               <div className="mb-4 h-2 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" />
               <h2 className="text-xl font-bold text-slate-900">{card.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{card.description}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {card.description}
+              </p>
               <div className="mt-5 inline-flex items-center text-sm font-semibold text-emerald-700 transition group-hover:translate-x-1">
                 Mở ngay
                 <span className="ml-2">→</span>
@@ -116,7 +163,7 @@ function ModeSelectionScreen({ onSelectMode }: { onSelectMode: (mode: AppMode) =
 
 function AdminShell() {
   const { isLoggedIn, isLoading } = useAdmin();
-  const [adminView, setAdminView] = useState('overview');
+  const [adminView, setAdminView] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isLoading) {
@@ -131,16 +178,26 @@ function AdminShell() {
 
   const renderContent = () => {
     switch (adminView) {
-      case 'overview': return <BranchOverview />;
-      case 'analytics': return <RevenueAnalytics />;
-      case 'hr': return <HRManagement />;
-      case 'inventory': return <InventoryDashboard />;
-      case 'products': return <ProductManagement />;
-      case 'combos': return <ComboManagement />;
-      case 'combo-ship': return <ComboShipBoard />;
-      case 'loyalty': return <LoyaltyManagement />;
-      case 'online-sales': return <CustomerCareManagement />;
-      default: return <BranchOverview />;
+      case "overview":
+        return <BranchOverview />;
+      case "analytics":
+        return <RevenueAnalytics />;
+      case "hr":
+        return <HRManagement />;
+      case "inventory":
+        return <InventoryDashboard />;
+      case "products":
+        return <ProductManagement />;
+      case "combos":
+        return <ComboManagement />;
+      case "combo-ship":
+        return <ComboShipBoard />;
+      case "loyalty":
+        return <LoyaltyManagement />;
+      case "online-sales":
+        return <CustomerCareManagement />;
+      default:
+        return <BranchOverview />;
     }
   };
 
@@ -163,7 +220,7 @@ function AdminShell() {
       {/* Sidebar - responsive */}
       <div
         className={`fixed inset-0 z-40 sm:relative sm:inset-auto transition-all ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+          sidebarOpen ? "translate-x-0" : "-translate-x-full sm:translate-x-0"
         }`}
       >
         <Sidebar activeView={adminView} onViewChange={handleViewChange} />
@@ -178,9 +235,7 @@ function AdminShell() {
       )}
 
       {/* Main content */}
-      <div className="sm:ml-64 p-4 sm:p-8 pt-16 sm:pt-8">
-        {renderContent()}
-      </div>
+      <div className="sm:ml-64 p-4 sm:p-8 pt-16 sm:pt-8">{renderContent()}</div>
     </div>
   );
 }
@@ -195,17 +250,17 @@ function AppContent() {
 
   useEffect(() => {
     syncModeFromUrl();
-    window.addEventListener('popstate', syncModeFromUrl);
-    return () => window.removeEventListener('popstate', syncModeFromUrl);
+    window.addEventListener("popstate", syncModeFromUrl);
+    return () => window.removeEventListener("popstate", syncModeFromUrl);
   }, [syncModeFromUrl]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const refCode = params.get('ref') || params.get('pt');
+    const refCode = params.get("ref") || params.get("pt");
     if (refCode) {
       const pt = resolveCode(refCode);
       if (pt) {
-        localStorage.setItem('activeReferralCode', pt.code);
+        localStorage.setItem("activeReferralCode", pt.code);
       }
     }
     captureSalesRefFromUrl();
@@ -219,14 +274,14 @@ function AppContent() {
   const devNav = isDevEnvironment ? (
     <DevModeNavigation mode={mode} onModeChange={handleDevModeChange} />
   ) : null;
-  const devPad = isDevEnvironment ? 'pt-12' : '';
+  const devPad = isDevEnvironment ? "pt-12" : "";
 
   const handleModeSelect = (nextMode: AppMode) => {
     navigateToMode(nextMode);
     setMode(nextMode);
   };
 
-  if (window.location.pathname === '/' && mode === 'customer') {
+  if (window.location.pathname === "/" && mode === "customer") {
     return (
       <>
         {devNav}
@@ -237,7 +292,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'customer') {
+  if (mode === "customer") {
     return (
       <>
         {devNav}
@@ -248,7 +303,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'online-sales') {
+  if (mode === "online-sales") {
     return (
       <>
         {devNav}
@@ -261,7 +316,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'staff') {
+  if (mode === "staff") {
     return (
       <>
         {devNav}
@@ -272,7 +327,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'pos') {
+  if (mode === "pos") {
     return (
       <>
         {devNav}
@@ -283,7 +338,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'shipper') {
+  if (mode === "shipper") {
     return (
       <>
         {devNav}
@@ -294,7 +349,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'combo-ship') {
+  if (mode === "combo-ship") {
     return (
       <>
         {devNav}
@@ -305,7 +360,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'admin') {
+  if (mode === "admin") {
     return (
       <>
         {devNav}
@@ -318,7 +373,7 @@ function AppContent() {
     );
   }
 
-  if (mode === 'store-manager') {
+  if (mode === "store-manager") {
     return (
       <>
         {devNav}

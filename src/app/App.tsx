@@ -17,6 +17,7 @@ import { ShipperApp } from './components/shipper/ShipperApp';
 import { ProductManagement } from './components/admin/ProductManagement';
 import { ComboManagement } from './components/admin/ComboManagement';
 import { LoyaltyManagement } from './components/admin/LoyaltyManagement';
+import { StoreManagerApp } from './components/admin/StoreManagerApp';
 import { CustomerCareManagement } from './components/admin/CustomerCareManagement';
 import { OrderProvider } from './contexts/OrderContext';
 import { ComboProvider } from './contexts/ComboContext';
@@ -43,6 +44,7 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
     { id: 'pos', label: '💳 POS' },
     { id: 'combo-ship', label: '🚚 Giao Combo' },
     { id: 'admin', label: '⚙️ Admin' },
+    { id: 'store-manager', label: '🏪 Cửa hàng trưởng' },
   ];
 
   return (
@@ -69,7 +71,7 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
 function ModeSelectionScreen({ onSelectMode }: { onSelectMode: (mode: AppMode) => void }) {
   const cards: Array<{ mode: AppMode; title: string; description: string; emoji: string }> = [
     { mode: 'admin', title: 'Admin', description: 'Quản lý cửa hàng, kho, doanh thu và nhân sự', emoji: '⚙️' },
-    { mode: 'admin', title: 'Cửa hàng trưởng', description: 'Đi tới màn hình quản lý dành cho cửa hàng trưởng', emoji: '🏪' },
+    { mode: 'store-manager', title: 'Cửa hàng trưởng', description: 'Đi tới màn hình riêng dành cho cửa hàng trưởng', emoji: '🏪' },
     { mode: 'online-sales', title: 'Chăm sóc khách hàng', description: 'Xử lý đơn, phản hồi và chăm sóc khách hàng', emoji: '💬' },
     { mode: 'pos', title: 'POS', description: 'Thu ngân, tạo đơn và thanh toán nhanh', emoji: '💳' },
     { mode: 'staff', title: 'Nhân viên', description: 'Giao diện vận hành cho nhân viên', emoji: '👤' },
@@ -305,6 +307,19 @@ function AppContent() {
         <div className={devPad}>
           <AdminProvider>
             <AdminShell />
+          </AdminProvider>
+        </div>
+      </>
+    );
+  }
+
+  if (mode === 'store-manager') {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <AdminProvider>
+            <StoreManagerApp />
           </AdminProvider>
         </div>
       </>

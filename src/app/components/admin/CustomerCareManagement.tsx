@@ -285,7 +285,9 @@ export function CustomerCareManagement() {
             <>
               <div className="bg-white rounded-2xl shadow-md p-5 border border-gray-100">
                 <h3 className="font-bold text-xl text-gray-800">{selectedStaff?.fullName}</h3>
-                <p className="text-sm text-gray-500">{POSITION_LABELS.online_sales}</p>
+                <p className="text-sm text-gray-500">
+                  {POSITION_LABELS[selectedStaff?.position || ''] || POSITION_LABELS.cskh}
+                </p>
               </div>
 
               <div className="relative">

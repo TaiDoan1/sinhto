@@ -13,7 +13,6 @@ const positions = [
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
   { id: 'cleaner', name: 'Vệ Sinh' },
-  { id: 'online_sales', name: 'Bán Hàng Online' },
 ];
 
 export function EmployeeList() {

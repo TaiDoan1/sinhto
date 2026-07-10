@@ -5,8 +5,9 @@ import {
   formatZaloShipMessage,
   getRecipeIngredientsForComboItem,
   wasDeliveredToday,
+  getComboProgress,
 } from '../../utils/comboUtils';
-import { Copy, Pause, Play, Truck, Calendar, ChevronRight, MapPin } from 'lucide-react';
+import { Copy, Pause, Play, Truck, Calendar, ChevronRight, MapPin, Undo2 } from 'lucide-react';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
 
 export interface ComboActionProps {
@@ -20,10 +21,12 @@ export interface ComboActionProps {
   onDeliver?: (note: string) => void;
   onPostpone?: (note: string) => void;
   onReschedule?: (date: string, time: string, note?: string) => void;
+  onRefund?: (amount: number) => void;
   claiming?: boolean;
   delivering?: boolean;
   postponing?: boolean;
   rescheduling?: boolean;
+  refunding?: boolean;
 }
 
 /**
@@ -43,17 +46,25 @@ export function ComboCardDetails({
   onDeliver,
   onPostpone,
   onReschedule,
+  onRefund,
   onOpenDetail,
   claiming,
   delivering,
   postponing,
   rescheduling,
+  refunding,
 }: ComboActionProps & { onOpenDetail?: () => void }) {
   const [shipNote, setShipNote] = useState('');
   const [copied, setCopied] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [rescheduleTime, setRescheduleTime] = useState(combo.deliveryTime || '08:00');
+  const [showRefund, setShowRefund] = useState(false);
+  const progress = getComboProgress(combo);
+  const suggestedRefund = progress.total > 0
+    ? Math.round((combo.totalPrice / progress.total) * progress.remaining)
+    : 0;
+  const [refundAmount, setRefundAmount] = useState(String(suggestedRefund || ''));
 
   const todayItem = getComboItemForToday(combo);
   const dueToday = !wasDeliveredToday(combo) && combo.status === 'active';
@@ -103,6 +114,12 @@ export function ComboCardDetails({
         {variant === 'admin' && combo.commissionAmount != null && combo.commissionAmount > 0 && (
           <p className="text-xs text-amber-700 mt-1">
             HH: {combo.commissionAmount.toLocaleString('vi-VN')}đ · {combo.commissionStatus || 'pending'}
+          </p>
+        )}
+        {combo.refundAmount != null && combo.refundAmount > 0 && (
+          <p className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 mt-2">
+            💸 Đã hoàn {combo.refundAmount.toLocaleString('vi-VN')}đ
+            {combo.refundedAt ? ` — ${new Date(combo.refundedAt).toLocaleDateString('vi-VN')}` : ''}
           </p>
         )}
 
@@ -246,6 +263,56 @@ export function ComboCardDetails({
                     className="flex-1 py-2 rounded-xl bg-gray-800 text-white text-sm font-bold disabled:opacity-60"
                   >
                     {rescheduling ? 'Đang lưu...' : 'Xác nhận đổi lịch'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Hoàn combo — khách không muốn dùng tiếp, hoàn lại tiền các ly chưa giao */}
+        {(combo.status === 'active' || combo.status === 'paused') && onRefund && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            {!showRefund ? (
+              <button
+                type="button"
+                onClick={() => setShowRefund(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-rose-200 text-rose-700 text-sm font-bold hover:bg-rose-50"
+              >
+                <Undo2 className="w-4 h-4" />
+                Hoàn combo
+              </button>
+            ) : (
+              <div className="space-y-2 bg-rose-50/50 border border-rose-100 rounded-xl p-3">
+                <p className="text-xs text-rose-800">
+                  Còn {progress.remaining}/{progress.total} ly chưa giao. Nhập số tiền hoàn cho khách:
+                </p>
+                <input
+                  type="number"
+                  min="0"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  placeholder="0"
+                  className="w-full text-sm border rounded-lg px-3 py-2"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRefund(false)}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-bold"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRefund(Number(refundAmount) || 0);
+                      setShowRefund(false);
+                    }}
+                    disabled={refunding}
+                    className="flex-1 py-2 rounded-xl bg-rose-600 text-white text-sm font-bold disabled:opacity-60"
+                  >
+                    {refunding ? 'Đang xử lý...' : 'Xác nhận hoàn & ngừng combo'}
                   </button>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import * as api from '../../utils/api';
 import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -173,6 +174,7 @@ export function CustomerComboHub({
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [changingBranchId, setChangingBranchId] = useState<string | null>(null);
   const [detailComboId, setDetailComboId] = useState<string | null>(null);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
@@ -229,6 +231,29 @@ export function CustomerComboHub({
       await claimCombo(comboId, actor.id, actor.name);
     } finally {
       setClaimingId(null);
+    }
+  };
+
+  const handleRefund = async (combo: ComboSubscription, amount: number) => {
+    setRefundingId(combo.id);
+    try {
+      await updateCombo(combo.id, {
+        status: 'completed',
+        refundAmount: amount,
+        refundedAt: new Date().toISOString(),
+      });
+      const actor = claimAs || (staffId && staffName ? { id: staffId, name: staffName } : null);
+      if (actor) {
+        await api.createSalesActivity({
+          customerPhone: combo.customerPhone,
+          careStaffId: actor.id,
+          careStaffName: actor.name,
+          activityType: 'note',
+          content: `Hoàn combo ${combo.planName || ''} — ${amount.toLocaleString('vi-VN')}đ, ngừng combo`,
+        }).catch(() => {});
+      }
+    } finally {
+      setRefundingId(null);
     }
   };
 
@@ -404,6 +429,12 @@ export function CustomerComboHub({
                   : undefined
               }
               rescheduling={reschedulingId === combo.id}
+              onRefund={
+                (combo.status === 'active' || combo.status === 'paused') && (variant === 'cskh' || variant === 'admin')
+                  ? (amount) => handleRefund(combo, amount)
+                  : undefined
+              }
+              refunding={refundingId === combo.id}
               onOpenDetail={() => setDetailComboId(combo.id)}
             />
           ))}
@@ -456,6 +487,12 @@ export function CustomerComboHub({
                 ? (date, time) => handleReschedule(detailCombo, date, time)
                 : undefined
             }
+            onRefund={
+              (detailCombo.status === 'active' || detailCombo.status === 'paused') && (variant === 'cskh' || variant === 'admin')
+                ? (amount) => handleRefund(detailCombo, amount)
+                : undefined
+            }
+            refunding={refundingId === detailCombo.id}
           />
         );
       })()}

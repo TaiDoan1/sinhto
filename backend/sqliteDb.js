@@ -270,6 +270,8 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN renewedFromComboId TEXT",
     "ALTER TABLE combo_subscriptions ADD COLUMN renewedFromDuration TEXT",
     "ALTER TABLE combo_subscriptions ADD COLUMN renewedFromPlanName TEXT",
+    "ALTER TABLE combo_subscriptions ADD COLUMN refundAmount INTEGER",
+    "ALTER TABLE combo_subscriptions ADD COLUMN refundedAt TEXT",
     `CREATE TABLE IF NOT EXISTS branch_inventory (
       branchId TEXT NOT NULL,
       itemId TEXT NOT NULL,

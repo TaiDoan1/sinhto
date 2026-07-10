@@ -1510,6 +1510,8 @@ function parseComboRow(row) {
     renewedFromComboId: row.renewedFromComboId || null,
     renewedFromDuration: row.renewedFromDuration || null,
     renewedFromPlanName: row.renewedFromPlanName || null,
+    refundAmount: row.refundAmount != null ? Number(row.refundAmount) : null,
+    refundedAt: row.refundedAt || null,
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1699,7 +1701,8 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
         pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?,
-        renewedFromComboId = ?, renewedFromDuration = ?, renewedFromPlanName = ?, updatedAt = ?
+        renewedFromComboId = ?, renewedFromDuration = ?, renewedFromPlanName = ?,
+        refundAmount = ?, refundedAt = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1734,6 +1737,8 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.renewedFromComboId ?? row.renewedFromComboId ?? null,
         merged.renewedFromDuration ?? row.renewedFromDuration ?? null,
         merged.renewedFromPlanName ?? row.renewedFromPlanName ?? null,
+        merged.refundAmount ?? row.refundAmount ?? null,
+        merged.refundedAt ?? row.refundedAt ?? null,
         now,
         id,
       ],

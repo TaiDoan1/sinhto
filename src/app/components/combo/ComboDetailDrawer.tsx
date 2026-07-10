@@ -49,10 +49,12 @@ interface Props {
   onDeliver?: (note: string) => void;
   onPostpone?: (note: string) => void;
   onReschedule?: (date: string, time: string, note?: string) => void;
+  onRefund?: (amount: number) => void;
   claiming?: boolean;
   delivering?: boolean;
   postponing?: boolean;
   rescheduling?: boolean;
+  refunding?: boolean;
 }
 
 export function ComboDetailDrawer({
@@ -72,10 +74,12 @@ export function ComboDetailDrawer({
   onDeliver,
   onPostpone,
   onReschedule,
+  onRefund,
   claiming,
   delivering,
   postponing,
   rescheduling,
+  refunding,
 }: Props) {
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLogDetail[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -415,10 +419,12 @@ export function ComboDetailDrawer({
             onDeliver={onDeliver}
             onPostpone={onPostpone}
             onReschedule={onReschedule}
+            onRefund={onRefund}
             claiming={claiming}
             delivering={delivering}
             postponing={postponing}
             rescheduling={rescheduling}
+            refunding={refunding}
           />
         </div>
       </div>

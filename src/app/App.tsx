@@ -66,6 +66,47 @@ function DevModeNavigation({ mode, onModeChange }: { mode: AppMode; onModeChange
   );
 }
 
+function ModeSelectionScreen({ onSelectMode }: { onSelectMode: (mode: AppMode) => void }) {
+  const cards: Array<{ mode: AppMode; title: string; description: string; emoji: string }> = [
+    { mode: 'admin', title: 'Admin', description: 'Quản lý cửa hàng, kho, doanh thu và nhân sự', emoji: '⚙️' },
+    { mode: 'admin', title: 'Cửa hàng trưởng', description: 'Đi tới màn hình quản lý dành cho cửa hàng trưởng', emoji: '🏪' },
+    { mode: 'online-sales', title: 'Chăm sóc khách hàng', description: 'Xử lý đơn, phản hồi và chăm sóc khách hàng', emoji: '💬' },
+    { mode: 'pos', title: 'POS', description: 'Thu ngân, tạo đơn và thanh toán nhanh', emoji: '💳' },
+    { mode: 'staff', title: 'Nhân viên', description: 'Giao diện vận hành cho nhân viên', emoji: '👤' },
+    { mode: 'shipper', title: 'Shipper', description: 'Theo dõi và giao hàng', emoji: '🚚' },
+    { mode: 'combo-ship', title: 'Giao combo', description: 'Quản lý đơn giao combo', emoji: '📦' },
+    { mode: 'customer', title: 'Khách hàng', description: 'Trải nghiệm mua hàng cho khách', emoji: '🛒' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 sm:p-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 text-center">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.3em] text-emerald-700">FitBlend</p>
+          <h1 className="text-3xl font-black text-gray-900 sm:text-4xl">Chọn chức năng để bắt đầu</h1>
+          <p className="mt-3 text-base text-gray-600">Mỗi card dưới đây sẽ mở đúng màn hình tương ứng, không cần nhập đường dẫn nữa.</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <button
+              key={`${card.title}-${card.mode}`}
+              type="button"
+              onClick={() => onSelectMode(card.mode)}
+              className="rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+            >
+              <div className="mb-4 text-4xl">{card.emoji}</div>
+              <h2 className="text-xl font-bold text-gray-900">{card.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">{card.description}</p>
+              <div className="mt-4 text-sm font-semibold text-emerald-700">Mở ngay →</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminShell() {
   const { isLoggedIn, isLoading } = useAdmin();
   const [adminView, setAdminView] = useState('overview');
@@ -172,6 +213,22 @@ function AppContent() {
     <DevModeNavigation mode={mode} onModeChange={handleDevModeChange} />
   ) : null;
   const devPad = isDevEnvironment ? 'pt-12' : '';
+
+  const handleModeSelect = (nextMode: AppMode) => {
+    navigateToMode(nextMode);
+    setMode(nextMode);
+  };
+
+  if (window.location.pathname === '/' && mode === 'customer') {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <ModeSelectionScreen onSelectMode={handleModeSelect} />
+        </div>
+      </>
+    );
+  }
 
   if (mode === 'customer') {
     return (

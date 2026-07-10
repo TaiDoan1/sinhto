@@ -11,6 +11,7 @@ const PATH_MODE: { prefix: string; mode: AppMode }[] = [
   { prefix: '/shipper', mode: 'shipper' },
   { prefix: '/ship-combo', mode: 'combo-ship' },
   { prefix: '/giao-combo', mode: 'combo-ship' },
+  { prefix: '/customer', mode: 'customer' },
 ];
 
 export function getModeFromPath(pathname = window.location.pathname): AppMode {
@@ -28,6 +29,7 @@ export function pathForMode(mode: AppMode): string {
     case 'staff': return '/staff';
     case 'shipper': return '/shipper';
     case 'combo-ship': return '/ship-combo';
+    case 'customer': return '/customer';
     default: return '/';
   }
 }

@@ -1506,6 +1506,7 @@ function parseComboRow(row) {
     commissionAmount: row.commissionAmount != null ? Number(row.commissionAmount) : 0,
     commissionStatus: row.commissionStatus || 'pending',
     shipFee: row.shipFee != null ? Number(row.shipFee) : 0,
+    endDate: row.endDate || null,
     startDate: row.startDate ? new Date(row.startDate) : new Date(),
     nextDelivery: row.nextDelivery ? new Date(row.nextDelivery) : new Date(),
     createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
@@ -1600,6 +1601,8 @@ app.post('/api/combo-subscriptions', (req, res) => {
   const deliveryDays = JSON.stringify(body.deliveryDays || [1, 2, 3, 4, 5]);
   const items = JSON.stringify(body.items || body.rawComboData || []);
   const status = body.status || 'pending';
+  const durationDays = body.comboDuration === 'monthly' ? 30 : body.comboDuration === 'quarterly' ? 90 : 7;
+  const endDate = body.endDate || new Date(new Date(startDate).getTime() + durationDays * 86400000).toISOString();
 
   const insertCombo = (careStaffId, careStaffName) => {
   const query = `INSERT INTO combo_subscriptions (
@@ -1607,8 +1610,8 @@ app.post('/api/combo-subscriptions', (req, res) => {
     startDate, nextDelivery, deliveryDays, items, totalPrice, status, branchId,
     deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
-    lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -1620,7 +1623,7 @@ app.post('/api/combo-subscriptions', (req, res) => {
     body.closedAt || null, body.assignedAt || null,
     body.pauseStartDate || null, body.pauseEndDate || null, body.notes || '',
     normStr(body.staff) || '', null, '[]', body.totalCups || 7, body.deliveryTime || '08:00',
-    Number(body.shipFee) || 0, now, now
+    Number(body.shipFee) || 0, endDate, now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], async (e, row) => {
@@ -1689,7 +1692,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         startDate = ?, nextDelivery = ?, deliveryDays = ?, items = ?, totalPrice = ?, status = ?,
         branchId = ?, deliveryAddress = ?, careStaffId = ?, careStaffName = ?,
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
-        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, updatedAt = ?
+        pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?, updatedAt = ?
       WHERE id = ?`,
       [
         normStr(merged.customerName ?? row.customerName),
@@ -1720,6 +1723,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.totalCups ?? row.totalCups ?? 7,
         merged.deliveryTime ?? row.deliveryTime ?? '08:00',
         merged.shipFee ?? row.shipFee ?? 0,
+        merged.endDate ?? row.endDate ?? null,
         now,
         id,
       ],

@@ -138,7 +138,7 @@ export function CustomerDetailDrawer({ assignment, combos, employee, onClose, on
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm">
               <p className="font-bold text-indigo-900">{activeCombo.planName}</p>
               <p className="text-indigo-700 mt-1">
-                Còn {comboDaysRemaining(activeCombo.startDate, activeCombo.comboDuration)} ngày
+                Còn {comboDaysRemaining(activeCombo.startDate, activeCombo.comboDuration, activeCombo.endDate)} ngày
               </p>
             </div>
           )}

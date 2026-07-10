@@ -61,7 +61,8 @@ export function fillTemplate(template: string, vars: Record<string, string>) {
   );
 }
 
-export function comboDaysRemaining(startDate: Date | string, duration?: string): number {
+export function comboDaysRemaining(startDate: Date | string, duration?: string, endDate?: string): number {
+  if (endDate) return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
   const start = new Date(startDate);
   const days = duration === 'monthly' ? 30 : duration === 'quarterly' ? 90 : 7;
   const end = new Date(start);

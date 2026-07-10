@@ -16,7 +16,8 @@ function parseActivityRow(row) {
   return { ...row, createdAt: row.createdAt };
 }
 
-function comboDaysRemaining(startDate, duration) {
+function comboDaysRemaining(startDate, duration, endDate) {
+  if (endDate) return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
   if (!startDate) return 999;
   const start = new Date(startDate);
   const days = duration === 'monthly' ? 30 : duration === 'quarterly' ? 90 : 7;
@@ -89,7 +90,7 @@ function registerOnlineSalesRoutes(app, db, broadcast, helpers) {
                 const activeCombos = combos.filter((c) => c.status === 'active').length;
                 const pendingClaims = combos.filter((c) => c.status === 'pending').length;
                 const expiringCombos = combos.filter(
-                  (c) => c.status === 'active' && comboDaysRemaining(c.startDate, c.comboDuration) <= 7
+                  (c) => c.status === 'active' && comboDaysRemaining(c.startDate, c.comboDuration, c.endDate) <= 7
                 ).length;
 
                 const retailCount = assignments.filter((a) => a.customerType === 'retail').length;
@@ -153,7 +154,7 @@ function registerOnlineSalesRoutes(app, db, broadcast, helpers) {
       combos
         .filter((c) => c.careStaffId === careStaffId && c.status === 'active')
         .forEach((c) => {
-          const daysLeft = comboDaysRemaining(c.startDate, c.comboDuration);
+          const daysLeft = comboDaysRemaining(c.startDate, c.comboDuration, c.endDate);
           if (daysLeft <= 7) {
             tasks.push({
               id: `task-expire-${c.id}`,

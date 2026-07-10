@@ -266,6 +266,7 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN commissionAmount INTEGER DEFAULT 0",
     "ALTER TABLE combo_subscriptions ADD COLUMN commissionStatus TEXT DEFAULT 'pending'",
     "ALTER TABLE combo_subscriptions ADD COLUMN shipFee INTEGER DEFAULT 0",
+    "ALTER TABLE combo_subscriptions ADD COLUMN endDate TEXT",
     `CREATE TABLE IF NOT EXISTS branch_inventory (
       branchId TEXT NOT NULL,
       itemId TEXT NOT NULL,

@@ -43,6 +43,7 @@ export interface ComboSubscription {
   commissionStatus?: 'pending' | 'approved' | 'paid';
   deliveryTime?: string;
   shipFee?: number;
+  endDate?: string;
 }
 
 export interface ComboNotification {
@@ -97,6 +98,7 @@ function normalizeCombo(raw: Record<string, unknown>): ComboSubscription {
     commissionAmount: raw.commissionAmount != null ? Number(raw.commissionAmount) : undefined,
     commissionStatus: raw.commissionStatus as ComboSubscription['commissionStatus'],
     shipFee: raw.shipFee != null ? Number(raw.shipFee) : 0,
+    endDate: (raw.endDate as string) || undefined,
     startDate: raw.startDate ? new Date(raw.startDate as string) : new Date(),
     nextDelivery: raw.nextDelivery ? new Date(raw.nextDelivery as string) : new Date(),
     updatedAt: raw.updatedAt ? new Date(raw.updatedAt as string) : undefined,

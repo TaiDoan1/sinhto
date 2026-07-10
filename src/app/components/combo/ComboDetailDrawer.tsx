@@ -34,7 +34,7 @@ interface Props {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
   onClose: () => void;
-  onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number) => void;
+  onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number, endDate: string) => void;
   onChangeBranch?: (branchId: string) => void;
   changingBranch?: boolean;
   branchOptions?: { id: string; name: string }[];
@@ -79,6 +79,7 @@ export function ComboDetailDrawer({
   const [editNotes, setEditNotes] = useState(combo.notes || '');
   const [editDeliveryDays, setEditDeliveryDays] = useState<number[]>(combo.deliveryDays || [1, 2, 3, 4, 5, 6, 0]);
   const [editShipFee, setEditShipFee] = useState(String(combo.shipFee || ''));
+  const [editEndDate, setEditEndDate] = useState(combo.endDate ? combo.endDate.split('T')[0] : '');
   const [saving, setSaving] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
 
@@ -115,7 +116,7 @@ export function ComboDetailDrawer({
     if (!onSaveEdit) return;
     setSaving(true);
     try {
-      await onSaveEdit(editAddress, editNotes, editDeliveryDays, Number(editShipFee) || 0);
+      await onSaveEdit(editAddress, editNotes, editDeliveryDays, Number(editShipFee) || 0, editEndDate);
     } finally {
       setSaving(false);
     }
@@ -162,6 +163,11 @@ export function ComboDetailDrawer({
             <div className="text-gray-500 text-xs">
               Chi nhánh: {combo.branchId} · Giao: {combo.deliveryDays.map((d) => (d === 0 ? 'CN' : `T${d + 1}`)).join(', ')}
             </div>
+            {combo.endDate && (
+              <div className="text-gray-500 text-xs">
+                Kết thúc: {new Date(combo.endDate).toLocaleDateString('vi-VN')}
+              </div>
+            )}
           </div>
 
           <div>
@@ -246,16 +252,27 @@ export function ComboDetailDrawer({
                 <div className="text-xs font-bold text-gray-400 uppercase">Giao vào các ngày</div>
                 <DeliveryDayToggle value={editDeliveryDays} onChange={setEditDeliveryDays} />
               </div>
-              <div>
-                <div className="text-xs font-bold text-gray-400 uppercase mb-1">Phí ship (nếu có)</div>
-                <input
-                  type="number"
-                  min="0"
-                  value={editShipFee}
-                  onChange={(e) => setEditShipFee(e.target.value)}
-                  placeholder="0"
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs font-bold text-gray-400 uppercase mb-1">Phí ship (nếu có)</div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editShipFee}
+                    onChange={(e) => setEditShipFee(e.target.value)}
+                    placeholder="0"
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-gray-400 uppercase mb-1">Ngày kết thúc</div>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
               <button type="button" onClick={handleSave} disabled={saving}
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">

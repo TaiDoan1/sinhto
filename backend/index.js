@@ -1881,41 +1881,6 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// TEMP: one-off CSKH module reset, remove after use. Guarded by a fixed confirm string.
-const CSKH_RESET_TABLES = [
-  'combo_transfers',
-  'delivery_logs',
-  'delivery_alerts',
-  'cskh_checkins',
-  'sales_activities',
-  'sales_leads',
-  'customer_care_assignments',
-  'combo_subscriptions',
-];
-app.post('/api/admin/reset-cskh', async (req, res) => {
-  if (req.body?.confirm !== 'RESET_CSKH_NOW') {
-    return res.status(400).json({ error: 'confirm must be "RESET_CSKH_NOW"' });
-  }
-  const count = (table) =>
-    new Promise((resolve, reject) => {
-      db.get(`SELECT COUNT(*) AS c FROM ${table}`, [], (err, row) => (err ? reject(err) : resolve(row?.c || 0)));
-    });
-  const del = (table) =>
-    new Promise((resolve, reject) => {
-      db.run(`DELETE FROM ${table}`, [], (err) => (err ? reject(err) : resolve()));
-    });
-  try {
-    const before = {};
-    for (const t of CSKH_RESET_TABLES) before[t] = await count(t);
-    for (const t of CSKH_RESET_TABLES) await del(t);
-    const after = {};
-    for (const t of CSKH_RESET_TABLES) after[t] = await count(t);
-    res.json({ before, after });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 async function start() {
   try {
     db = await initDatabase();

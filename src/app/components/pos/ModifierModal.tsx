@@ -220,37 +220,31 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
             </div>
             <span className={`text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge ${t.comboBadge}`}>SIÊU RẺ</span>
           </div>
-          <div className="pos-combo-grid grid grid-cols-2 gap-3">
+          <div className="pos-combo-list rounded-lg border border-gray-100 overflow-hidden bg-white">
             {comboList.map(combo => {
               const isSelected = selectedCombos.includes(combo.id);
               return (
                 <button
                   key={combo.id}
                   onClick={() => toggleCombo(combo.id)}
-                  className={`pos-combo-card p-4 rounded-xl border-2 text-left relative flex flex-col justify-between ${
-                    isSelected
-                      ? t.comboCardSelected
-                      : 'border-gray-200 bg-white'
+                  className={`pos-combo-row w-full flex items-center gap-3 text-left ${
+                    isSelected ? t.comboCardSelected : 'bg-white'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className={`pos-combo-name text-base font-black leading-tight ${isSelected ? t.comboNameSelected : 'text-gray-950'}`}>{combo.name}</p>
-                      <p className="text-sm text-gray-500 font-bold mt-1 leading-snug line-clamp-2">{combo.items}</p>
-                    </div>
-                    {isSelected && (
-                      <span className={`text-white p-1.5 rounded-full flex-shrink-0 ml-2 ${t.comboCheckBg}`}>
-                        <Check className="w-5 h-5" />
-                      </span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`pos-combo-name font-black leading-tight truncate ${isSelected ? t.comboNameSelected : 'text-gray-950'}`}>{combo.name}</p>
+                    <p className="text-xs text-gray-500 font-bold truncate">{combo.items}</p>
                   </div>
-                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                    <span className={`text-base font-black ${t.comboPrice}`}>{(combo.price).toLocaleString()}đ</span>
-                    <span className="text-sm text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
-                    <span className="ml-auto text-xs bg-rose-50 text-rose-600 font-black px-2 py-0.5 rounded whitespace-nowrap">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`font-black ${t.comboPrice}`}>{(combo.price).toLocaleString()}đ</span>
+                    <span className="text-xs text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
+                    <span className="text-[10px] bg-rose-50 text-rose-600 font-black px-1.5 py-0.5 rounded whitespace-nowrap">
                       -{(combo.save || 0) / 1000}k
                     </span>
                   </div>
+                  <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? t.comboCheckBg : 'bg-gray-100'}`}>
+                    {isSelected && <Check className="w-4 h-4 text-white" />}
+                  </span>
                 </button>
               );
             })}
@@ -261,26 +255,26 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
         <div className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
           <h3 className="text-base font-black text-gray-800 mb-1.5 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
           <p className="text-sm text-gray-500 mb-3 font-medium">Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây</p>
-          <div className="pos-topping-grid grid grid-cols-2 gap-3">
+          <div className="pos-topping-list rounded-lg border border-gray-100 overflow-hidden bg-white">
             {toppingsList.map(topping => {
               const isSelected = selectedToppings.includes(topping.name);
               return (
                 <button
                   key={topping.name}
                   onClick={() => toggleTopping(topping.name)}
-                  className={`pos-topping-card rounded-xl font-medium text-left relative border-2 flex flex-col justify-between ${
-                    isSelected
-                      ? t.toppingSelected
-                      : 'bg-white border-gray-200 text-gray-850'
+                  className={`pos-topping-row w-full flex items-center justify-between gap-3 font-medium text-left ${
+                    isSelected ? t.toppingSelected : 'bg-white text-gray-850'
                   }`}
                 >
-                  <div className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
-                    {formatToppingPrice(topping.price)}
-                  </div>
-                  <div className="pos-topping-name font-black leading-tight">{topping.name}</div>
-                  {isSelected && (
-                    <Check className="w-5 h-5 absolute top-2.5 right-2.5 text-white" />
-                  )}
+                  <span className="pos-topping-name font-black leading-tight truncate">{topping.name}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
+                      {formatToppingPrice(topping.price)}
+                    </span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      {isSelected && <Check className="w-4 h-4 text-white" />}
+                    </span>
+                  </span>
                 </button>
               );
             })}

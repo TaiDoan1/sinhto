@@ -297,16 +297,33 @@ html.pos-kiosk #root {
   font-weight: 900;
 }
 
-/* ── Topping — nút TO, dễ chạm ── */
-.pos-modifier .pos-topping-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+/* ── Topping — dạng danh sách gọn, dễ chạm ── */
+.pos-modifier .pos-combo-list,
+.pos-modifier .pos-topping-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.pos-modifier .pos-topping-card {
-  min-height: 6.75rem;
-  padding: 0.9rem 1rem;
-  border-radius: 0.85rem;
+.pos-modifier .pos-combo-row {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.pos-modifier .pos-combo-row:last-child {
+  border-bottom: none;
+}
+
+.pos-modifier .pos-combo-name {
+  font-size: 1.05rem;
+}
+
+.pos-modifier .pos-topping-row {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.pos-modifier .pos-topping-row:last-child {
+  border-bottom: none;
 }
 
 .pos-modifier .pos-topping-price {
@@ -318,14 +335,6 @@ html.pos-kiosk #root {
   font-size: 1.15rem;
   font-weight: 900;
   line-height: 1.25;
-}
-
-.pos-modifier .pos-combo-card {
-  min-height: 8.75rem;
-}
-
-.pos-modifier .pos-combo-name {
-  font-size: 1.05rem;
 }
 
 .pos-modifier .pos-modifier-footer-btn {
@@ -352,7 +361,7 @@ html.pos-kiosk .pos-checkout button:active {
 
 html.pos-kiosk .pos-flavor-row,
 html.pos-kiosk .pos-size-card,
-html.pos-kiosk .pos-combo-card,
-html.pos-kiosk .pos-topping-card {
+html.pos-kiosk .pos-combo-row,
+html.pos-kiosk .pos-topping-row {
   will-change: auto;
 }

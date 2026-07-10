@@ -1,5 +1,4 @@
 const { v4: uuidv4 } = require('uuid');
-const { isPostgres } = require('./db');
 
 function registerCskhRoutes(app, db, { broadcast }) {
   // ============ CSKH CHECK-IN/OUT ============
@@ -11,19 +10,19 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const params = [];
 
     if (cskhId) {
-      sql += ` AND "cskhId" = ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND cskhId = ?';
       params.push(cskhId);
     }
     if (date) {
-      sql += ` AND date = ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND date = ?';
       params.push(date);
     }
     if (branchId) {
-      sql += ` AND "branchId" = ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND branchId = ?';
       params.push(branchId);
     }
 
-    sql += ' ORDER BY "checkinTime" DESC';
+    sql += ' ORDER BY checkinTime DESC';
 
     db.all(sql, params, (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -42,11 +41,8 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const now = new Date().toISOString();
     const date = new Date().toISOString().split('T')[0];
 
-    const sql = isPostgres()
-      ? `INSERT INTO cskh_checkins (id, "cskhId", "cskhName", "checkinTime", status, date, "branchId", notes, "createdAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`
-      : `INSERT INTO cskh_checkins (id, "cskhId", "cskhName", "checkinTime", status, date, "branchId", notes, "createdAt")
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`;
+    const sql = `INSERT INTO cskh_checkins (id, cskhId, cskhName, checkinTime, status, date, branchId, notes, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`;
 
     const params = [id, cskhId, cskhName, now, 'active', date, branchId || null, notes || null, now];
 
@@ -64,9 +60,7 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const { notes } = req.body;
     const now = new Date().toISOString();
 
-    const sql = isPostgres()
-      ? `UPDATE cskh_checkins SET "checkoutTime" = $1, status = $2, notes = $3 WHERE id = $4 RETURNING *`
-      : `UPDATE cskh_checkins SET "checkoutTime" = ?, status = ?, notes = ? WHERE id = ? RETURNING *`;
+    const sql = `UPDATE cskh_checkins SET checkoutTime = ?, status = ?, notes = ? WHERE id = ? RETURNING *`;
 
     const params = [now, 'completed', notes || null, checkinId];
 
@@ -103,16 +97,10 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const id = uuidv4();
     const now = new Date().toISOString();
 
-    const sql = isPostgres()
-      ? `INSERT INTO combo_subscriptions (
-          id, "customerPhone", "customerName", items, "nextDelivery",
-          "deliveryDays", status, "branchId", "deliveryAddress",
-          "careStaffId", "careStaffName", notes, "totalPrice", "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`
-      : `INSERT INTO combo_subscriptions (
-          id, "customerPhone", "customerName", items, "nextDelivery",
-          "deliveryDays", status, "branchId", "deliveryAddress",
-          "careStaffId", "careStaffName", notes, "totalPrice", "createdAt", "updatedAt"
+    const sql = `INSERT INTO combo_subscriptions (
+          id, customerPhone, customerName, items, nextDelivery,
+          deliveryDays, status, branchId, deliveryAddress,
+          careStaffId, careStaffName, notes, totalPrice, createdAt, updatedAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`;
 
     const params = [
@@ -144,23 +132,23 @@ function registerCskhRoutes(app, db, { broadcast }) {
   // Get online orders for CSKH
   app.get('/api/orders/online', (req, res) => {
     const { cskhId, status, customerPhone } = req.query;
-    let sql = `SELECT * FROM combo_subscriptions WHERE source = 'online' OR source IS NULL`;
+    let sql = `SELECT * FROM combo_subscriptions WHERE 1=1`;
     const params = [];
 
     if (cskhId) {
-      sql += ` AND "careStaffId" = ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND careStaffId = ?';
       params.push(cskhId);
     }
     if (status) {
-      sql += ` AND status = ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND status = ?';
       params.push(status);
     }
     if (customerPhone) {
-      sql += ` AND "customerPhone" LIKE ${isPostgres() ? '$' + (params.length + 1) : '?'}`;
+      sql += ' AND customerPhone LIKE ?';
       params.push(`%${customerPhone}%`);
     }
 
-    sql += ' ORDER BY "createdAt" DESC LIMIT 100';
+    sql += ' ORDER BY createdAt DESC LIMIT 100';
 
     db.all(sql, params, (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -189,14 +177,9 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const alertTime = new Date(deliveryDate.getTime() - 60 * 60 * 1000); // 1 hour before
     const scheduledAlertTime = alertTime.toISOString();
 
-    const sql = isPostgres()
-      ? `INSERT INTO delivery_alerts (
-          id, "comboOrderId", "customerName", "customerPhone", "deliveryTime",
-          "scheduledAlertTime", status, "alertMethod", "createdAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`
-      : `INSERT INTO delivery_alerts (
-          id, "comboOrderId", "customerName", "customerPhone", "deliveryTime",
-          "scheduledAlertTime", status, "alertMethod", "createdAt"
+    const sql = `INSERT INTO delivery_alerts (
+          id, comboOrderId, customerName, customerPhone, deliveryTime,
+          scheduledAlertTime, status, alertMethod, createdAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`;
 
     const params = [
@@ -221,7 +204,7 @@ function registerCskhRoutes(app, db, { broadcast }) {
 
   // Get pending delivery alerts
   app.get('/api/delivery-alerts/pending', (req, res) => {
-    const sql = `SELECT * FROM delivery_alerts WHERE status = 'pending' ORDER BY "scheduledAlertTime" ASC`;
+    const sql = `SELECT * FROM delivery_alerts WHERE status = 'pending' ORDER BY scheduledAlertTime ASC`;
 
     db.all(sql, [], (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -235,9 +218,7 @@ function registerCskhRoutes(app, db, { broadcast }) {
     const { sentTo } = req.body;
     const now = new Date().toISOString();
 
-    const sql = isPostgres()
-      ? `UPDATE delivery_alerts SET status = $1, "sentAt" = $2, "sentTo" = $3 WHERE id = $4 RETURNING *`
-      : `UPDATE delivery_alerts SET status = ?, "sentAt" = ?, "sentTo" = ? WHERE id = ? RETURNING *`;
+    const sql = `UPDATE delivery_alerts SET status = ?, sentAt = ?, sentTo = ? WHERE id = ? RETURNING *`;
 
     const params = ['sent', now, sentTo || '', alertId];
 
@@ -261,9 +242,7 @@ function registerCskhRoutes(app, db, { broadcast }) {
       return res.status(400).json({ error: 'platform required' });
     }
 
-    const sql = isPostgres()
-      ? `UPDATE customer_care_assignments SET platform = $1 WHERE "customerPhone" = $2 RETURNING *`
-      : `UPDATE customer_care_assignments SET platform = ? WHERE "customerPhone" = ? RETURNING *`;
+    const sql = `UPDATE customer_care_assignments SET platform = ? WHERE customerPhone = ? RETURNING *`;
 
     const params = [platform, phone];
 

@@ -190,7 +190,7 @@ export function OnlineSalesPortal() {
 
   const copyRefLink = async () => {
     if (!activeEmployee) return;
-    const link = buildWebLink(activeEmployee.username);
+    const link = buildWebLink(activeEmployee.id);
     await navigator.clipboard.writeText(link);
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);

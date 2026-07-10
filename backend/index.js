@@ -1500,11 +1500,11 @@ function parseAssignmentRow(row) {
   };
 }
 
-function resolveSalesRef(username, cb) {
-  if (!username) return cb(null, null);
+function resolveSalesRef(refId, cb) {
+  if (!refId) return cb(null, null);
   db.get(
-    "SELECT id, fullName, username FROM employees WHERE username = ? AND position IN ('online_sales', 'customer_care')",
-    [String(username).trim()],
+    "SELECT id, fullName, username FROM employees WHERE id = ? AND position IN ('online_sales', 'customer_care')",
+    [String(refId).trim()],
     (err, row) => cb(err, row || null)
   );
 }

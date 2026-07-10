@@ -193,7 +193,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         deliveryTime: raw.deliveryTime || '08:00',
         staff: `CSKH - ${employee.fullName}`,
         notes: notes.trim(),
-        salesRefCode: employee.username,
+        salesRefCode: employee.id,
       });
 
       if (claimComboNow && created?.id) {

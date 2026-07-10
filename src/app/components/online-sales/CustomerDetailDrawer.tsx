@@ -37,7 +37,7 @@ export function CustomerDetailDrawer({ assignment, combos, employee, onClose, on
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const refCode = employee.username;
+  const refCode = employee.id;
   const webLink = buildWebLink(refCode);
   const customerCombos = combos.filter((c) => c.customerPhone === assignment.customerPhone);
   const activeCombo = customerCombos.find((c) => c.status === 'active');

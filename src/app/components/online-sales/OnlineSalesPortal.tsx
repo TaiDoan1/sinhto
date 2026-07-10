@@ -10,6 +10,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { OnlineSalesDashboard, SalesTask, SalesLead, PipelineStage } from '../../types/onlineSales';
+import type { Order } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { PIPELINE_STAGES, buildWebLink } from './constants';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
@@ -76,6 +77,7 @@ export function OnlineSalesPortal() {
   const { loadForBranch } = useInventory();
   const [view, setView] = useState<View>('dashboard');
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
+  const [retailOrders, setRetailOrders] = useState<Order[]>([]);
   const [dashboard, setDashboard] = useState<OnlineSalesDashboard>(EMPTY_DASHBOARD);
   const [tasks, setTasks] = useState<SalesTask[]>([]);
   const [leads, setLeads] = useState<SalesLead[]>([]);
@@ -97,17 +99,19 @@ export function OnlineSalesPortal() {
     if (!employeeId) return;
     setDataLoading(true);
     try {
-      const [dash, taskList, leadList, assigns] = await Promise.allSettled([
+      const [dash, taskList, leadList, assigns, orders] = await Promise.allSettled([
         api.fetchOnlineSalesDashboard(employeeId),
         api.fetchSalesTasks(employeeId),
         api.fetchSalesLeads(employeeId),
         api.fetchCareAssignments(employeeId),
+        api.fetchOrders({ salesStaffId: employeeId }),
       ]);
       if (dash.status === 'fulfilled' && dash.value) setDashboard(dash.value);
       else if (dash.status === 'rejected') setDashboard(EMPTY_DASHBOARD);
       if (taskList.status === 'fulfilled') setTasks(taskList.value);
       if (leadList.status === 'fulfilled') setLeads(leadList.value);
       if (assigns.status === 'fulfilled') setAssignments(assigns.value);
+      if (orders.status === 'fulfilled') setRetailOrders(orders.value);
     } finally {
       setDataLoading(false);
     }
@@ -147,6 +151,30 @@ export function OnlineSalesPortal() {
         a.customerPhone.includes(q) ||
         (a.fbName || '').toLowerCase().includes(q)
     );
+  };
+
+  const filterOrdersSearch = (items: Order[]) => {
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter(
+      (o) =>
+        (o.customerName || '').toLowerCase().includes(q) ||
+        (o.customerPhone || '').includes(q) ||
+        (o.deliveryAddress || '').toLowerCase().includes(q)
+    );
+  };
+
+  const describeOrderItems = (order: Order) => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    return items
+      .map((item: any) => {
+        const qty = item.quantity && item.quantity > 1 ? `${item.quantity} ly ` : '1 ly ';
+        const size = item.size ? `${item.size} ` : '';
+        const protein = item.protein ? `${item.protein}g protein ` : '';
+        const toppings = Array.isArray(item.toppings) && item.toppings.length ? item.toppings.join(', ') : '';
+        return `${qty}${size}${protein}${item.productName || item.name || ''}${toppings ? ` (${toppings})` : ''}`.trim();
+      })
+      .join(' · ');
   };
 
   const openCustomer = (phone: string) => {
@@ -397,6 +425,50 @@ export function OnlineSalesPortal() {
                     ))}
                   </div>
                 )}
+
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-100 font-bold text-gray-700">
+                    Lịch sử đơn lẻ ({filterOrdersSearch(retailOrders).length})
+                  </div>
+                  {filterOrdersSearch(retailOrders).length === 0 ? (
+                    <p className="p-5 text-sm text-gray-400">Chưa có đơn lẻ nào được ghi nhận</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-gray-500 uppercase border-b bg-gray-50">
+                            <th className="px-4 py-2.5">Ngày</th>
+                            <th className="px-4 py-2.5">Khách hàng</th>
+                            <th className="px-4 py-2.5">SĐT</th>
+                            <th className="px-4 py-2.5 min-w-[180px]">Địa chỉ</th>
+                            <th className="px-4 py-2.5 min-w-[220px]">Ly lẻ</th>
+                            <th className="px-4 py-2.5 text-right">Phí ship</th>
+                            <th className="px-4 py-2.5 text-right">Giá</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {filterOrdersSearch(retailOrders).map((o) => (
+                            <tr key={o.id} className="hover:bg-indigo-50/30 align-top">
+                              <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                {new Date(o.time).toLocaleDateString('vi-VN')}
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-gray-900">{o.customerName || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{o.customerPhone || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600">{o.deliveryAddress || '—'}</td>
+                              <td className="px-4 py-3 text-gray-600">{describeOrderItems(o) || '—'}</td>
+                              <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                                {o.shipFee ? `${o.shipFee.toLocaleString('vi-VN')}đ` : '—'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold text-indigo-700 whitespace-nowrap">
+                                {o.total.toLocaleString('vi-VN')}đ
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

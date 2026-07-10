@@ -28,6 +28,7 @@ export interface Order {
   stockDeducted?: boolean;
   staffId?: string;
   shiftId?: string;
+  shipFee?: number;
 }
 
 interface OrderContextType {
@@ -59,6 +60,7 @@ function normalizeOrder(raw: any): Order {
     completedAt: raw.completedAt ? new Date(raw.completedAt) : undefined,
     total: Number(raw.total) || 0,
     stockDeducted: !!raw.stockDeducted,
+    shipFee: Number(raw.shipFee) || 0,
   };
 }
 

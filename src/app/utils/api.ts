@@ -20,9 +20,12 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-export async function fetchOrders(params?: { branchId?: string }) {
-  const qs = params?.branchId ? `?branchId=${encodeURIComponent(params.branchId)}` : '';
-  const res = await fetch(`${BASE_URL}/orders${qs}`);
+export async function fetchOrders(params?: { branchId?: string; salesStaffId?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.branchId) qs.set('branchId', params.branchId);
+  if (params?.salesStaffId) qs.set('salesStaffId', params.salesStaffId);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/orders${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Failed to fetch orders');
   return res.json();
 }

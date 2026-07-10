@@ -250,6 +250,7 @@ async function init() {
     "ALTER TABLE orders ADD COLUMN salesStaffName TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN staffId TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN shiftId TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN shipFee INTEGER DEFAULT 0",
     "ALTER TABLE shifts ADD COLUMN closingOrderCount INTEGER",
     "ALTER TABLE shifts ADD COLUMN closingRevenue INTEGER",
     "ALTER TABLE customer_care_assignments ADD COLUMN customerType TEXT DEFAULT 'combo'",

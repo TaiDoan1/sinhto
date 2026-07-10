@@ -164,12 +164,16 @@ app.get('/api/events', (req, res) => {
 
 // Get all orders (active & completed history)
 app.get('/api/orders', (req, res) => {
-  const { branchId } = req.query;
-  let sql = 'SELECT * FROM orders';
+  const { branchId, salesStaffId } = req.query;
+  let sql = 'SELECT * FROM orders WHERE 1=1';
   const params = [];
   if (branchId) {
-    sql += ' WHERE branchId = ?';
+    sql += ' AND branchId = ?';
     params.push(branchId);
+  }
+  if (salesStaffId) {
+    sql += ' AND salesStaffId = ?';
+    params.push(salesStaffId);
   }
   sql += ' ORDER BY time DESC';
   db.all(sql, params, (err, rows) => {
@@ -197,8 +201,8 @@ app.post('/api/orders', (req, res) => {
   const finishInsert = (salesStaffId, salesStaffName, shiftId) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
-      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -224,6 +228,7 @@ app.post('/api/orders', (req, res) => {
       salesStaffName || order.salesStaffName || '',
       order.staffId || '',
       shiftId || '',
+      Number(order.shipFee) || 0,
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -236,6 +241,7 @@ app.post('/api/orders', (req, res) => {
         salesStaffName: salesStaffName || order.salesStaffName || '',
         staffId: order.staffId || '',
         shiftId: shiftId || '',
+        shipFee: Number(order.shipFee) || 0,
       };
 
       const phone = order.customerPhone;

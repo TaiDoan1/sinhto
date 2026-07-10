@@ -31,6 +31,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     address: prefill?.address || '',
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
+  const [shipFee, setShipFee] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
   const [markPaid, setMarkPaid] = useState(true);
   const [claimComboNow, setClaimComboNow] = useState(true);
@@ -118,6 +119,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }));
 
       const now = new Date();
+      const shipFeeValue = Number(shipFee) || 0;
       const ok = addOrder(
         {
           branchId: deliveryBranch,
@@ -127,6 +129,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           // dù khách đã thanh toán hay chưa, đơn vẫn cần chi nhánh xử lý xong mới "completed".
           status: 'pending',
           total: cartTotal,
+          shipFee: shipFeeValue,
           customerName: customer.name.trim(),
           customerPhone: customer.phone.trim(),
           deliveryAddress: customer.address.trim(),
@@ -141,7 +144,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         return;
       }
 
-      await logActivity('converted', `Nhập đơn lẻ — ${cartTotal.toLocaleString('vi-VN')}đ (${orderItems.length} món)`);
+      await logActivity('converted', `Nhập đơn lẻ — ${cartTotal.toLocaleString('vi-VN')}đ (${orderItems.length} món)${shipFeeValue ? ` + ship ${shipFeeValue.toLocaleString('vi-VN')}đ` : ''}`);
       await api.patchAssignmentProfile(customer.phone.trim(), {
         customerName: customer.name.trim(),
         customerType: 'retail',
@@ -153,6 +156,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }).catch(() => {});
 
       setCart([]);
+      setShipFee('');
       setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -335,10 +339,23 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               ))}
             </div>
             {mode === 'retail' && (
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
-                Khách đã thanh toán trước (chi nhánh không cần thu tiền)
-              </label>
+              <>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship (nếu có)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={shipFee}
+                    onChange={(e) => setShipFee(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
+                  Khách đã thanh toán trước (chi nhánh không cần thu tiền)
+                </label>
+              </>
             )}
             {mode === 'combo' && (
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -420,8 +437,22 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between border-t pt-3">
-                    <span className="font-bold text-lg">Tổng: {cartTotal.toLocaleString('vi-VN')}đ</span>
+                  <div className="border-t pt-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span>Tiền hàng</span>
+                      <span>{cartTotal.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    {Number(shipFee) > 0 && (
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Phí ship</span>
+                        <span>{Number(shipFee).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-bold text-lg">Tổng thu: {(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end pt-3">
                     <button
                       type="button"
                       onClick={handleSubmitRetail}

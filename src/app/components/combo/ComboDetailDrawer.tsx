@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { X, User, MapPin, Calendar, Clock } from 'lucide-react';
+import { X, User, MapPin, Calendar, Clock, Loader2 } from 'lucide-react';
 import * as api from '../../utils/api';
 import { ComboSubscription } from '../../contexts/ComboContext';
+import type { SalesActivity } from '../../types/onlineSales';
 import { normalizeComboItems, parseDeliveryLog } from '../../utils/comboUtils';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
 import { ComboCardDetails } from './ComboCardDetails';
 import { DeliveryDayToggle } from './DeliveryDayToggle';
+import { ACTIVITY_LABEL } from '../online-sales/constants';
 
 interface DeliveryLogDetail {
   id: string;
@@ -33,6 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 interface Props {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
+  actor?: { id: string; name: string };
   onClose: () => void;
   onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number, endDate: string) => void;
   onChangeBranch?: (branchId: string) => void;
@@ -55,6 +58,7 @@ interface Props {
 export function ComboDetailDrawer({
   combo,
   variant,
+  actor,
   onClose,
   onSaveEdit,
   onChangeBranch,
@@ -82,8 +86,47 @@ export function ComboDetailDrawer({
   const [editEndDate, setEditEndDate] = useState(combo.endDate ? combo.endDate.split('T')[0] : '');
   const [saving, setSaving] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
+  const [activities, setActivities] = useState<SalesActivity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [noteInput, setNoteInput] = useState('');
+  const [loggingNote, setLoggingNote] = useState(false);
 
   const items = normalizeComboItems(combo.items);
+
+  useEffect(() => {
+    let cancelled = false;
+    setActivitiesLoading(true);
+    api
+      .fetchSalesActivities({ customerPhone: combo.customerPhone })
+      .then((rows) => { if (!cancelled) setActivities(rows); })
+      .catch(() => { if (!cancelled) setActivities([]); })
+      .finally(() => { if (!cancelled) setActivitiesLoading(false); });
+    return () => { cancelled = true; };
+  }, [combo.customerPhone]);
+
+  const logActivity = async (activityType: string, content: string) => {
+    if (!actor) return;
+    await api.createSalesActivity({
+      customerPhone: combo.customerPhone,
+      careStaffId: actor.id,
+      careStaffName: actor.name,
+      activityType,
+      content,
+    });
+    const rows = await api.fetchSalesActivities({ customerPhone: combo.customerPhone });
+    setActivities(rows);
+  };
+
+  const addNote = async () => {
+    if (!noteInput.trim()) return;
+    setLoggingNote(true);
+    try {
+      await logActivity('note', noteInput.trim());
+      setNoteInput('');
+    } finally {
+      setLoggingNote(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -284,6 +327,53 @@ export function ComboDetailDrawer({
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">
                 {saving ? 'Đang lưu...' : 'Lưu địa chỉ & ghi chú'}
               </button>
+            </div>
+          )}
+
+          {actor && (
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Nhật ký hoạt động
+              </p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="VD: Gia hạn từ combo trước, đã thu 795k tiền mặt..."
+                  className="flex-1 px-3 py-2 rounded-xl border text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && addNote()}
+                />
+                <button
+                  type="button"
+                  onClick={addNote}
+                  disabled={loggingNote}
+                  className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-60"
+                >
+                  {loggingNote ? '...' : 'Lưu'}
+                </button>
+              </div>
+              {activitiesLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                </div>
+              ) : activities.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">Chưa có hoạt động</p>
+              ) : (
+                <div className="space-y-3">
+                  {activities.map((a) => (
+                    <div key={a.id} className="flex gap-3">
+                      <div className="w-2 h-2 rounded-full bg-gray-400 mt-2 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-800">{ACTIVITY_LABEL[a.activityType] || a.activityType}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{a.content}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {a.createdAt ? new Date(a.createdAt).toLocaleString('vi-VN') : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

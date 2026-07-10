@@ -402,6 +402,7 @@ export function CustomerComboHub({
             key={detailCombo.id}
             combo={detailCombo}
             variant={variant}
+            actor={claimAs || (staffId && staffName ? { id: staffId, name: staffName } : undefined)}
             onClose={() => setDetailComboId(null)}
             onSaveEdit={
               variant !== 'pos'

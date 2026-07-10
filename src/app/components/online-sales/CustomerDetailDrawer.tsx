@@ -7,20 +7,7 @@ import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { SalesActivity, PipelineStage } from '../../types/onlineSales';
 import type { ComboSubscription } from '../../contexts/ComboContext';
 import type { Employee } from '../../types/employee';
-import { PIPELINE_STAGES, ZALO_TEMPLATES, buildWebLink, fillTemplate, comboDaysRemaining } from './constants';
-
-const ACTIVITY_LABEL: Record<string, string> = {
-  fb_reply: 'Rep Facebook',
-  zalo: 'Nhắn Zalo',
-  call: 'Gọi điện',
-  web_link: 'Gửi link web',
-  note: 'Ghi chú',
-  claim: 'Chốt combo',
-  upsell: 'Upsale',
-  converted: 'Chuyển đổi',
-  lead_created: 'Tạo lead',
-  status_change: 'Đổi trạng thái',
-};
+import { PIPELINE_STAGES, ZALO_TEMPLATES, ACTIVITY_LABEL, buildWebLink, fillTemplate, comboDaysRemaining } from './constants';
 
 interface Props {
   assignment: CustomerCareAssignment;

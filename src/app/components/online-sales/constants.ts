@@ -1,5 +1,18 @@
 import type { PipelineStage } from '../../types/onlineSales';
 
+export const ACTIVITY_LABEL: Record<string, string> = {
+  fb_reply: 'Rep Facebook',
+  zalo: 'Nhắn Zalo',
+  call: 'Gọi điện',
+  web_link: 'Gửi link web',
+  note: 'Ghi chú',
+  claim: 'Chốt combo',
+  upsell: 'Upsale',
+  converted: 'Chuyển đổi',
+  lead_created: 'Tạo lead',
+  status_change: 'Đổi trạng thái',
+};
+
 export const PIPELINE_STAGES: { id: PipelineStage; label: string; color: string }[] = [
   { id: 'fb_new', label: 'Mới inbox FB', color: 'bg-slate-100 text-slate-700' },
   { id: 'fb_replied', label: 'Đã rep FB', color: 'bg-blue-100 text-blue-800' },

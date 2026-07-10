@@ -194,6 +194,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         items: raw,
         totalCups: calculateTotalCups(raw),
         totalPrice: pendingCombo.price,
+        shipFee: Number(shipFee) || 0,
         status: 'pending',
         branchId: deliveryBranch,
         deliveryTime: raw.deliveryTime || '08:00',
@@ -218,6 +219,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }).catch(() => {});
 
       setPendingCombo(null);
+      setShipFee('');
       setSuccessMsg(`Đã tạo combo ${pendingCombo.name} cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -482,6 +484,17 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               ) : (
                 <p className="text-sm text-gray-500">Chưa chọn gói combo — bấm nút bên dưới để thiết lập.</p>
               )}
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship (nếu có)</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={shipFee}
+                  onChange={(e) => setShipFee(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm"
+                />
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

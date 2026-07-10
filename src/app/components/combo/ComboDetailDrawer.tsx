@@ -34,7 +34,7 @@ interface Props {
   combo: ComboSubscription;
   variant: CustomerComboHubVariant;
   onClose: () => void;
-  onSaveEdit?: (address: string, notes: string, deliveryDays: number[]) => void;
+  onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number) => void;
   onChangeBranch?: (branchId: string) => void;
   changingBranch?: boolean;
   branchOptions?: { id: string; name: string }[];
@@ -78,6 +78,7 @@ export function ComboDetailDrawer({
   const [editAddress, setEditAddress] = useState(combo.deliveryAddress || '');
   const [editNotes, setEditNotes] = useState(combo.notes || '');
   const [editDeliveryDays, setEditDeliveryDays] = useState<number[]>(combo.deliveryDays || [1, 2, 3, 4, 5, 6, 0]);
+  const [editShipFee, setEditShipFee] = useState(String(combo.shipFee || ''));
   const [saving, setSaving] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState(combo.branchId);
 
@@ -114,7 +115,7 @@ export function ComboDetailDrawer({
     if (!onSaveEdit) return;
     setSaving(true);
     try {
-      await onSaveEdit(editAddress, editNotes, editDeliveryDays);
+      await onSaveEdit(editAddress, editNotes, editDeliveryDays, Number(editShipFee) || 0);
     } finally {
       setSaving(false);
     }
@@ -152,7 +153,12 @@ export function ComboDetailDrawer({
                 <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" /> {combo.deliveryAddress}
               </div>
             )}
-            <div className="text-gray-700">{combo.planName || 'Combo FitBlend'} · {combo.totalPrice.toLocaleString('vi-VN')}đ</div>
+            <div className="text-gray-700">
+              {combo.planName || 'Combo FitBlend'} · {combo.totalPrice.toLocaleString('vi-VN')}đ
+              {(combo.shipFee || 0) > 0 && (
+                <span className="text-gray-500"> + {combo.shipFee!.toLocaleString('vi-VN')}đ ship</span>
+              )}
+            </div>
             <div className="text-gray-500 text-xs">
               Chi nhánh: {combo.branchId} · Giao: {combo.deliveryDays.map((d) => (d === 0 ? 'CN' : `T${d + 1}`)).join(', ')}
             </div>
@@ -239,6 +245,17 @@ export function ComboDetailDrawer({
               <div className="space-y-1.5">
                 <div className="text-xs font-bold text-gray-400 uppercase">Giao vào các ngày</div>
                 <DeliveryDayToggle value={editDeliveryDays} onChange={setEditDeliveryDays} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-gray-400 uppercase mb-1">Phí ship (nếu có)</div>
+                <input
+                  type="number"
+                  min="0"
+                  value={editShipFee}
+                  onChange={(e) => setEditShipFee(e.target.value)}
+                  placeholder="0"
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
               </div>
               <button type="button" onClick={handleSave} disabled={saving}
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">

@@ -17,6 +17,7 @@ export interface Product {
 interface ProductGridProps {
   onProductClick: (product: Product) => void;
   theme?: 'emerald' | 'purple';
+  hideCategories?: Product['category'][];
 }
 
 const GRID_THEMES = {
@@ -56,9 +57,12 @@ const categories = [
 ];
 
 
-export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridProps) {
+export function ProductGrid({ onProductClick, theme = 'emerald', hideCategories = [] }: ProductGridProps) {
   const t = GRID_THEMES[theme];
-  const [activeCategory, setActiveCategory] = useState<'smoothies' | 'toppings' | 'combo'>('smoothies');
+  const visibleCategories = categories.filter((cat) => !hideCategories.includes(cat.id as Product['category']));
+  const [activeCategory, setActiveCategory] = useState<'smoothies' | 'toppings' | 'combo'>(
+    (visibleCategories[0]?.id as 'smoothies' | 'toppings' | 'combo') || 'smoothies'
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -122,8 +126,8 @@ export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridPr
     <div className="pos-product-grid flex flex-col h-full bg-gray-50 rounded-lg text-gray-800 min-h-0">
       <div className="bg-white p-1 rounded-t-lg shadow-sm flex-shrink-0 space-y-1.5">
         {/* Category Tabs */}
-        <div className="grid grid-cols-2 gap-1">
-          {categories.map(cat => (
+        <div className={`grid gap-1 ${visibleCategories.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {visibleCategories.map(cat => (
             <button
               key={cat.id}
               onClick={() => {

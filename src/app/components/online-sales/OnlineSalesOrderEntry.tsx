@@ -447,7 +447,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                           skipStockCheck
                         />
                       ) : (
-                        <ProductGrid onProductClick={setSelectedProduct} theme="purple" />
+                        <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
                       )}
                     </div>
                   </div>

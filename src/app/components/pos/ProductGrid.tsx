@@ -52,7 +52,6 @@ export const getMenuProducts = (): Promise<Product[]> => {
 
 const categories = [
   { id: 'smoothies', label: 'Smoothies', icon: <Droplets className="w-5 h-5" /> },
-  { id: 'toppings', label: 'Toppings', icon: <Plus className="w-5 h-5" /> },
   { id: 'combo', label: 'Combo', icon: <Package className="w-5 h-5" /> },
 ];
 
@@ -123,7 +122,7 @@ export function ProductGrid({ onProductClick, theme = 'emerald' }: ProductGridPr
     <div className="pos-product-grid flex flex-col h-full bg-gray-50 rounded-lg text-gray-800 min-h-0">
       <div className="bg-white p-1 rounded-t-lg shadow-sm flex-shrink-0 space-y-1.5">
         {/* Category Tabs */}
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           {categories.map(cat => (
             <button
               key={cat.id}

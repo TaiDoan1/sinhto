@@ -170,11 +170,18 @@ export function EmployeeList() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {emp.branch ? (
-                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
-                      ) : (
-                        <span className="px-2 py-0.5 bg-amber-100 rounded text-xs font-semibold text-amber-700">Chờ phân bổ</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {emp.branch ? (
+                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-amber-100 rounded text-xs font-semibold text-amber-700">Chờ phân bổ</span>
+                        )}
+                        {(emp.secondaryBranches || []).map(b => (
+                          <span key={b} className="px-2 py-0.5 bg-sky-100 rounded text-xs font-semibold text-sky-700" title="Chi nhánh hỗ trợ thêm">
+                            +{b}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{getPositionName(emp.position)}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{emp.phone}</td>
@@ -258,6 +265,36 @@ export function EmployeeList() {
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
+              </label>
+              <label className="sm:col-span-2">
+                <span className="text-xs font-semibold text-gray-500">Chi nhánh hỗ trợ thêm (nhân viên chạy nhiều chi nhánh)</span>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {activeBranches.filter(b => b.id !== editForm.branch).map(b => {
+                    const selected = (editForm.secondaryBranches || []).includes(b.id);
+                    return (
+                      <label
+                        key={b.id}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs font-semibold transition-colors ${
+                          selected ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-300 text-gray-600 hover:border-emerald-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={selected}
+                          onChange={() => {
+                            const current = editForm.secondaryBranches || [];
+                            setEditForm({
+                              ...editForm,
+                              secondaryBranches: selected ? current.filter(x => x !== b.id) : [...current, b.id],
+                            });
+                          }}
+                        />
+                        {b.name}
+                      </label>
+                    );
+                  })}
+                </div>
               </label>
               <label>
                 <span className="text-xs font-semibold text-gray-500">Chức vụ</span>

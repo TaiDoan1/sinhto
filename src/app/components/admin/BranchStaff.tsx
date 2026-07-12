@@ -2,6 +2,7 @@ import { UserPlus, Phone, Mail, Calendar, Users, Edit2, Trash2, X, Save } from '
 import { useEffect, useState } from 'react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { useBranches } from '../../contexts/BranchContext';
 import type { Employee } from '../../types/employee';
 import { POSITION_LABELS } from '../../types/employee';
 
@@ -34,7 +35,7 @@ const emptyEmployee: Partial<Employee> = {
 };
 
 export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Employee> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,27 +43,32 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
   const [pendingEmployees, setPendingEmployees] = useState<Employee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const { subscribe } = useSSE();
+  const { activeBranches } = useBranches();
+
+  const employees = allEmployees.filter((e) => e.branch === branchId);
+  const supportEmployees = allEmployees.filter(
+    (e) => e.branch !== branchId && (e.secondaryBranches || []).includes(branchId)
+  );
 
   const load = () => {
     api.fetchEmployees()
-      .then((data) => setEmployees(data.filter((e: Employee) => e.branch === branchId)))
+      .then((data) => setAllEmployees(data))
       .catch((err) => console.error('Failed to load employees:', err));
   };
 
   useEffect(() => {
     load();
     const unsubCreate = subscribe('EMPLOYEE_CREATED', (data: Employee) => {
-      if (data.branch === branchId) setEmployees((prev) => [...prev, data]);
+      setAllEmployees((prev) => [...prev, data]);
     });
     const unsubUpdate = subscribe('EMPLOYEE_UPDATED', (data: Employee) => {
-      setEmployees((prev) => {
-        if (data.branch !== branchId) return prev.filter((e) => e.id !== data.id);
+      setAllEmployees((prev) => {
         const exists = prev.some((e) => e.id === data.id);
         return exists ? prev.map((e) => (e.id === data.id ? data : e)) : [...prev, data];
       });
     });
     const unsubDelete = subscribe('EMPLOYEE_DELETED', (data: { id: string }) => {
-      setEmployees((prev) => prev.filter((e) => e.id !== data.id));
+      setAllEmployees((prev) => prev.filter((e) => e.id !== data.id));
     });
     return () => {
       unsubCreate();
@@ -131,7 +137,7 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
     if (!confirm('Xóa nhân viên này khỏi chi nhánh?')) return;
     try {
       await api.deleteEmployee(id);
-      setEmployees((prev) => prev.filter((e) => e.id !== id));
+      setAllEmployees((prev) => prev.filter((e) => e.id !== id));
     } catch {
       alert('Xóa thất bại');
     }
@@ -232,6 +238,33 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
         </div>
       )}
 
+      {supportEmployees.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <Users className="w-5 h-5 text-sky-600" />
+            Nhân viên hỗ trợ từ chi nhánh khác ({supportEmployees.length})
+          </h3>
+          <div className="grid gap-3">
+            {supportEmployees.map((member) => (
+              <div key={member.id} className="bg-sky-50 border border-sky-100 rounded-lg p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-sky-700 font-bold">{member.fullName.charAt(0)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-800">{member.fullName}</p>
+                  <p className="text-xs text-gray-500">
+                    {POSITION_LABELS[member.position] || member.position} · Chi nhánh chính: {member.branch || '—'}
+                  </p>
+                </div>
+                <span className="shrink-0 px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-bold">
+                  Hỗ trợ
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showForm && editForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -267,6 +300,38 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
                   </option>
                 ))}
               </select>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 block mb-1.5">
+                  Chi nhánh hỗ trợ thêm (tuỳ chọn — nhân viên chạy nhiều chi nhánh)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {activeBranches.filter((b) => b.id !== branchId).map((b) => {
+                    const selected = (editForm.secondaryBranches || []).includes(b.id);
+                    return (
+                      <label
+                        key={b.id}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs font-semibold transition-colors ${
+                          selected ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-300 text-gray-600 hover:border-emerald-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={selected}
+                          onChange={() => {
+                            const current = editForm.secondaryBranches || [];
+                            setEditForm({
+                              ...editForm,
+                              secondaryBranches: selected ? current.filter((x) => x !== b.id) : [...current, b.id],
+                            });
+                          }}
+                        />
+                        {b.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               <input
                 placeholder="Số điện thoại"
                 value={editForm.phone || ''}

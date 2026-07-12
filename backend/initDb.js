@@ -290,6 +290,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(SCHEMA_SQL);
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "payType" TEXT DEFAULT 'monthly'`).catch(() => {});
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "hourlyRate" INTEGER`).catch(() => {});
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "secondaryBranches" TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "lastDeliveredAt" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "deliveryLog" TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "totalCups" INTEGER DEFAULT 7`).catch(() => {});

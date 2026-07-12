@@ -13,6 +13,7 @@ export interface Employee {
   dateOfBirth: string;
   address: string;
   branch: string;
+  secondaryBranches?: string[];
   position: string;
   baseSalary: number;
   payType?: 'monthly' | 'hourly';
@@ -32,6 +33,7 @@ interface EmployeeFormData {
   dateOfBirth: string;
   address: string;
   branch: string;
+  secondaryBranches: string[];
   position: string;
   payType: 'monthly' | 'hourly';
   baseSalary: string;
@@ -50,6 +52,7 @@ const initialFormData: EmployeeFormData = {
   dateOfBirth: '',
   address: '',
   branch: '',
+  secondaryBranches: [],
   position: '',
   payType: 'monthly',
   baseSalary: '',
@@ -78,6 +81,15 @@ export function EmployeeRegistration() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const toggleSecondaryBranch = (branchId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      secondaryBranches: prev.secondaryBranches.includes(branchId)
+        ? prev.secondaryBranches.filter(b => b !== branchId)
+        : [...prev.secondaryBranches, branchId],
+    }));
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -355,6 +367,35 @@ export function EmployeeRegistration() {
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Để trống để nhân viên vào hàng chờ — quản lý chi nhánh sẽ chọn và gán sau.
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Chi Nhánh Hỗ Trợ Thêm <span className="text-gray-400 font-normal">(tuỳ chọn — nhân viên chạy nhiều chi nhánh)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {activeBranches.filter(b => b.id !== formData.branch).map(branch => (
+                <label
+                  key={branch.id}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                    formData.secondaryBranches.includes(branch.id)
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                      : 'border-gray-300 text-gray-600 hover:border-emerald-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={formData.secondaryBranches.includes(branch.id)}
+                    onChange={() => toggleSecondaryBranch(branch.id)}
+                  />
+                  <span className="text-sm font-semibold">{branch.name}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Nhân viên sẽ đăng nhập và chấm công được ở các chi nhánh này khi có ca làm được xếp.
             </p>
           </div>
 

@@ -244,6 +244,7 @@ async function init() {
     "ALTER TABLE employees ADD COLUMN customData TEXT DEFAULT '{}'",
     "ALTER TABLE employees ADD COLUMN payType TEXT DEFAULT 'monthly'",
     "ALTER TABLE employees ADD COLUMN hourlyRate INTEGER",
+    "ALTER TABLE employees ADD COLUMN secondaryBranches TEXT DEFAULT '[]'",
     "ALTER TABLE shifts ADD COLUMN branch TEXT DEFAULT ''",
     "ALTER TABLE shifts ADD COLUMN requestedBy TEXT DEFAULT 'admin'",
     "ALTER TABLE shifts ADD COLUMN checkInPhoto TEXT DEFAULT ''",

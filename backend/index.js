@@ -619,8 +619,10 @@ app.post('/api/auth/employee-login', (req, res) => {
     if (!row || !verifyPassword(password, row.password)) {
       return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không đúng' });
     }
-    if (branchId && row.branch !== branchId) {
-      return res.status(403).json({ error: 'Tài khoản không thuộc chi nhánh này. Máy POS này chỉ đăng nhập được tài khoản của chi nhánh đã gán.' });
+    let secondaryBranches = [];
+    try { secondaryBranches = JSON.parse(row.secondaryBranches || '[]'); } catch { secondaryBranches = []; }
+    if (branchId && row.branch !== branchId && !secondaryBranches.includes(branchId)) {
+      return res.status(403).json({ error: 'Tài khoản không thuộc chi nhánh này. Máy POS này chỉ đăng nhập được tài khoản của chi nhánh đã gán hoặc chi nhánh hỗ trợ thêm.' });
     }
     const employee = parseEmployeeRow(row);
     res.json(employee);
@@ -631,7 +633,16 @@ function parseEmployeeRow(row) {
   if (!row) return row;
   const employee = { ...row };
   delete employee.password;
-  try { employee.customData = JSON.parse(employee.customData || '{}'); } catch { employee.customData = {}; }
+  if (typeof employee.customData === 'string') {
+    try { employee.customData = JSON.parse(employee.customData || '{}'); } catch { employee.customData = {}; }
+  } else if (!employee.customData || typeof employee.customData !== 'object') {
+    employee.customData = {};
+  }
+  if (typeof employee.secondaryBranches === 'string') {
+    try { employee.secondaryBranches = JSON.parse(employee.secondaryBranches || '[]'); } catch { employee.secondaryBranches = []; }
+  } else if (!Array.isArray(employee.secondaryBranches)) {
+    employee.secondaryBranches = [];
+  }
   return employee;
 }
 
@@ -762,13 +773,15 @@ app.post('/api/employees', (req, res) => {
       });
     };
 
+    const secondaryBranches = JSON.stringify(Array.isArray(e.secondaryBranches) ? e.secondaryBranches : []);
+
     checkCode(() => {
       db.run(
-        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData, payType, hourlyRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null],
+        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData, payType, hourlyRate, secondaryBranches) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
-          const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
+          const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [] });
           broadcast('EMPLOYEE_CREATED', created);
           res.status(201).json(created);
         }
@@ -803,14 +816,16 @@ app.put('/api/employees/:id', (req, res) => {
         });
       };
 
+      const secondaryBranches = JSON.stringify(Array.isArray(e.secondaryBranches) ? e.secondaryBranches : []);
+
       checkCode(() => {
         db.run(
-          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ?, payType = ?, hourlyRate = ? WHERE id = ?`,
-          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, id],
+          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ?, payType = ?, hourlyRate = ?, secondaryBranches = ? WHERE id = ?`,
+          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches, id],
           function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
-            const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
+            const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [] });
             broadcast('EMPLOYEE_UPDATED', updated);
             res.json(updated);
           }

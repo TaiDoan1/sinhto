@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save } from 'lucide-react';
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
+import { useBranches } from '../../contexts/BranchContext';
 
 interface EmployeeRecord {
   id: string;
@@ -56,6 +57,8 @@ export function HRPayroll() {
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [payrollBranchFilter, setPayrollBranchFilter] = useState<string>('ALL');
+  const { activeBranches } = useBranches();
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>({
     baseSalaryMin: 5000000,
@@ -128,15 +131,22 @@ export function HRPayroll() {
     if (employees.length > 0) {
       calculatePayroll();
     }
-  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions]);
+  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter]);
 
   const calculatePayroll = () => {
-    const records: EmployeeRecord[] = employees.map((emp) => {
-      const employeeShifts = shifts.filter((s) => s.employeeId === emp.id);
+    // Lọc theo chi nhánh: tính lương/giờ công CHỈ theo ca làm tại đúng chi nhánh đang xem —
+    // để chi phí nhân sự từng chi nhánh chính xác dù nhân viên chạy nhiều chi nhánh.
+    const byBranch = payrollBranchFilter !== 'ALL';
+    const relevantEmployees = byBranch
+      ? employees.filter(
+          (emp) => emp.branch === payrollBranchFilter || (emp.secondaryBranches || []).includes(payrollBranchFilter)
+        )
+      : employees;
 
-      const hoursWorked = employeeShifts.reduce((total, shift) => {
-        // Ưu tiên giờ check-in/check-out thực tế (chính xác hơn, đặc biệt với NV lương theo giờ);
-        // nếu ca chưa check-in/out (VD ca hôm nay chưa kết thúc) thì tạm tính theo giờ ca đã lên lịch.
+    // Ưu tiên giờ check-in/check-out thực tế (chính xác hơn, đặc biệt với NV lương theo giờ);
+    // nếu ca chưa check-in/out (VD ca hôm nay chưa kết thúc) thì tạm tính theo giờ ca đã lên lịch.
+    const sumHours = (shiftList: Shift[]) =>
+      shiftList.reduce((total, shift) => {
         if (shift.checkIn && shift.checkOut) {
           const actualHours = (new Date(shift.checkOut).getTime() - new Date(shift.checkIn).getTime()) / 3600000;
           return total + Math.max(0, actualHours);
@@ -147,44 +157,67 @@ export function HRPayroll() {
         return total + hours;
       }, 0);
 
-      const substituteShifts = employeeShifts.filter((s) => s.isSubstitute).length;
-      const overtimeHours = Math.max(0, hoursWorked - employeeShifts.length * otSettings.otThreshold);
+    const records: EmployeeRecord[] = relevantEmployees
+      .map((emp) => {
+        const employeeShifts = shifts.filter(
+          (s) => s.employeeId === emp.id && (!byBranch || s.branch === payrollBranchFilter)
+        );
+        if (byBranch && employeeShifts.length === 0) return null; // gán CN nhưng chưa có ca nào ở đây — chưa phát sinh chi phí
 
-      const comboSales = comboSubscriptions.filter(
-        (c) =>
-          (c.closedByStaffId === emp.id || c.careStaffId === emp.id) &&
-          ['active', 'completed'].includes(c.status)
-      ).length;
+        const hoursWorked = sumHours(employeeShifts);
+        const substituteShifts = employeeShifts.filter((s) => s.isSubstitute).length;
+        const overtimeHours = Math.max(0, hoursWorked - employeeShifts.length * otSettings.otThreshold);
 
-      const isHourly = emp.payType === 'hourly';
-      const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
-      const otPay = overtimeHours * hourlyRate * otSettings.otRate;
-      const comboBonus = comboSales * salarySettings.comboBonus;
-      // NV lương giờ: lương chính = giờ thường x đơn giá (không có lương cứng nền)
-      const regularPay = isHourly ? Math.max(0, hoursWorked - overtimeHours) * hourlyRate : (emp.baseSalary || 0);
-      const totalSalary = regularPay + otPay + comboBonus;
+        const comboSales = comboSubscriptions.filter(
+          (c) =>
+            (c.closedByStaffId === emp.id || c.careStaffId === emp.id) &&
+            ['active', 'completed'].includes(c.status)
+        ).length;
 
-      const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
+        const isHourly = emp.payType === 'hourly';
+        const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
+        const otPay = overtimeHours * hourlyRate * otSettings.otRate;
+        const comboBonus = comboSales * salarySettings.comboBonus;
 
-      return {
-        id: emp.id,
-        employeeId: emp.employeeId,
-        name: emp.fullName,
-        branch: emp.branch,
-        shifts: employeeShifts.length,
-        substituteShifts,
-        hoursWorked,
-        overtimeHours,
-        comboSales,
-        baseSalary: regularPay,
-        payType: emp.payType,
-        hourlyRate: emp.hourlyRate,
-        otPay,
-        comboBonus,
-        totalSalary,
-        selfieChecks,
-      };
-    });
+        let regularPay: number;
+        if (isHourly) {
+          // NV lương giờ: lương chính = giờ thường x đơn giá (không có lương cứng nền)
+          regularPay = Math.max(0, hoursWorked - overtimeHours) * hourlyRate;
+        } else if (byBranch) {
+          // NV lương tháng chạy nhiều CN: chia lương cứng theo tỉ lệ giờ làm thực tế ở CN này / tổng giờ làm mọi CN,
+          // tránh tính trùng toàn bộ lương cứng vào từng chi nhánh họ có mặt.
+          const allEmpShifts = shifts.filter((s) => s.employeeId === emp.id);
+          const totalHoursAllBranches = sumHours(allEmpShifts);
+          regularPay = totalHoursAllBranches > 0
+            ? (emp.baseSalary || 0) * (hoursWorked / totalHoursAllBranches)
+            : 0;
+        } else {
+          regularPay = emp.baseSalary || 0;
+        }
+        const totalSalary = regularPay + otPay + comboBonus;
+
+        const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
+
+        return {
+          id: emp.id,
+          employeeId: emp.employeeId,
+          name: emp.fullName,
+          branch: byBranch ? payrollBranchFilter : emp.branch,
+          shifts: employeeShifts.length,
+          substituteShifts,
+          hoursWorked,
+          overtimeHours,
+          comboSales,
+          baseSalary: regularPay,
+          payType: emp.payType,
+          hourlyRate: emp.hourlyRate,
+          otPay,
+          comboBonus,
+          totalSalary,
+          selfieChecks,
+        };
+      })
+      .filter((r): r is EmployeeRecord => r !== null);
 
     setEmployeeRecords(records);
   };
@@ -237,6 +270,23 @@ export function HRPayroll() {
 
       {activeTab === 'payroll' && (
         <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">
+              {payrollBranchFilter === 'ALL'
+                ? 'Tổng lương toàn hệ thống theo từng nhân viên (gộp mọi chi nhánh họ làm việc)'
+                : `Chi phí nhân sự thực tế tại chi nhánh đã chọn — chỉ tính giờ làm/lương tại đây`}
+            </p>
+            <select
+              value={payrollBranchFilter}
+              onChange={(e) => setPayrollBranchFilter(e.target.value)}
+              className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+            >
+              <option value="ALL">Tất cả chi nhánh</option>
+              {activeBranches.map((b) => (
+                <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-lg p-4 shadow-lg">
           <div className="flex items-center gap-3 mb-2">

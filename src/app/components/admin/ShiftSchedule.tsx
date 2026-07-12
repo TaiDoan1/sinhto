@@ -338,7 +338,9 @@ export function ShiftSchedule() {
 
   const availableEmployees = selectedBranch === 'ALL'
     ? [...employees].sort((a, b) => a.branch.localeCompare(b.branch) || a.fullName.localeCompare(b.fullName))
-    : employees.filter(e => e.branch === selectedBranch);
+    : employees
+        .filter(e => e.branch === selectedBranch || (e.secondaryBranches || []).includes(selectedBranch))
+        .sort((a, b) => (a.branch === selectedBranch ? 0 : 1) - (b.branch === selectedBranch ? 0 : 1));
   const weekDays = getWeekDays();
   const shiftBranch = selectedBranch === 'ALL' ? null : selectedBranch;
 
@@ -469,6 +471,11 @@ export function ShiftSchedule() {
                       <div className="font-semibold text-sm text-gray-800 truncate">{emp.fullName}</div>
                       {selectedBranch === 'ALL' && (
                         <div className="text-xs text-gray-500">{emp.branch}</div>
+                      )}
+                      {selectedBranch !== 'ALL' && emp.branch !== selectedBranch && (
+                        <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                          Hỗ trợ từ {emp.branch || 'chưa gán CN'}
+                        </span>
                       )}
                     </div>
                   </div>

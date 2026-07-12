@@ -28,7 +28,7 @@ const PORT = process.env.PORT || 5005;
 let db;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // Mọi ảnh — public/images/ (upload con: public/images/uploads/)
 const imagesDir = path.join(__dirname, '../public/images');

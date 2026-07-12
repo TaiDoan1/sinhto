@@ -255,6 +255,12 @@ export async function deleteBranch(id: string) {
   return res.json();
 }
 
+async function readEmployeeSaveError(res: Response): Promise<string> {
+  if (res.status === 413) return 'Ảnh nhân viên quá lớn. Vui lòng chọn ảnh nhỏ hơn (dưới ~10MB).';
+  const err = await res.json().catch(() => ({}));
+  return err.error || `Failed to save employee (HTTP ${res.status})`;
+}
+
 export async function saveEmployee(employee: any) {
   if (employee.id) {
     const putRes = await fetch(`${BASE_URL}/employees/${employee.id}`, {
@@ -264,8 +270,7 @@ export async function saveEmployee(employee: any) {
     });
     if (putRes.ok) return putRes.json();
     if (putRes.status !== 404) {
-      const err = await putRes.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to save employee');
+      throw new Error(await readEmployeeSaveError(putRes));
     }
   }
   const { id: _id, ...payload } = employee;
@@ -275,8 +280,7 @@ export async function saveEmployee(employee: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to save employee');
+    throw new Error(await readEmployeeSaveError(res));
   }
   return res.json();
 }

@@ -135,6 +135,12 @@ export function HRPayroll() {
       const employeeShifts = shifts.filter((s) => s.employeeId === emp.id);
 
       const hoursWorked = employeeShifts.reduce((total, shift) => {
+        // Ưu tiên giờ check-in/check-out thực tế (chính xác hơn, đặc biệt với NV lương theo giờ);
+        // nếu ca chưa check-in/out (VD ca hôm nay chưa kết thúc) thì tạm tính theo giờ ca đã lên lịch.
+        if (shift.checkIn && shift.checkOut) {
+          const actualHours = (new Date(shift.checkOut).getTime() - new Date(shift.checkIn).getTime()) / 3600000;
+          return total + Math.max(0, actualHours);
+        }
         const start = parseInt(shift.startTime.split(':')[0], 10);
         const end = parseInt(shift.endTime.split(':')[0], 10);
         const hours = end > start ? end - start : 24 - start + end;
@@ -336,7 +342,7 @@ export function HRPayroll() {
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-700">{emp.hoursWorked}h</td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-700">{emp.hoursWorked.toFixed(1)}h</td>
                     <td className="px-4 py-3 text-center">
                       {emp.overtimeHours > 0 ? (
                         <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">

@@ -86,6 +86,8 @@ export function EmployeePortal() {
     setRequesting(true);
     try {
       await requestShift(requestDate, templateId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Đăng ký ca thất bại.');
     } finally {
       setRequesting(false);
     }

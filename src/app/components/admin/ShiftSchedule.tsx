@@ -151,7 +151,7 @@ export function ShiftSchedule() {
       setSelectedCell(null);
     } catch (err) {
       console.error('Failed to add shift:', err);
-      alert('Lỗi lưu ca làm việc.');
+      alert(err instanceof Error ? err.message : 'Lỗi lưu ca làm việc.');
     }
   };
 
@@ -198,7 +198,7 @@ export function ShiftSchedule() {
       setSubstituteModal(null);
     } catch (err) {
       console.error('Failed to update substitute:', err);
-      alert('Lỗi thay ca.');
+      alert(err instanceof Error ? err.message : 'Lỗi thay ca.');
     }
   };
 

@@ -314,6 +314,11 @@ export async function shiftCheckIn(shiftId: string, action: 'in' | 'out', photo?
   return res.json();
 }
 
+async function readShiftSaveError(res: Response): Promise<string> {
+  const err = await res.json().catch(() => ({}));
+  return err.error || `Failed to save shift (HTTP ${res.status})`;
+}
+
 export async function saveShift(shift: any) {
   if (shift.id) {
     const putRes = await fetch(`${BASE_URL}/shifts/${shift.id}`, {
@@ -322,7 +327,7 @@ export async function saveShift(shift: any) {
       body: JSON.stringify(shift),
     });
     if (putRes.ok) return putRes.json();
-    if (putRes.status !== 404) throw new Error('Failed to save shift');
+    if (putRes.status !== 404) throw new Error(await readShiftSaveError(putRes));
   }
   const { id: _id, ...payload } = shift;
   const res = await fetch(`${BASE_URL}/shifts`, {
@@ -330,7 +335,7 @@ export async function saveShift(shift: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to save shift');
+  if (!res.ok) throw new Error(await readShiftSaveError(res));
   return res.json();
 }
 

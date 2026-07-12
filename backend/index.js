@@ -862,35 +862,80 @@ app.get('/api/shifts', (req, res) => {
   });
 });
 
+function timeToMinutes(hhmm) {
+  const [h, m] = (hhmm || '0:0').split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function timeRangesOverlap(startA, endA, startB, endB) {
+  let a1 = timeToMinutes(startA), a2 = timeToMinutes(endA);
+  let b1 = timeToMinutes(startB), b2 = timeToMinutes(endB);
+  if (a2 <= a1) a2 += 24 * 60;
+  if (b2 <= b1) b2 += 24 * 60;
+  return a1 < b2 && b1 < a2;
+}
+
+// Từ chối nếu nhân viên đã có ca khác (ở bất kỳ chi nhánh nào) trùng khung giờ cùng ngày —
+// 1 người không thể có mặt ở 2 nơi cùng lúc.
+function findConflictingShift(employeeId, date, startTime, endTime, excludeShiftId, cb) {
+  db.all(
+    "SELECT * FROM shifts WHERE employeeId = ? AND date = ? AND status NOT IN ('rejected', 'cancelled')",
+    [employeeId, date],
+    (err, rows) => {
+      if (err) return cb(err);
+      const conflict = (rows || []).find(
+        (r) => r.id !== excludeShiftId && timeRangesOverlap(startTime, endTime, r.startTime, r.endTime)
+      );
+      cb(null, conflict || null);
+    }
+  );
+}
+
 app.post('/api/shifts', (req, res) => {
   const s = normalizeShift(req.body);
   const id = s.id || `SHIFT-${Date.now()}`;
-  db.run(
-    `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin'],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      const created = { ...s, id };
-      broadcast('SHIFT_CREATED', created);
-      res.status(201).json(created);
+  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, null, (checkErr, conflict) => {
+    if (checkErr) return res.status(500).json({ error: checkErr.message });
+    if (conflict) {
+      return res.status(409).json({
+        error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
+      });
     }
-  );
+    db.run(
+      `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin'],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        const created = { ...s, id };
+        broadcast('SHIFT_CREATED', created);
+        res.status(201).json(created);
+      }
+    );
+  });
 });
 
 app.put('/api/shifts/:id', (req, res) => {
   const { id } = req.params;
   const s = normalizeShift(req.body);
-  db.run(
-    `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ? WHERE id = ?`,
-    [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', id],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
-      const updated = { ...s, id };
-      broadcast('SHIFT_UPDATED', updated);
-      res.json(updated);
+  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, id, (checkErr, conflict) => {
+    if (checkErr) return res.status(500).json({ error: checkErr.message });
+    if (conflict) {
+      return res.status(409).json({
+        error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
+      });
     }
-  );
+    db.run(
+      `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ? WHERE id = ?`,
+      [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', id],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
+        const updated = { ...s, id };
+        broadcast('SHIFT_UPDATED', updated);
+        res.json(updated);
+      }
+    );
+  });
 });
 
 app.patch('/api/shifts/:id/checkin', (req, res) => {

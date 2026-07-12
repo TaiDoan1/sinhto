@@ -637,20 +637,14 @@ export function ShiftSchedule() {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="mt-4 flex items-center justify-center gap-6 text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gradient-to-r from-emerald-500 to-yellow-400 rounded"></div>
-          <span>🌅 Sáng 6h-14h</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gradient-to-r from-blue-400 to-cyan-400 rounded"></div>
-          <span>☀️ Chiều 14h-22h</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gradient-to-r from-purple-400 to-pink-400 rounded"></div>
-          <span>🌙 Tối 22h-6h</span>
-        </div>
+      {/* Legend — lấy trực tiếp từ shiftTemplates để không bao giờ lệch giờ hiển thị */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
+        {shiftTemplates.map((tpl) => (
+          <div key={tpl.id} className="flex items-center gap-2">
+            <div className={`w-4 h-4 bg-gradient-to-r ${tpl.color} rounded`}></div>
+            <span>{tpl.name} {tpl.start}-{tpl.end}</span>
+          </div>
+        ))}
         <div className="flex items-center gap-2">
           <Pin className="w-4 h-4 text-yellow-600" />
           <span>Ca ghim</span>

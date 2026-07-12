@@ -57,9 +57,10 @@ export function canCancelShift(shift: WorkShift): boolean {
 }
 
 export const SHIFT_TEMPLATES = [
-  { id: 'morning', name: 'Ca Sang', start: '06:00', end: '14:00', icon: '🌅' },
-  { id: 'afternoon', name: 'Ca Chieu', start: '14:00', end: '22:00', icon: '☀️' },
-  { id: 'evening', name: 'Ca Toi', start: '22:00', end: '06:00', icon: '🌙' },
+  { id: 'morning', name: 'Ca Sang', start: '06:00', end: '12:00', icon: '🌅' },
+  { id: 'noon', name: 'Ca Trua', start: '12:00', end: '18:00', icon: '🌤️' },
+  { id: 'afternoon', name: 'Ca Chieu', start: '14:00', end: '20:00', icon: '☀️' },
+  { id: 'evening', name: 'Ca Toi', start: '18:00', end: '23:00', icon: '🌙' },
 ];
 
 export const ONLINE_SALES_POSITIONS = ['online_sales', 'customer_care', 'cskh'] as const;

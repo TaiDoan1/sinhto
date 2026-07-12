@@ -16,7 +16,7 @@ export interface Shift {
   startTime: string;
   endTime: string;
   isPinned?: boolean;
-  shiftType?: 'morning' | 'afternoon' | 'evening';
+  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening';
   originalEmployeeId?: string;
   originalEmployeeName?: string;
   isSubstitute?: boolean;
@@ -28,11 +28,16 @@ export interface Shift {
   closingRevenue?: number;
 }
 
-const shiftTemplates = [
-  { name: '🌅 Sáng', start: '06:00', end: '14:00', color: 'from-emerald-500 to-yellow-400' },
-  { name: '☀️ Chiều', start: '14:00', end: '22:00', color: 'from-blue-400 to-cyan-400' },
-  { name: '🌙 Tối', start: '22:00', end: '06:00', color: 'from-purple-400 to-pink-400' },
+const shiftTemplates: { id: Shift['shiftType']; name: string; start: string; end: string; color: string; icon: string }[] = [
+  { id: 'morning', name: '🌅 Sáng', start: '06:00', end: '12:00', color: 'from-emerald-500 to-yellow-400', icon: '🌅' },
+  { id: 'noon', name: '🌤️ Trưa', start: '12:00', end: '18:00', color: 'from-amber-400 to-orange-400', icon: '🌤️' },
+  { id: 'afternoon', name: '☀️ Chiều', start: '14:00', end: '20:00', color: 'from-blue-400 to-cyan-400', icon: '☀️' },
+  { id: 'evening', name: '🌙 Tối', start: '18:00', end: '23:00', color: 'from-purple-400 to-pink-400', icon: '🌙' },
 ];
+
+function shiftTemplateFor(shiftType?: Shift['shiftType']) {
+  return shiftTemplates.find((t) => t.id === shiftType) || shiftTemplates[0];
+}
 
 export function ShiftSchedule() {
   const { adminUser } = useAdmin();
@@ -126,12 +131,6 @@ export function ShiftSchedule() {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
-    const startHour = parseInt(template.start.split(':')[0]);
-    let shiftType: 'morning' | 'afternoon' | 'evening';
-    if (startHour >= 6 && startHour < 14) shiftType = 'morning';
-    else if (startHour >= 14 && startHour < 22) shiftType = 'afternoon';
-    else shiftType = 'evening';
-
     const newShift: Shift = {
       id: Date.now().toString(),
       employeeId: employee.id,
@@ -141,7 +140,7 @@ export function ShiftSchedule() {
       startTime: template.start,
       endTime: template.end,
       isPinned: false,
-      shiftType,
+      shiftType: template.id,
       status: 'scheduled',
       requestedBy: 'admin',
     };
@@ -258,47 +257,27 @@ export function ShiftSchedule() {
         const dateStr = day.toISOString().split('T')[0];
         const pinnedIds = shiftsToKeep.filter(s => s.date === dateStr).map(s => s.employeeId);
 
-        // Morning
-        let morningEmp = availableEmployees[empIndex % availableEmployees.length];
-        while (pinnedIds.includes(morningEmp.id)) {
+        for (const tpl of shiftTemplates) {
+          let emp = availableEmployees[empIndex % availableEmployees.length];
+          while (pinnedIds.includes(emp.id)) {
+            empIndex++;
+            emp = availableEmployees[empIndex % availableEmployees.length];
+          }
+          await api.saveShift({
+            id: `r-${dateStr}-${emp.id}-${tpl.id}`,
+            employeeId: emp.id,
+            employeeName: emp.fullName,
+            branch: selectedBranch,
+            date: dateStr,
+            startTime: tpl.start,
+            endTime: tpl.end,
+            isPinned: false,
+            shiftType: tpl.id,
+            status: 'scheduled',
+            requestedBy: 'admin',
+          });
           empIndex++;
-          morningEmp = availableEmployees[empIndex % availableEmployees.length];
         }
-        await api.saveShift({
-          id: `r-${dateStr}-${morningEmp.id}-m`,
-          employeeId: morningEmp.id,
-          employeeName: morningEmp.fullName,
-          branch: selectedBranch,
-          date: dateStr,
-          startTime: '06:00',
-          endTime: '14:00',
-          isPinned: false,
-          shiftType: 'morning',
-          status: 'scheduled',
-          requestedBy: 'admin',
-        });
-        empIndex++;
-
-        // Afternoon
-        let afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
-        while (pinnedIds.includes(afternoonEmp.id)) {
-          empIndex++;
-          afternoonEmp = availableEmployees[empIndex % availableEmployees.length];
-        }
-        await api.saveShift({
-          id: `r-${dateStr}-${afternoonEmp.id}-a`,
-          employeeId: afternoonEmp.id,
-          employeeName: afternoonEmp.fullName,
-          branch: selectedBranch,
-          date: dateStr,
-          startTime: '14:00',
-          endTime: '22:00',
-          isPinned: false,
-          shiftType: 'afternoon',
-          status: 'scheduled',
-          requestedBy: 'admin',
-        });
-        empIndex++;
       }
     } catch (err) {
       console.error('Failed during auto shift rotation:', err);
@@ -503,10 +482,10 @@ export function ShiftSchedule() {
                     <td key={i} className="border border-gray-200 p-1 align-top">
                       <div className="space-y-1">
                         {dayShifts.map((shift) => (
-                          <div key={shift.id} className={`relative bg-gradient-to-r ${shift.shiftType === 'morning' ? 'from-emerald-500 to-yellow-400' : shift.shiftType === 'afternoon' ? 'from-blue-400 to-cyan-400' : 'from-purple-400 to-pink-400'} text-white rounded-lg p-2 shadow-sm group`}>
+                          <div key={shift.id} className={`relative bg-gradient-to-r ${shiftTemplateFor(shift.shiftType).color} text-white rounded-lg p-2 shadow-sm group`}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold">
-                                {shift.shiftType === 'morning' ? '🌅' : shift.shiftType === 'afternoon' ? '☀️' : '🌙'}
+                                {shiftTemplateFor(shift.shiftType).icon}
                               </span>
                               <div className="flex gap-1">
                                 <button

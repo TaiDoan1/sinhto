@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import * as api from '../utils/api';
 import { useSSE } from './SSEContext';
 import type { Employee, WorkShift, ProfileFieldConfig } from '../types/employee';
-import { DEFAULT_PROFILE_FIELDS, isOnlineSalesPosition } from '../types/employee';
+import { DEFAULT_PROFILE_FIELDS, isOnlineSalesPosition, SHIFT_TEMPLATES } from '../types/employee';
 
 const SESSION_KEY = 'staff_session';
 
@@ -110,12 +110,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
 
   const requestShift = async (date: string, templateId: string) => {
     if (!activeEmployee) return;
-    const templates: Record<string, { start: string; end: string }> = {
-      morning: { start: '06:00', end: '14:00' },
-      afternoon: { start: '14:00', end: '22:00' },
-      evening: { start: '22:00', end: '06:00' },
-    };
-    const tpl = templates[templateId] || templates.morning;
+    const tpl = SHIFT_TEMPLATES.find((t) => t.id === templateId) || SHIFT_TEMPLATES[0];
     const shift: Partial<WorkShift> = {
       employeeId: activeEmployee.id,
       employeeName: activeEmployee.fullName,

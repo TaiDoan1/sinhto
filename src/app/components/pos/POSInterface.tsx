@@ -81,13 +81,19 @@ function POSInterfaceInner() {
 
   const getCurrentShiftType = () => {
     const currentHour = new Date().getHours();
-    if (currentHour >= 6 && currentHour < 14) {
+    if (currentHour >= 6 && currentHour < 12) {
       return { type: 'morning', name: 'Ca Sáng', color: 'bg-yellow-100 text-yellow-800' };
     }
-    if (currentHour >= 14 && currentHour < 22) {
+    if (currentHour >= 12 && currentHour < 14) {
+      return { type: 'noon', name: 'Ca Trưa', color: 'bg-orange-100 text-orange-800' };
+    }
+    if (currentHour >= 14 && currentHour < 18) {
       return { type: 'afternoon', name: 'Ca Chiều', color: 'bg-emerald-100 text-blue-800' };
     }
-    return { type: 'evening', name: 'Ca Tối', color: 'bg-emerald-100 text-emerald-800' };
+    if (currentHour >= 18 && currentHour < 23) {
+      return { type: 'evening', name: 'Ca Tối', color: 'bg-purple-100 text-purple-800' };
+    }
+    return { type: 'off', name: 'Ngoài giờ ca', color: 'bg-gray-100 text-gray-600' };
   };
 
   const handleLogout = async () => {

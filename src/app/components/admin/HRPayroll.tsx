@@ -134,8 +134,8 @@ export function HRPayroll() {
   }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter]);
 
   const calculatePayroll = () => {
-    // Lọc theo chi nhánh: tính lương/giờ công CHỈ theo ca làm tại đúng chi nhánh đang xem —
-    // để chi phí nhân sự từng chi nhánh chính xác dù nhân viên chạy nhiều chi nhánh.
+    // Lọc theo chi nhánh chỉ để XEM giờ làm/số ca tại đúng nơi đó (nhân viên chạy nhiều chi nhánh
+    // vẫn hiện đủ). Công luôn tính theo check-in/check-out thực tế, không phân biệt chi nhánh nào.
     const byBranch = payrollBranchFilter !== 'ALL';
     const relevantEmployees = byBranch
       ? employees.filter(

@@ -15,6 +15,8 @@ export interface Employee {
   branch: string;
   position: string;
   baseSalary: number;
+  payType?: 'monthly' | 'hourly';
+  hourlyRate?: number;
   startDate: string;
   photo?: string;
   username: string;
@@ -31,7 +33,9 @@ interface EmployeeFormData {
   address: string;
   branch: string;
   position: string;
+  payType: 'monthly' | 'hourly';
   baseSalary: string;
+  hourlyRate: string;
   startDate: string;
   username: string;
   password: string;
@@ -47,7 +51,9 @@ const initialFormData: EmployeeFormData = {
   address: '',
   branch: '',
   position: '',
+  payType: 'monthly',
   baseSalary: '',
+  hourlyRate: '',
   startDate: '',
   username: '',
   password: '',
@@ -91,7 +97,8 @@ export function EmployeeRegistration() {
     const newEmployee: Employee = {
       id: Date.now().toString(),
       ...formData,
-      baseSalary: Number(formData.baseSalary),
+      baseSalary: formData.payType === 'hourly' ? 0 : Number(formData.baseSalary),
+      hourlyRate: formData.payType === 'hourly' ? Number(formData.hourlyRate) : undefined,
       photo: photoPreview,
     };
 
@@ -148,7 +155,7 @@ export function EmployeeRegistration() {
           {/* Photo Upload */}
           <div className="md:col-span-2">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Ảnh Nhân Viên
+              Ảnh Nhân Viên <span className="text-gray-400 font-normal">(tuỳ chọn, có thể bổ sung sau)</span>
             </label>
             <div className="flex items-center gap-6">
               <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
@@ -373,20 +380,54 @@ export function EmployeeRegistration() {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Lương Cơ Bản (VNĐ) <span className="text-red-500">*</span>
+              Hình Thức Lương <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              name="baseSalary"
-              value={formData.baseSalary}
+            <select
+              name="payType"
+              value={formData.payType}
               onChange={handleInputChange}
-              required
-              min="0"
-              step="100000"
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
-              placeholder="8000000"
-            />
+            >
+              <option value="monthly">Theo tháng</option>
+              <option value="hourly">Theo giờ</option>
+            </select>
           </div>
+
+          {formData.payType === 'hourly' ? (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Lương Theo Giờ (VNĐ/giờ) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="hourlyRate"
+                value={formData.hourlyRate}
+                onChange={handleInputChange}
+                required
+                min="0"
+                step="1000"
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
+                placeholder="30000"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Lương Cơ Bản (VNĐ/tháng) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="baseSalary"
+                value={formData.baseSalary}
+                onChange={handleInputChange}
+                required
+                min="0"
+                step="100000"
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none transition-colors"
+                placeholder="8000000"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">

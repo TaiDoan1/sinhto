@@ -14,6 +14,8 @@ interface EmployeeRecord {
   overtimeHours: number;
   comboSales: number;
   baseSalary: number;
+  payType?: 'monthly' | 'hourly';
+  hourlyRate?: number;
   otPay: number;
   comboBonus: number;
   totalSalary: number;
@@ -148,10 +150,13 @@ export function HRPayroll() {
           ['active', 'completed'].includes(c.status)
       ).length;
 
-      const hourlyRate = emp.baseSalary / salarySettings.standardWorkHours;
+      const isHourly = emp.payType === 'hourly';
+      const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
       const otPay = overtimeHours * hourlyRate * otSettings.otRate;
       const comboBonus = comboSales * salarySettings.comboBonus;
-      const totalSalary = emp.baseSalary + otPay + comboBonus;
+      // NV lương giờ: lương chính = giờ thường x đơn giá (không có lương cứng nền)
+      const regularPay = isHourly ? Math.max(0, hoursWorked - overtimeHours) * hourlyRate : (emp.baseSalary || 0);
+      const totalSalary = regularPay + otPay + comboBonus;
 
       const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
 
@@ -165,7 +170,9 @@ export function HRPayroll() {
         hoursWorked,
         overtimeHours,
         comboSales,
-        baseSalary: emp.baseSalary,
+        baseSalary: regularPay,
+        payType: emp.payType,
+        hourlyRate: emp.hourlyRate,
         otPay,
         comboBonus,
         totalSalary,
@@ -299,7 +306,14 @@ export function HRPayroll() {
                 {employeeRecords.map(emp => (
                   <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{emp.employeeId}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{emp.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {emp.name}
+                      {emp.payType === 'hourly' && (
+                        <span className="ml-1.5 px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded text-[10px] font-bold align-middle">
+                          Theo giờ
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
                         {emp.branch}

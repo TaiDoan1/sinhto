@@ -180,7 +180,9 @@ export function EmployeeList() {
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{emp.phone}</td>
                     <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]" title={emp.email}>{emp.email}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
-                      {(emp.baseSalary || 0).toLocaleString('vi-VN')}đ
+                      {emp.payType === 'hourly'
+                        ? `${(emp.hourlyRate || 0).toLocaleString('vi-VN')}đ/giờ`
+                        : `${(emp.baseSalary || 0).toLocaleString('vi-VN')}đ`}
                     </td>
                     <td className="px-4 py-3 font-mono text-gray-700">{emp.username}</td>
                     <td className="px-4 py-3">
@@ -270,14 +272,37 @@ export function EmployeeList() {
                 </select>
               </label>
               <label>
-                <span className="text-xs font-semibold text-gray-500">Lương cơ bản</span>
-                <input
-                  type="number"
-                  value={editForm.baseSalary}
-                  onChange={e => setEditForm({ ...editForm, baseSalary: Number(e.target.value) })}
+                <span className="text-xs font-semibold text-gray-500">Hình thức lương</span>
+                <select
+                  value={editForm.payType || 'monthly'}
+                  onChange={e => setEditForm({ ...editForm, payType: e.target.value as 'monthly' | 'hourly' })}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
-                />
+                >
+                  <option value="monthly">Theo tháng</option>
+                  <option value="hourly">Theo giờ</option>
+                </select>
               </label>
+              {editForm.payType === 'hourly' ? (
+                <label>
+                  <span className="text-xs font-semibold text-gray-500">Lương theo giờ (VNĐ/giờ)</span>
+                  <input
+                    type="number"
+                    value={editForm.hourlyRate || ''}
+                    onChange={e => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                  />
+                </label>
+              ) : (
+                <label>
+                  <span className="text-xs font-semibold text-gray-500">Lương cơ bản (VNĐ/tháng)</span>
+                  <input
+                    type="number"
+                    value={editForm.baseSalary}
+                    onChange={e => setEditForm({ ...editForm, baseSalary: Number(e.target.value) })}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                  />
+                </label>
+              )}
               <label>
                 <span className="text-xs font-semibold text-gray-500">Username</span>
                 <input

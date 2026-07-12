@@ -764,8 +764,8 @@ app.post('/api/employees', (req, res) => {
 
     checkCode(() => {
       db.run(
-        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData],
+        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData, payType, hourlyRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
           const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {} });
@@ -805,8 +805,8 @@ app.put('/api/employees/:id', (req, res) => {
 
       checkCode(() => {
         db.run(
-          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ? WHERE id = ?`,
-          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, id],
+          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ?, payType = ?, hourlyRate = ? WHERE id = ?`,
+          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, id],
           function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });

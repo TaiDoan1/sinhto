@@ -179,21 +179,12 @@ export function HRPayroll() {
         const otPay = overtimeHours * hourlyRate * otSettings.otRate;
         const comboBonus = comboSales * salarySettings.comboBonus;
 
-        let regularPay: number;
-        if (isHourly) {
-          // NV lương giờ: lương chính = giờ thường x đơn giá (không có lương cứng nền)
-          regularPay = Math.max(0, hoursWorked - overtimeHours) * hourlyRate;
-        } else if (byBranch) {
-          // NV lương tháng chạy nhiều CN: chia lương cứng theo tỉ lệ giờ làm thực tế ở CN này / tổng giờ làm mọi CN,
-          // tránh tính trùng toàn bộ lương cứng vào từng chi nhánh họ có mặt.
-          const allEmpShifts = shifts.filter((s) => s.employeeId === emp.id);
-          const totalHoursAllBranches = sumHours(allEmpShifts);
-          regularPay = totalHoursAllBranches > 0
-            ? (emp.baseSalary || 0) * (hoursWorked / totalHoursAllBranches)
-            : 0;
-        } else {
-          regularPay = emp.baseSalary || 0;
-        }
+        // Lương không chia theo % chi nhánh — nhân viên làm ở chi nhánh nào (chính hay hỗ trợ)
+        // đều tính công đầy đủ theo giờ check-in/check-out thực tế. Lọc theo chi nhánh chỉ để
+        // xem giờ làm/số ca tại đúng nơi đó, không cắt bớt lương thực nhận của nhân viên.
+        const regularPay = isHourly
+          ? Math.max(0, hoursWorked - overtimeHours) * hourlyRate
+          : (emp.baseSalary || 0);
         const totalSalary = regularPay + otPay + comboBonus;
 
         const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
@@ -273,8 +264,8 @@ export function HRPayroll() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-500">
               {payrollBranchFilter === 'ALL'
-                ? 'Tổng lương toàn hệ thống theo từng nhân viên (gộp mọi chi nhánh họ làm việc)'
-                : `Chi phí nhân sự thực tế tại chi nhánh đã chọn — chỉ tính giờ làm/lương tại đây`}
+                ? 'Lương đầy đủ theo từng nhân viên — tính đủ công ở mọi chi nhánh họ làm việc, không chia %'
+                : `Xem giờ làm/số ca của nhân viên tại chi nhánh đã chọn (lương hiển thị vẫn là lương thực nhận đầy đủ, không bị cắt bớt)`}
             </p>
             <select
               value={payrollBranchFilter}

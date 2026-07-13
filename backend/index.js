@@ -43,8 +43,8 @@ app.use('/images', express.static(imagesDir));
 // Tương thích URL cũ /uploads/...
 app.use('/uploads', express.static(uploadsDir));
 
-// Backup files
-const backupsDir = path.join(__dirname, '../backups/excel');
+// Backup files — nằm trong volume persistent chung với uploadsDir (Railway chỉ cho 1 volume/service)
+const backupsDir = path.join(uploadsDir, '_backups/excel');
 if (!fs.existsSync(backupsDir)) {
   fs.mkdirSync(backupsDir, { recursive: true });
 }

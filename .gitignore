@@ -85,5 +85,8 @@ public/images/uploads/*
 !public/images/uploads/.gitkeep
 backend/sinhto.db
 
+# Old local-only backup test artifacts (backups now live in the persistent volume)
+/backups/
+
 # Internal credentials reference (do not commit)
 THONG-TIN-DANG-NHAP.txt

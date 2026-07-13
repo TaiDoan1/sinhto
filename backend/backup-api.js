@@ -30,7 +30,7 @@ async function queryDb(sql, params = []) {
 }
 
 async function createExcelBackup() {
-  const backupDir = path.join(__dirname, '../backups/excel');
+  const backupDir = path.join(__dirname, '../public/images/uploads/_backups/excel');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
@@ -194,7 +194,7 @@ module.exports = function(app, database) {
 
   // GET /api/backup/status
   app.get('/api/backup/status', (req, res) => {
-    const backupDir = path.join(__dirname, '../backups/excel');
+    const backupDir = path.join(__dirname, '../public/images/uploads/_backups/excel');
 
     try {
       if (!fs.existsSync(backupDir)) {
@@ -221,7 +221,7 @@ module.exports = function(app, database) {
   app.post('/api/backup/trigger', async (req, res) => {
     try {
       const filename = await createExcelBackup();
-      const backupDir = path.join(__dirname, '../backups/excel');
+      const backupDir = path.join(__dirname, '../public/images/uploads/_backups/excel');
       const filepath = path.join(backupDir, filename);
 
       res.json({
@@ -247,7 +247,7 @@ module.exports = function(app, database) {
         return res.status(400).json({ error: 'Invalid filename' });
       }
 
-      const filepath = path.join(__dirname, '../backups/excel', filename);
+      const filepath = path.join(__dirname, '../public/images/uploads/_backups/excel', filename);
       if (!fs.existsSync(filepath)) {
         return res.status(404).json({ error: 'File not found' });
       }

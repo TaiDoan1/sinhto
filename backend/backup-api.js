@@ -49,15 +49,15 @@ async function createExcelBackup() {
       ? `SELECT
           COUNT(DISTINCT "employeeId") as emp_count,
           COUNT(*) as shift_count,
-          SUM(CASE WHEN "checkInPhoto" IS NOT NULL THEN 1 ELSE 0 END) as checkin_photos,
-          SUM(CASE WHEN "checkOutPhoto" IS NOT NULL THEN 1 ELSE 0 END) as checkout_photos
+          SUM(CASE WHEN "checkInPhoto" != '' THEN 1 ELSE 0 END) as checkin_photos,
+          SUM(CASE WHEN "checkOutPhoto" != '' THEN 1 ELSE 0 END) as checkout_photos
         FROM shifts
         WHERE DATE("date") = $1`
       : `SELECT
           COUNT(DISTINCT employeeId) as emp_count,
           COUNT(*) as shift_count,
-          SUM(CASE WHEN checkInPhoto IS NOT NULL THEN 1 ELSE 0 END) as checkin_photos,
-          SUM(CASE WHEN checkOutPhoto IS NOT NULL THEN 1 ELSE 0 END) as checkout_photos
+          SUM(CASE WHEN checkInPhoto != '' THEN 1 ELSE 0 END) as checkin_photos,
+          SUM(CASE WHEN checkOutPhoto != '' THEN 1 ELSE 0 END) as checkout_photos
         FROM shifts
         WHERE DATE(date) = ?`;
 
@@ -87,10 +87,10 @@ async function createExcelBackup() {
           e."employeeId" as emp_id,
           s."startTime" as start_time,
           s."endTime" as end_time,
-          COALESCE(TO_CHAR(s."checkIn"::timestamp, 'HH24:MI'), '-') as checkin_time,
-          COALESCE(TO_CHAR(s."checkOut"::timestamp, 'HH24:MI'), '-') as checkout_time,
-          CASE WHEN s."checkInPhoto" IS NOT NULL THEN '✅' ELSE '❌' END as checkin_photo,
-          CASE WHEN s."checkOutPhoto" IS NOT NULL THEN '✅' ELSE '❌' END as checkout_photo,
+          COALESCE(TO_CHAR(NULLIF(s."checkIn", '')::timestamp, 'HH24:MI'), '-') as checkin_time,
+          COALESCE(TO_CHAR(NULLIF(s."checkOut", '')::timestamp, 'HH24:MI'), '-') as checkout_time,
+          CASE WHEN s."checkInPhoto" != '' THEN '✅' ELSE '❌' END as checkin_photo,
+          CASE WHEN s."checkOutPhoto" != '' THEN '✅' ELSE '❌' END as checkout_photo,
           s.branch
         FROM shifts s
         LEFT JOIN employees e ON s."employeeId" = e.id
@@ -104,8 +104,8 @@ async function createExcelBackup() {
           s.endTime as end_time,
           COALESCE(CASE WHEN s.checkIn THEN TIME(s.checkIn) ELSE '-' END, '-') as checkin_time,
           COALESCE(CASE WHEN s.checkOut THEN TIME(s.checkOut) ELSE '-' END, '-') as checkout_time,
-          CASE WHEN s.checkInPhoto IS NOT NULL THEN '✅' ELSE '❌' END as checkin_photo,
-          CASE WHEN s.checkOutPhoto IS NOT NULL THEN '✅' ELSE '❌' END as checkout_photo,
+          CASE WHEN s.checkInPhoto != '' THEN '✅' ELSE '❌' END as checkin_photo,
+          CASE WHEN s.checkOutPhoto != '' THEN '✅' ELSE '❌' END as checkout_photo,
           s.branch
         FROM shifts s
         LEFT JOIN employees e ON s.employeeId = e.id
@@ -139,13 +139,13 @@ async function createExcelBackup() {
           e."fullName" as name,
           e."employeeId" as emp_id,
           COUNT(*) as shift_count,
-          SUM(CASE WHEN s."checkIn" IS NOT NULL THEN 1 ELSE 0 END) as checkin_count,
-          SUM(CASE WHEN s."checkOut" IS NOT NULL THEN 1 ELSE 0 END) as checkout_count,
-          SUM(CASE WHEN s."checkInPhoto" IS NOT NULL THEN 1 ELSE 0 END) as photo_in,
-          SUM(CASE WHEN s."checkOutPhoto" IS NOT NULL THEN 1 ELSE 0 END) as photo_out
+          SUM(CASE WHEN NULLIF(s."checkIn", '') IS NOT NULL THEN 1 ELSE 0 END) as checkin_count,
+          SUM(CASE WHEN NULLIF(s."checkOut", '') IS NOT NULL THEN 1 ELSE 0 END) as checkout_count,
+          SUM(CASE WHEN s."checkInPhoto" != '' THEN 1 ELSE 0 END) as photo_in,
+          SUM(CASE WHEN s."checkOutPhoto" != '' THEN 1 ELSE 0 END) as photo_out
         FROM shifts s
         LEFT JOIN employees e ON s."employeeId" = e.id
-        WHERE s."date" >= DATE($1)
+        WHERE DATE(s."date") >= DATE($1)
         GROUP BY e.id, e."fullName", e."employeeId"
         ORDER BY shift_count DESC`
       : `SELECT
@@ -154,8 +154,8 @@ async function createExcelBackup() {
           COUNT(*) as shift_count,
           SUM(CASE WHEN s.checkIn IS NOT NULL THEN 1 ELSE 0 END) as checkin_count,
           SUM(CASE WHEN s.checkOut IS NOT NULL THEN 1 ELSE 0 END) as checkout_count,
-          SUM(CASE WHEN s.checkInPhoto IS NOT NULL THEN 1 ELSE 0 END) as photo_in,
-          SUM(CASE WHEN s.checkOutPhoto IS NOT NULL THEN 1 ELSE 0 END) as photo_out
+          SUM(CASE WHEN s.checkInPhoto != '' THEN 1 ELSE 0 END) as photo_in,
+          SUM(CASE WHEN s.checkOutPhoto != '' THEN 1 ELSE 0 END) as photo_out
         FROM shifts s
         LEFT JOIN employees e ON s.employeeId = e.id
         WHERE DATE(s.date) >= DATE('now', '-7 days')

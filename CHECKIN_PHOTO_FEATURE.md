@@ -67,6 +67,24 @@ Tính năng này cho phép nhân viên **chụp ảnh khuôn mặt** khi **check
 
 ## 🚀 Cách Sử Dụng
 
+### ✅ Admin Xem Kết Ca
+
+1. **Vào Admin Panel**
+   - Login Admin
+   - Chọn tab "HR & Lương" → "Lịch Sử Check In/Out"
+
+2. **Xem Ảnh Chấm Công**
+   - Tìm nhân viên trong danh sách
+   - Nếu có ảnh check-in/out, cột "Ảnh" sẽ show button "Xem"
+   - Click "Xem" để mở modal hiển thị ảnh
+   - Xem cả ảnh check-in và check-out cùng thời gian
+
+3. **Thông Tin Hiển Thị**
+   - Tên nhân viên
+   - Ngày chấm công
+   - Thời gian check-in/out
+   - Ảnh khuôn mặt cho xác thực
+
 ### Nhân Viên Chấm Công
 
 1. **Vào màn hình "Chấm Công"**

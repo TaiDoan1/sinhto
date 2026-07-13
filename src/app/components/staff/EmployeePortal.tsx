@@ -6,6 +6,7 @@ import { useBranches } from '../../contexts/BranchContext';
 import { SHIFT_TEMPLATES, POSITION_LABELS, canCancelShift } from '../../types/employee';
 import type { ProfileFieldConfig } from '../../types/employee';
 import { AttendanceCamera } from './AttendanceCamera';
+import { ImageViewer } from './ImageViewer';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
 
@@ -42,6 +43,7 @@ export function EmployeePortal() {
   const [cameraMode, setCameraMode] = useState<'in' | 'out' | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -238,6 +240,26 @@ export function EmployeePortal() {
                     </div>
                   </div>
 
+                  {todayShift.checkInPhoto && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-3">
+                      <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                        <Camera className="w-4 h-4" />
+                        Ảnh Check-in
+                      </div>
+                      <img src={todayShift.checkInPhoto} alt="Check-in" className="w-full h-auto rounded-lg object-cover max-h-48" />
+                    </div>
+                  )}
+
+                  {todayShift.checkOutPhoto && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-3">
+                      <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                        <Camera className="w-4 h-4" />
+                        Ảnh Check-out
+                      </div>
+                      <img src={todayShift.checkOutPhoto} alt="Check-out" className="w-full h-auto rounded-lg object-cover max-h-48" />
+                    </div>
+                  )}
+
                   {!todayShift.checkIn && (
                     <button
                       onClick={() => setCameraMode('in')}
@@ -274,15 +296,48 @@ export function EmployeePortal() {
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h3 className="font-bold text-gray-800 mb-3">Lịch sử chấm công gần đây</h3>
-              <div className="space-y-2">
-                {myShifts.filter(s => s.checkIn).slice(0, 5).map(s => (
-                  <div key={s.id} className="flex justify-between items-center text-sm py-2 border-b border-gray-100 last:border-0">
-                    <span className="text-gray-600">{formatDate(s.date)}</span>
-                    <span className="font-medium text-gray-800">
-                      {s.checkIn ? new Date(s.checkIn).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                      {' → '}
-                      {s.checkOut ? new Date(s.checkOut).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                    </span>
+              <div className="space-y-3">
+                {myShifts.filter(s => s.checkIn).slice(0, 10).map(s => (
+                  <div key={s.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
+                        <div className="text-sm text-gray-600">
+                          {s.checkIn ? new Date(s.checkIn).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {' → '}
+                          {s.checkOut ? new Date(s.checkOut).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </div>
+                      </div>
+                      {s.checkOut && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">Hoàn thành</span>
+                      )}
+                    </div>
+                    {(s.checkInPhoto || s.checkOutPhoto) && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {s.checkInPhoto && (
+                          <button
+                            onClick={() => setViewingImage({ src: s.checkInPhoto, title: `Check-in - ${formatDate(s.date)}`, timestamp: s.checkIn ? new Date(s.checkIn).toLocaleTimeString('vi-VN') : '' })}
+                            className="relative group cursor-pointer"
+                          >
+                            <img src={s.checkInPhoto} alt="Check-in" className="w-full h-20 rounded-lg object-cover bg-gray-200" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <span className="text-white text-xs font-bold">In</span>
+                            </div>
+                          </button>
+                        )}
+                        {s.checkOutPhoto && (
+                          <button
+                            onClick={() => setViewingImage({ src: s.checkOutPhoto, title: `Check-out - ${formatDate(s.date)}`, timestamp: s.checkOut ? new Date(s.checkOut).toLocaleTimeString('vi-VN') : '' })}
+                            className="relative group cursor-pointer"
+                          >
+                            <img src={s.checkOutPhoto} alt="Check-out" className="w-full h-20 rounded-lg object-cover bg-gray-200" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <span className="text-white text-xs font-bold">Out</span>
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {myShifts.filter(s => s.checkIn).length === 0 && (
@@ -406,6 +461,15 @@ export function EmployeePortal() {
             </button>
           </div>
         </div>
+      )}
+
+      {viewingImage && (
+        <ImageViewer
+          src={viewingImage.src}
+          title={viewingImage.title}
+          timestamp={viewingImage.timestamp}
+          onClose={() => setViewingImage(null)}
+        />
       )}
     </div>
   );

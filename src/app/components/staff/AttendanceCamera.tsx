@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Camera, X, Loader2, RefreshCw } from 'lucide-react';
+import { Camera, X, Loader2, RefreshCw, Check } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 
 interface AttendanceCameraProps {
   label: string;
@@ -13,6 +14,9 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [capturing, setCapturing] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -23,6 +27,8 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
   const startCamera = useCallback(async () => {
     setError('');
     setReady(false);
+    setPreview(null);
+    setPreviewFile(null);
     stopCamera();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -60,12 +66,44 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
         canvas.toBlob(resolve, 'image/jpeg', 0.85)
       );
       if (!blob) throw new Error('Capture failed');
-      const file = new File([blob], `attendance-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      stopCamera();
-      await onCapture(file);
+
+      let file = new File([blob], `attendance-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+      try {
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1024,
+          useWebWorker: true
+        };
+        const compressedBlob = await imageCompression(blob, options);
+        file = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+      } catch (compressErr) {
+        console.warn('Image compression failed, using original:', compressErr);
+      }
+
+      setPreviewFile(file);
+      setPreview(URL.createObjectURL(blob));
+      setReady(false);
     } catch {
       setError('Chụp ảnh thất bại. Vui lòng thử lại.');
+    } finally {
       setCapturing(false);
+    }
+  };
+
+  const handleRetake = async () => {
+    setPreview(null);
+    setPreviewFile(null);
+    await startCamera();
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!previewFile) return;
+    setUploading(true);
+    try {
+      await onCapture(previewFile);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -85,52 +123,100 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
 
         <div className="p-4 space-y-4">
           <div className="relative bg-gray-900 rounded-xl aspect-[3/4] overflow-hidden">
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${ready ? '' : 'opacity-0'}`}
-            />
-            {!ready && !error && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-white animate-spin" />
-              </div>
-            )}
-            {error && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-3">
-                <Camera className="w-12 h-12 text-gray-400" />
-                <p className="text-sm text-gray-300">{error}</p>
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="flex items-center gap-2 text-sm text-emerald-400 font-semibold"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Thử lại
-                </button>
-              </div>
-            )}
-            {ready && (
-              <div className="absolute inset-4 border-2 border-emerald-400 rounded-lg pointer-events-none opacity-60" />
+            {!preview ? (
+              <>
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${ready ? '' : 'opacity-0'}`}
+                />
+                {!ready && !error && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="w-10 h-10 text-white animate-spin" />
+                  </div>
+                )}
+                {error && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-3">
+                    <Camera className="w-12 h-12 text-gray-400" />
+                    <p className="text-sm text-gray-300">{error}</p>
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="flex items-center gap-2 text-sm text-emerald-400 font-semibold"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Thử lại
+                    </button>
+                  </div>
+                )}
+                {ready && (
+                  <div className="absolute inset-4 border-2 border-emerald-400 rounded-lg pointer-events-none opacity-60" />
+                )}
+              </>
+            ) : (
+              <>
+                <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  Đã chụp
+                </div>
+              </>
             )}
           </div>
 
-          <p className="text-xs text-gray-500 text-center">
-            Đưa khuôn mặt vào khung hình rồi chụp ảnh để xác nhận
-          </p>
+          {!preview && (
+            <p className="text-xs text-gray-500 text-center">
+              Đưa khuôn mặt vào khung hình rồi chụp ảnh để xác nhận
+            </p>
+          )}
 
-          <button
-            type="button"
-            onClick={handleCapture}
-            disabled={!ready || capturing}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
-          >
-            {capturing ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Đang xử lý...</>
+          {preview && previewFile && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-gray-700">
+              <p className="mb-1"><span className="font-semibold">Kích thước ảnh:</span> {(previewFile.size / 1024).toFixed(1)} KB</p>
+              <p><span className="font-semibold">Thời gian:</span> {new Date().toLocaleTimeString('vi-VN')}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {preview ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRetake}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                  Chụp lại
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmUpload}
+                  disabled={uploading}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  {uploading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Đang tải...</>
+                  ) : (
+                    <><Check className="w-5 h-5" /> Xác nhận</>
+                  )}
+                </button>
+              </>
             ) : (
-              <><Camera className="w-5 h-5" /> Chụp ảnh &amp; Xác nhận</>
+              <button
+                type="button"
+                onClick={handleCapture}
+                disabled={!ready || capturing}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                {capturing ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Đang xử lý...</>
+                ) : (
+                  <><Camera className="w-5 h-5" /> Chụp ảnh</>
+                )}
+              </button>
             )}
-          </button>
+          </div>
         </div>
       </div>
     </div>

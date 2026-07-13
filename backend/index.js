@@ -22,6 +22,7 @@ const {
 } = require('./branchInventory');
 const { normalizeBranch, nextBranchId, parseBranchRow, DEFAULT_BRANCHES } = require('./branches');
 const { normalizePhoneVN, phonesMatch } = require('./phoneUtils');
+const registerBackupRoutes = require('./backup-api');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -41,6 +42,13 @@ for (const dir of [imagesDir, uploadsDir]) {
 app.use('/images', express.static(imagesDir));
 // Tương thích URL cũ /uploads/...
 app.use('/uploads', express.static(uploadsDir));
+
+// Backup files
+const backupsDir = path.join(__dirname, '../backups/excel');
+if (!fs.existsSync(backupsDir)) {
+  fs.mkdirSync(backupsDir, { recursive: true });
+}
+app.use('/backups/excel', express.static(backupsDir));
 
 // Multer storage configuration
 const multer = require('multer');
@@ -2002,6 +2010,7 @@ async function start() {
     });
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
     registerCskhRoutes(app, db, { broadcast });
+    registerBackupRoutes(app, db);
     initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
 
     // Phục vụ frontend đã build (npm run build ở thư mục gốc tạo ra dist/)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save } from 'lucide-react';
+import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Download, Loader2 } from 'lucide-react';
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
@@ -79,11 +79,14 @@ export function HRPayroll() {
   const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
   const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string }[]>([]);
   const [selectedCheckInRecord, setSelectedCheckInRecord] = useState<CheckInRecord | null>(null);
+  const [backupStatus, setBackupStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
+  const [backupFiles, setBackupFiles] = useState<any[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.fetchSetting('hrSalarySettings').catch(() => null),
       api.fetchSetting('hrOtSettings').catch(() => null),
+      fetchBackupStatus(),
     ]).then(([salary, ot]) => {
       if (salary && typeof salary === 'object') setSalarySettings(salary as SalarySettings);
       if (ot && typeof ot === 'object') setOTSettings(ot as OTSettings);
@@ -137,6 +140,33 @@ export function HRPayroll() {
       calculatePayroll();
     }
   }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter]);
+
+  const fetchBackupStatus = async () => {
+    try {
+      const response = await fetch('/api/backup/status');
+      const data = await response.json();
+      setBackupFiles(data.files || []);
+    } catch (error) {
+      console.error('Fetch backup status failed:', error);
+    }
+  };
+
+  const handleTriggerBackup = async () => {
+    setBackupStatus({ loading: true, message: 'Đang tạo backup...' });
+    try {
+      const response = await fetch('/api/backup/trigger', { method: 'POST' });
+      const data = await response.json();
+      if (response.ok) {
+        setBackupStatus({ loading: false, message: '✅ Backup hoàn tất!' });
+        setTimeout(() => setBackupStatus({ loading: false }), 3000);
+        await fetchBackupStatus();
+      } else {
+        setBackupStatus({ loading: false, message: `❌ ${data.error || data.message}` });
+      }
+    } catch (error) {
+      setBackupStatus({ loading: false, message: '❌ Lỗi backup' });
+    }
+  };
 
   const calculatePayroll = () => {
     // Lọc theo chi nhánh chỉ để XEM giờ làm/số ca tại đúng nơi đó (nhân viên chạy nhiều chi nhánh
@@ -619,8 +649,49 @@ export function HRPayroll() {
       {activeTab === 'checkin-history' && (
         <div className="bg-white rounded-xl shadow-lg">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-800">Lịch Sử Check In/Check Out</h2>
-            <p className="text-sm text-gray-600 mt-1">Theo dõi giờ vào ra của nhân viên</p>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Lịch Sử Check In/Check Out</h2>
+                <p className="text-sm text-gray-600 mt-1">Theo dõi giờ vào ra của nhân viên</p>
+              </div>
+              <button
+                onClick={handleTriggerBackup}
+                disabled={backupStatus.loading}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+              >
+                {backupStatus.loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Đang backup...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    Backup Excel
+                  </>
+                )}
+              </button>
+            </div>
+            {backupStatus.message && (
+              <p className={`text-sm mt-2 ${backupStatus.message.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                {backupStatus.message}
+              </p>
+            )}
+            {backupFiles.length > 0 && (
+              <div className="mt-3 text-sm text-gray-600">
+                <p className="font-semibold">Các backup gần đây:</p>
+                <ul className="mt-1 space-y-1">
+                  {backupFiles.slice(0, 3).map(file => (
+                    <li key={file.name} className="flex justify-between">
+                      <a href={file.path} download className="text-blue-600 hover:underline">
+                        {file.name}
+                      </a>
+                      <span className="text-gray-500">{file.size} KB</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">

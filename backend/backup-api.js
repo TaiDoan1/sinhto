@@ -87,8 +87,8 @@ async function createExcelBackup() {
           e."employeeId" as emp_id,
           s."startTime" as start_time,
           s."endTime" as end_time,
-          COALESCE(TO_CHAR(s."checkIn", 'HH24:MI'), '-') as checkin_time,
-          COALESCE(TO_CHAR(s."checkOut", 'HH24:MI'), '-') as checkout_time,
+          COALESCE(TO_CHAR(s."checkIn"::timestamp, 'HH24:MI'), '-') as checkin_time,
+          COALESCE(TO_CHAR(s."checkOut"::timestamp, 'HH24:MI'), '-') as checkout_time,
           CASE WHEN s."checkInPhoto" IS NOT NULL THEN '✅' ELSE '❌' END as checkin_photo,
           CASE WHEN s."checkOutPhoto" IS NOT NULL THEN '✅' ELSE '❌' END as checkout_photo,
           s.branch

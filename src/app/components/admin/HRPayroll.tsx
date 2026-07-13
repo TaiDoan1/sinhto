@@ -46,6 +46,8 @@ interface CheckInRecord {
   checkOutTime: string;
   location: string;
   status: 'on-time' | 'late' | 'early-leave';
+  checkInPhoto?: string;
+  checkOutPhoto?: string;
 }
 
 type PayrollTab = 'payroll' | 'salary-settings' | 'ot-settings' | 'checkin-history';
@@ -76,6 +78,7 @@ export function HRPayroll() {
 
   const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
   const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string }[]>([]);
+  const [selectedCheckInRecord, setSelectedCheckInRecord] = useState<CheckInRecord | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -121,6 +124,8 @@ export function HRPayroll() {
             : '—',
           location: s.branch || emp?.branch || '',
           status: isLate ? 'late' as const : 'on-time' as const,
+          checkInPhoto: s.checkInPhoto,
+          checkOutPhoto: s.checkOutPhoto,
         };
       })
       .sort((a, b) => b.date.localeCompare(a.date) || b.checkInTime.localeCompare(a.checkInTime));
@@ -628,6 +633,7 @@ export function HRPayroll() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Check In</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Check Out</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Địa Điểm</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Ảnh</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Trạng Thái</th>
                 </tr>
               </thead>
@@ -655,6 +661,20 @@ export function HRPayroll() {
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
                         {record.location}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {(record.checkInPhoto || record.checkOutPhoto) && (
+                        <button
+                          onClick={() => setSelectedCheckInRecord(record)}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold hover:bg-blue-200 transition-colors"
+                        >
+                          <Camera className="w-3 h-3" />
+                          Xem
+                        </button>
+                      )}
+                      {!record.checkInPhoto && !record.checkOutPhoto && (
+                        <span className="text-xs text-gray-400">Chưa có</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {record.status === 'on-time' && (
@@ -694,6 +714,71 @@ export function HRPayroll() {
                   <span className="text-xs text-gray-600">Đi Muộn: {checkinRecords.filter(r => r.status === 'late').length}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedCheckInRecord && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-50 border-b p-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg text-gray-900">{selectedCheckInRecord.employeeName}</h3>
+                <p className="text-sm text-gray-600">{new Date(selectedCheckInRecord.date).toLocaleDateString('vi-VN')}</p>
+              </div>
+              <button
+                onClick={() => setSelectedCheckInRecord(null)}
+                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Clock className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {selectedCheckInRecord.checkInPhoto && (
+                <div>
+                  <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Check-in: {selectedCheckInRecord.checkInTime}
+                  </div>
+                  <img
+                    src={selectedCheckInRecord.checkInPhoto}
+                    alt="Check-in"
+                    className="w-full rounded-lg border border-gray-200"
+                  />
+                </div>
+              )}
+
+              {selectedCheckInRecord.checkOutPhoto && (
+                <div>
+                  <div className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Check-out: {selectedCheckInRecord.checkOutTime}
+                  </div>
+                  <img
+                    src={selectedCheckInRecord.checkOutPhoto}
+                    alt="Check-out"
+                    className="w-full rounded-lg border border-gray-200"
+                  />
+                </div>
+              )}
+
+              {!selectedCheckInRecord.checkInPhoto && !selectedCheckInRecord.checkOutPhoto && (
+                <div className="text-center py-8 text-gray-500">
+                  <Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Không có ảnh check-in/out</p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-50 border-t p-4">
+              <button
+                onClick={() => setSelectedCheckInRecord(null)}
+                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition-colors"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

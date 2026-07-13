@@ -44,6 +44,7 @@ export function EmployeePortal() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
+  const [startingShift, setStartingShift] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -112,6 +113,34 @@ export function EmployeePortal() {
     } catch {
       alert('Chấm công thất bại. Vui lòng thử lại.');
       setCameraMode(null);
+    }
+  };
+
+  const handleStartWalkInShift = async () => {
+    if (!activeEmployee) return;
+    setStartingShift(true);
+    try {
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const startTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const end = new Date(now.getTime() + 9 * 3600000);
+      const endTime = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+      await api.saveShift({
+        employeeId: activeEmployee.id,
+        employeeName: activeEmployee.fullName,
+        branch: activeEmployee.branch,
+        date: todayStr(),
+        shiftType: 'walk-in',
+        startTime,
+        endTime,
+        status: 'scheduled',
+        requestedBy: 'employee',
+      });
+      await refreshShifts();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể bắt đầu ca làm. Vui lòng thử lại.');
+    } finally {
+      setStartingShift(false);
     }
   };
 
@@ -286,10 +315,24 @@ export function EmployeePortal() {
                   )}
                 </div>
               ) : (
-                <div className="text-gray-500 py-4">
-                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium">Không có ca làm hôm nay</p>
-                  <p className="text-sm mt-1">Đăng ký lịch làm hoặc liên hệ quản lý</p>
+                <div className="text-gray-500 py-4 space-y-4">
+                  <div>
+                    <Clock className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                    <p className="font-medium">Không có ca làm hôm nay</p>
+                    <p className="text-sm mt-1">Đăng ký lịch làm hoặc liên hệ quản lý</p>
+                  </div>
+                  <button
+                    onClick={handleStartWalkInShift}
+                    disabled={startingShift}
+                    className="w-full bg-green-500 active:bg-green-600 disabled:opacity-60 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
+                  >
+                    {startingShift ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Camera className="w-5 h-5" />
+                    )}
+                    Chấm công ngay
+                  </button>
                 </div>
               )}
             </div>

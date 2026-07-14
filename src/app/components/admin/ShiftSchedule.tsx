@@ -567,64 +567,13 @@ export function ShiftSchedule() {
                           </div>
                         ))}
 
-                        {isPicking ? (
-                          <div className="space-y-1.5 bg-gray-50 border border-gray-200 rounded-lg p-1.5">
-                            <div className="grid grid-cols-2 gap-1">
-                              {shiftTemplates.map((tpl) => (
-                                <button
-                                  key={tpl.name}
-                                  onClick={() => handleAddShift(emp.id, dateStr, tpl.start, tpl.end, tpl.id)}
-                                  title={`${tpl.start} - ${tpl.end}`}
-                                  className={`bg-gradient-to-r ${tpl.color} text-white rounded-lg py-1.5 text-[11px] font-bold hover:shadow-lg transition-all leading-tight`}
-                                >
-                                  <div>{tpl.icon}</div>
-                                  <div className="text-[9px] font-semibold opacity-90">{tpl.start}-{tpl.end}</div>
-                                </button>
-                              ))}
-                            </div>
-
-                            <div className="border-t border-gray-200 pt-1.5">
-                              <div className="text-[9px] text-gray-500 font-semibold mb-1">Giờ tùy chỉnh</div>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="time"
-                                  value={customStart}
-                                  onChange={(e) => setCustomStart(e.target.value)}
-                                  className="w-full min-w-0 border border-gray-300 rounded px-1 py-1 text-[11px]"
-                                />
-                                <span className="text-gray-400 text-xs">–</span>
-                                <input
-                                  type="time"
-                                  value={customEnd}
-                                  onChange={(e) => setCustomEnd(e.target.value)}
-                                  className="w-full min-w-0 border border-gray-300 rounded px-1 py-1 text-[11px]"
-                                />
-                              </div>
-                              <button
-                                onClick={() => handleAddShift(emp.id, dateStr, customStart, customEnd, 'custom')}
-                                disabled={!customStart || !customEnd}
-                                className="w-full mt-1 bg-gradient-to-r from-slate-600 to-slate-500 disabled:opacity-40 text-white rounded-lg py-1.5 text-[11px] font-bold hover:shadow-lg transition-all"
-                              >
-                                ⏱️ Thêm ca này
-                              </button>
-                            </div>
-
-                            <button
-                              onClick={() => setSelectedCell(null)}
-                              className="w-full bg-gray-200 text-gray-700 rounded-lg p-1 text-xs font-semibold hover:bg-gray-300"
-                            >
-                              Hủy
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
-                            className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 ? 'min-h-[60px]' : 'py-1'}`}
-                            title="Thêm ca"
-                          >
-                            <div className={dayShifts.length === 0 ? 'text-2xl' : 'text-sm'}>+</div>
-                          </button>
-                        )}
+                        <button
+                          onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
+                          className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 && !isPicking ? 'min-h-[60px]' : 'py-1'}`}
+                          title="Thêm ca"
+                        >
+                          <div className={dayShifts.length === 0 && !isPicking ? 'text-2xl' : 'text-sm'}>+</div>
+                        </button>
                       </div>
                     </td>
                   );
@@ -634,6 +583,70 @@ export function ShiftSchedule() {
           </tbody>
         </table>
       </div>
+
+      {/* Add Shift Modal */}
+      {selectedCell && (() => {
+        const emp = employees.find(e => e.id === selectedCell.employeeId);
+        if (!emp) return null;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-gray-800">Thêm ca làm việc</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {emp.fullName} · {new Date(selectedCell.date).toLocaleDateString('vi-VN')}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {shiftTemplates.map((tpl) => (
+                  <button
+                    key={tpl.name}
+                    onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, tpl.start, tpl.end, tpl.id)}
+                    className={`bg-gradient-to-r ${tpl.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all`}
+                  >
+                    <div className="text-xl">{tpl.icon}</div>
+                    <div className="text-xs font-semibold opacity-90 mt-0.5">{tpl.start} - {tpl.end}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <div className="text-xs text-gray-500 font-semibold mb-2">Giờ tùy chỉnh</div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                  />
+                  <span className="text-gray-400">–</span>
+                  <input
+                    type="time"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, customStart, customEnd, 'custom')}
+                  disabled={!customStart || !customEnd}
+                  className="w-full mt-2 bg-gradient-to-r from-slate-600 to-slate-500 disabled:opacity-40 text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all"
+                >
+                  ⏱️ Thêm ca này
+                </button>
+              </div>
+
+              <button
+                onClick={() => setSelectedCell(null)}
+                className="w-full mt-3 bg-gray-200 text-gray-700 rounded-xl py-2.5 font-semibold hover:bg-gray-300"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Substitute Modal */}
       {substituteModal && (

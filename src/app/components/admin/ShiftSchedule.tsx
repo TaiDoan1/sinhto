@@ -16,7 +16,7 @@ export interface Shift {
   startTime: string;
   endTime: string;
   isPinned?: boolean;
-  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening' | 'block_8_13' | 'block_13_18' | 'block_18_22';
+  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening' | 'block_8_13' | 'block_13_18' | 'block_18_22' | 'custom';
   originalEmployeeId?: string;
   originalEmployeeName?: string;
   isSubstitute?: boolean;
@@ -28,18 +28,32 @@ export interface Shift {
   closingRevenue?: number;
 }
 
+// Quick-pick: chỉ giữ 4 ca quen thuộc nhất. Mọi khung giờ khác (kể cả 08-13/13-18/18-22)
+// dùng ô chọn giờ tự do bên dưới — tránh phải thêm nút cứng mỗi khi có giờ mới.
 const shiftTemplates: { id: Shift['shiftType']; name: string; start: string; end: string; color: string; icon: string }[] = [
   { id: 'morning', name: '🌅 Sáng', start: '06:00', end: '12:00', color: 'from-emerald-500 to-yellow-400', icon: '🌅' },
   { id: 'noon', name: '🌤️ Trưa', start: '12:00', end: '18:00', color: 'from-amber-400 to-orange-400', icon: '🌤️' },
   { id: 'afternoon', name: '☀️ Chiều', start: '14:00', end: '20:00', color: 'from-blue-400 to-cyan-400', icon: '☀️' },
   { id: 'evening', name: '🌙 Tối', start: '18:00', end: '23:00', color: 'from-purple-400 to-pink-400', icon: '🌙' },
-  { id: 'block_8_13', name: '🕗 08:00 - 13:00', start: '08:00', end: '13:00', color: 'from-teal-500 to-emerald-400', icon: '🕗' },
-  { id: 'block_13_18', name: '🕐 13:00 - 18:00', start: '13:00', end: '18:00', color: 'from-orange-500 to-amber-400', icon: '🕐' },
-  { id: 'block_18_22', name: '🕕 18:00 - 22:00', start: '18:00', end: '22:00', color: 'from-indigo-500 to-purple-400', icon: '🕕' },
 ];
 
+// Không phải quick-pick — chỉ dùng để tra icon/màu khi render ca đã tạo bằng giờ tự do
+// (kể cả ca cũ có shiftType block_8_13/13_18/18_22 từ trước khi đổi sang UI này).
+const customTemplateFallback = { id: 'custom' as const, name: '⏱️ Tùy chỉnh', start: '', end: '', color: 'from-slate-500 to-slate-400', icon: '⏱️' };
+const legacyBlockTemplates: Record<string, { color: string; icon: string }> = {
+  block_8_13: { color: 'from-teal-500 to-emerald-400', icon: '🕗' },
+  block_13_18: { color: 'from-orange-500 to-amber-400', icon: '🕐' },
+  block_18_22: { color: 'from-indigo-500 to-purple-400', icon: '🕕' },
+};
+
 function shiftTemplateFor(shiftType?: Shift['shiftType']) {
-  return shiftTemplates.find((t) => t.id === shiftType) || shiftTemplates[0];
+  const known = shiftTemplates.find((t) => t.id === shiftType);
+  if (known) return known;
+  if (shiftType && legacyBlockTemplates[shiftType]) {
+    return { ...customTemplateFallback, ...legacyBlockTemplates[shiftType] };
+  }
+  if (shiftType === 'custom') return customTemplateFallback;
+  return shiftTemplates[0];
 }
 
 export function ShiftSchedule() {
@@ -67,6 +81,8 @@ export function ShiftSchedule() {
     return map;
   }, [orders, history]);
   const [selectedCell, setSelectedCell] = useState<{employeeId: string, date: string} | null>(null);
+  const [customStart, setCustomStart] = useState('08:00');
+  const [customEnd, setCustomEnd] = useState('17:00');
   const [substituteModal, setSubstituteModal] = useState<{shift: Shift} | null>(null);
 
   const { subscribe } = useSSE();
@@ -130,7 +146,7 @@ export function ShiftSchedule() {
     return days;
   };
 
-  const handleAddShift = async (employeeId: string, date: string, template: typeof shiftTemplates[0]) => {
+  const handleAddShift = async (employeeId: string, date: string, startTime: string, endTime: string, shiftType: Shift['shiftType']) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
@@ -140,10 +156,10 @@ export function ShiftSchedule() {
       employeeName: employee.fullName,
       branch: shiftBranch || employee.branch,
       date,
-      startTime: template.start,
-      endTime: template.end,
+      startTime,
+      endTime,
       isPinned: false,
-      shiftType: template.id,
+      shiftType,
       status: 'scheduled',
       requestedBy: 'admin',
     };
@@ -552,16 +568,47 @@ export function ShiftSchedule() {
                         ))}
 
                         {isPicking ? (
-                          <div className="space-y-1">
-                            {shiftTemplates.map((tpl) => (
+                          <div className="space-y-1.5 bg-gray-50 border border-gray-200 rounded-lg p-1.5">
+                            <div className="grid grid-cols-2 gap-1">
+                              {shiftTemplates.map((tpl) => (
+                                <button
+                                  key={tpl.name}
+                                  onClick={() => handleAddShift(emp.id, dateStr, tpl.start, tpl.end, tpl.id)}
+                                  title={`${tpl.start} - ${tpl.end}`}
+                                  className={`bg-gradient-to-r ${tpl.color} text-white rounded-lg py-1.5 text-[11px] font-bold hover:shadow-lg transition-all leading-tight`}
+                                >
+                                  <div>{tpl.icon}</div>
+                                  <div className="text-[9px] font-semibold opacity-90">{tpl.start}-{tpl.end}</div>
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="border-t border-gray-200 pt-1.5">
+                              <div className="text-[9px] text-gray-500 font-semibold mb-1">Giờ tùy chỉnh</div>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="time"
+                                  value={customStart}
+                                  onChange={(e) => setCustomStart(e.target.value)}
+                                  className="w-full min-w-0 border border-gray-300 rounded px-1 py-1 text-[11px]"
+                                />
+                                <span className="text-gray-400 text-xs">–</span>
+                                <input
+                                  type="time"
+                                  value={customEnd}
+                                  onChange={(e) => setCustomEnd(e.target.value)}
+                                  className="w-full min-w-0 border border-gray-300 rounded px-1 py-1 text-[11px]"
+                                />
+                              </div>
                               <button
-                                key={tpl.name}
-                                onClick={() => handleAddShift(emp.id, dateStr, tpl)}
-                                className={`w-full bg-gradient-to-r ${tpl.color} text-white rounded-lg p-2 text-xs font-bold hover:shadow-lg transition-all`}
+                                onClick={() => handleAddShift(emp.id, dateStr, customStart, customEnd, 'custom')}
+                                disabled={!customStart || !customEnd}
+                                className="w-full mt-1 bg-gradient-to-r from-slate-600 to-slate-500 disabled:opacity-40 text-white rounded-lg py-1.5 text-[11px] font-bold hover:shadow-lg transition-all"
                               >
-                                {tpl.name}
+                                ⏱️ Thêm ca này
                               </button>
-                            ))}
+                            </div>
+
                             <button
                               onClick={() => setSelectedCell(null)}
                               className="w-full bg-gray-200 text-gray-700 rounded-lg p-1 text-xs font-semibold hover:bg-gray-300"
@@ -571,7 +618,7 @@ export function ShiftSchedule() {
                           </div>
                         ) : (
                           <button
-                            onClick={() => setSelectedCell({ employeeId: emp.id, date: dateStr })}
+                            onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
                             className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 ? 'min-h-[60px]' : 'py-1'}`}
                             title="Thêm ca"
                           >

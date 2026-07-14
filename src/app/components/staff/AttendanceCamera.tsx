@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Camera, X, Loader2, RefreshCw, Check } from 'lucide-react';
+import { Camera, X, Loader2, RefreshCw, Check, SwitchCamera } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
 interface AttendanceCameraProps {
@@ -17,6 +17,7 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
   const [preview, setPreview] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -24,7 +25,7 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (mode: 'user' | 'environment' = facingMode) => {
     setError('');
     setReady(false);
     setPreview(null);
@@ -32,7 +33,7 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
     stopCamera();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } },
+        video: { facingMode: mode, width: { ideal: 720 }, height: { ideal: 960 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -44,12 +45,19 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
     } catch {
       setError('Không mở được camera. Vui lòng cấp quyền truy cập camera.');
     }
-  }, [stopCamera]);
+  }, [stopCamera, facingMode]);
 
   useEffect(() => {
-    startCamera();
+    startCamera(facingMode);
     return () => stopCamera();
-  }, [startCamera, stopCamera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSwitchCamera = () => {
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    startCamera(next);
+  };
 
   const handleCapture = async () => {
     const video = videoRef.current;
@@ -142,7 +150,7 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
                     <p className="text-sm text-gray-300">{error}</p>
                     <button
                       type="button"
-                      onClick={startCamera}
+                      onClick={() => startCamera()}
                       className="flex items-center gap-2 text-sm text-emerald-400 font-semibold"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -152,6 +160,16 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
                 )}
                 {ready && (
                   <div className="absolute inset-4 border-2 border-emerald-400 rounded-lg pointer-events-none opacity-60" />
+                )}
+                {ready && (
+                  <button
+                    type="button"
+                    onClick={handleSwitchCamera}
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-2.5 rounded-full transition-colors"
+                    aria-label="Đổi camera"
+                  >
+                    <SwitchCamera className="w-5 h-5" />
+                  </button>
                 )}
               </>
             ) : (

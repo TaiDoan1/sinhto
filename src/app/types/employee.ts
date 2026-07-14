@@ -61,6 +61,9 @@ export const SHIFT_TEMPLATES = [
   { id: 'noon', name: 'Ca Trua', start: '12:00', end: '18:00', icon: '🌤️' },
   { id: 'afternoon', name: 'Ca Chieu', start: '14:00', end: '20:00', icon: '☀️' },
   { id: 'evening', name: 'Ca Toi', start: '18:00', end: '23:00', icon: '🌙' },
+  { id: 'block_8_13', name: 'Ca 08:00 - 13:00', start: '08:00', end: '13:00', icon: '🕗' },
+  { id: 'block_13_18', name: 'Ca 13:00 - 18:00', start: '13:00', end: '18:00', icon: '🕐' },
+  { id: 'block_18_22', name: 'Ca 18:00 - 22:00', start: '18:00', end: '22:00', icon: '🕕' },
 ];
 
 export const ONLINE_SALES_POSITIONS = ['online_sales', 'customer_care', 'cskh'] as const;

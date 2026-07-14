@@ -16,7 +16,7 @@ export interface Shift {
   startTime: string;
   endTime: string;
   isPinned?: boolean;
-  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening';
+  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening' | 'block_8_13' | 'block_13_18' | 'block_18_22';
   originalEmployeeId?: string;
   originalEmployeeName?: string;
   isSubstitute?: boolean;
@@ -33,6 +33,9 @@ const shiftTemplates: { id: Shift['shiftType']; name: string; start: string; end
   { id: 'noon', name: '🌤️ Trưa', start: '12:00', end: '18:00', color: 'from-amber-400 to-orange-400', icon: '🌤️' },
   { id: 'afternoon', name: '☀️ Chiều', start: '14:00', end: '20:00', color: 'from-blue-400 to-cyan-400', icon: '☀️' },
   { id: 'evening', name: '🌙 Tối', start: '18:00', end: '23:00', color: 'from-purple-400 to-pink-400', icon: '🌙' },
+  { id: 'block_8_13', name: '🕗 08:00 - 13:00', start: '08:00', end: '13:00', color: 'from-teal-500 to-emerald-400', icon: '🕗' },
+  { id: 'block_13_18', name: '🕐 13:00 - 18:00', start: '13:00', end: '18:00', color: 'from-orange-500 to-amber-400', icon: '🕐' },
+  { id: 'block_18_22', name: '🕕 18:00 - 22:00', start: '18:00', end: '22:00', color: 'from-indigo-500 to-purple-400', icon: '🕕' },
 ];
 
 function shiftTemplateFor(shiftType?: Shift['shiftType']) {

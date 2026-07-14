@@ -6,6 +6,7 @@ import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useAdmin } from '../../contexts/AdminContext';
+import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 
 export interface Shift {
   id: string;
@@ -252,7 +253,7 @@ export function ShiftSchedule() {
     const availableEmployees = employees.filter(e => e.branch === selectedBranch);
     if (availableEmployees.length === 0) return;
 
-    const weekDates = weekDays.map(d => d.toISOString().split('T')[0]);
+    const weekDates = weekDays.map(d => localDateStr(d));
     const otherShifts = shifts.filter(s =>
       s.branch !== selectedBranch || !weekDates.includes(s.date) || s.isPinned
     );
@@ -273,7 +274,7 @@ export function ShiftSchedule() {
 
       // Create new shifts
       for (const day of weekDays) {
-        const dateStr = day.toISOString().split('T')[0];
+        const dateStr = localDateStr(day);
         const pinnedIds = shiftsToKeep.filter(s => s.date === dateStr).map(s => s.employeeId);
 
         for (const tpl of shiftTemplates) {
@@ -310,7 +311,7 @@ export function ShiftSchedule() {
       return;
     }
     if (!confirm('Xóa lịch tuần này? (Trừ ca ghim)')) return;
-    const weekDates = getWeekDays().map(d => d.toISOString().split('T')[0]);
+    const weekDates = getWeekDays().map(d => localDateStr(d));
     const toDelete = shifts.filter(s =>
       s.branch === selectedBranch && weekDates.includes(s.date) && !s.isPinned
     );
@@ -404,7 +405,7 @@ export function ShiftSchedule() {
                 <div>
                   <span className="font-semibold text-gray-800">{s.employeeName}</span>
                   <span className="text-gray-500 text-sm ml-2">
-                    {new Date(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
+                    {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
                   </span>
                   {s.branch && <span className="text-xs text-gray-400 ml-2">({s.branch})</span>}
                 </div>
@@ -500,7 +501,7 @@ export function ShiftSchedule() {
                   </div>
                 </td>
                 {weekDays.map((day, i) => {
-                  const dateStr = day.toISOString().split('T')[0];
+                  const dateStr = localDateStr(day);
                   const dayShifts = getShiftsForCell(emp.id, dateStr);
                   const isPicking = selectedCell?.employeeId === emp.id && selectedCell?.date === dateStr;
 
@@ -594,7 +595,7 @@ export function ShiftSchedule() {
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-gray-800">Thêm ca làm việc</h3>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {emp.fullName} · {new Date(selectedCell.date).toLocaleDateString('vi-VN')}
+                  {emp.fullName} · {parseLocalDateStr(selectedCell.date).toLocaleDateString('vi-VN')}
                 </p>
               </div>
 
@@ -662,7 +663,7 @@ export function ShiftSchedule() {
                 <span className="font-semibold">Giờ:</span> {substituteModal.shift.startTime} - {substituteModal.shift.endTime}
               </div>
               <div className="text-sm text-gray-700 mt-1">
-                <span className="font-semibold">Ngày:</span> {new Date(substituteModal.shift.date).toLocaleDateString('vi-VN')}
+                <span className="font-semibold">Ngày:</span> {parseLocalDateStr(substituteModal.shift.date).toLocaleDateString('vi-VN')}
               </div>
             </div>
 

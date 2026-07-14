@@ -9,6 +9,7 @@ import { AttendanceCamera } from './AttendanceCamera';
 import { ImageViewer } from './ImageViewer';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
+import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 
 type Tab = EmployeeTab;
 
@@ -22,11 +23,11 @@ function getFieldValue(employee: any, field: ProfileFieldConfig, branchLabel: (i
 
 function formatDate(d: string) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('vi-VN');
+  return parseLocalDateStr(d).toLocaleDateString('vi-VN');
 }
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr();
 }
 
 export function EmployeePortal() {

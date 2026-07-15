@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Printer, X, CheckCircle, Loader2 } from 'lucide-react';
+import { Printer, X, CheckCircle, Loader2, PlayCircle } from 'lucide-react';
 import {
   connectPrinter,
   forgetPrinter,
@@ -8,6 +8,7 @@ import {
   roleLabel,
   type PrinterRole,
 } from '../../utils/webUsbPrinter';
+import { printHtmlViaUsb } from '../../utils/posPrint';
 
 interface PrinterSetupModalProps {
   onClose: () => void;
@@ -15,10 +16,25 @@ interface PrinterSetupModalProps {
 
 const ROLES: PrinterRole[] = ['receipt', 'label'];
 
+const TEST_HTML = `
+  <div class="center bold" style="font-size:14px">FITBLEND</div>
+  <div class="center" style="font-size:11px">In thử máy in</div>
+  <div class="line"></div>
+  <div style="font-size:12px">
+    Nếu bạn đọc được dòng này rõ ràng,<br/>
+    kể cả chữ có dấu tiếng Việt như<br/>
+    "Cảm ơn quý khách, hẹn gặp lại!"<br/>
+    thì máy in đã kết nối đúng.
+  </div>
+  <div class="line"></div>
+`;
+
 export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
   const [connected, setConnected] = useState<Record<PrinterRole, boolean>>({ receipt: false, label: false });
   const [connecting, setConnecting] = useState<PrinterRole | null>(null);
+  const [testing, setTesting] = useState<PrinterRole | null>(null);
   const [error, setError] = useState('');
+  const [testResult, setTestResult] = useState<Record<PrinterRole, string>>({ receipt: '', label: '' });
   const supported = isWebUsbSupported();
 
   const refreshStatus = async () => {
@@ -48,6 +64,20 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
   const handleForget = (role: PrinterRole) => {
     forgetPrinter(role);
     refreshStatus();
+  };
+
+  const handleTestPrint = async (role: PrinterRole) => {
+    setTesting(role);
+    setTestResult((prev) => ({ ...prev, [role]: '' }));
+    try {
+      const result = await printHtmlViaUsb(role, TEST_HTML, role === 'label' ? '48mm' : '58mm');
+      setTestResult((prev) => ({
+        ...prev,
+        [role]: result.ok ? '✅ Đã gửi lệnh in — kiểm tra máy in có ra giấy không.' : `❌ ${result.error}`,
+      }));
+    } finally {
+      setTesting(null);
+    }
   };
 
   return (
@@ -114,6 +144,25 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
                       </button>
                     </div>
                   </div>
+                  {connected[role] && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => handleTestPrint(role)}
+                        disabled={testing === role}
+                        className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5 hover:text-emerald-800 disabled:opacity-50"
+                      >
+                        {testing === role ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <PlayCircle className="w-3.5 h-3.5" />
+                        )}
+                        In thử
+                      </button>
+                      {testResult[role] && (
+                        <p className="text-xs mt-1 text-gray-600 whitespace-pre-wrap">{testResult[role]}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

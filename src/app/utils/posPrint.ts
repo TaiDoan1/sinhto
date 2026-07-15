@@ -1,6 +1,6 @@
 /** In POS — 2 kiểu: bill tiền (khách) + tem thành phần (dán ly) */
 
-import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
+import { getRememberedPrinter, sendToPrinter, roleLabel, type PrinterRole } from './webUsbPrinter';
 import { elementToEscposCommands } from './escposRaster';
 
 export interface PosPrintLine {
@@ -76,20 +76,15 @@ const DOTS_WIDTH: Record<string, number> = {
   '80mm': 576,
 };
 
-/**
- * In trực tiếp qua USB nếu đã kết nối máy in cho role này; nếu chưa kết nối hoặc in USB lỗi,
- * tự động fallback về cách in cũ (mở cửa sổ + window.print()) để không bao giờ "im lặng" thất bại.
- */
-async function printViaUsbOrWindow(
+/** Render 1 đoạn HTML hóa đơn ra lệnh ESC/POS và gửi thẳng qua USB tới máy in đã kết nối cho role này. */
+export async function printHtmlViaUsb(
   role: PrinterRole,
-  title: string,
   bodyHtml: string,
   paperWidth: '58mm' | '48mm' | '80mm' = '58mm'
-) {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const device = await getRememberedPrinter(role).catch(() => null);
   if (!device) {
-    openPrintWindow(title, bodyHtml, paperWidth);
-    return;
+    return { ok: false, error: 'Chưa kết nối máy in này. Bấm "Kết nối" trước.' };
   }
 
   const container = document.createElement('div');
@@ -113,11 +108,33 @@ async function printViaUsbOrWindow(
   try {
     const commands = await elementToEscposCommands(container, DOTS_WIDTH[paperWidth]);
     await sendToPrinter(device, commands);
+    return { ok: true };
   } catch (err) {
-    console.error(`In USB thất bại (${role}), chuyển sang in qua cửa sổ trình duyệt:`, err);
-    openPrintWindow(title, bodyHtml, paperWidth);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`In USB thất bại (${role}):`, err);
+    return { ok: false, error: message };
   } finally {
     document.body.removeChild(container);
+  }
+}
+
+/**
+ * In trực tiếp qua USB nếu đã kết nối máy in cho role này; nếu chưa kết nối hoặc in USB lỗi,
+ * tự động fallback về cách in cũ (mở cửa sổ + window.print()) và báo rõ lý do cho người dùng thấy
+ * (thay vì chỉ ẩn trong console) để họ biết đang vướng ở bước nào.
+ */
+async function printViaUsbOrWindow(
+  role: PrinterRole,
+  title: string,
+  bodyHtml: string,
+  paperWidth: '58mm' | '48mm' | '80mm' = '58mm'
+) {
+  const result = await printHtmlViaUsb(role, bodyHtml, paperWidth);
+  if (!result.ok) {
+    if (result.error !== 'Chưa kết nối máy in này. Bấm "Kết nối" trước.') {
+      alert(`In USB thất bại (${roleLabel(role)}): ${result.error}\n\nĐang in qua cửa sổ trình duyệt thay thế.`);
+    }
+    openPrintWindow(title, bodyHtml, paperWidth);
   }
 }
 

@@ -261,7 +261,14 @@ export function EmployeePortal() {
               {todayShift ? (
                 <div className="space-y-4">
                   <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 text-left">
-                    <div className="font-bold text-emerald-800 mb-2">Ca hôm nay</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-bold text-emerald-800">Ca hôm nay</div>
+                      {todayShift.branch && (
+                        <span className="bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                          {branchLabel(todayShift.branch) || todayShift.branch}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm space-y-1 text-gray-700">
                       <div className="flex justify-between"><span>Giờ vào ca:</span><span className="font-semibold">{todayShift.startTime}</span></div>
                       <div className="flex justify-between"><span>Giờ tan ca:</span><span className="font-semibold">{todayShift.endTime}</span></div>
@@ -438,7 +445,14 @@ export function EmployeePortal() {
                   {upcomingShifts.map(s => (
                     <div key={s.id} className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl gap-2">
                       <div className="min-w-0">
-                        <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
+                        <div className="font-semibold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                          {formatDate(s.date)}
+                          {s.branch && (
+                            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                              {branchLabel(s.branch) || s.branch}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

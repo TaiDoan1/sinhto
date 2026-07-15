@@ -9,6 +9,7 @@ import {
   Store,
   BookOpen,
   LogOut,
+  Printer,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
@@ -24,6 +25,7 @@ import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { PosProvider, usePos } from '../../contexts/PosContext';
 import { PosLogin } from './PosLogin';
 import { PosKioskOverlay, PosFullscreenButton } from './PosKioskOverlay';
+import { PrinterSetupModal } from './PrinterSetupModal';
 import { PosKioskProvider } from '../../hooks/usePosKiosk';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { useBranchCombos } from '../../hooks/useBranchCombos';
@@ -69,6 +71,7 @@ function POSInterfaceInner() {
   const [showStaffList, setShowStaffList] = useState(false);
   const [closingShift, setClosingShift] = useState<Shift | null>(null);
   const [closingSubmitting, setClosingSubmitting] = useState(false);
+  const [showPrinterSetup, setShowPrinterSetup] = useState(false);
 
   useEffect(() => {
     if (branchId) {
@@ -292,6 +295,14 @@ function POSInterfaceInner() {
           <PosFullscreenButton />
           <button
             type="button"
+            onClick={() => setShowPrinterSetup(true)}
+            className="shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
+            title="Kết nối máy in USB"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             onClick={handleLogout}
             className="shrink-0 p-1.5 text-red-500 hover:bg-red-50 rounded-md"
             title="Đăng xuất"
@@ -299,6 +310,8 @@ function POSInterfaceInner() {
             <LogOut className="w-4 h-4" />
           </button>
         </div>
+
+        {showPrinterSetup && <PrinterSetupModal onClose={() => setShowPrinterSetup(false)} />}
 
         <nav className="pos-tab-bar flex gap-1.5 px-2 py-2 overflow-x-auto scrollbar-hide">
           {POS_TABS.map((tab) => {

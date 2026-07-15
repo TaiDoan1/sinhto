@@ -1,5 +1,8 @@
 /** In POS — 2 kiểu: bill tiền (khách) + tem thành phần (dán ly) */
 
+import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
+import { elementToEscposCommands } from './escposRaster';
+
 export interface PosPrintLine {
   productName: string;
   size?: string;
@@ -25,6 +28,24 @@ export interface CustomerReceiptData {
   pointsEarned?: number;
 }
 
+const RECEIPT_STYLE = `
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .line { border-top: 1px dashed #000; margin: 8px 0; }
+  .item { margin-bottom: 10px; }
+  .cup-label {
+    border: 2px solid #000;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+    page-break-inside: avoid;
+  }
+  .cup-name { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 6px; }
+  .cup-meta { font-size: 13px; text-align: center; }
+  .cup-toppings { font-size: 12px; margin-top: 6px; }
+  pre { white-space: pre-wrap; margin: 0; font-size: 12px; }
+`;
+
 function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -38,21 +59,7 @@ function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
         <style>
           @page { margin: 4mm; }
           body { font-family: 'Courier New', monospace; width: ${paperWidth}; margin: 0 auto; padding: 8px; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .line { border-top: 1px dashed #000; margin: 8px 0; }
-          .item { margin-bottom: 10px; }
-          .cup-label {
-            border: 2px solid #000;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 12px;
-            page-break-inside: avoid;
-          }
-          .cup-name { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 6px; }
-          .cup-meta { font-size: 13px; text-align: center; }
-          .cup-toppings { font-size: 12px; margin-top: 6px; }
-          pre { white-space: pre-wrap; margin: 0; font-size: 12px; }
+          ${RECEIPT_STYLE}
         </style>
       </head>
       <body>${bodyHtml}</body>
@@ -60,6 +67,58 @@ function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
     </html>
   `);
   printWindow.document.close();
+}
+
+/** Số dot ngang theo khổ giấy — 203dpi là chuẩn phổ biến nhất của máy in nhiệt. */
+const DOTS_WIDTH: Record<string, number> = {
+  '58mm': 384,
+  '48mm': 320,
+  '80mm': 576,
+};
+
+/**
+ * In trực tiếp qua USB nếu đã kết nối máy in cho role này; nếu chưa kết nối hoặc in USB lỗi,
+ * tự động fallback về cách in cũ (mở cửa sổ + window.print()) để không bao giờ "im lặng" thất bại.
+ */
+async function printViaUsbOrWindow(
+  role: PrinterRole,
+  title: string,
+  bodyHtml: string,
+  paperWidth: '58mm' | '48mm' | '80mm' = '58mm'
+) {
+  const device = await getRememberedPrinter(role).catch(() => null);
+  if (!device) {
+    openPrintWindow(title, bodyHtml, paperWidth);
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '300px';
+  container.style.fontFamily = "'Courier New', monospace";
+  container.style.background = '#ffffff';
+  container.style.padding = '8px';
+
+  const style = document.createElement('style');
+  style.textContent = RECEIPT_STYLE;
+  container.appendChild(style);
+
+  const content = document.createElement('div');
+  content.innerHTML = bodyHtml;
+  container.appendChild(content);
+
+  document.body.appendChild(container);
+  try {
+    const commands = await elementToEscposCommands(container, DOTS_WIDTH[paperWidth]);
+    await sendToPrinter(device, commands);
+  } catch (err) {
+    console.error(`In USB thất bại (${role}), chuyển sang in qua cửa sổ trình duyệt:`, err);
+    openPrintWindow(title, bodyHtml, paperWidth);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -70,7 +129,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 /** Bill tiền — đưa cho khách (có giá, tổng tiền) */
-export function printCustomerReceipt(data: CustomerReceiptData) {
+export async function printCustomerReceipt(data: CustomerReceiptData) {
   const payLabel = data.paymentMethod
     ? PAYMENT_LABELS[data.paymentMethod] || data.paymentMethod
     : '—';
@@ -127,11 +186,11 @@ export function printCustomerReceipt(data: CustomerReceiptData) {
     <div class="center" style="font-size:11px">Cảm ơn quý khách!<br/>Hẹn gặp lại 💚</div>
   `;
 
-  openPrintWindow('Hóa đơn khách', html);
+  await printViaUsbOrWindow('receipt', 'Hóa đơn khách', html, '58mm');
 }
 
 /** Tem thành phần — dán lên ly (không cần giá, rõ vị + size + topping) */
-export function printCupLabels(
+export async function printCupLabels(
   lines: PosPrintLine[],
   meta: { orderNumber: string; time: Date }
 ) {
@@ -167,7 +226,7 @@ export function printCupLabels(
 
   if (stickers.length === 0) return;
 
-  openPrintWindow('Tem dán ly', stickers.join(''), '48mm');
+  await printViaUsbOrWindow('label', 'Tem dán ly', stickers.join(''), '48mm');
 }
 
 export function printBothAfterPayment(
@@ -213,7 +272,7 @@ export interface ShiftClosingReceiptData {
 }
 
 /** Bill kết ca — tổng hợp sản phẩm đã bán trong ca, đưa quản lý/nhân viên đối chiếu */
-export function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
+export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
   const itemsHtml = data.items
     .map(
       (it) => `
@@ -246,5 +305,5 @@ export function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
     <div class="center" style="font-size:11px">Cảm ơn bạn đã làm việc chăm chỉ 💪</div>
   `;
 
-  openPrintWindow('Bill kết ca', html);
+  await printViaUsbOrWindow('receipt', 'Bill kết ca', html, '58mm');
 }

@@ -54,39 +54,93 @@ function canvasToRasterCommand(canvas: HTMLCanvasElement): Uint8Array {
   return concatBytes([header, bitmap]);
 }
 
+const BASE_WIDTH_PX = 300;
+
 /**
- * Render element ra ảnh (canvas) với chiều rộng cố định theo khổ giấy, rồi trả về
- * toàn bộ chuỗi lệnh ESC/POS sẵn sàng gửi qua USB: khởi tạo → raster ảnh → xuống dòng → cắt giấy.
+ * Render HTML trong 1 iframe cô lập hoàn toàn (document riêng, không dính CSS của app) rồi chụp
+ * bằng html2canvas. Bắt buộc phải cô lập vì html2canvas không hiểu được hàm màu CSS hiện đại
+ * như oklch()/oklab() — nếu render ngay trong trang, nó sẽ "dính" theo CSS global của app (ví dụ
+ * Tailwind) và crash với lỗi "unsupported color function". Trong iframe riêng, ta tự viết toàn bộ
+ * CSS (chỉ dùng màu hex) nên không thể dính phải oklch từ bất kỳ đâu khác.
  */
-export async function elementToEscposCommands(
-  element: HTMLElement,
+async function renderIsolatedHtml(bodyHtml: string, styleCss: string): Promise<HTMLCanvasElement> {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-9999px';
+  iframe.style.top = '0';
+  iframe.style.width = `${BASE_WIDTH_PX}px`;
+  iframe.style.height = '1px';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error('Không tạo được khung render cô lập.');
+
+    await new Promise<void>((resolve, reject) => {
+      iframe.onload = () => resolve();
+      iframe.onerror = () => reject(new Error('Không tải được nội dung để render.'));
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              * { box-sizing: border-box; }
+              html, body { margin: 0; padding: 0; background: #ffffff; color: #000000; }
+              body { font-family: 'Courier New', monospace; width: ${BASE_WIDTH_PX}px; padding: 8px; }
+              ${styleCss}
+            </style>
+          </head>
+          <body>${bodyHtml}</body>
+        </html>
+      `);
+      doc.close();
+      // Một số trình duyệt không bắn 'load' cho document.write — resolve dự phòng.
+      setTimeout(resolve, 50);
+    });
+
+    const body = iframe.contentDocument?.body;
+    if (!body) throw new Error('Không đọc được nội dung để render.');
+
+    // Chiều cao thật sau khi nội dung đã dàn trang.
+    iframe.style.height = `${body.scrollHeight}px`;
+
+    return await html2canvas(body, {
+      backgroundColor: '#ffffff',
+      width: BASE_WIDTH_PX,
+      windowWidth: BASE_WIDTH_PX,
+      logging: false,
+    });
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
+/**
+ * Render HTML hóa đơn (đã cô lập CSS) thành ảnh rồi đóng gói thành lệnh ESC/POS raster,
+ * sẵn sàng gửi qua USB: khởi tạo → raster ảnh → xuống dòng → cắt giấy.
+ */
+export async function htmlToEscposCommands(
+  bodyHtml: string,
+  styleCss: string,
   printerDotsWidth = 384 // 384 dots ~ 58mm khổ giấy phổ biến ở 203dpi; đổi 576 nếu máy khổ 80mm
 ): Promise<Uint8Array> {
-  const canvas = await html2canvas(element, {
-    backgroundColor: '#ffffff',
-    scale: printerDotsWidth / element.offsetWidth,
-    width: element.offsetWidth,
-    windowWidth: element.offsetWidth,
-    logging: false,
-  });
+  const canvas = await renderIsolatedHtml(bodyHtml, styleCss);
 
-  // html2canvas có thể lệch vài dot do làm tròn — ép đúng khổ máy in yêu cầu.
-  let finalCanvas = canvas;
-  if (canvas.width !== printerDotsWidth) {
-    const resized = document.createElement('canvas');
-    resized.width = printerDotsWidth;
-    resized.height = Math.round((canvas.height * printerDotsWidth) / canvas.width);
-    const rctx = resized.getContext('2d');
-    if (rctx) {
-      rctx.fillStyle = '#ffffff';
-      rctx.fillRect(0, 0, resized.width, resized.height);
-      rctx.drawImage(canvas, 0, 0, resized.width, resized.height);
-      finalCanvas = resized;
-    }
-  }
+  // Scale đúng khổ máy in yêu cầu (canvas gốc render theo BASE_WIDTH_PX css px, không phải dot thật).
+  const resized = document.createElement('canvas');
+  resized.width = printerDotsWidth;
+  resized.height = Math.round((canvas.height * printerDotsWidth) / canvas.width);
+  const rctx = resized.getContext('2d');
+  if (!rctx) throw new Error('Không lấy được canvas context');
+  rctx.fillStyle = '#ffffff';
+  rctx.fillRect(0, 0, resized.width, resized.height);
+  rctx.drawImage(canvas, 0, 0, resized.width, resized.height);
 
   const init = new Uint8Array([ESC, 0x40]); // ESC @ — reset máy in
-  const raster = canvasToRasterCommand(finalCanvas);
+  const raster = canvasToRasterCommand(resized);
   const feedAndCut = new Uint8Array([0x0a, 0x0a, 0x0a, GS, 0x56, 0x00]); // feed 3 dòng + cắt giấy (full cut)
 
   return concatBytes([init, raster, feedAndCut]);

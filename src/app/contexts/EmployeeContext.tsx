@@ -17,6 +17,7 @@ interface EmployeeContextType {
   updateProfile: (updates: Partial<Employee>) => Promise<void>;
   refreshShifts: () => Promise<void>;
   requestShift: (date: string, templateId: string) => Promise<void>;
+  requestOff: (date: string, reason: string) => Promise<void>;
   cancelShift: (shiftId: string) => Promise<void>;
   checkIn: (shiftId: string, photo: string) => Promise<void>;
   checkOut: (shiftId: string, photo: string) => Promise<void>;
@@ -126,6 +127,24 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     await refreshShifts();
   };
 
+  const requestOff = async (date: string, reason: string) => {
+    if (!activeEmployee) return;
+    const shift: Partial<WorkShift> = {
+      employeeId: activeEmployee.id,
+      employeeName: activeEmployee.fullName,
+      branch: activeEmployee.branch,
+      date,
+      shiftType: 'off',
+      startTime: '00:00',
+      endTime: '23:59',
+      status: 'pending',
+      requestedBy: 'employee',
+      reason,
+    };
+    await api.saveShift(shift);
+    await refreshShifts();
+  };
+
   const cancelShift = async (shiftId: string) => {
     await api.deleteShift(shiftId);
     await refreshShifts();
@@ -158,6 +177,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       updateProfile,
       refreshShifts,
       requestShift,
+      requestOff,
       cancelShift,
       checkIn,
       checkOut,

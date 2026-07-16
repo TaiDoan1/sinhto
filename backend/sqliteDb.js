@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   id TEXT PRIMARY KEY, employeeId TEXT, employeeName TEXT, date TEXT, shiftType TEXT, startTime TEXT, endTime TEXT,
   status TEXT, checkIn TEXT, checkOut TEXT, branch TEXT DEFAULT '', requestedBy TEXT DEFAULT 'admin',
   checkInPhoto TEXT DEFAULT '', checkOutPhoto TEXT DEFAULT '',
-  closingOrderCount INTEGER, closingRevenue INTEGER
+  closingOrderCount INTEGER, closingRevenue INTEGER, reason TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS customers (
@@ -256,6 +256,7 @@ async function init() {
     "ALTER TABLE orders ADD COLUMN shipFee INTEGER DEFAULT 0",
     "ALTER TABLE shifts ADD COLUMN closingOrderCount INTEGER",
     "ALTER TABLE shifts ADD COLUMN closingRevenue INTEGER",
+    "ALTER TABLE shifts ADD COLUMN reason TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN customerType TEXT DEFAULT 'combo'",
     "ALTER TABLE customer_care_assignments ADD COLUMN fbName TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN pipelineStage TEXT DEFAULT 'nurturing'",

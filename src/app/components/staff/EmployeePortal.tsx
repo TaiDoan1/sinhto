@@ -31,7 +31,7 @@ function todayStr() {
 }
 
 export function EmployeePortal() {
-  const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, cancelShift, checkIn, checkOut } = useEmployee();
+  const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, requestOff, cancelShift, checkIn, checkOut } = useEmployee();
   const { orders, history } = useOrders();
   const { branchLabel } = useBranches();
   const [tab, setTab] = useState<Tab>('attendance');
@@ -47,6 +47,8 @@ export function EmployeePortal() {
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
   const [startingShift, setStartingShift] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [offReason, setOffReason] = useState('');
+  const [requestingOff, setRequestingOff] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -96,6 +98,19 @@ export function EmployeePortal() {
       alert(err instanceof Error ? err.message : 'Đăng ký ca thất bại.');
     } finally {
       setRequesting(false);
+    }
+  };
+
+  const handleRequestOff = async () => {
+    setRequestingOff(true);
+    try {
+      await requestOff(requestDate, offReason.trim());
+      setShowRequestForm(false);
+      setOffReason('');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Xin nghỉ thất bại.');
+    } finally {
+      setRequestingOff(false);
     }
   };
 
@@ -429,16 +444,24 @@ export function EmployeePortal() {
                 <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch làm</p>
               ) : (
                 <div className="space-y-2">
-                  {upcomingShifts.map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl gap-2">
+                  {upcomingShifts.map(s => {
+                    const isOff = s.shiftType === 'off';
+                    return (
+                    <div key={s.id} className={`flex items-center justify-between p-3.5 rounded-xl gap-2 ${isOff ? 'bg-red-50 border border-red-100' : 'bg-gray-50'}`}>
                       <div className="min-w-0">
                         <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
-                        {s.branch && (
+                        {s.branch && !isOff && (
                           <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full my-1">
                             {branchLabel(s.branch) || s.branch}
                           </span>
                         )}
-                        <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
+                        {isOff ? (
+                          <div className="text-sm text-red-700 font-semibold">
+                            🔴 Nghỉ{s.reason ? ` — ${s.reason}` : ''}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-white border">
@@ -461,7 +484,7 @@ export function EmployeePortal() {
                         )}
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
             </div>
@@ -549,6 +572,25 @@ export function EmployeePortal() {
               <MapPin className="w-3 h-3" />
               Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách để hủy nếu đăng ký nhầm.
             </p>
+
+            <div className="border-t border-gray-100 mt-5 pt-4">
+              <h3 className="font-bold text-gray-800 mb-2">Xin nghỉ ngày này</h3>
+              <textarea
+                value={offReason}
+                onChange={e => setOffReason(e.target.value)}
+                placeholder="Lý do xin nghỉ (không bắt buộc)"
+                rows={2}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-400 outline-none resize-none mb-2"
+              />
+              <button
+                onClick={handleRequestOff}
+                disabled={requestingOff}
+                className="w-full flex items-center justify-center gap-2 p-3.5 bg-red-50 active:bg-red-100 border-2 border-red-100 rounded-2xl font-bold text-red-700 disabled:opacity-60"
+              >
+                {requestingOff ? <Loader2 className="w-5 h-5 animate-spin" /> : '🔴'}
+                Gửi xin nghỉ
+              </button>
+            </div>
           </div>
         </div>
       )}

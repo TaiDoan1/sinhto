@@ -17,7 +17,7 @@ export interface Shift {
   startTime: string;
   endTime: string;
   isPinned?: boolean;
-  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening' | 'block_8_13' | 'block_13_18' | 'block_18_22' | 'custom';
+  shiftType?: 'morning' | 'noon' | 'afternoon' | 'evening' | 'block_8_13' | 'block_13_18' | 'block_18_22' | 'custom' | 'off';
   originalEmployeeId?: string;
   originalEmployeeName?: string;
   isSubstitute?: boolean;
@@ -27,6 +27,7 @@ export interface Shift {
   checkOut?: string;
   closingOrderCount?: number;
   closingRevenue?: number;
+  reason?: string;
 }
 
 // Quick-pick: chỉ giữ 4 ca quen thuộc nhất. Mọi khung giờ khác (kể cả 08-13/13-18/18-22)
@@ -41,6 +42,7 @@ const shiftTemplates: { id: Shift['shiftType']; name: string; start: string; end
 // Không phải quick-pick — chỉ dùng để tra icon/màu khi render ca đã tạo bằng giờ tự do
 // (kể cả ca cũ có shiftType block_8_13/13_18/18_22 từ trước khi đổi sang UI này).
 const customTemplateFallback = { id: 'custom' as const, name: '⏱️ Tùy chỉnh', start: '', end: '', color: 'from-slate-500 to-slate-400', icon: '⏱️' };
+const offTemplate = { id: 'off' as const, name: '🚫 Nghỉ', start: '', end: '', color: 'from-red-600 to-red-500', icon: '🚫' };
 const legacyBlockTemplates: Record<string, { color: string; icon: string }> = {
   block_8_13: { color: 'from-teal-500 to-emerald-400', icon: '🕗' },
   block_13_18: { color: 'from-orange-500 to-amber-400', icon: '🕐' },
@@ -50,6 +52,7 @@ const legacyBlockTemplates: Record<string, { color: string; icon: string }> = {
 function shiftTemplateFor(shiftType?: Shift['shiftType']) {
   const known = shiftTemplates.find((t) => t.id === shiftType);
   if (known) return known;
+  if (shiftType === 'off') return offTemplate;
   if (shiftType && legacyBlockTemplates[shiftType]) {
     return { ...customTemplateFallback, ...legacyBlockTemplates[shiftType] };
   }
@@ -401,12 +404,19 @@ export function ShiftSchedule() {
           <h3 className="font-bold text-amber-800 mb-3">Yêu cầu đăng ký lịch ({pendingShifts.length})</h3>
           <div className="space-y-2">
             {pendingShifts.map(s => (
-              <div key={s.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-amber-100">
+              <div key={s.id} className={`flex items-center justify-between rounded-lg px-4 py-3 border ${s.shiftType === 'off' ? 'bg-red-50 border-red-200' : 'bg-white border-amber-100'}`}>
                 <div>
                   <span className="font-semibold text-gray-800">{s.employeeName}</span>
-                  <span className="text-gray-500 text-sm ml-2">
-                    {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
-                  </span>
+                  {s.shiftType === 'off' ? (
+                    <span className="text-red-700 text-sm ml-2 font-semibold">
+                      🔴 Xin nghỉ {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')}
+                      {s.reason ? ` — ${s.reason}` : ''}
+                    </span>
+                  ) : (
+                    <span className="text-gray-500 text-sm ml-2">
+                      {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
+                    </span>
+                  )}
                   {s.branch && <span className="text-xs text-gray-400 ml-2">({s.branch})</span>}
                 </div>
                 <div className="flex gap-2">
@@ -538,7 +548,12 @@ export function ShiftSchedule() {
                                 </button>
                               </div>
                             </div>
-                            <div className="text-xs font-semibold">{shift.startTime} - {shift.endTime}</div>
+                            <div className="text-xs font-semibold">
+                              {shift.shiftType === 'off' ? 'Nghỉ' : `${shift.startTime} - ${shift.endTime}`}
+                            </div>
+                            {shift.shiftType === 'off' && shift.reason && (
+                              <div className="text-[10px] opacity-90 mt-0.5 line-clamp-2">{shift.reason}</div>
+                            )}
                             {(() => {
                               const hasClosingSnapshot =
                                 shift.status === 'completed' && shift.closingOrderCount != null;
@@ -611,6 +626,13 @@ export function ShiftSchedule() {
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, '00:00', '23:59', 'off')}
+                className={`w-full bg-gradient-to-r ${offTemplate.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all mb-4`}
+              >
+                {offTemplate.icon} Đánh dấu nghỉ cả ngày
+              </button>
 
               <div className="border-t border-gray-200 pt-4">
                 <div className="text-xs text-gray-500 font-semibold mb-2">Giờ tùy chỉnh</div>
@@ -709,6 +731,10 @@ export function ShiftSchedule() {
             <span>{tpl.name} {tpl.start}-{tpl.end}</span>
           </div>
         ))}
+        <div className="flex items-center gap-2">
+          <div className={`w-4 h-4 bg-gradient-to-r ${offTemplate.color} rounded`}></div>
+          <span>{offTemplate.name}</span>
+        </div>
         <div className="flex items-center gap-2">
           <Pin className="w-4 h-4 text-yellow-600" />
           <span>Ca ghim</span>

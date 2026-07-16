@@ -148,7 +148,8 @@ CREATE TABLE IF NOT EXISTS shifts (
   "checkInPhoto" TEXT DEFAULT '',
   "checkOutPhoto" TEXT DEFAULT '',
   "closingOrderCount" INTEGER,
-  "closingRevenue" INTEGER
+  "closingRevenue" INTEGER,
+  reason TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -309,6 +310,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipFee" INTEGER DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingOrderCount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingRevenue" INTEGER`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''`).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS delivery_logs (

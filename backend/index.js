@@ -910,8 +910,8 @@ app.post('/api/shifts', (req, res) => {
       });
     }
     db.run(
-      `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin'],
+      `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', s.reason || ''],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         const created = { ...s, id };
@@ -933,8 +933,8 @@ app.put('/api/shifts/:id', (req, res) => {
       });
     }
     db.run(
-      `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ? WHERE id = ?`,
-      [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', id],
+      `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ?, reason = ? WHERE id = ?`,
+      [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', s.reason || '', id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });

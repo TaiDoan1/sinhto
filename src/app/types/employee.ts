@@ -47,7 +47,10 @@ export interface WorkShift {
   checkInPhoto?: string;
   checkOutPhoto?: string;
   requestedBy?: 'admin' | 'employee';
+  reason?: string;
 }
+
+export const OFF_SHIFT_TYPE = 'off';
 
 export function canCancelShift(shift: WorkShift): boolean {
   if (shift.checkIn) return false;

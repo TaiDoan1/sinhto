@@ -359,14 +359,12 @@ export function EmployeePortal() {
                   <div key={s.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <div className="font-semibold text-gray-800 flex items-center gap-1.5 flex-wrap">
-                          {formatDate(s.date)}
-                          {s.branch && (
-                            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                              {branchLabel(s.branch) || s.branch}
-                            </span>
-                          )}
-                        </div>
+                        <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
+                        {s.branch && (
+                          <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full my-1">
+                            {branchLabel(s.branch) || s.branch}
+                          </span>
+                        )}
                         <div className="text-sm text-gray-600">
                           {s.checkIn ? new Date(s.checkIn).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                           {' → '}
@@ -434,14 +432,12 @@ export function EmployeePortal() {
                   {upcomingShifts.map(s => (
                     <div key={s.id} className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl gap-2">
                       <div className="min-w-0">
-                        <div className="font-semibold text-gray-800 flex items-center gap-1.5 flex-wrap">
-                          {formatDate(s.date)}
-                          {s.branch && (
-                            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full">
-                              {branchLabel(s.branch) || s.branch}
-                            </span>
-                          )}
-                        </div>
+                        <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
+                        {s.branch && (
+                          <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full my-1">
+                            {branchLabel(s.branch) || s.branch}
+                          </span>
+                        )}
                         <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

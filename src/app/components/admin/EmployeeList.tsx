@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, Edit2, Trash2, X, Save, User } from 'lucide-react';
+import { Search, Edit2, Trash2, X, Save, User, Camera, Upload } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
+import { useToast } from '../../contexts/ToastContext';
 
 const positions = [
   { id: 'manager', name: 'Quản Lý Chi Nhánh' },
@@ -27,6 +28,7 @@ export function EmployeeList() {
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [editForm, setEditForm] = useState<Employee | null>(null);
   const { subscribe } = useSSE();
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     api.fetchEmployees()
@@ -50,9 +52,10 @@ export function EmployeeList() {
     if (!confirm('Bạn có chắc muốn xóa nhân viên này?')) return;
     try {
       await api.deleteEmployee(id);
+      showSuccess('Xóa nhân viên thành công');
     } catch (err) {
       console.error('Failed to delete employee:', err);
-      alert('Lỗi xóa nhân viên.');
+      showError('Xóa nhân viên thất bại');
     }
   };
 
@@ -61,9 +64,21 @@ export function EmployeeList() {
     try {
       await api.saveEmployee(editForm);
       setEditForm(null);
+      showSuccess('Chỉnh sửa thành công');
     } catch (err) {
       console.error('Failed to update employee:', err);
-      alert(err instanceof Error ? err.message : 'Lỗi cập nhật nhân viên.');
+      showError(err instanceof Error ? err.message : 'Chỉnh sửa thất bại');
+    }
+  };
+
+  const handleEditPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editForm) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditForm(prev => prev ? { ...prev, photo: reader.result as string } : prev);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -228,6 +243,34 @@ export function EmployeeList() {
               </button>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <span className="text-xs font-semibold text-gray-500 block mb-1">Ảnh nhân viên</span>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden shrink-0">
+                    {editForm.photo ? (
+                      <img src={editForm.photo} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-8 h-8 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      id="edit-photo-upload"
+                      accept="image/*"
+                      onChange={handleEditPhotoChange}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="edit-photo-upload"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold hover:bg-emerald-200 transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Đổi ảnh
+                    </label>
+                  </div>
+                </div>
+              </div>
               <label className="sm:col-span-2">
                 <span className="text-xs font-semibold text-gray-500">Họ và tên</span>
                 <input
@@ -250,6 +293,41 @@ export function EmployeeList() {
                 <input
                   value={editForm.phone}
                   onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">CCCD/CMND</span>
+                <input
+                  value={editForm.idNumber || ''}
+                  onChange={e => setEditForm({ ...editForm, idNumber: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Ngày sinh</span>
+                <input
+                  type="date"
+                  value={editForm.dateOfBirth || ''}
+                  onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label className="sm:col-span-2">
+                <span className="text-xs font-semibold text-gray-500">Địa chỉ</span>
+                <textarea
+                  value={editForm.address || ''}
+                  onChange={e => setEditForm({ ...editForm, address: e.target.value })}
+                  rows={2}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500 resize-none"
+                />
+              </label>
+              <label>
+                <span className="text-xs font-semibold text-gray-500">Ngày bắt đầu</span>
+                <input
+                  type="date"
+                  value={editForm.startDate || ''}
+                  onChange={e => setEditForm({ ...editForm, startDate: e.target.value })}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                 />
               </label>
@@ -303,6 +381,7 @@ export function EmployeeList() {
                   onChange={e => setEditForm({ ...editForm, position: e.target.value })}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                 >
+                  <option value="">-- Chọn vị trí --</option>
                   {positions.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}

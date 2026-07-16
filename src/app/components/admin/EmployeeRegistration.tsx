@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { UserPlus, Save, X, CheckCircle, Upload, Camera } from 'lucide-react';
+import { useToast } from '../../contexts/ToastContext';
 import * as api from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
 
@@ -77,6 +78,7 @@ export function EmployeeRegistration() {
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const { showError } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -124,7 +126,7 @@ export function EmployeeRegistration() {
       }, 3000);
     } catch (err) {
       console.error('Failed to save employee:', err);
-      alert(err instanceof Error ? err.message : 'Lỗi lưu nhân viên. Vui lòng thử lại.');
+      showError(err instanceof Error ? err.message : 'Lỗi lưu nhân viên. Vui lòng thử lại.');
     }
   };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -42,7 +42,7 @@ const shiftTemplates: { id: Shift['shiftType']; name: string; start: string; end
 // Không phải quick-pick — chỉ dùng để tra icon/màu khi render ca đã tạo bằng giờ tự do
 // (kể cả ca cũ có shiftType block_8_13/13_18/18_22 từ trước khi đổi sang UI này).
 const customTemplateFallback = { id: 'custom' as const, name: '⏱️ Tùy chỉnh', start: '', end: '', color: 'from-slate-500 to-slate-400', icon: '⏱️' };
-const offTemplate = { id: 'off' as const, name: '🚫 Nghỉ', start: '', end: '', color: 'from-red-600 to-red-500', icon: '🚫' };
+const offTemplate = { id: 'off' as const, name: 'Nghỉ', start: '', end: '', color: 'from-red-600 to-red-500', icon: '' };
 const legacyBlockTemplates: Record<string, { color: string; icon: string }> = {
   block_8_13: { color: 'from-teal-500 to-emerald-400', icon: '🕗' },
   block_13_18: { color: 'from-orange-500 to-amber-400', icon: '🕐' },
@@ -408,8 +408,9 @@ export function ShiftSchedule() {
                 <div>
                   <span className="font-semibold text-gray-800">{s.employeeName}</span>
                   {s.shiftType === 'off' ? (
-                    <span className="text-red-700 text-sm ml-2 font-semibold">
-                      🔴 Xin nghỉ {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')}
+                    <span className="text-red-700 text-sm ml-2 font-semibold inline-flex items-center gap-1">
+                      <CalendarOff className="w-3.5 h-3.5" />
+                      Xin nghỉ {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')}
                       {s.reason ? ` — ${s.reason}` : ''}
                     </span>
                   ) : (
@@ -522,7 +523,7 @@ export function ShiftSchedule() {
                           <div key={shift.id} className={`relative bg-gradient-to-r ${shiftTemplateFor(shift.shiftType).color} text-white rounded-lg p-2 shadow-sm group`}>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold">
-                                {shiftTemplateFor(shift.shiftType).icon}
+                                {shift.shiftType === 'off' ? <CalendarOff className="w-3.5 h-3.5" /> : shiftTemplateFor(shift.shiftType).icon}
                               </span>
                               <div className="flex gap-1">
                                 <button
@@ -629,9 +630,10 @@ export function ShiftSchedule() {
 
               <button
                 onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, '00:00', '23:59', 'off')}
-                className={`w-full bg-gradient-to-r ${offTemplate.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all mb-4`}
+                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${offTemplate.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all mb-4`}
               >
-                {offTemplate.icon} Đánh dấu nghỉ cả ngày
+                <CalendarOff className="w-4 h-4" />
+                Đánh dấu nghỉ cả ngày
               </button>
 
               <div className="border-t border-gray-200 pt-4">
@@ -732,7 +734,9 @@ export function ShiftSchedule() {
           </div>
         ))}
         <div className="flex items-center gap-2">
-          <div className={`w-4 h-4 bg-gradient-to-r ${offTemplate.color} rounded`}></div>
+          <div className={`w-4 h-4 bg-gradient-to-r ${offTemplate.color} rounded flex items-center justify-center`}>
+            <CalendarOff className="w-2.5 h-2.5 text-white" />
+          </div>
           <span>{offTemplate.name}</span>
         </div>
         <div className="flex items-center gap-2">

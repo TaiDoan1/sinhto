@@ -28,6 +28,7 @@ import { MenuProvider } from "./contexts/MenuContext";
 import { LoyaltyProvider } from "./contexts/LoyaltyContext";
 import { EmployeeProvider } from "./contexts/EmployeeContext";
 import { BranchProvider } from "./contexts/BranchContext";
+import { ToastProvider } from "./contexts/ToastContext";
 import { captureSalesRefFromUrl } from "./utils/salesRef";
 import {
   type AppMode,
@@ -391,24 +392,26 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SSEProvider>
-      <MenuProvider>
-        <InventoryProvider>
-          <OrderProvider>
-            <ComboProvider>
-              <AffiliateProvider>
-                <LoyaltyProvider>
-                  <EmployeeProvider>
-                    <BranchProvider>
-                      <AppContent />
-                    </BranchProvider>
-                  </EmployeeProvider>
-                </LoyaltyProvider>
-              </AffiliateProvider>
-            </ComboProvider>
-          </OrderProvider>
-        </InventoryProvider>
-      </MenuProvider>
-    </SSEProvider>
+    <ToastProvider>
+      <SSEProvider>
+        <MenuProvider>
+          <InventoryProvider>
+            <OrderProvider>
+              <ComboProvider>
+                <AffiliateProvider>
+                  <LoyaltyProvider>
+                    <EmployeeProvider>
+                      <BranchProvider>
+                        <AppContent />
+                      </BranchProvider>
+                    </EmployeeProvider>
+                  </LoyaltyProvider>
+                </AffiliateProvider>
+              </ComboProvider>
+            </OrderProvider>
+          </InventoryProvider>
+        </MenuProvider>
+      </SSEProvider>
+    </ToastProvider>
   );
 }

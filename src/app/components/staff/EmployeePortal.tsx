@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -437,9 +437,10 @@ export function EmployeePortal() {
                   <button
                     type="button"
                     onClick={() => setShowOffForm(true)}
-                    className="text-sm font-bold text-red-700 bg-red-50 active:bg-red-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                    className="flex items-center gap-1.5 text-sm font-bold text-red-700 bg-red-50 active:bg-red-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
                   >
-                    🔴 Xin nghỉ
+                    <CalendarOff className="w-4 h-4" />
+                    Xin nghỉ
                   </button>
                   <button
                     type="button"
@@ -466,8 +467,9 @@ export function EmployeePortal() {
                           </span>
                         )}
                         {isOff ? (
-                          <div className="text-sm text-red-700 font-semibold">
-                            🔴 Nghỉ{s.reason ? ` — ${s.reason}` : ''}
+                          <div className="text-sm text-red-700 font-semibold flex items-center gap-1">
+                            <CalendarOff className="w-3.5 h-3.5" />
+                            Nghỉ{s.reason ? ` — ${s.reason}` : ''}
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">{s.startTime} – {s.endTime}</div>
@@ -590,7 +592,10 @@ export function EmployeePortal() {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
           <div className="bg-white rounded-t-3xl w-full max-w-md p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-800 text-lg">🔴 Xin nghỉ</h2>
+              <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                <CalendarOff className="w-5 h-5 text-red-600" />
+                Xin nghỉ
+              </h2>
               <button
                 type="button"
                 onClick={() => setShowOffForm(false)}
@@ -624,7 +629,7 @@ export function EmployeePortal() {
               disabled={requestingOff}
               className="w-full flex items-center justify-center gap-2 p-3.5 bg-red-600 active:bg-red-700 text-white rounded-2xl font-bold disabled:opacity-60"
             >
-              {requestingOff ? <Loader2 className="w-5 h-5 animate-spin" /> : '🔴'}
+              {requestingOff ? <Loader2 className="w-5 h-5 animate-spin" /> : <CalendarOff className="w-5 h-5" />}
               Gửi xin nghỉ
             </button>
             <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">

@@ -47,6 +47,7 @@ export function EmployeePortal() {
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
   const [startingShift, setStartingShift] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [showOffForm, setShowOffForm] = useState(false);
   const [offReason, setOffReason] = useState('');
   const [requestingOff, setRequestingOff] = useState(false);
 
@@ -105,7 +106,7 @@ export function EmployeePortal() {
     setRequestingOff(true);
     try {
       await requestOff(requestDate, offReason.trim());
-      setShowRequestForm(false);
+      setShowOffForm(false);
       setOffReason('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Xin nghỉ thất bại.');
@@ -430,15 +431,24 @@ export function EmployeePortal() {
           <div className="space-y-4">
             {/* My shifts list */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 gap-2">
                 <h2 className="font-bold text-gray-800">Lịch làm của tôi</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowRequestForm(true)}
-                  className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors"
-                >
-                  + Đăng ký lịch làm
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowOffForm(true)}
+                    className="text-sm font-bold text-red-700 bg-red-50 active:bg-red-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                  >
+                    🔴 Xin nghỉ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRequestForm(true)}
+                    className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                  >
+                    + Đăng ký lịch làm
+                  </button>
+                </div>
               </div>
               {upcomingShifts.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch làm</p>
@@ -572,25 +582,55 @@ export function EmployeePortal() {
               <MapPin className="w-3 h-3" />
               Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách để hủy nếu đăng ký nhầm.
             </p>
+          </div>
+        </div>
+      )}
 
-            <div className="border-t border-gray-100 mt-5 pt-4">
-              <h3 className="font-bold text-gray-800 mb-2">Xin nghỉ ngày này</h3>
+      {showOffForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-3xl w-full max-w-md p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-800 text-lg">🔴 Xin nghỉ</h2>
+              <button
+                type="button"
+                onClick={() => setShowOffForm(false)}
+                className="p-2 -m-2 text-gray-400 active:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày</label>
+              <input
+                type="date"
+                value={requestDate}
+                min={todayStr()}
+                onChange={e => setRequestDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-400 outline-none"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Lý do (không bắt buộc)</label>
               <textarea
                 value={offReason}
                 onChange={e => setOffReason(e.target.value)}
-                placeholder="Lý do xin nghỉ (không bắt buộc)"
-                rows={2}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-400 outline-none resize-none mb-2"
+                placeholder="VD: về quê có việc gia đình"
+                rows={3}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-400 outline-none resize-none"
               />
-              <button
-                onClick={handleRequestOff}
-                disabled={requestingOff}
-                className="w-full flex items-center justify-center gap-2 p-3.5 bg-red-50 active:bg-red-100 border-2 border-red-100 rounded-2xl font-bold text-red-700 disabled:opacity-60"
-              >
-                {requestingOff ? <Loader2 className="w-5 h-5 animate-spin" /> : '🔴'}
-                Gửi xin nghỉ
-              </button>
             </div>
+            <button
+              onClick={handleRequestOff}
+              disabled={requestingOff}
+              className="w-full flex items-center justify-center gap-2 p-3.5 bg-red-600 active:bg-red-700 text-white rounded-2xl font-bold disabled:opacity-60"
+            >
+              {requestingOff ? <Loader2 className="w-5 h-5 animate-spin" /> : '🔴'}
+              Gửi xin nghỉ
+            </button>
+            <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              Yêu cầu sẽ được gửi tới quản lý để duyệt.
+            </p>
           </div>
         </div>
       )}

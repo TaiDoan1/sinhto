@@ -46,6 +46,7 @@ export function EmployeePortal() {
   const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
   const [startingShift, setStartingShift] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -90,6 +91,7 @@ export function EmployeePortal() {
     setRequesting(true);
     try {
       await requestShift(requestDate, templateId);
+      setShowRequestForm(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Đăng ký ca thất bại.');
     } finally {
@@ -168,6 +170,7 @@ export function EmployeePortal() {
     info: 'Thông tin cá nhân',
     attendance: 'Chấm công',
     schedule: 'Lịch làm việc',
+    history: 'Lịch sử chấm công',
   };
 
   return (
@@ -344,7 +347,11 @@ export function EmployeePortal() {
                 </div>
               )}
             </div>
+          </div>
+        )}
 
+        {tab === 'history' && (
+          <div className="space-y-4">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h3 className="font-bold text-gray-800 mb-3">Lịch sử chấm công gần đây</h3>
               <div className="space-y-3">
@@ -352,7 +359,14 @@ export function EmployeePortal() {
                   <div key={s.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <div className="font-semibold text-gray-800">{formatDate(s.date)}</div>
+                        <div className="font-semibold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                          {formatDate(s.date)}
+                          {s.branch && (
+                            <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                              {branchLabel(s.branch) || s.branch}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600">
                           {s.checkIn ? new Date(s.checkIn).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                           {' → '}
@@ -401,43 +415,18 @@ export function EmployeePortal() {
 
         {tab === 'schedule' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <h2 className="font-bold text-gray-800 mb-4">Đăng ký lịch làm</h2>
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày</label>
-                <input
-                  type="date"
-                  value={requestDate}
-                  min={todayStr()}
-                  onChange={e => setRequestDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {SHIFT_TEMPLATES.map(tpl => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => handleRequestShift(tpl.id)}
-                    disabled={requesting}
-                    className="flex items-center gap-3 p-3.5 border-2 border-gray-100 active:border-emerald-300 active:bg-emerald-50 rounded-2xl text-left disabled:opacity-60 min-h-[60px]"
-                  >
-                    <span className="text-2xl">{tpl.icon}</span>
-                    <div>
-                      <div className="font-bold text-gray-800">{tpl.name}</div>
-                      <div className="text-sm text-gray-500">{tpl.start} – {tpl.end}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách bên dưới để hủy nếu đăng ký nhầm.
-              </p>
-            </div>
-
             {/* My shifts list */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <h2 className="font-bold text-gray-800 mb-4">Lịch làm của tôi</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-800">Lịch làm của tôi</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestForm(true)}
+                  className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors"
+                >
+                  + Đăng ký lịch làm
+                </button>
+              </div>
               {upcomingShifts.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch làm</p>
               ) : (
@@ -517,6 +506,53 @@ export function EmployeePortal() {
             >
               Đóng
             </button>
+          </div>
+        </div>
+      )}
+
+      {showRequestForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-3xl w-full max-w-md p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-800 text-lg">Đăng ký lịch làm</h2>
+              <button
+                type="button"
+                onClick={() => setShowRequestForm(false)}
+                className="p-2 -m-2 text-gray-400 active:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày</label>
+              <input
+                type="date"
+                value={requestDate}
+                min={todayStr()}
+                onChange={e => setRequestDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {SHIFT_TEMPLATES.map(tpl => (
+                <button
+                  key={tpl.id}
+                  onClick={() => handleRequestShift(tpl.id)}
+                  disabled={requesting}
+                  className="flex items-center gap-3 p-3.5 border-2 border-gray-100 active:border-emerald-300 active:bg-emerald-50 rounded-2xl text-left disabled:opacity-60 min-h-[60px]"
+                >
+                  <span className="text-2xl">{tpl.icon}</span>
+                  <div>
+                    <div className="font-bold text-gray-800">{tpl.name}</div>
+                    <div className="text-sm text-gray-500">{tpl.start} – {tpl.end}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách để hủy nếu đăng ký nhầm.
+            </p>
           </div>
         </div>
       )}

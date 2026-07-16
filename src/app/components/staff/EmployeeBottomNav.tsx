@@ -1,6 +1,6 @@
-import { User, Clock, Calendar } from 'lucide-react';
+import { User, Clock, Calendar, History } from 'lucide-react';
 
-export type EmployeeTab = 'info' | 'attendance' | 'schedule';
+export type EmployeeTab = 'info' | 'attendance' | 'schedule' | 'history';
 
 interface EmployeeBottomNavProps {
   activeTab: EmployeeTab;
@@ -10,6 +10,7 @@ interface EmployeeBottomNavProps {
 const tabs: { id: EmployeeTab; label: string; icon: typeof User }[] = [
   { id: 'attendance', label: 'Chấm công', icon: Clock },
   { id: 'schedule', label: 'Lịch làm', icon: Calendar },
+  { id: 'history', label: 'Lịch sử', icon: History },
   { id: 'info', label: 'Cá nhân', icon: User },
 ];
 

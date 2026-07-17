@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Package, ArrowRight, AlertTriangle, History } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
 import * as api from '../../utils/api';
 
@@ -18,12 +18,35 @@ interface BranchInventory extends InventoryItem {
   status: 'low' | 'ok' | 'none';
 }
 
+interface Movement {
+  id: string;
+  timestamp: string;
+  type: 'sale' | 'void_return' | 'waste' | 'refund' | 'purchase' | 'adjustment';
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  reason?: string;
+  performedBy?: string;
+  branchId?: string;
+}
+
+const MOVEMENT_LABELS: Record<Movement['type'], { label: string; className: string }> = {
+  purchase: { label: 'Nhập kho', className: 'text-emerald-700 bg-emerald-50' },
+  sale: { label: 'Xuất bán', className: 'text-blue-700 bg-blue-50' },
+  waste: { label: 'Hủy hàng', className: 'text-red-700 bg-red-50' },
+  void_return: { label: 'Trả hàng', className: 'text-amber-700 bg-amber-50' },
+  refund: { label: 'Hoàn trả', className: 'text-amber-700 bg-amber-50' },
+  adjustment: { label: 'Điều chỉnh', className: 'text-violet-700 bg-violet-50' },
+};
+
 export function CrossBranchInventory() {
   const { activeBranches } = useBranches();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [branchInventories, setBranchInventories] = useState<Map<string, BranchInventory[]>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [movementsLoading, setMovementsLoading] = useState(true);
   const [moveModal, setMoveModal] = useState<{
     fromBranch: string;
     toBranch: string;
@@ -84,6 +107,21 @@ export function CrossBranchInventory() {
     };
     loadData();
   }, [activeBranches]);
+
+  useEffect(() => {
+    const loadMovements = async () => {
+      try {
+        setMovementsLoading(true);
+        const data = (await api.fetchMovements()) as Movement[];
+        setMovements((data || []).slice(0, 50));
+      } catch (err) {
+        console.error('Failed to load inventory movements:', err);
+      } finally {
+        setMovementsLoading(false);
+      }
+    };
+    loadMovements();
+  }, []);
 
   const handleMoveStock = async () => {
     if (!moveModal || !moveModal.fromBranch || !moveModal.toBranch) return;
@@ -192,6 +230,7 @@ export function CrossBranchInventory() {
                 <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Tên</th>
                 <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Đơn vị</th>
                 <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Min</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700 bg-emerald-50">Tổng</th>
                 {activeBranches.map((branch) => (
                   <th key={branch.id} className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700">
                     {branch.id}
@@ -206,6 +245,12 @@ export function CrossBranchInventory() {
                   <td className="px-2 sm:px-6 py-2 sm:py-4 font-medium text-gray-900">{item.name}</td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4 text-gray-600">{item.unit}</td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4 text-gray-600">{item.minStock}</td>
+                  <td className="px-2 sm:px-6 py-2 sm:py-4 text-center font-black text-emerald-800 bg-emerald-50/60">
+                    {activeBranches.reduce(
+                      (sum, branch) => sum + (branchInventories.get(branch.id)?.find((i) => i.id === item.id)?.currentStock ?? 0),
+                      0
+                    )}
+                  </td>
                   {activeBranches.map((branch) => {
                     const inv = branchInventories
                       .get(branch.id)
@@ -239,6 +284,62 @@ export function CrossBranchInventory() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Lịch sử nhập/xuất kho */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <History className="w-5 h-5 text-gray-500" />
+          <h3 className="font-bold text-gray-800">Lịch sử nhập / xuất kho</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Thời gian</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Loại</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Nguyên liệu</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700">Số lượng</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700">Chi nhánh</th>
+                <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {movementsLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Đang tải lịch sử...</td>
+                </tr>
+              ) : movements.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Chưa có lịch sử nhập/xuất kho.</td>
+                </tr>
+              ) : (
+                movements.map((m) => {
+                  const meta = MOVEMENT_LABELS[m.type] || { label: m.type, className: 'text-gray-700 bg-gray-100' };
+                  const isOutbound = m.type === 'sale' || m.type === 'waste';
+                  return (
+                    <tr key={m.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-2 sm:px-6 py-2 sm:py-3 text-gray-600 whitespace-nowrap">
+                        {new Date(m.timestamp).toLocaleString('vi-VN')}
+                      </td>
+                      <td className="px-2 sm:px-6 py-2 sm:py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${meta.className}`}>
+                          {meta.label}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-6 py-2 sm:py-3 font-medium text-gray-900">{m.itemName}</td>
+                      <td className={`px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold ${isOutbound ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {isOutbound ? '-' : '+'}{Math.abs(m.quantity)}
+                      </td>
+                      <td className="px-2 sm:px-6 py-2 sm:py-3 text-center text-gray-600">{m.branchId || '—'}</td>
+                      <td className="px-2 sm:px-6 py-2 sm:py-3 text-gray-500">{m.reason || '—'}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

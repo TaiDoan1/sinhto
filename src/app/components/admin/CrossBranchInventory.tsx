@@ -6,6 +6,7 @@ import {
 import { useBranches } from '../../contexts/BranchContext';
 import { useSSE } from '../../contexts/SSEContext';
 import { useToast } from '../../contexts/ToastContext';
+import { BranchInventory as BranchStockDetail } from './BranchInventory';
 import * as api from '../../utils/api';
 
 export interface InventoryItem {
@@ -112,6 +113,8 @@ export function CrossBranchInventory() {
   const [branchInventories, setBranchInventories] = useState<Map<string, BranchInventory[]>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedBranchDetail, setSelectedBranchDetail] = useState<string | null>(null);
+  const [branchProductStats, setBranchProductStats] = useState<Record<string, { bags: number; portions: number }>>({});
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(true);
   const [moveModal, setMoveModal] = useState<{
@@ -220,14 +223,37 @@ export function CrossBranchInventory() {
     loadReceipts();
   }, [loadReceipts]);
 
+  const loadBranchStats = useCallback(async () => {
+    const stats: Record<string, { bags: number; portions: number }> = {};
+    for (const branch of activeBranches) {
+      try {
+        const inv = parseProductInventory(await api.fetchSetting(`branchProductInventory_${branch.id}`));
+        const bags = Object.values(inv.smoothies).reduce(
+          (sum, variants) => sum + Object.values(variants).reduce((s, v) => s + (Number(v) || 0), 0),
+          0
+        );
+        const portions = Object.values(inv.toppings).reduce((s, v) => s + (Number(v) || 0), 0);
+        stats[branch.id] = { bags, portions };
+      } catch {
+        stats[branch.id] = { bags: 0, portions: 0 };
+      }
+    }
+    setBranchProductStats(stats);
+  }, [activeBranches]);
+
+  useEffect(() => {
+    loadBranchStats();
+  }, [loadBranchStats]);
+
   useEffect(() => {
     const unsub1 = subscribe('STOCK_RECEIPT_CREATED', () => loadReceipts());
-    const unsub2 = subscribe('STOCK_RECEIPT_UPDATED', () => loadReceipts());
+    const unsub2 = subscribe('STOCK_RECEIPT_UPDATED', () => { loadReceipts(); loadBranchStats(); });
     const unsub3 = subscribe('SETTING_UPDATED', (payload: { key: string; value: unknown }) => {
       if (payload?.key === CENTRAL_KEY) setCentralInv(parseProductInventory(payload.value));
+      if (payload?.key?.startsWith('branchProductInventory_')) loadBranchStats();
     });
     return () => { unsub1(); unsub2(); unsub3(); };
-  }, [subscribe, loadReceipts]);
+  }, [subscribe, loadReceipts, loadBranchStats]);
 
   const handleMoveStock = async () => {
     if (!moveModal || !moveModal.fromBranch || !moveModal.toBranch) return;
@@ -577,8 +603,80 @@ export function CrossBranchInventory() {
       )}
 
       {/* ============ TAB: TỒN KHO CHI NHÁNH (nguyên liệu) ============ */}
-      {activeTab === 'overview' && (
+      {activeTab === 'overview' && selectedBranchDetail && (
         <>
+          {/* Thanh điều hướng chi nhánh đang xem */}
+          <div className="bg-white rounded-xl shadow-md p-3 sm:p-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedBranchDetail(null)}
+              className="flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-900"
+            >
+              <ChevronRight className="w-4 h-4 rotate-180" />
+              Danh sách chi nhánh
+            </button>
+            <div className="h-5 w-px bg-gray-200" />
+            <span className="text-sm text-gray-500">Đang xem:</span>
+            <select
+              value={selectedBranchDetail}
+              onChange={(e) => setSelectedBranchDetail(e.target.value)}
+              className="border rounded-lg px-3 py-1.5 text-sm font-bold text-gray-800"
+            >
+              {activeBranches.map((b) => (
+                <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tồn kho sản phẩm của chi nhánh + nút tạo phiếu nhập kho */}
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
+            <BranchStockDetail key={selectedBranchDetail} branchId={selectedBranchDetail} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'overview' && !selectedBranchDetail && (
+        <>
+          {/* Chọn chi nhánh để xem tồn kho chi tiết */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeBranches.map((branch) => {
+              const stats = branchProductStats[branch.id];
+              return (
+                <button
+                  type="button"
+                  key={branch.id}
+                  onClick={() => setSelectedBranchDetail(branch.id)}
+                  className="text-left bg-white rounded-xl shadow-md p-5 border-2 border-transparent hover:border-emerald-400 hover:shadow-lg transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
+                      {branch.id}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-600 transition-colors" />
+                  </div>
+                  <div className="font-bold text-gray-900 mb-3">{branch.name}</div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <span className={`font-black ${(stats?.bags ?? 0) <= 0 ? 'text-red-500' : 'text-emerald-700'}`}>
+                        {stats?.bags ?? '…'}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-1">túi vị</span>
+                    </div>
+                    <div>
+                      <span className={`font-black ${(stats?.portions ?? 0) <= 0 ? 'text-red-500' : 'text-violet-700'}`}>
+                        {stats?.portions ?? '…'}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-1">phần topping</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs font-bold text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Xem chi tiết & nhập kho →
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
             <div className="flex flex-wrap gap-2">
               {categories.map((cat) => (

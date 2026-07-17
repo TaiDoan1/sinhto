@@ -294,6 +294,17 @@ async function init() {
     )`,
     "ALTER TABLE inventory_movements ADD COLUMN branchId TEXT DEFAULT 'CN1'",
     "ALTER TABLE inventory_movements ADD COLUMN receiptId TEXT",
+    `CREATE TABLE IF NOT EXISTS stock_receipts (
+      id TEXT PRIMARY KEY,
+      createdAt TEXT,
+      branchId TEXT,
+      createdBy TEXT,
+      note TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      lines TEXT DEFAULT '[]',
+      approvedAt TEXT,
+      approvedBy TEXT
+    )`,
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

@@ -1007,6 +1007,204 @@ app.delete('/api/shifts/:id', (req, res) => {
   });
 });
 
+// --- STOCK RECEIPTS API (phiếu nhập kho chi nhánh, duyệt từ kho tổng) ---
+const CENTRAL_STOCK_KEY = 'centralProductInventory';
+
+function pRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function onRun(err) {
+      if (err) reject(err);
+      else resolve({ changes: this && this.changes });
+    });
+  });
+}
+function pGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+}
+function pAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
+  });
+}
+
+async function readProductSetting(key) {
+  const row = await pGet('SELECT value FROM settings WHERE key = ?', [key]);
+  let parsed = {};
+  if (row && row.value) {
+    try { parsed = JSON.parse(row.value); } catch { parsed = {}; }
+  }
+  return {
+    smoothies: (parsed && parsed.smoothies) || {},
+    toppings: (parsed && parsed.toppings) || {},
+  };
+}
+
+async function writeProductSetting(key, value) {
+  await pRun('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, JSON.stringify(value)]);
+  broadcast('SETTING_UPDATED', { key, value });
+}
+
+function getProductQty(inv, line) {
+  if (line.type === 'topping') return Number(inv.toppings[line.productId]) || 0;
+  return Number((inv.smoothies[line.productId] || {})[line.variantKey]) || 0;
+}
+
+function setProductQty(inv, line, qty) {
+  const safe = Math.max(0, qty);
+  if (line.type === 'topping') {
+    inv.toppings[line.productId] = safe;
+  } else {
+    if (!inv.smoothies[line.productId]) inv.smoothies[line.productId] = {};
+    inv.smoothies[line.productId][line.variantKey] = safe;
+  }
+}
+
+function parseReceiptRow(row) {
+  let lines = [];
+  try { lines = JSON.parse(row.lines || '[]'); } catch { lines = []; }
+  return { ...row, lines };
+}
+
+app.get('/api/stock-receipts', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const rows = status
+      ? await pAll('SELECT * FROM stock_receipts WHERE status = ? ORDER BY createdAt DESC', [status])
+      : await pAll('SELECT * FROM stock_receipts ORDER BY createdAt DESC');
+    res.json(rows.map(parseReceiptRow));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stock-receipts', async (req, res) => {
+  try {
+    const { branchId, createdBy, note, lines } = req.body || {};
+    const validLines = (Array.isArray(lines) ? lines : []).filter(
+      (l) => l && l.productId && Number(l.quantity) > 0 && (l.type === 'topping' || l.variantKey)
+    );
+    if (!branchId) return res.status(400).json({ error: 'branchId required' });
+    if (validLines.length === 0) return res.status(400).json({ error: 'Phieu can it nhat 1 san pham' });
+
+    const receipt = {
+      id: `PNK-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      createdAt: new Date().toISOString(),
+      branchId,
+      createdBy: normStr(createdBy || 'Admin'),
+      note: normStr(note || ''),
+      status: 'pending',
+      lines: validLines.map((l) => ({
+        productId: l.productId,
+        productName: normStr(l.productName || l.productId),
+        type: l.type === 'topping' ? 'topping' : 'smoothie',
+        variantKey: l.type === 'topping' ? null : l.variantKey,
+        quantity: Number(l.quantity),
+      })),
+    };
+
+    await pRun(
+      `INSERT INTO stock_receipts (id, createdAt, branchId, createdBy, note, status, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [receipt.id, receipt.createdAt, receipt.branchId, receipt.createdBy, receipt.note, receipt.status, JSON.stringify(receipt.lines)]
+    );
+    broadcast('STOCK_RECEIPT_CREATED', receipt);
+    res.json(receipt);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stock-receipts/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const approvedBy = normStr((req.body && req.body.approvedBy) || 'Admin');
+    const row = await pGet('SELECT * FROM stock_receipts WHERE id = ?', [id]);
+    if (!row) return res.status(404).json({ error: 'Khong tim thay phieu' });
+    if (row.status !== 'pending') return res.status(400).json({ error: 'Phieu da duoc xu ly roi' });
+    const receipt = parseReceiptRow(row);
+
+    const central = await readProductSetting(CENTRAL_STOCK_KEY);
+    const branchKey = `branchProductInventory_${receipt.branchId}`;
+    const branchInv = await readProductSetting(branchKey);
+
+    // Kiểm tra kho tổng đủ hàng cho TOÀN BỘ phiếu trước khi trừ bất cứ dòng nào
+    const shortages = [];
+    for (const line of receipt.lines) {
+      const have = getProductQty(central, line);
+      if (have < line.quantity) {
+        shortages.push({
+          productName: line.productName,
+          variantKey: line.variantKey,
+          need: line.quantity,
+          have,
+        });
+      }
+    }
+    if (shortages.length > 0) {
+      return res.status(400).json({ error: 'Kho tong khong du hang', shortages });
+    }
+
+    for (const line of receipt.lines) {
+      setProductQty(central, line, getProductQty(central, line) - line.quantity);
+      setProductQty(branchInv, line, getProductQty(branchInv, line) + line.quantity);
+    }
+
+    const approvedAt = new Date().toISOString();
+    await writeProductSetting(CENTRAL_STOCK_KEY, central);
+    await writeProductSetting(branchKey, branchInv);
+    await pRun('UPDATE stock_receipts SET status = ?, approvedAt = ?, approvedBy = ? WHERE id = ?', [
+      'approved', approvedAt, approvedBy, id,
+    ]);
+
+    // Ghi movement 'purchase' để chi nhánh được tính là đã nhập kho lần đầu (mở khóa POS)
+    for (const line of receipt.lines) {
+      await pRun(
+        `INSERT INTO inventory_movements (id, timestamp, type, orderId, itemId, itemName, quantity, reason, performedBy, cost, branchId, receiptId)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          approvedAt,
+          'purchase',
+          null,
+          line.productId,
+          line.variantKey ? `${line.productName} (${line.variantKey})` : line.productName,
+          line.quantity,
+          `Nhap tu kho tong - phieu ${id}`,
+          approvedBy,
+          0,
+          receipt.branchId,
+          id,
+        ]
+      ).catch(() => {});
+    }
+
+    const updated = parseReceiptRow(await pGet('SELECT * FROM stock_receipts WHERE id = ?', [id]));
+    broadcast('STOCK_RECEIPT_UPDATED', updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stock-receipts/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const approvedBy = normStr((req.body && req.body.approvedBy) || 'Admin');
+    const row = await pGet('SELECT * FROM stock_receipts WHERE id = ?', [id]);
+    if (!row) return res.status(404).json({ error: 'Khong tim thay phieu' });
+    if (row.status !== 'pending') return res.status(400).json({ error: 'Phieu da duoc xu ly roi' });
+    await pRun('UPDATE stock_receipts SET status = ?, approvedAt = ?, approvedBy = ? WHERE id = ?', [
+      'rejected', new Date().toISOString(), approvedBy, id,
+    ]);
+    const updated = parseReceiptRow(await pGet('SELECT * FROM stock_receipts WHERE id = ?', [id]));
+    broadcast('STOCK_RECEIPT_UPDATED', updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- SETTINGS API ---
 app.get('/api/settings/:key', (req, res) => {
   const { key } = req.params;

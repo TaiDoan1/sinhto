@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Truck, X, Coffee, Layers3, Save, Search, Trash2, PackageCheck } from 'lucide-react';
-import { useInventory, type StockReceipt } from '../../contexts/InventoryContext';
+import { Plus, Truck, X, Coffee, Layers3, Save, Search, Trash2, PackageCheck, Clock } from 'lucide-react';
+import { useInventory } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
 import * as api from '../../utils/api';
 
@@ -24,6 +24,24 @@ type ProductInventoryState = {
 
 type EditingProduct = { product: MenuProduct; type: 'smoothie' | 'topping' } | null;
 
+interface ReceiptLine {
+  productId: string;
+  productName: string;
+  type: 'smoothie' | 'topping';
+  variantKey: string | null;
+  quantity: string;
+}
+
+interface CreatedStockReceipt {
+  id: string;
+  createdAt: string;
+  branchId: string;
+  createdBy: string;
+  note: string;
+  status: string;
+  lines: { productId: string; productName: string; type: string; variantKey: string | null; quantity: number }[];
+}
+
 const PRODUCT_VOLUMES = ['360ml', '500ml', '700ml'];
 const PRODUCT_SIZES = ['S', 'M', 'L'];
 
@@ -45,17 +63,15 @@ function parseProductInventory(data: unknown): ProductInventoryState {
 }
 
 export function BranchInventory({ branchId }: BranchInventoryProps) {
-  const { inventory, loadForBranch, purchaseStockBatch, isWarehouseReady } = useInventory();
+  const { loadForBranch, isWarehouseReady } = useInventory();
   const { subscribe } = useSSE();
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [purchaseLines, setPurchaseLines] = useState<{ itemId: string; quantity: string }[]>([
-    { itemId: '', quantity: '' },
-  ]);
-  const [purchaseSupplier, setPurchaseSupplier] = useState('');
+  const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([]);
+  const [receiptSearch, setReceiptSearch] = useState('');
   const [purchaseNote, setPurchaseNote] = useState('');
   const [purchaseSaving, setPurchaseSaving] = useState(false);
-  const [createdReceipt, setCreatedReceipt] = useState<StockReceipt | null>(null);
+  const [createdReceipt, setCreatedReceipt] = useState<CreatedStockReceipt | null>(null);
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productInventory, setProductInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
@@ -113,45 +129,66 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     return Object.values(variants).reduce((sum, v) => sum + (Number(v) || 0), 0);
   };
 
-  const openPurchase = (itemId?: string) => {
-    setPurchaseLines([{ itemId: itemId || '', quantity: '' }]);
-    setPurchaseSupplier('');
+  const openPurchase = () => {
+    setReceiptLines([]);
+    setReceiptSearch('');
     setPurchaseNote('');
     setCreatedReceipt(null);
     setShowPurchaseModal(true);
   };
 
-  const addPurchaseLine = () => {
-    setPurchaseLines((prev) => [...prev, { itemId: '', quantity: '' }]);
+  const addReceiptLine = (product: MenuProduct) => {
+    const type: ReceiptLine['type'] = product.category === 'toppings' ? 'topping' : 'smoothie';
+    setReceiptLines((prev) => [
+      ...prev,
+      {
+        productId: product.id,
+        productName: product.name,
+        type,
+        variantKey: type === 'smoothie' ? `${PRODUCT_VOLUMES[0]}-${PRODUCT_SIZES[0]}` : null,
+        quantity: '',
+      },
+    ]);
   };
 
-  const removePurchaseLine = (index: number) => {
-    setPurchaseLines((prev) => prev.filter((_, i) => i !== index));
+  const removeReceiptLine = (index: number) => {
+    setReceiptLines((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updatePurchaseLine = (index: number, patch: Partial<{ itemId: string; quantity: string }>) => {
-    setPurchaseLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+  const updateReceiptLine = (index: number, patch: Partial<ReceiptLine>) => {
+    setReceiptLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   };
+
+  const receiptPickerProducts = useMemo(() => {
+    const term = receiptSearch.trim().toLowerCase();
+    return products.filter(
+      (p) => !term || p.name.toLowerCase().includes(term) || p.id.toLowerCase().includes(term)
+    );
+  }, [products, receiptSearch]);
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validLines = purchaseLines
-      .filter((l) => l.itemId && Number(l.quantity) > 0)
-      .map((l) => ({ itemId: l.itemId, quantity: Number(l.quantity) }));
-    if (validLines.length === 0) return alert('Chọn ít nhất một nguyên liệu và số lượng nhập');
+    const validLines = receiptLines
+      .filter((l) => Number(l.quantity) > 0)
+      .map((l) => ({
+        productId: l.productId,
+        productName: l.productName,
+        type: l.type,
+        variantKey: l.variantKey,
+        quantity: Number(l.quantity),
+      }));
+    if (validLines.length === 0) return alert('Chọn ít nhất một sản phẩm và số lượng nhập');
     setPurchaseSaving(true);
     try {
-      const receipt = await purchaseStockBatch(
-        validLines,
-        'Admin',
-        purchaseNote || 'Nhap kho',
-        purchaseSupplier || undefined
-      );
-      if (receipt) {
-        setCreatedReceipt(receipt);
-      } else {
-        alert('Nhập kho thất bại');
-      }
+      const receipt = await api.createStockReceipt({
+        branchId,
+        createdBy: 'Admin',
+        note: purchaseNote,
+        lines: validLines,
+      });
+      setCreatedReceipt(receipt);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Tạo phiếu thất bại');
     } finally {
       setPurchaseSaving(false);
     }
@@ -445,129 +482,192 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
       )}
 
       {showPurchaseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Truck className="w-6 h-6 text-emerald-600" /> Phiếu Nhập Kho — {branchId}
-              </h3>
-              <button type="button" onClick={() => setShowPurchaseModal(false)}>
-                <X className="w-5 h-5 text-gray-400" />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-emerald-700 to-teal-600 text-white px-6 py-4 rounded-t-2xl flex justify-between items-center z-10">
+              <div>
+                <h3 className="text-lg font-black flex items-center gap-2">
+                  <Truck className="w-5 h-5" /> Phiếu Nhập Kho — {branchId}
+                </h3>
+                <p className="text-xs text-emerald-100 mt-0.5">
+                  Chọn sản phẩm từ kho tổng · phiếu sẽ chờ admin duyệt trước khi cộng kho
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPurchaseModal(false)}
+                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {createdReceipt ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                  <PackageCheck className="w-6 h-6" />
-                  Tạo phiếu nhập kho thành công!
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-2 text-amber-700 font-bold">
+                  <Clock className="w-6 h-6" />
+                  Phiếu đã gửi — đang chờ admin duyệt
                 </div>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm space-y-1">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-1">
                   <div className="text-gray-500">
-                    Thời gian: <span className="font-semibold text-gray-800">{createdReceipt.timestamp.toLocaleString('vi-VN')}</span>
+                    Mã phiếu: <span className="font-bold text-gray-800">{createdReceipt.id}</span>
+                  </div>
+                  <div className="text-gray-500">
+                    Thời gian tạo:{' '}
+                    <span className="font-semibold text-gray-800">
+                      {new Date(createdReceipt.createdAt).toLocaleString('vi-VN', {
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                      })}
+                    </span>
                   </div>
                   <div className="text-gray-500">
                     Chi nhánh: <span className="font-semibold text-gray-800">{createdReceipt.branchId}</span>
                   </div>
                   <div className="text-gray-500">
-                    Người nhập: <span className="font-semibold text-gray-800">{createdReceipt.performedBy}</span>
+                    Người tạo: <span className="font-semibold text-gray-800">{createdReceipt.createdBy}</span>
                   </div>
-                  <div className="text-gray-500">
-                    Ghi chú: <span className="font-semibold text-gray-800">{createdReceipt.reason}</span>
-                  </div>
+                  {createdReceipt.note && (
+                    <div className="text-gray-500">
+                      Ghi chú: <span className="font-semibold text-gray-800">{createdReceipt.note}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="border rounded-lg divide-y">
-                  {createdReceipt.lines.map((line) => (
-                    <div key={line.itemId} className="flex items-center justify-between px-4 py-2 text-sm">
-                      <span className="font-medium text-gray-800">{line.itemName}</span>
+                <div className="border rounded-xl divide-y">
+                  {createdReceipt.lines.map((line, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="font-medium text-gray-800">
+                        {line.productName}
+                        {line.variantKey && <span className="text-gray-400 ml-1.5 text-xs">{line.variantKey}</span>}
+                      </span>
                       <span className="font-bold text-emerald-700">+{line.quantity}</span>
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between px-1 text-sm font-bold text-gray-800">
-                  <span>Tổng giá trị</span>
-                  <span>{createdReceipt.totalCost.toLocaleString('vi-VN')}đ</span>
-                </div>
                 <button
                   type="button"
                   onClick={() => setShowPurchaseModal(false)}
-                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-xl font-bold"
                 >
                   Đóng
                 </button>
               </div>
             ) : (
-              <form onSubmit={handlePurchaseSubmit} className="space-y-4">
-                <div className="space-y-3">
-                  {purchaseLines.map((line, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <select
-                        value={line.itemId}
-                        onChange={(e) => updatePurchaseLine(index, { itemId: e.target.value })}
-                        className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                        required
-                      >
-                        <option value="">-- Chọn nguyên liệu --</option>
-                        {inventory.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} (còn {item.currentStock} {item.unit})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={line.quantity}
-                        onChange={(e) => updatePurchaseLine(index, { quantity: e.target.value })}
-                        placeholder="SL"
-                        className="w-24 border rounded-lg px-3 py-2 text-sm"
-                        required
-                      />
+              <form onSubmit={handlePurchaseSubmit} className="p-6 space-y-5">
+                {/* Tìm & chọn sản phẩm */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">1. Tìm sản phẩm cần nhập</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={receiptSearch}
+                      onChange={(e) => setReceiptSearch(e.target.value)}
+                      placeholder="Gõ tên vị hoặc topping..."
+                      className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 outline-none text-sm"
+                    />
+                  </div>
+                  <div className="mt-2 max-h-36 overflow-y-auto flex flex-wrap gap-1.5">
+                    {receiptPickerProducts.map((p) => (
                       <button
                         type="button"
-                        onClick={() => removePurchaseLine(index)}
-                        disabled={purchaseLines.length === 1}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30"
+                        key={p.id}
+                        onClick={() => addReceiptLine(p)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                          p.category === 'toppings'
+                            ? 'border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Plus className="w-3 h-3" />
+                        {p.name}
                       </button>
+                    ))}
+                    {receiptPickerProducts.length === 0 && (
+                      <span className="text-xs text-gray-400 py-2">Không có sản phẩm nào khớp.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Các dòng đã chọn */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    2. Sản phẩm trong phiếu ({receiptLines.length})
+                  </label>
+                  {receiptLines.length === 0 ? (
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl py-6 text-center text-sm text-gray-400">
+                      Bấm vào sản phẩm phía trên để thêm vào phiếu
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addPurchaseLine}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-                  >
-                    <Plus className="w-4 h-4" /> Thêm dòng
-                  </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {receiptLines.map((line, index) => (
+                        <div
+                          key={`${line.productId}-${index}`}
+                          className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"
+                        >
+                          <span
+                            className={`shrink-0 w-2 h-2 rounded-full ${
+                              line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'
+                            }`}
+                          />
+                          <span className="flex-1 text-sm font-semibold text-gray-800 truncate">{line.productName}</span>
+                          {line.type === 'smoothie' && (
+                            <select
+                              value={line.variantKey || ''}
+                              onChange={(e) => updateReceiptLine(index, { variantKey: e.target.value })}
+                              className="border rounded-lg px-2 py-1.5 text-xs bg-white"
+                            >
+                              {PRODUCT_VOLUMES.map((vol) =>
+                                PRODUCT_SIZES.map((size) => (
+                                  <option key={`${vol}-${size}`} value={`${vol}-${size}`}>
+                                    {vol} · {size}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={line.quantity}
+                            onChange={(e) => updateReceiptLine(index, { quantity: e.target.value })}
+                            placeholder="SL"
+                            className="w-20 border rounded-lg px-2 py-1.5 text-sm text-center bg-white"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeReceiptLine(index)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {/* Ghi chú */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nhà cung cấp</label>
-                  <input
-                    type="text"
-                    value={purchaseSupplier}
-                    onChange={(e) => setPurchaseSupplier(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
-                    placeholder="Tùy chọn"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Ghi chú</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">3. Ghi chú (tùy chọn)</label>
                   <input
                     type="text"
                     value={purchaseNote}
                     onChange={(e) => setPurchaseNote(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
-                    placeholder="Phiếu nhập kho..."
+                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 outline-none"
+                    placeholder="VD: Nhập bổ sung cuối tuần..."
                   />
                 </div>
+
                 <button
                   type="submit"
-                  disabled={purchaseSaving}
-                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
+                  disabled={purchaseSaving || receiptLines.length === 0}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 transition-colors"
                 >
-                  {purchaseSaving ? 'Đang lưu...' : 'Tạo phiếu nhập kho'}
+                  <PackageCheck className="w-5 h-5" />
+                  {purchaseSaving ? 'Đang gửi phiếu...' : 'Gửi phiếu chờ duyệt'}
                 </button>
               </form>
             )}

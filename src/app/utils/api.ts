@@ -74,6 +74,59 @@ export async function updateInventory(items: any[], movements: any[], branchId: 
   return res.json();
 }
 
+// --- Phiếu nhập kho (kho tổng → chi nhánh) ---
+export async function fetchStockReceipts(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await fetch(`${BASE_URL}/stock-receipts${qs}`);
+  if (!res.ok) throw new Error('Failed to fetch stock receipts');
+  return res.json();
+}
+
+export async function createStockReceipt(payload: {
+  branchId: string;
+  createdBy: string;
+  note?: string;
+  lines: { productId: string; productName: string; type: 'smoothie' | 'topping'; variantKey?: string | null; quantity: number }[];
+}) {
+  const res = await fetch(`${BASE_URL}/stock-receipts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to create stock receipt');
+  }
+  return res.json();
+}
+
+export async function approveStockReceipt(id: string, approvedBy: string) {
+  const res = await fetch(`${BASE_URL}/stock-receipts/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approvedBy }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const shortText = Array.isArray(data.shortages) && data.shortages.length > 0
+      ? ` Thiếu: ${data.shortages.map((s: any) => `${s.productName}${s.variantKey ? ` ${s.variantKey}` : ''} (cần ${s.need}, còn ${s.have})`).join(', ')}`
+      : '';
+    throw new Error((data.error || 'Failed to approve stock receipt') + shortText);
+  }
+  return data;
+}
+
+export async function rejectStockReceipt(id: string, approvedBy: string) {
+  const res = await fetch(`${BASE_URL}/stock-receipts/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approvedBy }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Failed to reject stock receipt');
+  return data;
+}
+
 export async function createInventoryItem(itemData: any) {
   const res = await fetch(`${BASE_URL}/inventory`, {
     method: 'POST',

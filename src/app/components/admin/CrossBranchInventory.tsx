@@ -64,7 +64,7 @@ export function CrossBranchInventory() {
         // Fetch inventory for each branch
         for (const branch of activeBranches) {
           const branchData = (await api.fetchInventory(branch.id)) as any;
-          const itemsList = branchData.items || [];
+          const itemsList = Array.isArray(branchData) ? branchData : branchData?.items || [];
           const withStatus = itemsList.map((inv: any) => ({
             id: inv.id,
             name: inv.name,
@@ -127,11 +127,13 @@ export function CrossBranchInventory() {
     if (!moveModal || !moveModal.fromBranch || !moveModal.toBranch) return;
     try {
       // Get current inventory for both branches
-      const fromBranchData = (await api.fetchInventory(moveModal.fromBranch)) as any;
-      const toBranchData = (await api.fetchInventory(moveModal.toBranch)) as any;
+      const fromBranchRaw = (await api.fetchInventory(moveModal.fromBranch)) as any;
+      const toBranchRaw = (await api.fetchInventory(moveModal.toBranch)) as any;
+      const fromItems = Array.isArray(fromBranchRaw) ? fromBranchRaw : fromBranchRaw?.items || [];
+      const toItems = Array.isArray(toBranchRaw) ? toBranchRaw : toBranchRaw?.items || [];
 
-      const fromItem = fromBranchData.items?.find((i: any) => i.id === moveModal.itemId);
-      const toItem = toBranchData.items?.find((i: any) => i.id === moveModal.itemId);
+      const fromItem = fromItems.find((i: any) => i.id === moveModal.itemId);
+      const toItem = toItems.find((i: any) => i.id === moveModal.itemId);
 
       if (!fromItem || (fromItem.currentStock || 0) < moveModal.quantity) {
         alert('Kho không đủ hàng để chuyển.');
@@ -139,29 +141,42 @@ export function CrossBranchInventory() {
       }
 
       // Update both branches
-      const updatedFromItems = fromBranchData.items.map((i: any) =>
+      const updatedFromItems = fromItems.map((i: any) =>
         i.id === moveModal.itemId ? { ...i, currentStock: (i.currentStock || 0) - moveModal.quantity } : i
       );
-      const updatedToItems = toBranchData.items.map((i: any) =>
+      const updatedToItems = toItems.map((i: any) =>
         i.id === moveModal.itemId ? { ...i, currentStock: (i.currentStock || 0) + moveModal.quantity } : i
       );
 
-      // Create movements for tracking
-      const movement = {
-        id: `move-${Date.now()}`,
+      // Create movements for tracking — dấu số lượng phải khớp chiều tăng/giảm thực tế
+      // của từng chi nhánh (âm = xuất khỏi kho nguồn, dương = nhập vào kho đích).
+      const outMovement = {
+        id: `move-out-${Date.now()}`,
+        timestamp: new Date(),
+        type: 'adjustment' as const,
+        itemId: moveModal.itemId,
+        itemName: moveModal.itemName,
+        quantity: -moveModal.quantity,
+        reason: `Chuyển kho sang ${moveModal.toBranch}`,
+        performedBy: 'store_manager',
+        cost: 0,
+        branchId: moveModal.fromBranch,
+      };
+      const inMovement = {
+        id: `move-in-${Date.now()}`,
         timestamp: new Date(),
         type: 'adjustment' as const,
         itemId: moveModal.itemId,
         itemName: moveModal.itemName,
         quantity: moveModal.quantity,
-        reason: `Chuyển từ ${moveModal.fromBranch} sang ${moveModal.toBranch}`,
+        reason: `Chuyển kho từ ${moveModal.fromBranch}`,
         performedBy: 'store_manager',
         cost: 0,
-        branchId: moveModal.fromBranch,
+        branchId: moveModal.toBranch,
       };
 
-      await api.updateInventory(updatedFromItems, [movement], moveModal.fromBranch);
-      await api.updateInventory(updatedToItems, [], moveModal.toBranch);
+      await api.updateInventory(updatedFromItems, [outMovement], moveModal.fromBranch);
+      await api.updateInventory(updatedToItems, [inMovement], moveModal.toBranch);
 
       alert('Chuyển kho thành công!');
       setMoveModal(null);
@@ -246,10 +261,12 @@ export function CrossBranchInventory() {
                   <td className="px-2 sm:px-6 py-2 sm:py-4 text-gray-600">{item.unit}</td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4 text-gray-600">{item.minStock}</td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4 text-center font-black text-emerald-800 bg-emerald-50/60">
-                    {activeBranches.reduce(
-                      (sum, branch) => sum + (branchInventories.get(branch.id)?.find((i) => i.id === item.id)?.currentStock ?? 0),
-                      0
-                    )}
+                    {Math.round(
+                      activeBranches.reduce(
+                        (sum, branch) => sum + (branchInventories.get(branch.id)?.find((i) => i.id === item.id)?.currentStock ?? 0),
+                        0
+                      ) * 100
+                    ) / 100}
                   </td>
                   {activeBranches.map((branch) => {
                     const inv = branchInventories
@@ -319,7 +336,7 @@ export function CrossBranchInventory() {
               ) : (
                 movements.map((m) => {
                   const meta = MOVEMENT_LABELS[m.type] || { label: m.type, className: 'text-gray-700 bg-gray-100' };
-                  const isOutbound = m.type === 'sale' || m.type === 'waste';
+                  const isOutbound = m.quantity < 0;
                   return (
                     <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-2 sm:px-6 py-2 sm:py-3 text-gray-600 whitespace-nowrap">

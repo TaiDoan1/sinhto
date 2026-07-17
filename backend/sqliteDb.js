@@ -293,6 +293,7 @@ async function init() {
       createdAt TEXT
     )`,
     "ALTER TABLE inventory_movements ADD COLUMN branchId TEXT DEFAULT 'CN1'",
+    "ALTER TABLE inventory_movements ADD COLUMN receiptId TEXT",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

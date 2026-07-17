@@ -346,6 +346,7 @@ async function initSchemaAndSeeds(pool) {
   `).catch(() => {});
 
   await pool.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS "branchId" TEXT DEFAULT 'CN1'`).catch(() => {});
+  await pool.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS "receiptId" TEXT`).catch(() => {});
 
   // Add platform column to customer_care_assignments (Facebook, Zalo, etc.)
   await pool.query(`ALTER TABLE customer_care_assignments ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'facebook'`).catch(() => {});

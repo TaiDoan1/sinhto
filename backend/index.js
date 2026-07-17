@@ -403,8 +403,8 @@ app.post('/api/inventory/update', async (req, res) => {
     }
     for (const m of movements || []) {
       await client.query(
-        `INSERT INTO inventory_movements (id, timestamp, type, "orderId", "itemId", "itemName", quantity, reason, "performedBy", cost, "branchId")
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        `INSERT INTO inventory_movements (id, timestamp, type, "orderId", "itemId", "itemName", quantity, reason, "performedBy", cost, "branchId", "receiptId")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           m.id || `MOV-${Date.now()}-${Math.random()}`,
           m.timestamp || new Date().toISOString(),
@@ -417,6 +417,7 @@ app.post('/api/inventory/update', async (req, res) => {
           m.performedBy,
           m.cost,
           branchId,
+          m.receiptId || null,
         ]
       );
     }

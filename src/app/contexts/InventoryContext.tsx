@@ -42,6 +42,24 @@ export interface StockMovement {
   performedBy: string;
   cost: number;
   branchId?: string;
+  receiptId?: string;
+}
+
+export interface StockReceiptLine {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  cost: number;
+}
+
+export interface StockReceipt {
+  receiptId: string;
+  timestamp: Date;
+  branchId: string;
+  performedBy: string;
+  reason: string;
+  lines: StockReceiptLine[];
+  totalCost: number;
 }
 
 interface InventoryContextType {
@@ -56,6 +74,12 @@ interface InventoryContextType {
   getOutOfStockItems: () => InventoryItem[];
   checkCartStock: (lines: CartStockLine[]) => { ok: boolean; shortages: StockShortage[] };
   purchaseStock: (itemId: string, quantity: number, staff: string, note: string, supplier?: string) => Promise<boolean>;
+  purchaseStockBatch: (
+    lines: { itemId: string; quantity: number }[],
+    staff: string,
+    note: string,
+    supplier?: string
+  ) => Promise<StockReceipt | null>;
   deductStockForOrder: (orderId: string, lines: CartStockLine[], staff: string) => boolean;
   deductStock: (orderId: string, orderItems: string[], staff: string) => boolean;
   returnStock: (orderId: string, orderItems: CartStockLine[] | string[], reason: string, staff: string) => void;
@@ -289,6 +313,64 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  const purchaseStockBatch = async (
+    lines: { itemId: string; quantity: number }[],
+    staff: string,
+    note: string,
+    supplier?: string
+  ): Promise<StockReceipt | null> => {
+    const validLines = lines.filter((l) => l.itemId && l.quantity > 0);
+    if (validLines.length === 0 || !branchRef.current) return null;
+
+    const receiptId = `RCPT-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const timestamp = new Date();
+    const reason = supplier ? `${note} (NCC: ${supplier})` : note || 'Nhap kho';
+
+    const receiptLines: StockReceiptLine[] = [];
+    const newMovements: StockMovement[] = [];
+    let newInventory = inventory;
+
+    for (const line of validLines) {
+      const item = newInventory.find((i) => i.id === line.itemId);
+      if (!item) continue;
+      const newStock = item.currentStock + line.quantity;
+      newInventory = newInventory.map((it) => (it.id === line.itemId ? { ...it, currentStock: newStock } : it));
+      newMovements.push({
+        id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        timestamp,
+        type: 'purchase',
+        itemId: item.id,
+        itemName: item.name,
+        quantity: line.quantity,
+        reason,
+        performedBy: staff,
+        cost: line.quantity * item.cost,
+        branchId: branchRef.current,
+        receiptId,
+      });
+      receiptLines.push({
+        itemId: item.id,
+        itemName: item.name,
+        quantity: line.quantity,
+        cost: line.quantity * item.cost,
+      });
+    }
+
+    if (newMovements.length === 0) return null;
+
+    syncInventory(newInventory, newMovements);
+
+    return {
+      receiptId,
+      timestamp,
+      branchId: branchRef.current,
+      performedBy: staff,
+      reason,
+      lines: receiptLines,
+      totalCost: receiptLines.reduce((s, l) => s + l.cost, 0),
+    };
+  };
+
   const deductStockForOrder = (orderId: string, lines: CartStockLine[], staff: string): boolean => {
     // Kho theo dung tich (checkProductStock, via checkCartStock) la nguon su that
     // de chan ban hang. Tru kho nguyen lieu ben duoi la ghi nhan song song,
@@ -481,6 +563,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         getOutOfStockItems,
         checkCartStock,
         purchaseStock,
+        purchaseStockBatch,
         deductStockForOrder,
         deductStock,
         returnStock,

@@ -154,8 +154,8 @@ async function applyBranchInventoryUpdate(db, branchId, items, movements) {
     for (const m of movements || []) {
       await dbRun(
         db,
-        `INSERT INTO inventory_movements (id, timestamp, type, orderId, itemId, itemName, quantity, reason, performedBy, cost, branchId)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO inventory_movements (id, timestamp, type, orderId, itemId, itemName, quantity, reason, performedBy, cost, branchId, receiptId)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           m.id || `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           m.timestamp || new Date().toISOString(),
@@ -168,6 +168,7 @@ async function applyBranchInventoryUpdate(db, branchId, items, movements) {
           m.performedBy,
           m.cost,
           branchId,
+          m.receiptId || null,
         ]
       );
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Truck, X, Coffee, Layers3, Save, Search } from 'lucide-react';
-import { useInventory } from '../../contexts/InventoryContext';
+import { Plus, Truck, X, Coffee, Layers3, Save, Search, Trash2, PackageCheck } from 'lucide-react';
+import { useInventory, type StockReceipt } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
 import * as api from '../../utils/api';
 
@@ -45,15 +45,17 @@ function parseProductInventory(data: unknown): ProductInventoryState {
 }
 
 export function BranchInventory({ branchId }: BranchInventoryProps) {
-  const { inventory, loadForBranch, purchaseStock, isWarehouseReady } = useInventory();
+  const { inventory, loadForBranch, purchaseStockBatch, isWarehouseReady } = useInventory();
   const { subscribe } = useSSE();
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [purchaseItemId, setPurchaseItemId] = useState('');
-  const [purchaseQty, setPurchaseQty] = useState('');
+  const [purchaseLines, setPurchaseLines] = useState<{ itemId: string; quantity: string }[]>([
+    { itemId: '', quantity: '' },
+  ]);
   const [purchaseSupplier, setPurchaseSupplier] = useState('');
   const [purchaseNote, setPurchaseNote] = useState('');
   const [purchaseSaving, setPurchaseSaving] = useState(false);
+  const [createdReceipt, setCreatedReceipt] = useState<StockReceipt | null>(null);
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productInventory, setProductInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
@@ -112,29 +114,41 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   };
 
   const openPurchase = (itemId?: string) => {
-    setPurchaseItemId(itemId || '');
-    setPurchaseQty('');
+    setPurchaseLines([{ itemId: itemId || '', quantity: '' }]);
     setPurchaseSupplier('');
     setPurchaseNote('');
+    setCreatedReceipt(null);
     setShowPurchaseModal(true);
+  };
+
+  const addPurchaseLine = () => {
+    setPurchaseLines((prev) => [...prev, { itemId: '', quantity: '' }]);
+  };
+
+  const removePurchaseLine = (index: number) => {
+    setPurchaseLines((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updatePurchaseLine = (index: number, patch: Partial<{ itemId: string; quantity: string }>) => {
+    setPurchaseLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   };
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const qty = Number(purchaseQty);
-    if (!purchaseItemId || !qty || qty <= 0) return alert('Chọn nguyên liệu và số lượng nhập');
+    const validLines = purchaseLines
+      .filter((l) => l.itemId && Number(l.quantity) > 0)
+      .map((l) => ({ itemId: l.itemId, quantity: Number(l.quantity) }));
+    if (validLines.length === 0) return alert('Chọn ít nhất một nguyên liệu và số lượng nhập');
     setPurchaseSaving(true);
     try {
-      const ok = await purchaseStock(
-        purchaseItemId,
-        qty,
+      const receipt = await purchaseStockBatch(
+        validLines,
         'Admin',
         purchaseNote || 'Nhap kho',
         purchaseSupplier || undefined
       );
-      if (ok) {
-        alert('Nhập kho thành công!');
-        setShowPurchaseModal(false);
+      if (receipt) {
+        setCreatedReceipt(receipt);
       } else {
         alert('Nhập kho thất bại');
       }
@@ -432,72 +446,131 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
 
       {showPurchaseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Truck className="w-6 h-6 text-emerald-600" /> Nhập kho — {branchId}
+                <Truck className="w-6 h-6 text-emerald-600" /> Phiếu Nhập Kho — {branchId}
               </h3>
               <button type="button" onClick={() => setShowPurchaseModal(false)}>
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <form onSubmit={handlePurchaseSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Nguyên liệu</label>
-                <select
-                  value={purchaseItemId}
-                  onChange={(e) => setPurchaseItemId(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  required
-                >
-                  <option value="">-- Chọn --</option>
-                  {inventory.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} (còn {item.currentStock} {item.unit})
-                    </option>
+
+            {createdReceipt ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <PackageCheck className="w-6 h-6" />
+                  Tạo phiếu nhập kho thành công!
+                </div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm space-y-1">
+                  <div className="text-gray-500">
+                    Thời gian: <span className="font-semibold text-gray-800">{createdReceipt.timestamp.toLocaleString('vi-VN')}</span>
+                  </div>
+                  <div className="text-gray-500">
+                    Chi nhánh: <span className="font-semibold text-gray-800">{createdReceipt.branchId}</span>
+                  </div>
+                  <div className="text-gray-500">
+                    Người nhập: <span className="font-semibold text-gray-800">{createdReceipt.performedBy}</span>
+                  </div>
+                  <div className="text-gray-500">
+                    Ghi chú: <span className="font-semibold text-gray-800">{createdReceipt.reason}</span>
+                  </div>
+                </div>
+                <div className="border rounded-lg divide-y">
+                  {createdReceipt.lines.map((line) => (
+                    <div key={line.itemId} className="flex items-center justify-between px-4 py-2 text-sm">
+                      <span className="font-medium text-gray-800">{line.itemName}</span>
+                      <span className="font-bold text-emerald-700">+{line.quantity}</span>
+                    </div>
                   ))}
-                </select>
+                </div>
+                <div className="flex items-center justify-between px-1 text-sm font-bold text-gray-800">
+                  <span>Tổng giá trị</span>
+                  <span>{createdReceipt.totalCost.toLocaleString('vi-VN')}đ</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPurchaseModal(false)}
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold"
+                >
+                  Đóng
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Số lượng</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={purchaseQty}
-                  onChange={(e) => setPurchaseQty(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Nhà cung cấp</label>
-                <input
-                  type="text"
-                  value={purchaseSupplier}
-                  onChange={(e) => setPurchaseSupplier(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Tùy chọn"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Ghi chú</label>
-                <input
-                  type="text"
-                  value={purchaseNote}
-                  onChange={(e) => setPurchaseNote(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Phiếu nhập kho..."
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={purchaseSaving}
-                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
-              >
-                {purchaseSaving ? 'Đang lưu...' : 'Xác nhận nhập kho'}
-              </button>
-            </form>
+            ) : (
+              <form onSubmit={handlePurchaseSubmit} className="space-y-4">
+                <div className="space-y-3">
+                  {purchaseLines.map((line, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <select
+                        value={line.itemId}
+                        onChange={(e) => updatePurchaseLine(index, { itemId: e.target.value })}
+                        className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                        required
+                      >
+                        <option value="">-- Chọn nguyên liệu --</option>
+                        {inventory.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} (còn {item.currentStock} {item.unit})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={line.quantity}
+                        onChange={(e) => updatePurchaseLine(index, { quantity: e.target.value })}
+                        placeholder="SL"
+                        className="w-24 border rounded-lg px-3 py-2 text-sm"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePurchaseLine(index)}
+                        disabled={purchaseLines.length === 1}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addPurchaseLine}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                  >
+                    <Plus className="w-4 h-4" /> Thêm dòng
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nhà cung cấp</label>
+                  <input
+                    type="text"
+                    value={purchaseSupplier}
+                    onChange={(e) => setPurchaseSupplier(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="Tùy chọn"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Ghi chú</label>
+                  <input
+                    type="text"
+                    value={purchaseNote}
+                    onChange={(e) => setPurchaseNote(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="Phiếu nhập kho..."
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={purchaseSaving}
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
+                >
+                  {purchaseSaving ? 'Đang lưu...' : 'Tạo phiếu nhập kho'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

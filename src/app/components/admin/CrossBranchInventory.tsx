@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, ArrowRight, AlertTriangle, History } from 'lucide-react';
+import { Package, ArrowRight, AlertTriangle, History, Truck } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
 import * as api from '../../utils/api';
 
@@ -28,6 +28,18 @@ interface Movement {
   reason?: string;
   performedBy?: string;
   branchId?: string;
+  receiptId?: string;
+  cost?: number;
+}
+
+interface GroupedReceipt {
+  receiptId: string;
+  timestamp: string;
+  branchId?: string;
+  performedBy?: string;
+  reason?: string;
+  lines: Movement[];
+  totalCost: number;
 }
 
 const MOVEMENT_LABELS: Record<Movement['type'], { label: string; className: string }> = {
@@ -47,6 +59,8 @@ export function CrossBranchInventory() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+  const [expandedReceipts, setExpandedReceipts] = useState<Set<string>>(new Set());
   const [moveModal, setMoveModal] = useState<{
     fromBranch: string;
     toBranch: string;
@@ -113,7 +127,7 @@ export function CrossBranchInventory() {
       try {
         setMovementsLoading(true);
         const data = (await api.fetchMovements()) as Movement[];
-        setMovements((data || []).slice(0, 50));
+        setMovements((data || []).slice(0, 300));
       } catch (err) {
         console.error('Failed to load inventory movements:', err);
       } finally {
@@ -202,6 +216,40 @@ export function CrossBranchInventory() {
     ? items
     : items.filter((i) => i.category === selectedCategory);
 
+  const receipts: GroupedReceipt[] = (() => {
+    const map = new Map<string, GroupedReceipt>();
+    for (const m of movements) {
+      if (m.type !== 'purchase' || !m.receiptId) continue;
+      const existing = map.get(m.receiptId);
+      if (existing) {
+        existing.lines.push(m);
+        existing.totalCost += m.cost || 0;
+      } else {
+        map.set(m.receiptId, {
+          receiptId: m.receiptId,
+          timestamp: m.timestamp,
+          branchId: m.branchId,
+          performedBy: m.performedBy,
+          reason: m.reason,
+          lines: [m],
+          totalCost: m.cost || 0,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  })();
+
+  const otherMovements = movements.filter((m) => !(m.type === 'purchase' && m.receiptId));
+
+  const toggleReceipt = (receiptId: string) => {
+    setExpandedReceipts((prev) => {
+      const next = new Set(prev);
+      if (next.has(receiptId)) next.delete(receiptId);
+      else next.add(receiptId);
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -217,6 +265,29 @@ export function CrossBranchInventory() {
         <p className="text-sm sm:text-base text-gray-600">So sánh tồn kho giữa các chi nhánh và điều chuyển hàng</p>
       </div>
 
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-md p-2 flex gap-2">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${
+            activeTab === 'overview' ? 'bg-emerald-700 text-white' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Tổng Quan Tồn Kho
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'history' ? 'bg-emerald-700 text-white' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Lịch Sử Xuất Nhập Kho
+        </button>
+      </div>
+
+      {activeTab === 'overview' && (
+      <>
       {/* Category filter */}
       <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
         <div className="flex flex-wrap gap-2">
@@ -306,11 +377,86 @@ export function CrossBranchInventory() {
         </div>
       </div>
 
-      {/* Lịch sử nhập/xuất kho */}
+      </>
+      )}
+
+      {activeTab === 'history' && (
+      <>
+      {/* Phiếu nhập kho */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <Truck className="w-5 h-5 text-emerald-600" />
+          <h3 className="font-bold text-gray-800">Phiếu nhập kho</h3>
+        </div>
+        {movementsLoading ? (
+          <div className="px-6 py-6 text-center text-gray-400 text-sm">Đang tải...</div>
+        ) : receipts.length === 0 ? (
+          <div className="px-6 py-6 text-center text-gray-400 text-sm">Chưa có phiếu nhập kho nào.</div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {receipts.map((r) => {
+              const isOpen = expandedReceipts.has(r.receiptId);
+              return (
+                <div key={r.receiptId}>
+                  <button
+                    type="button"
+                    onClick={() => toggleReceipt(r.receiptId)}
+                    className="w-full flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div>
+                      <div className="text-sm font-bold text-gray-800">
+                        {new Date(r.timestamp).toLocaleString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {r.branchId} · {r.performedBy || 'Admin'} · {r.lines.length} nguyên liệu
+                        {r.reason ? ` · ${r.reason}` : ''}
+                      </div>
+                    </div>
+                    <div className="text-sm font-black text-emerald-700">
+                      {r.totalCost.toLocaleString('vi-VN')}đ
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="bg-emerald-50/50 px-4 sm:px-6 py-3 border-t border-emerald-100">
+                      <table className="w-full text-xs sm:text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1 font-semibold">Nguyên liệu</th>
+                            <th className="py-1 font-semibold text-center">Số lượng</th>
+                            <th className="py-1 font-semibold text-right">Thành tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {r.lines.map((line) => (
+                            <tr key={line.id}>
+                              <td className="py-1 font-medium text-gray-800">{line.itemName}</td>
+                              <td className="py-1 text-center font-semibold text-emerald-700">+{Math.abs(line.quantity)}</td>
+                              <td className="py-1 text-right text-gray-600">{(line.cost || 0).toLocaleString('vi-VN')}đ</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Xuất kho / điều chỉnh khác */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
           <History className="w-5 h-5 text-gray-500" />
-          <h3 className="font-bold text-gray-800">Lịch sử nhập / xuất kho</h3>
+          <h3 className="font-bold text-gray-800">Xuất kho / điều chỉnh / hủy hàng</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm">
@@ -329,18 +475,25 @@ export function CrossBranchInventory() {
                 <tr>
                   <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Đang tải lịch sử...</td>
                 </tr>
-              ) : movements.length === 0 ? (
+              ) : otherMovements.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Chưa có lịch sử nhập/xuất kho.</td>
+                  <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Chưa có lịch sử.</td>
                 </tr>
               ) : (
-                movements.map((m) => {
+                otherMovements.map((m) => {
                   const meta = MOVEMENT_LABELS[m.type] || { label: m.type, className: 'text-gray-700 bg-gray-100' };
                   const isOutbound = m.quantity < 0;
                   return (
                     <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-2 sm:px-6 py-2 sm:py-3 text-gray-600 whitespace-nowrap">
-                        {new Date(m.timestamp).toLocaleString('vi-VN')}
+                        {new Date(m.timestamp).toLocaleString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })}
                       </td>
                       <td className="px-2 sm:px-6 py-2 sm:py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${meta.className}`}>
@@ -361,6 +514,8 @@ export function CrossBranchInventory() {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Move stock modal */}
       {moveModal && (

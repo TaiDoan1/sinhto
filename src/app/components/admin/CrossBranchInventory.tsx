@@ -918,10 +918,11 @@ export function CrossBranchInventory() {
                                 </div>
                                 <div className="divide-y divide-gray-100">
                                   {r.lines.map((line, i) => (
-                                    <div key={i} className="flex items-center justify-between py-1.5">
-                                      <span className="font-medium text-gray-800">
+                                    <div key={i} className="flex items-center gap-2 justify-between py-1.5">
+                                      <span className="flex items-center gap-1.5 font-medium text-gray-800">
+                                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
                                         {line.productName}
-                                        {line.variantKey && <span className="text-gray-400 ml-1.5 text-xs">{line.variantKey}</span>}
+                                        {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
                                       </span>
                                       <span className="font-black text-red-600">-{line.quantity}</span>
                                     </div>
@@ -951,10 +952,11 @@ export function CrossBranchInventory() {
                                 </div>
                                 <div className="divide-y divide-gray-100">
                                   {r.lines.map((line, i) => (
-                                    <div key={i} className="flex items-center justify-between py-1.5">
-                                      <span className="font-medium text-gray-800">
+                                    <div key={i} className="flex items-center gap-2 justify-between py-1.5">
+                                      <span className="flex items-center gap-1.5 font-medium text-gray-800">
+                                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
                                         {line.productName}
-                                        {line.variantKey && <span className="text-gray-400 ml-1.5 text-xs">{line.variantKey}</span>}
+                                        {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
                                       </span>
                                       <span className="font-black text-emerald-600">+{line.quantity}</span>
                                     </div>

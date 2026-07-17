@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Truck, X, Coffee, Layers3, Save, Search, Trash2, PackageCheck, Clock } from 'lucide-react';
+import { Plus, Truck, X, Coffee, Layers3, Search, Trash2, PackageCheck, Clock } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
 import * as api from '../../utils/api';
@@ -21,8 +21,6 @@ type ProductInventoryState = {
   smoothies: Record<string, Record<string, number>>;
   toppings: Record<string, number>;
 };
-
-type EditingProduct = { product: MenuProduct; type: 'smoothie' | 'topping' } | null;
 
 interface ReceiptLine {
   productId: string;
@@ -75,8 +73,6 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productInventory, setProductInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
-  const [productSaving, setProductSaving] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<EditingProduct>(null);
 
   useEffect(() => {
     loadForBranch(branchId);
@@ -194,73 +190,14 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     }
   };
 
-  const setSmoothieVariantStock = (productId: string, variantKey: string, value: number) => {
-    setProductInventory((prev) => ({
-      ...prev,
-      smoothies: {
-        ...prev.smoothies,
-        [productId]: {
-          ...(prev.smoothies[productId] || {}),
-          [variantKey]: Math.max(0, value),
-        },
-      },
-    }));
-  };
-
-  const setToppingStock = (productId: string, value: number) => {
-    setProductInventory((prev) => ({
-      ...prev,
-      toppings: {
-        ...prev.toppings,
-        [productId]: Math.max(0, value),
-      },
-    }));
-  };
-
-  const handleSaveEditingProduct = async () => {
-    if (!editingProduct) return;
-    setProductSaving(true);
-    try {
-      const key = productInventoryKeyFor(branchId);
-      // Lấy bản mới nhất từ server trước khi lưu, để không ghi đè thay đổi
-      // của máy khác (VD: nhân viên khác vừa nhập kho vị/topping khác lúc này).
-      let latest = EMPTY_PRODUCT_INVENTORY;
-      try {
-        latest = parseProductInventory(await api.fetchSetting(key));
-      } catch {
-        // Chưa từng lưu kho sản phẩm cho chi nhánh này — bắt đầu từ rỗng.
-      }
-
-      const merged: ProductInventoryState = {
-        smoothies: { ...latest.smoothies },
-        toppings: { ...latest.toppings },
-      };
-
-      if (editingProduct.type === 'smoothie') {
-        merged.smoothies[editingProduct.product.id] = {
-          ...(productInventory.smoothies[editingProduct.product.id] || {}),
-        };
-      } else {
-        merged.toppings[editingProduct.product.id] = productInventory.toppings[editingProduct.product.id] ?? 0;
-      }
-
-      await api.saveSetting(key, merged);
-      setProductInventory(merged);
-      setEditingProduct(null);
-    } catch (err) {
-      console.error(err);
-      alert('Lưu tồn kho thất bại. Vui lòng thử lại.');
-    } finally {
-      setProductSaving(false);
-    }
-  };
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Tồn Kho — {branchId}</h2>
-          <p className="text-sm text-gray-500 mt-1">Bấm vào Vị hoặc Topping để thêm/sửa tồn kho</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Chỉ xem — muốn thêm tồn kho, bấm "Nhập Kho" để tạo phiếu chờ admin duyệt
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -304,11 +241,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
             {smoothies.map((product) => {
               const total = totalSmoothieStock(product.id);
               return (
-                <button
-                  type="button"
+                <div
                   key={product.id}
-                  onClick={() => setEditingProduct({ product, type: 'smoothie' })}
-                  className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+                  className="text-left border rounded-xl p-4 bg-gray-50"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
@@ -344,7 +279,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                       );
                     })}
                   </div>
-                </button>
+                </div>
               );
             })}
             {smoothies.length === 0 && (
@@ -362,11 +297,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
             {toppings.map((product) => {
               const qty = productInventory.toppings[product.id] ?? 0;
               return (
-                <button
-                  type="button"
+                <div
                   key={product.id}
-                  onClick={() => setEditingProduct({ product, type: 'topping' })}
-                  className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-violet-50 hover:border-violet-300 transition-colors"
+                  className="text-left border rounded-xl p-4 bg-gray-50"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
@@ -378,7 +311,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   <div className={`text-2xl font-black ${qty <= 0 ? 'text-red-500' : 'text-violet-700'}`}>
                     {qty} <span className="text-xs font-bold text-gray-400">phần</span>
                   </div>
-                </button>
+                </div>
               );
             })}
             {toppings.length === 0 && (
@@ -387,99 +320,6 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
           </div>
         </div>
       </div>
-
-      {editingProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-1">
-              <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
-                {editingProduct.type === 'smoothie' ? (
-                  <Coffee className="w-6 h-6 text-emerald-600 shrink-0" />
-                ) : (
-                  <Layers3 className="w-6 h-6 text-violet-600 shrink-0" />
-                )}
-                {editingProduct.product.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingProduct(null)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 font-semibold mb-5">{editingProduct.product.id}</p>
-
-            {editingProduct.type === 'smoothie' ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                  {PRODUCT_VOLUMES.map((volume) => (
-                    <div key={volume} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                      <div className="text-sm font-black text-emerald-700 mb-3 text-center uppercase tracking-wide">
-                        {volume}
-                      </div>
-                      <div className="space-y-2.5">
-                        {PRODUCT_SIZES.map((size) => {
-                          const variantKey = `${volume}-${size}`;
-                          return (
-                            <div key={variantKey} className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-bold text-gray-500 whitespace-nowrap">
-                                Size {size}
-                              </span>
-                              <input
-                                autoFocus={volume === PRODUCT_VOLUMES[0] && size === PRODUCT_SIZES[0]}
-                                type="number"
-                                min="0"
-                                value={productInventory.smoothies[editingProduct.product.id]?.[variantKey] ?? 0}
-                                onChange={(e) =>
-                                  setSmoothieVariantStock(
-                                    editingProduct.product.id,
-                                    variantKey,
-                                    Number(e.target.value || 0)
-                                  )
-                                }
-                                className="w-20 text-center border border-gray-300 rounded-lg px-2 py-1.5 font-bold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 mb-4">
-                  <span className="text-sm font-semibold text-emerald-800">Tổng cộng</span>
-                  <span className="text-lg font-black text-emerald-700">
-                    {totalSmoothieStock(editingProduct.product.id)} túi
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Số lượng khả dụng</label>
-                <input
-                  autoFocus
-                  type="number"
-                  min="0"
-                  value={productInventory.toppings[editingProduct.product.id] ?? 0}
-                  onChange={(e) => setToppingStock(editingProduct.product.id, Number(e.target.value || 0))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                />
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSaveEditingProduct}
-              disabled={productSaving}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white py-3 rounded-lg font-bold disabled:opacity-50"
-            >
-              <Save className="w-5 h-5" />
-              {productSaving ? 'Đang lưu...' : 'Lưu tồn kho'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {showPurchaseModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">

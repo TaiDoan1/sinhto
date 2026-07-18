@@ -26,6 +26,7 @@ export interface CustomerReceiptData {
   customerName?: string;
   customerPhone?: string;
   pointsEarned?: number;
+  note?: string;
 }
 
 const RECEIPT_STYLE = `
@@ -159,6 +160,11 @@ export async function printCustomerReceipt(data: CustomerReceiptData) {
       NV: ${data.staff || 'POS'}<br/>
       TT: ${payLabel}
     </div>
+    ${
+      data.note
+        ? `<div class="line"></div><div style="font-size:12px;font-weight:bold;border:1px dashed #000;padding:4px;">Ghi chú: ${data.note}</div>`
+        : ''
+    }
     <div class="line"></div>
     ${linesHtml}
     <div class="line"></div>

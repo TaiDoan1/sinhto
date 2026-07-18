@@ -29,6 +29,7 @@ export interface Order {
   staffId?: string;
   shiftId?: string;
   shipFee?: number;
+  note?: string;
 }
 
 interface OrderContextType {

@@ -1,4 +1,4 @@
-import { X, User, MapPin, Phone, XCircle, Edit, CheckCircle2, Clock } from 'lucide-react';
+import { X, User, MapPin, Phone, XCircle, Edit, CheckCircle2, Clock, StickyNote } from 'lucide-react';
 import type { Order } from '../../contexts/OrderContext';
 import { sourceColors, sourceLabels, statusBadgeColors, statusLabels, getPrimaryAction } from './orderQueueShared';
 
@@ -62,6 +62,16 @@ export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStat
                   </span>
                 </div>
               )}
+            </div>
+          )}
+
+          {order.note && (
+            <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-sm">
+              <div className="flex items-center gap-1.5 font-bold text-amber-800 mb-1">
+                <StickyNote className="w-4 h-4" />
+                Ghi chú ý khách
+              </div>
+              <p className="text-amber-900 whitespace-pre-wrap">{order.note}</p>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog } from 'lucide-react';
+import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog, StickyNote } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { usePos } from '../../contexts/PosContext';
@@ -70,6 +70,12 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
   const effectiveStaffName = staffOptions.find((s) => s.id === selectedStaffId)?.name || staffName;
   const effectiveStaffId = selectedStaffId || session?.employeeId || '';
 
+  // Ghi chú ý khách (VD: ít đá, không đường, giao gấp...) — nhân viên ghi lại lúc thanh toán.
+  const [orderNote, setOrderNote] = useState('');
+  useEffect(() => {
+    if (cart.length === 0) setOrderNote('');
+  }, [cart.length]);
+
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
   const total = Math.max(0, subtotal - pointsDiscount);
@@ -102,6 +108,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
     customerName: activeCustomer?.name,
     customerPhone: activeCustomer?.phone,
     pointsEarned: estimatedPointsEarned,
+    note: orderNote.trim() || undefined,
   });
 
   useEffect(() => {
@@ -158,6 +165,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       staff: effectiveStaffName,
       staffId: effectiveStaffId,
       paymentMethod: selectedPayment || undefined,
+      note: orderNote.trim() || undefined,
     });
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');
@@ -366,6 +374,21 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
         <div className="border-t p-4 space-y-3 flex-shrink-0 bg-white">
           {checkoutStep === 'cart' && (
             <>
+              {cart.length > 0 && (
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 mb-1">
+                    <StickyNote className="w-3.5 h-3.5" />
+                    Ghi chú ý khách (tùy chọn)
+                  </label>
+                  <textarea
+                    value={orderNote}
+                    onChange={(e) => setOrderNote(e.target.value)}
+                    placeholder="VD: ít đá, không đường, khách chờ lấy ngay..."
+                    rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm resize-none focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              )}
               {renderTotals(false)}
               <button
                 onClick={() => setCheckoutStep('loyalty')}

@@ -209,8 +209,8 @@ app.post('/api/orders', (req, res) => {
   const finishInsert = (salesStaffId, salesStaffName, shiftId) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
-      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -237,6 +237,7 @@ app.post('/api/orders', (req, res) => {
       order.staffId || '',
       shiftId || '',
       Number(order.shipFee) || 0,
+      normStr(order.note) || '',
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -250,6 +251,7 @@ app.post('/api/orders', (req, res) => {
         staffId: order.staffId || '',
         shiftId: shiftId || '',
         shipFee: Number(order.shipFee) || 0,
+        note: normStr(order.note) || '',
       };
 
       const phone = order.customerPhone;

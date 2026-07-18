@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, Package } from 'lucide-react';
+import { Clock, Package, StickyNote } from 'lucide-react';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { VoidOrderModal } from './VoidOrderModal';
@@ -88,6 +88,11 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-gray-800 truncate text-sm">{summary || 'Đơn hàng'}</div>
                 </div>
+                {order.note && (
+                  <span className="shrink-0 p-1 bg-amber-100 text-amber-700 rounded" title={order.note}>
+                    <StickyNote className="w-3.5 h-3.5" />
+                  </span>
+                )}
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadgeColors[order.status]}`}>
                   {statusShortLabels[order.status]}
                 </span>

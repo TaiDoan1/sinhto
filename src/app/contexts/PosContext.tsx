@@ -80,11 +80,11 @@ export function PosProvider({ children }: { children: ReactNode }) {
       throw new Error('Tài khoản chưa gắn chi nhánh. Liên hệ Admin.');
     }
 
-    // Store manager can check in at any branch via deviceBranchId
-    let sessionBranch = employee.branch;
-    if (employee.position === 'store_manager' && deviceBranchId) {
-      sessionBranch = deviceBranchId;
-    }
+    // Máy POS đã được gán cố định 1 chi nhánh (deviceBranchId). Backend chỉ cho đăng nhập
+    // nếu đó là chi nhánh chính hoặc chi nhánh hỗ trợ (secondaryBranches) của nhân viên,
+    // nên phiên làm việc phải theo chi nhánh của máy — không phải chi nhánh gốc của nhân
+    // viên — để nhân viên hỗ trợ ở chi nhánh khác đăng nhập đúng nơi họ đang làm việc.
+    const sessionBranch = deviceBranchId || employee.branch;
 
     const sess = { ...toSession(employee), branchId: sessionBranch };
     setSession(sess);

@@ -9,6 +9,7 @@ import {
   Store,
   BookOpen,
   LogOut,
+  Receipt,
   Printer,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
@@ -99,7 +100,8 @@ function POSInterfaceInner() {
     return { type: 'off', name: 'Ngoài giờ ca', color: 'bg-gray-100 text-gray-600' };
   };
 
-  const handleLogout = async () => {
+  // Kết ca: kiểm tra ca đang mở, bắt buộc chốt doanh thu/đơn trước khi đăng xuất.
+  const handleEndShift = async () => {
     if (!session) return;
     try {
       const activeShifts = (await api.fetchShifts({
@@ -116,6 +118,15 @@ function POSInterfaceInner() {
     if (confirm('Đăng xuất máy POS?')) {
       logout();
       setCart([]);
+    }
+  };
+
+  // Thoát: đăng xuất thẳng về màn hình đăng nhập, không kết ca (VD: đổi người dùng máy nhanh).
+  const handleExit = () => {
+    if (confirm('Thoát khỏi máy POS? (Không kết ca — quay lại màn hình đăng nhập)')) {
+      logout();
+      setCart([]);
+      setClosingShift(null);
     }
   };
 
@@ -303,9 +314,17 @@ function POSInterfaceInner() {
           </button>
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={handleEndShift}
+            className="shrink-0 p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md"
+            title="Kết ca"
+          >
+            <Receipt className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleExit}
             className="shrink-0 p-1.5 text-red-500 hover:bg-red-50 rounded-md"
-            title="Đăng xuất"
+            title="Thoát (không kết ca)"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -418,6 +437,7 @@ function POSInterfaceInner() {
             <CheckoutPanel
               cart={cart}
               branchId={branchId}
+              currentShifts={currentShifts}
               onRemoveItem={handleRemoveItem}
               onClearCart={handleClearCart}
             />
@@ -470,6 +490,7 @@ function POSInterfaceInner() {
         <MobileCheckoutModal
           cart={cart}
           branchId={branchId}
+          currentShifts={currentShifts}
           onClose={() => setShowMobileCheckout(false)}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}

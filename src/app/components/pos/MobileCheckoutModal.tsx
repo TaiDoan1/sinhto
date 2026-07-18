@@ -1,4 +1,4 @@
-import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { usePos } from '../../contexts/PosContext';
@@ -10,6 +10,7 @@ import { PosVoucherRedeem } from './PosVoucherRedeem';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import { usePaymentQr } from '../../hooks/usePaymentQr';
 import type { CartItem } from './ModifierModal';
+import type { Shift } from '../admin/ShiftSchedule';
 import {
   printBothAfterPayment,
   printCupLabels,
@@ -22,12 +23,13 @@ type CheckoutStep = 'cart' | 'loyalty' | 'payment';
 interface MobileCheckoutModalProps {
   cart: CartItem[];
   branchId: string;
+  currentShifts?: Shift[];
   onClose: () => void;
   onRemoveItem: (index: number) => void;
   onClearCart: () => void;
 }
 
-export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onClearCart }: MobileCheckoutModalProps) {
+export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClose, onRemoveItem, onClearCart }: MobileCheckoutModalProps) {
   const { addOrder } = useOrders();
   const { session } = usePos();
   const staffName = session?.employeeName || 'POS - Nhân viên quầy';
@@ -50,6 +52,23 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'momo' | 'zalopay' | 'qr' | null>(null);
+
+  // Khi chi nhánh có từ 2 ca đang làm trở lên, cho thu ngân chọn đúng người bán đơn này
+  // — mặc định là người đang đăng nhập, nhưng có thể đổi (VD: đổi ca giữa buổi).
+  const staffOptions = (() => {
+    const map = new Map<string, string>();
+    if (session?.employeeId) map.set(session.employeeId, session.employeeName);
+    for (const s of currentShifts) {
+      if (s.employeeId) map.set(s.employeeId, s.employeeName);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  })();
+  const [selectedStaffId, setSelectedStaffId] = useState(session?.employeeId || '');
+  useEffect(() => {
+    if (session?.employeeId) setSelectedStaffId(session.employeeId);
+  }, [session?.employeeId]);
+  const effectiveStaffName = staffOptions.find((s) => s.id === selectedStaffId)?.name || staffName;
+  const effectiveStaffId = selectedStaffId || session?.employeeId || '';
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
@@ -74,7 +93,7 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
   const buildReceipt = (orderNumber: string, now: Date, paymentMethod?: string | null) => ({
     orderNumber,
     time: now,
-    staff: staffName,
+    staff: effectiveStaffName,
     paymentMethod: paymentMethod || undefined,
     lines: cartToPrintLines(),
     subtotal,
@@ -136,8 +155,8 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
       items: orderItems,
       status: 'preparing',
       total: total,
-      staff: staffName,
-      staffId: session?.employeeId || '',
+      staff: effectiveStaffName,
+      staffId: effectiveStaffId,
       paymentMethod: selectedPayment || undefined,
     });
     if (!ok) {
@@ -153,7 +172,7 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
             customerPhone: item.rawComboData.customerPhone || activeCustomer?.phone || '',
             totalPrice: item.price,
             branchId,
-            staff: staffName,
+            staff: effectiveStaffName,
             status: 'pending',
             planName: item.name,
           });
@@ -262,6 +281,22 @@ export function MobileCheckoutModal({ cart, branchId, onClose, onRemoveItem, onC
             <X className="w-6 h-6" />
           </button>
         </div>
+
+        {staffOptions.length > 1 && (
+          <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200">
+            <UserCog className="w-4 h-4 text-amber-700 shrink-0" />
+            <label className="text-xs font-bold text-amber-800 shrink-0">Nhân viên bán:</label>
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              className="flex-1 min-w-0 border border-amber-300 rounded-lg px-2 py-1.5 text-sm font-bold text-gray-800 bg-white"
+            >
+              {staffOptions.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {checkoutStep === 'loyalty' && <LoyaltyCustomerSection orderSubtotal={subtotal} />}
 

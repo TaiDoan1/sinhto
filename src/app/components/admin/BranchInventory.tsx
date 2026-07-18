@@ -304,46 +304,66 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                       {total} túi
                     </span>
                   </div>
-                  <div className="space-y-1.5 border-t border-gray-200 pt-2">
-                    {PRODUCT_VOLUMES.map((volume) => (
-                      <div key={volume} className="flex items-center justify-between text-xs gap-1">
-                        <span className="font-bold text-gray-500 w-12 shrink-0">{volume}</span>
-                        <span className="flex gap-2 flex-1 justify-end">
-                          {PRODUCT_SIZES.map((size) => {
-                            const variantKey = `${volume}-${size}`;
-                            if (isEditing) {
+                  {isEditing ? (
+                    <div className="border-t border-gray-200 pt-2.5">
+                      <div className="grid grid-cols-[32px_repeat(3,1fr)] gap-x-2 gap-y-2">
+                        <div />
+                        {PRODUCT_SIZES.map((size) => (
+                          <div key={size} className="text-center text-[11px] font-bold text-gray-400">
+                            {size}
+                          </div>
+                        ))}
+                        {PRODUCT_VOLUMES.map((volume) => (
+                          <div key={volume} className="contents">
+                            <div className="text-[11px] font-bold text-gray-500 self-center">{volume}</div>
+                            {PRODUCT_SIZES.map((size) => {
+                              const variantKey = `${volume}-${size}`;
                               const value = draftInventory.smoothies[product.id]?.[variantKey] ?? 0;
                               const before = baselineInventory.smoothies[product.id]?.[variantKey] ?? 0;
                               const diff = value - before;
                               return (
-                                <span key={size} className="flex items-center gap-0.5">
-                                  <span className="text-gray-400 font-semibold">{size}</span>
+                                <div key={size} className="flex flex-col items-center gap-1">
                                   <input
                                     type="number"
                                     min="0"
                                     value={value}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(e) => setDraftSmoothieVariant(product.id, variantKey, Number(e.target.value || 0))}
-                                    className="w-10 text-center border rounded px-0.5 py-0.5 bg-white font-bold text-gray-800"
+                                    className="w-full text-center border-2 border-gray-200 rounded-lg py-1.5 text-sm font-bold text-gray-800 bg-white focus:border-emerald-500 outline-none"
                                   />
-                                  {diff !== 0 && (
-                                    <span className={`text-[9px] font-bold ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                      {formatSigned(diff)}
-                                    </span>
-                                  )}
+                                  <span
+                                    className={`text-[10px] font-bold leading-none ${
+                                      diff === 0 ? 'invisible' : diff > 0 ? 'text-emerald-600' : 'text-red-600'
+                                    }`}
+                                  >
+                                    {formatSigned(diff)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 border-t border-gray-200 pt-2">
+                      {PRODUCT_VOLUMES.map((volume) => (
+                        <div key={volume} className="flex items-center justify-between text-xs gap-1">
+                          <span className="font-bold text-gray-500 w-12 shrink-0">{volume}</span>
+                          <span className="flex gap-2.5">
+                            {PRODUCT_SIZES.map((size) => {
+                              const value = productInventory.smoothies[product.id]?.[`${volume}-${size}`] ?? 0;
+                              return (
+                                <span key={size} className={`font-black ${value <= 0 ? 'text-gray-300' : 'text-emerald-700'}`}>
+                                  {size}:{value}
                                 </span>
                               );
-                            }
-                            const value = productInventory.smoothies[product.id]?.[variantKey] ?? 0;
-                            return (
-                              <span key={size} className={`font-black ${value <= 0 ? 'text-gray-300' : 'text-emerald-700'}`}>
-                                {size}:{value}
-                              </span>
-                            );
-                          })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -383,8 +403,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                         type="number"
                         min="0"
                         value={value}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setDraftTopping(product.id, Number(e.target.value || 0))}
-                        className="w-16 text-center border rounded-lg px-2 py-1.5 bg-white font-bold text-gray-800"
+                        className="w-20 text-center border-2 border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold text-gray-800 focus:border-violet-500 outline-none"
                       />
                       {diff !== 0 && (
                         <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>

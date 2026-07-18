@@ -47,7 +47,7 @@ function formatSigned(n: number) {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
-const PRODUCT_VOLUMES = ['360ml', '500ml', '700ml'];
+const PRODUCT_VOLUMES = ['250ml', '360ml', '500ml', '700ml'];
 const PRODUCT_SIZES = ['S', 'M', 'L'];
 
 const EMPTY_PRODUCT_INVENTORY: ProductInventoryState = {

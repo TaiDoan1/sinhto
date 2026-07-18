@@ -78,7 +78,7 @@ const MOVEMENT_LABELS: Record<Movement['type'], { label: string; className: stri
   adjustment: { label: 'Điều chỉnh', className: 'text-violet-700 bg-violet-50' },
 };
 
-const PRODUCT_VOLUMES = ['360ml', '500ml', '700ml'];
+const PRODUCT_VOLUMES = ['250ml', '360ml', '500ml', '700ml'];
 const PRODUCT_SIZES = ['S', 'M', 'L'];
 const CENTRAL_KEY = 'centralProductInventory';
 const EMPTY_PRODUCT_INVENTORY: ProductInventoryState = { smoothies: {}, toppings: {} };

@@ -357,13 +357,50 @@ export async function fetchShifts(params?: { employeeId?: string; status?: strin
   return res.json();
 }
 
-export async function shiftCheckIn(shiftId: string, action: 'in' | 'out', photo?: string) {
+export async function shiftCheckIn(
+  shiftId: string,
+  action: 'in' | 'out',
+  photo?: string,
+  extra?: { startCash?: number; endCashActual?: number }
+) {
   const res = await fetch(`${BASE_URL}/shifts/${shiftId}/checkin`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, photo }),
+    body: JSON.stringify({ action, photo, ...extra }),
   });
   if (!res.ok) throw new Error('Chấm công thất bại');
+  return res.json();
+}
+
+export interface ShiftCashMovement {
+  id: string;
+  shiftId: string;
+  type: 'in' | 'out';
+  amount: number;
+  note: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export async function fetchCashMovements(shiftId: string): Promise<ShiftCashMovement[]> {
+  const res = await fetch(`${BASE_URL}/shifts/${shiftId}/cash-movements`);
+  if (!res.ok) throw new Error('Failed to fetch cash movements');
+  return res.json();
+}
+
+export async function addCashMovement(
+  shiftId: string,
+  payload: { type: 'in' | 'out'; amount: number; note?: string; createdBy?: string }
+): Promise<ShiftCashMovement> {
+  const res = await fetch(`${BASE_URL}/shifts/${shiftId}/cash-movements`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Ghi thu/chi thất bại');
+  }
   return res.json();
 }
 

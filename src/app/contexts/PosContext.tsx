@@ -26,6 +26,8 @@ interface PosContextType {
   clearDeviceBranch: () => void;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  pendingStartCashShiftId: string | null;
+  clearPendingStartCash: () => void;
 }
 
 const PosContext = createContext<PosContextType | undefined>(undefined);
@@ -44,6 +46,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PosSession | null>(null);
   const [deviceBranchId, setDeviceBranchIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingStartCashShiftId, setPendingStartCashShiftId] = useState<string | null>(null);
+
+  const clearPendingStartCash = () => setPendingStartCashShiftId(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(SESSION_KEY);
@@ -120,6 +125,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
 
       if (shiftToCheckIn) {
         await api.shiftCheckIn(shiftToCheckIn.id, 'in');
+        setPendingStartCashShiftId(shiftToCheckIn.id);
       }
     } catch (err) {
       console.error('Auto check-in failed:', err);
@@ -130,10 +136,11 @@ export function PosProvider({ children }: { children: ReactNode }) {
     setSession(null);
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem('pos_branch');
+    setPendingStartCashShiftId(null);
   };
 
   return (
-    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout }}>
+    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, pendingStartCashShiftId, clearPendingStartCash }}>
       {children}
     </PosContext.Provider>
   );

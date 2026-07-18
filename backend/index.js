@@ -951,7 +951,7 @@ app.put('/api/shifts/:id', (req, res) => {
 
 app.patch('/api/shifts/:id/checkin', (req, res) => {
   const { id } = req.params;
-  const { action, photo } = req.body;
+  const { action, photo, startCash, endCashActual } = req.body;
   const now = new Date().toISOString();
   db.get("SELECT * FROM shifts WHERE id = ?", [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -962,10 +962,12 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
     if (photo) updated[photoField] = photo;
     if (action === 'in') updated.status = 'in_progress';
     if (action === 'out') updated.status = 'completed';
+    if (startCash != null) updated.startCash = Number(startCash) || 0;
+    if (endCashActual != null) updated.endCashActual = Number(endCashActual) || 0;
 
     const finishUpdate = () => {
       db.run(
-        `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ?, closingOrderCount = ?, closingRevenue = ? WHERE id = ?`,
+        `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ?, closingOrderCount = ?, closingRevenue = ?, startCash = ?, endCashActual = ? WHERE id = ?`,
         [
           updated.checkIn || '',
           updated.checkOut || '',
@@ -974,6 +976,8 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
           updated.checkOutPhoto || '',
           updated.closingOrderCount ?? null,
           updated.closingRevenue ?? null,
+          updated.startCash ?? row.startCash ?? 0,
+          updated.endCashActual ?? row.endCashActual ?? 0,
           id,
         ],
         function(err2) {
@@ -998,6 +1002,48 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
       finishUpdate();
     }
   });
+});
+
+app.post('/api/shifts/:id/cash-movements', (req, res) => {
+  const { id } = req.params;
+  const { type, amount, note, createdBy } = req.body || {};
+  if (type !== 'in' && type !== 'out') {
+    return res.status(400).json({ error: 'type phải là in hoặc out' });
+  }
+  const amt = Number(amount);
+  if (!amt || amt <= 0) {
+    return res.status(400).json({ error: 'Số tiền không hợp lệ' });
+  }
+  const movement = {
+    id: `CM-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    shiftId: id,
+    type,
+    amount: amt,
+    note: normStr(note || ''),
+    createdAt: new Date().toISOString(),
+    createdBy: normStr(createdBy || ''),
+  };
+  db.run(
+    `INSERT INTO shift_cash_movements (id, shiftId, type, amount, note, createdAt, createdBy) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [movement.id, movement.shiftId, movement.type, movement.amount, movement.note, movement.createdAt, movement.createdBy],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      broadcast('SHIFT_CASH_MOVEMENT_CREATED', movement);
+      res.json(movement);
+    }
+  );
+});
+
+app.get('/api/shifts/:id/cash-movements', (req, res) => {
+  const { id } = req.params;
+  db.all(
+    "SELECT * FROM shift_cash_movements WHERE shiftId = ? ORDER BY createdAt ASC",
+    [id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows || []);
+    }
+  );
 });
 
 app.delete('/api/shifts/:id', (req, res) => {

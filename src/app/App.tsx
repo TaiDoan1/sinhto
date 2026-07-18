@@ -7,6 +7,7 @@ import { RevenueAnalytics } from "./components/admin/RevenueAnalytics";
 import { HRManagement } from "./components/admin/HRManagement";
 import { InventoryDashboard } from "./components/admin/InventoryDashboard";
 import { CrossBranchInventory } from "./components/admin/CrossBranchInventory";
+import { ShiftClosingBillSettings } from "./components/admin/ShiftClosingBillSettings";
 import { POSInterface } from "./components/pos/POSInterface";
 import { StaffApp } from "./components/staff/StaffApp";
 import { OnlineSalesApp } from "./components/online-sales/OnlineSalesApp";
@@ -190,6 +191,8 @@ function AdminShell() {
         return <InventoryDashboard />;
       case "stock":
         return <CrossBranchInventory />;
+      case "shift-bill":
+        return <ShiftClosingBillSettings />;
       case "products":
         return <ProductManagement />;
       case "combos":

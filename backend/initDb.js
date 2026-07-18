@@ -149,7 +149,19 @@ CREATE TABLE IF NOT EXISTS shifts (
   "checkOutPhoto" TEXT DEFAULT '',
   "closingOrderCount" INTEGER,
   "closingRevenue" INTEGER,
-  reason TEXT DEFAULT ''
+  reason TEXT DEFAULT '',
+  "startCash" DOUBLE PRECISION DEFAULT 0,
+  "endCashActual" DOUBLE PRECISION DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS shift_cash_movements (
+  id TEXT PRIMARY KEY,
+  "shiftId" TEXT,
+  type TEXT,
+  amount DOUBLE PRECISION,
+  note TEXT DEFAULT '',
+  "createdAt" TEXT,
+  "createdBy" TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -312,6 +324,19 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingOrderCount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingRevenue" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "startCash" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "endCashActual" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS shift_cash_movements (
+      id TEXT PRIMARY KEY,
+      "shiftId" TEXT,
+      type TEXT,
+      amount DOUBLE PRECISION,
+      note TEXT DEFAULT '',
+      "createdAt" TEXT,
+      "createdBy" TEXT DEFAULT ''
+    )
+  `).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS delivery_logs (

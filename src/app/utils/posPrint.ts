@@ -29,7 +29,7 @@ export interface CustomerReceiptData {
   note?: string;
 }
 
-const RECEIPT_STYLE = `
+export const RECEIPT_STYLE = `
   .center { text-align: center; }
   .bold { font-weight: bold; }
   .line { border-top: 1px dashed #000; margin: 8px 0; }
@@ -261,6 +261,26 @@ export function aggregateShiftItems(orders: { items: any[] }[]): ShiftItemSummar
   return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
 }
 
+export interface ShiftClosingBillTemplate {
+  title: string;
+  shopName: string;
+  transferLabel: string;
+  showTransfer: boolean;
+  showZalopay: boolean;
+  showMomo: boolean;
+  footerNote: string;
+}
+
+export const DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE: ShiftClosingBillTemplate = {
+  title: 'BÁO CÁO KẾT CA',
+  shopName: 'FITBLEND',
+  transferLabel: 'Chuyển khoản',
+  showTransfer: true,
+  showZalopay: true,
+  showMomo: true,
+  footerNote: 'Cảm ơn bạn đã làm việc chăm chỉ 💪',
+};
+
 export interface ShiftClosingReceiptData {
   employeeName: string;
   startTime: string;
@@ -270,10 +290,96 @@ export interface ShiftClosingReceiptData {
   items: ShiftItemSummary[];
   orderCount: number;
   totalRevenue: number;
+  startCash: number;
+  endCashActual: number;
+  cashIn: number;
+  cashOut: number;
+  expectedCash: number;
+  cashDiscrepancy: number;
+  breakdown: { cash: number; transfer: number; zalopay: number; momo: number };
+  template: ShiftClosingBillTemplate;
 }
 
-/** Bill kết ca — tổng hợp sản phẩm đã bán trong ca, đưa quản lý/nhân viên đối chiếu */
-export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
+interface ShiftLike {
+  employeeName: string;
+  startTime: string;
+  endTime: string;
+  checkIn?: string;
+  checkOut?: string;
+  startCash?: number;
+  endCashActual?: number;
+}
+
+interface ShiftOrderLike {
+  total: number;
+  paymentMethod?: string;
+  items: any[];
+}
+
+interface CashMovementLike {
+  type: 'in' | 'out';
+  amount: number;
+}
+
+/**
+ * Tính toán đối chiếu tiền mặt + doanh thu theo hình thức thanh toán cho 1 ca — dùng chung giữa
+ * POSInterface (lúc kết ca) và BranchShiftClosings (lúc admin xem/in lại) để tránh 2 nơi tự tính
+ * lệch nhau. `endCashActualOverride` cho phép xem trước bill khi nhân viên đang gõ số đếm được,
+ * trước khi số đó được lưu vào shift.endCashActual qua API.
+ */
+export function buildShiftClosingReceiptData(
+  shift: ShiftLike,
+  shiftOrders: ShiftOrderLike[],
+  cashMovements: CashMovementLike[],
+  template: ShiftClosingBillTemplate = DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
+  endCashActualOverride?: number
+): ShiftClosingReceiptData {
+  const breakdown = { cash: 0, transfer: 0, zalopay: 0, momo: 0 };
+  for (const o of shiftOrders) {
+    const amt = o.total || 0;
+    if (o.paymentMethod === 'qr' || o.paymentMethod === 'transfer') breakdown.transfer += amt;
+    else if (o.paymentMethod === 'momo') breakdown.momo += amt;
+    else if (o.paymentMethod === 'zalopay') breakdown.zalopay += amt;
+    else breakdown.cash += amt;
+  }
+
+  const cashIn = cashMovements.filter((m) => m.type === 'in').reduce((s, m) => s + (m.amount || 0), 0);
+  const cashOut = cashMovements.filter((m) => m.type === 'out').reduce((s, m) => s + (m.amount || 0), 0);
+  const startCash = shift.startCash || 0;
+  const endCashActual = endCashActualOverride ?? shift.endCashActual ?? 0;
+  const expectedCash = startCash + breakdown.cash + cashIn - cashOut;
+  const totalRevenue = breakdown.cash + breakdown.transfer + breakdown.zalopay + breakdown.momo;
+
+  return {
+    employeeName: shift.employeeName,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    checkIn: shift.checkIn ? new Date(shift.checkIn) : undefined,
+    checkOut: shift.checkOut ? new Date(shift.checkOut) : new Date(),
+    items: aggregateShiftItems(shiftOrders as any),
+    orderCount: shiftOrders.length,
+    totalRevenue,
+    startCash,
+    endCashActual,
+    cashIn,
+    cashOut,
+    expectedCash,
+    cashDiscrepancy: endCashActual - expectedCash,
+    breakdown,
+    template,
+  };
+}
+
+function moneyRow(label: string, value: number, opts?: { bold?: boolean; colorByValue?: boolean }) {
+  const color = opts?.colorByValue ? (value < 0 ? '#c0392b' : '#1e8449') : undefined;
+  const weight = opts?.bold ? 'font-weight:bold;' : '';
+  const sign = opts?.colorByValue && value > 0 ? '+' : '';
+  return `<div style="display:flex;justify-content:space-between;${weight}${color ? `color:${color};` : ''}"><span>${label}</span><span>${sign}${value.toLocaleString('vi-VN')}đ</span></div>`;
+}
+
+/** Xây HTML bill kết ca (tách riêng khỏi lệnh in để admin dùng lại cho preview). */
+export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
+  const t = data.template;
   const itemsHtml = data.items
     .map(
       (it) => `
@@ -284,27 +390,65 @@ export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
     )
     .join('');
 
-  const html = `
-    <div class="center bold" style="font-size:14px">FITBLEND</div>
-    <div class="center" style="font-size:11px">Bill Kết Ca</div>
+  const methodSectionsHtml = [
+    t.showTransfer
+      ? `<div class="bold" style="margin-top:8px">Tổng ${t.transferLabel}</div>${moneyRow('Thu vào', data.breakdown.transfer)}${moneyRow('Chi ra', 0)}${moneyRow('Dự kiến', data.breakdown.transfer)}`
+      : '',
+    t.showZalopay
+      ? `<div class="bold" style="margin-top:8px">Tổng Zalopay</div>${moneyRow('Thu vào', data.breakdown.zalopay)}${moneyRow('Chi ra', 0)}${moneyRow('Dự kiến', data.breakdown.zalopay)}`
+      : '',
+    t.showMomo
+      ? `<div class="bold" style="margin-top:8px">Tổng MoMo</div>${moneyRow('Thu vào', data.breakdown.momo)}${moneyRow('Chi ra', 0)}${moneyRow('Dự kiến', data.breakdown.momo)}`
+      : '',
+  ].join('');
+
+  const revenueListHtml = [
+    moneyRow('Tiền mặt', data.breakdown.cash),
+    t.showTransfer ? moneyRow(t.transferLabel, data.breakdown.transfer) : '',
+    t.showZalopay ? moneyRow('Zalopay', data.breakdown.zalopay) : '',
+    t.showMomo ? moneyRow('MoMo', data.breakdown.momo) : '',
+  ].join('');
+
+  return `
+    <div class="center bold" style="font-size:14px">${t.shopName}</div>
+    <div class="center" style="font-size:11px">${t.title}</div>
     <div class="line"></div>
+    <div class="bold">Đầu ca</div>
     <div style="font-size:11px">
+      Giờ: ${data.checkIn ? data.checkIn.toLocaleString('vi-VN') : '—'}<br/>
       NV: ${data.employeeName}<br/>
-      Ca: ${data.startTime} - ${data.endTime}<br/>
-      Vào ca: ${data.checkIn ? data.checkIn.toLocaleString('vi-VN') : '—'}<br/>
-      Kết ca: ${data.checkOut ? data.checkOut.toLocaleString('vi-VN') : '—'}
+      Tiền mặt đầu ca: ${data.startCash.toLocaleString('vi-VN')}đ
+    </div>
+    <div class="bold" style="margin-top:8px">Cuối ca</div>
+    <div style="font-size:11px">
+      Giờ: ${data.checkOut ? data.checkOut.toLocaleString('vi-VN') : '—'}<br/>
+      NV: ${data.employeeName}<br/>
+      Tiền mặt thực tế: ${data.endCashActual.toLocaleString('vi-VN')}đ
+    </div>
+    <div class="line"></div>
+    <div class="bold">Tổng tiền mặt</div>
+    ${moneyRow('Thu vào', data.breakdown.cash + data.cashIn)}
+    ${moneyRow('Chi ra', data.cashOut)}
+    ${moneyRow('Dự kiến', data.expectedCash)}
+    ${moneyRow('Thực tế', data.endCashActual)}
+    ${moneyRow('Chênh lệch', data.cashDiscrepancy, { bold: true, colorByValue: true })}
+    ${methodSectionsHtml}
+    <div class="line"></div>
+    <div class="bold" style="margin-bottom:6px">Tổng doanh thu tạm tính</div>
+    ${revenueListHtml}
+    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;margin-top:4px">
+      <span>TỔNG CỘNG</span><span>${data.totalRevenue.toLocaleString('vi-VN')}đ</span>
     </div>
     <div class="line"></div>
     <div class="bold" style="margin-bottom:6px">Sản phẩm đã bán</div>
     ${itemsHtml || '<div style="font-size:11px">Không có đơn hàng</div>'}
+    <div style="display:flex;justify-content:space-between;margin-top:4px"><span>Số đơn</span><span>${data.orderCount} đơn</span></div>
     <div class="line"></div>
-    <div style="display:flex;justify-content:space-between"><span>Số đơn</span><span>${data.orderCount} đơn</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;margin-top:4px">
-      <span>TỔNG DOANH THU</span><span>${data.totalRevenue.toLocaleString('vi-VN')}đ</span>
-    </div>
-    <div class="line"></div>
-    <div class="center" style="font-size:11px">Cảm ơn bạn đã làm việc chăm chỉ 💪</div>
+    <div class="center" style="font-size:11px">${t.footerNote}</div>
   `;
+}
 
-  await printViaUsbOrWindow('receipt', 'Bill kết ca', html, '58mm');
+/** Bill kết ca — đối chiếu tiền mặt/doanh thu theo hình thức thanh toán, đưa quản lý/nhân viên xác nhận */
+export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
+  await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), '58mm');
 }

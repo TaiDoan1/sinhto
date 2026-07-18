@@ -3,7 +3,7 @@ import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, 
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
-import { aggregateShiftItems, printShiftClosingReceipt } from '../../utils/posPrint';
+import { buildShiftClosingReceiptData, printShiftClosingReceipt, DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE } from '../../utils/posPrint';
 
 function formatItemLine(item: any) {
   return typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`;
@@ -22,6 +22,8 @@ interface ShiftRow {
   checkOut?: string;
   closingOrderCount?: number;
   closingRevenue?: number;
+  startCash?: number;
+  endCashActual?: number;
 }
 
 interface BranchShiftClosingsProps {
@@ -99,19 +101,23 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
 
   const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => o.shiftId === shift.id);
 
-  const handlePrintShift = (shift: ShiftRow) => {
+  const handlePrintShift = async (shift: ShiftRow) => {
     const shiftOrders = getShiftOrders(shift);
-    const stat = getStat(shift);
-    printShiftClosingReceipt({
-      employeeName: shift.employeeName,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      checkIn: shift.checkIn ? new Date(shift.checkIn) : undefined,
-      checkOut: shift.checkOut ? new Date(shift.checkOut) : undefined,
-      items: aggregateShiftItems(shiftOrders),
-      orderCount: stat.count,
-      totalRevenue: stat.total,
-    });
+    let cashMovements: { type: 'in' | 'out'; amount: number }[] = [];
+    let template = DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE;
+    try {
+      cashMovements = await api.fetchCashMovements(shift.id);
+    } catch {
+      cashMovements = [];
+    }
+    try {
+      const saved = await api.fetchSetting('shiftClosingBillTemplate');
+      if (saved && typeof saved === 'object') template = { ...DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE, ...saved };
+    } catch {
+      // giữ template mặc định nếu chưa cấu hình
+    }
+    const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
+    printShiftClosingReceipt(data);
   };
 
   const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));

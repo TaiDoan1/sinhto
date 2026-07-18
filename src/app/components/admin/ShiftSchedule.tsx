@@ -28,6 +28,8 @@ export interface Shift {
   closingOrderCount?: number;
   closingRevenue?: number;
   reason?: string;
+  startCash?: number;
+  endCashActual?: number;
 }
 
 // Quick-pick: chỉ giữ 4 ca quen thuộc nhất. Mọi khung giờ khác (kể cả 08-13/13-18/18-22)

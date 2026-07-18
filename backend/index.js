@@ -1083,7 +1083,7 @@ app.post('/api/stock-receipts', async (req, res) => {
   try {
     const { branchId, createdBy, note, lines } = req.body || {};
     const validLines = (Array.isArray(lines) ? lines : []).filter(
-      (l) => l && l.productId && Number(l.quantity) > 0 && (l.type === 'topping' || l.variantKey)
+      (l) => l && l.productId && Number(l.quantity) !== 0 && (l.type === 'topping' || l.variantKey)
     );
     if (!branchId) return res.status(400).json({ error: 'branchId required' });
     if (validLines.length === 0) return res.status(400).json({ error: 'Phieu can it nhat 1 san pham' });

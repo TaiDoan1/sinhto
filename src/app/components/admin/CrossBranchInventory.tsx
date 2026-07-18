@@ -386,7 +386,7 @@ export function CrossBranchInventory() {
     setProcessingId(receipt.id);
     try {
       await api.approveStockReceipt(receipt.id, 'Admin');
-      showSuccess(`Đã duyệt phiếu ${receipt.id} — kho tổng trừ, ${receipt.branchId} cộng`);
+      showSuccess(`Đã duyệt phiếu ${receipt.id} — đã cập nhật kho tổng và kho ${receipt.branchId}`);
       loadReceipts();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Duyệt phiếu thất bại');
@@ -799,7 +799,7 @@ export function CrossBranchInventory() {
                         <th className="py-1 font-semibold">Sản phẩm</th>
                         <th className="py-1 font-semibold text-center">Loại</th>
                         <th className="py-1 font-semibold text-center">Kho tổng còn</th>
-                        <th className="py-1 font-semibold text-right">Số lượng nhập</th>
+                        <th className="py-1 font-semibold text-right">Thay đổi</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -824,7 +824,9 @@ export function CrossBranchInventory() {
                             <td className={`py-1.5 text-center font-bold ${enough ? 'text-gray-600' : 'text-red-600'}`}>
                               {have} {!enough && <AlertTriangle className="inline w-3 h-3 ml-0.5" />}
                             </td>
-                            <td className="py-1.5 text-right font-black text-emerald-700">+{line.quantity}</td>
+                            <td className={`py-1.5 text-right font-black ${line.quantity > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                              {line.quantity > 0 ? `+${line.quantity}` : line.quantity}
+                            </td>
                           </tr>
                         );
                       })}
@@ -1050,20 +1052,25 @@ export function CrossBranchInventory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {subReceiptDetail.receipt.lines.map((line, i) => (
-                    <tr key={i}>
-                      <td className="py-2 font-medium text-gray-800">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
-                          {line.productName}
-                          {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
-                        </span>
-                      </td>
-                      <td className={`py-2 text-right font-black ${subReceiptDetail.kind === 'out' ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {subReceiptDetail.kind === 'out' ? '-' : '+'}{line.quantity}
-                      </td>
-                    </tr>
-                  ))}
+                  {subReceiptDetail.receipt.lines.map((line, i) => {
+                    // Phiếu nhập (chi nhánh) hiện đúng dấu của line.quantity; phiếu xuất (kho tổng)
+                    // hiện chiều ngược lại vì kho tổng biến động ngược với chi nhánh.
+                    const displayQty = subReceiptDetail.kind === 'out' ? -line.quantity : line.quantity;
+                    return (
+                      <tr key={i}>
+                        <td className="py-2 font-medium text-gray-800">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
+                            {line.productName}
+                            {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
+                          </span>
+                        </td>
+                        <td className={`py-2 text-right font-black ${displayQty > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {displayQty > 0 ? `+${displayQty}` : displayQty}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Truck, X, Coffee, Layers3, Search, Trash2, PackageCheck, Clock } from 'lucide-react';
+import { Plus, Truck, X, Coffee, Layers3, Search, PackageCheck, Clock } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
 import * as api from '../../utils/api';
@@ -22,12 +22,12 @@ type ProductInventoryState = {
   toppings: Record<string, number>;
 };
 
-interface ReceiptLine {
+interface DiffLine {
   productId: string;
   productName: string;
   type: 'smoothie' | 'topping';
   variantKey: string | null;
-  quantity: string;
+  quantity: number;
 }
 
 interface CreatedStockReceipt {
@@ -38,6 +38,10 @@ interface CreatedStockReceipt {
   note: string;
   status: string;
   lines: { productId: string; productName: string; type: string; variantKey: string | null; quantity: number }[];
+}
+
+function formatSigned(n: number) {
+  return n > 0 ? `+${n}` : `${n}`;
 }
 
 const PRODUCT_VOLUMES = ['360ml', '500ml', '700ml'];
@@ -65,8 +69,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   const { subscribe } = useSSE();
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([]);
-  const [receiptSearch, setReceiptSearch] = useState('');
+  const [editSearch, setEditSearch] = useState('');
+  const [baselineInventory, setBaselineInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
+  const [draftInventory, setDraftInventory] = useState<ProductInventoryState>(EMPTY_PRODUCT_INVENTORY);
   const [purchaseNote, setPurchaseNote] = useState('');
   const [purchaseSaving, setPurchaseSaving] = useState(false);
   const [createdReceipt, setCreatedReceipt] = useState<CreatedStockReceipt | null>(null);
@@ -126,77 +131,98 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   };
 
   const openPurchase = () => {
-    setReceiptLines([]);
-    setReceiptSearch('');
+    const snapshot: ProductInventoryState = {
+      smoothies: JSON.parse(JSON.stringify(productInventory.smoothies || {})),
+      toppings: { ...(productInventory.toppings || {}) },
+    };
+    setBaselineInventory(snapshot);
+    setDraftInventory(JSON.parse(JSON.stringify(snapshot)));
+    setEditSearch('');
     setPurchaseNote('');
     setCreatedReceipt(null);
     setShowPurchaseModal(true);
   };
 
-  const addReceiptLine = (product: MenuProduct) => {
-    const type: ReceiptLine['type'] = product.category === 'toppings' ? 'topping' : 'smoothie';
-    setReceiptLines((prev) => [
+  const setDraftSmoothieVariant = (productId: string, variantKey: string, value: number) => {
+    setDraftInventory((prev) => ({
       ...prev,
-      {
-        productId: product.id,
-        productName: product.name,
-        type,
-        variantKey: type === 'smoothie' ? `${PRODUCT_VOLUMES[0]}-${PRODUCT_SIZES[0]}` : null,
-        quantity: '',
+      smoothies: {
+        ...prev.smoothies,
+        [productId]: {
+          ...(prev.smoothies[productId] || {}),
+          [variantKey]: Math.max(0, value),
+        },
       },
-    ]);
+    }));
   };
 
-  const removeReceiptLine = (index: number) => {
-    setReceiptLines((prev) => prev.filter((_, i) => i !== index));
+  const setDraftTopping = (productId: string, value: number) => {
+    setDraftInventory((prev) => ({
+      ...prev,
+      toppings: { ...prev.toppings, [productId]: Math.max(0, value) },
+    }));
   };
 
-  const updateReceiptLine = (index: number, patch: Partial<ReceiptLine>) => {
-    setReceiptLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
-  };
+  const editSmoothies = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          p.category === 'smoothies' &&
+          (p.name.toLowerCase().includes(editSearch.toLowerCase()) ||
+            p.id.toLowerCase().includes(editSearch.toLowerCase()))
+      ),
+    [products, editSearch]
+  );
+  const editToppings = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          p.category === 'toppings' &&
+          (p.name.toLowerCase().includes(editSearch.toLowerCase()) ||
+            p.id.toLowerCase().includes(editSearch.toLowerCase()))
+      ),
+    [products, editSearch]
+  );
 
-  const receiptPickerProducts = useMemo(() => {
-    const term = receiptSearch.trim().toLowerCase();
-    return products.filter(
-      (p) => !term || p.name.toLowerCase().includes(term) || p.id.toLowerCase().includes(term)
-    );
-  }, [products, receiptSearch]);
-  const receiptPickerSmoothies = useMemo(
-    () => receiptPickerProducts.filter((p) => p.category === 'smoothies'),
-    [receiptPickerProducts]
-  );
-  const receiptPickerToppings = useMemo(
-    () => receiptPickerProducts.filter((p) => p.category === 'toppings'),
-    [receiptPickerProducts]
-  );
-  const receiptSmoothieLines = useMemo(
-    () => receiptLines.map((l, i) => ({ ...l, index: i })).filter((l) => l.type === 'smoothie'),
-    [receiptLines]
-  );
-  const receiptToppingLines = useMemo(
-    () => receiptLines.map((l, i) => ({ ...l, index: i })).filter((l) => l.type === 'topping'),
-    [receiptLines]
-  );
+  const diffLines = useMemo<DiffLine[]>(() => {
+    const lines: DiffLine[] = [];
+    for (const p of products.filter((pr) => pr.category === 'smoothies')) {
+      for (const volume of PRODUCT_VOLUMES) {
+        for (const size of PRODUCT_SIZES) {
+          const variantKey = `${volume}-${size}`;
+          const before = baselineInventory.smoothies[p.id]?.[variantKey] ?? 0;
+          const after = draftInventory.smoothies[p.id]?.[variantKey] ?? 0;
+          const diff = after - before;
+          if (diff !== 0) {
+            lines.push({ productId: p.id, productName: p.name, type: 'smoothie', variantKey, quantity: diff });
+          }
+        }
+      }
+    }
+    for (const p of products.filter((pr) => pr.category === 'toppings')) {
+      const before = baselineInventory.toppings[p.id] ?? 0;
+      const after = draftInventory.toppings[p.id] ?? 0;
+      const diff = after - before;
+      if (diff !== 0) {
+        lines.push({ productId: p.id, productName: p.name, type: 'topping', variantKey: null, quantity: diff });
+      }
+    }
+    return lines;
+  }, [products, baselineInventory, draftInventory]);
+
+  const diffSmoothieLines = useMemo(() => diffLines.filter((l) => l.type === 'smoothie'), [diffLines]);
+  const diffToppingLines = useMemo(() => diffLines.filter((l) => l.type === 'topping'), [diffLines]);
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validLines = receiptLines
-      .filter((l) => Number(l.quantity) > 0)
-      .map((l) => ({
-        productId: l.productId,
-        productName: l.productName,
-        type: l.type,
-        variantKey: l.variantKey,
-        quantity: Number(l.quantity),
-      }));
-    if (validLines.length === 0) return alert('Chọn ít nhất một sản phẩm và số lượng nhập');
+    if (diffLines.length === 0) return alert('Chưa có thay đổi nào để tạo phiếu');
     setPurchaseSaving(true);
     try {
       const receipt = await api.createStockReceipt({
         branchId,
         createdBy: 'Admin',
         note: purchaseNote,
-        lines: validLines,
+        lines: diffLines,
       });
       setCreatedReceipt(receipt);
     } catch (err) {
@@ -346,7 +372,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   <Truck className="w-5 h-5" /> Phiếu Nhập Kho — {branchId}
                 </h3>
                 <p className="text-xs text-emerald-100 mt-0.5">
-                  Chọn sản phẩm từ kho tổng · phiếu sẽ chờ admin duyệt trước khi cộng kho
+                  Sửa số tồn kho trực tiếp bên dưới · hệ thống tự tạo phiếu theo phần thay đổi, chờ admin duyệt
                 </p>
               </div>
               <button
@@ -401,7 +427,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                             {line.productName}
                             {line.variantKey && <span className="text-gray-400 ml-1.5 text-xs">{line.variantKey}</span>}
                           </span>
-                          <span className="font-bold text-emerald-700">+{line.quantity}</span>
+                          <span className={`font-bold ${line.quantity > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {formatSigned(line.quantity)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -416,7 +444,9 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                       {createdReceipt.lines.filter((l) => l.type === 'topping').map((line, i) => (
                         <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
                           <span className="font-medium text-gray-800">{line.productName}</span>
-                          <span className="font-bold text-emerald-700">+{line.quantity}</span>
+                          <span className={`font-bold ${line.quantity > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {formatSigned(line.quantity)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -432,166 +462,109 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
               </div>
             ) : (
               <form onSubmit={handlePurchaseSubmit} className="p-6 space-y-5">
-                {/* Tìm & chọn sản phẩm */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={editSearch}
+                    onChange={(e) => setEditSearch(e.target.value)}
+                    placeholder="Tìm vị hoặc topping để chỉnh số..."
+                    className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 outline-none text-sm"
+                  />
+                </div>
+
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">1. Tìm sản phẩm cần nhập</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={receiptSearch}
-                      onChange={(e) => setReceiptSearch(e.target.value)}
-                      placeholder="Gõ tên vị hoặc topping..."
-                      className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-emerald-500 outline-none text-sm"
-                    />
+                  <div className="flex items-center gap-1.5 text-sm font-bold text-emerald-700 mb-2">
+                    <Coffee className="w-4 h-4" /> Kho Vị
                   </div>
-                  <div className="mt-3 space-y-3 max-h-48 overflow-y-auto">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mb-1.5">
-                        <Coffee className="w-3.5 h-3.5" /> Vị
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {editSmoothies.map((product) => (
+                      <div key={product.id} className="border rounded-xl p-3 bg-gray-50">
+                        <div className="font-bold text-gray-900 text-sm mb-2">{product.name}</div>
+                        <div className="space-y-1.5">
+                          {PRODUCT_VOLUMES.map((volume) => (
+                            <div key={volume} className="flex items-center gap-2 text-xs">
+                              <span className="font-bold text-gray-500 w-12 shrink-0">{volume}</span>
+                              {PRODUCT_SIZES.map((size) => {
+                                const variantKey = `${volume}-${size}`;
+                                const value = draftInventory.smoothies[product.id]?.[variantKey] ?? 0;
+                                const before = baselineInventory.smoothies[product.id]?.[variantKey] ?? 0;
+                                const diff = value - before;
+                                return (
+                                  <div key={size} className="flex items-center gap-1">
+                                    <span className="text-gray-400 font-semibold">{size}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={value}
+                                      onChange={(e) => setDraftSmoothieVariant(product.id, variantKey, Number(e.target.value || 0))}
+                                      className="w-12 text-center border rounded px-1 py-1 bg-white font-bold text-gray-800"
+                                    />
+                                    {diff !== 0 && (
+                                      <span className={`text-[10px] font-bold ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {formatSigned(diff)}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {receiptPickerSmoothies.map((p) => (
-                          <button
-                            type="button"
-                            key={p.id}
-                            onClick={() => addReceiptLine(p)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 text-xs font-semibold transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                            {p.name}
-                          </button>
-                        ))}
-                        {receiptPickerSmoothies.length === 0 && (
-                          <span className="text-xs text-gray-400 py-1">Không có vị nào khớp.</span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-violet-700 mb-1.5">
-                        <Layers3 className="w-3.5 h-3.5" /> Topping
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {receiptPickerToppings.map((p) => (
-                          <button
-                            type="button"
-                            key={p.id}
-                            onClick={() => addReceiptLine(p)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400 text-xs font-semibold transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                            {p.name}
-                          </button>
-                        ))}
-                        {receiptPickerToppings.length === 0 && (
-                          <span className="text-xs text-gray-400 py-1">Không có topping nào khớp.</span>
-                        )}
-                      </div>
-                    </div>
+                    ))}
+                    {editSmoothies.length === 0 && (
+                      <div className="col-span-full text-sm text-gray-500">Không có vị nào khớp tìm kiếm.</div>
+                    )}
                   </div>
                 </div>
 
-                {/* Các dòng đã chọn */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    2. Sản phẩm trong phiếu ({receiptLines.length})
-                  </label>
-                  {receiptLines.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl py-6 text-center text-sm text-gray-400">
-                      Bấm vào sản phẩm phía trên để thêm vào phiếu
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {receiptSmoothieLines.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mb-1.5">
-                            <Coffee className="w-3.5 h-3.5" /> Vị ({receiptSmoothieLines.length})
-                          </div>
-                          <div className="space-y-2">
-                            {receiptSmoothieLines.map((line) => (
-                              <div
-                                key={`${line.productId}-${line.index}`}
-                                className="flex items-center gap-2 bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2"
-                              >
-                                <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-500" />
-                                <span className="flex-1 text-sm font-semibold text-gray-800 truncate">{line.productName}</span>
-                                <select
-                                  value={line.variantKey || ''}
-                                  onChange={(e) => updateReceiptLine(line.index, { variantKey: e.target.value })}
-                                  className="border rounded-lg px-2 py-1.5 text-xs bg-white"
-                                >
-                                  {PRODUCT_VOLUMES.map((vol) =>
-                                    PRODUCT_SIZES.map((size) => (
-                                      <option key={`${vol}-${size}`} value={`${vol}-${size}`}>
-                                        {vol} · {size}
-                                      </option>
-                                    ))
-                                  )}
-                                </select>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  value={line.quantity}
-                                  onChange={(e) => updateReceiptLine(line.index, { quantity: e.target.value })}
-                                  placeholder="SL"
-                                  className="w-20 border rounded-lg px-2 py-1.5 text-sm text-center bg-white"
-                                  required
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeReceiptLine(line.index)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
+                  <div className="flex items-center gap-1.5 text-sm font-bold text-violet-700 mb-2">
+                    <Layers3 className="w-4 h-4" /> Kho Topping
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {editToppings.map((product) => {
+                      const value = draftInventory.toppings[product.id] ?? 0;
+                      const before = baselineInventory.toppings[product.id] ?? 0;
+                      const diff = value - before;
+                      return (
+                        <div key={product.id} className="border rounded-xl p-3 bg-gray-50">
+                          <div className="font-bold text-gray-900 text-sm mb-2 truncate">{product.name}</div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={value}
+                              onChange={(e) => setDraftTopping(product.id, Number(e.target.value || 0))}
+                              className="w-16 text-center border rounded-lg px-2 py-1.5 bg-white font-bold text-gray-800"
+                            />
+                            {diff !== 0 && (
+                              <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {formatSigned(diff)}
+                              </span>
+                            )}
                           </div>
                         </div>
-                      )}
-                      {receiptToppingLines.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-violet-700 mb-1.5">
-                            <Layers3 className="w-3.5 h-3.5" /> Topping ({receiptToppingLines.length})
-                          </div>
-                          <div className="space-y-2">
-                            {receiptToppingLines.map((line) => (
-                              <div
-                                key={`${line.productId}-${line.index}`}
-                                className="flex items-center gap-2 bg-violet-50/60 border border-violet-100 rounded-xl px-3 py-2"
-                              >
-                                <span className="shrink-0 w-2 h-2 rounded-full bg-violet-500" />
-                                <span className="flex-1 text-sm font-semibold text-gray-800 truncate">{line.productName}</span>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  value={line.quantity}
-                                  onChange={(e) => updateReceiptLine(line.index, { quantity: e.target.value })}
-                                  placeholder="SL"
-                                  className="w-20 border rounded-lg px-2 py-1.5 text-sm text-center bg-white"
-                                  required
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeReceiptLine(line.index)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      );
+                    })}
+                    {editToppings.length === 0 && (
+                      <div className="col-span-full text-sm text-gray-500">Không có topping nào khớp tìm kiếm.</div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Ghi chú */}
+                {diffLines.length > 0 && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600">
+                    <span className="font-bold text-gray-800">{diffLines.length} thay đổi</span> sẽ được đưa vào phiếu:{' '}
+                    {diffSmoothieLines.length > 0 && <span>{diffSmoothieLines.length} vị</span>}
+                    {diffSmoothieLines.length > 0 && diffToppingLines.length > 0 && ', '}
+                    {diffToppingLines.length > 0 && <span>{diffToppingLines.length} topping</span>}
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">3. Ghi chú (tùy chọn)</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
                   <input
                     type="text"
                     value={purchaseNote}
@@ -603,11 +576,11 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
 
                 <button
                   type="submit"
-                  disabled={purchaseSaving || receiptLines.length === 0}
+                  disabled={purchaseSaving || diffLines.length === 0}
                   className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 transition-colors"
                 >
                   <PackageCheck className="w-5 h-5" />
-                  {purchaseSaving ? 'Đang gửi phiếu...' : 'Gửi phiếu chờ duyệt'}
+                  {purchaseSaving ? 'Đang gửi phiếu...' : 'Lưu & gửi phiếu chờ duyệt'}
                 </button>
               </form>
             )}

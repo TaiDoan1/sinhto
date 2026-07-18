@@ -137,7 +137,7 @@ export function CrossBranchInventory() {
   const [receiptsLoading, setReceiptsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
-  const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
+  const [subReceiptDetail, setSubReceiptDetail] = useState<{ receipt: StockReceipt; kind: 'out' | 'in' } | null>(null);
 
   const loadReceipts = useCallback(() => {
     setReceiptsLoading(true);
@@ -413,14 +413,6 @@ export function CrossBranchInventory() {
     setExpandedParents((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSub = (key: string) => {
-    setExpandedSubs((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -863,8 +855,6 @@ export function CrossBranchInventory() {
                 {processedReceipts.map((r) => {
                   const isOpen = expandedParents.has(r.id);
                   const isApproved = r.status === 'approved';
-                  const outKey = `${r.id}:out`;
-                  const inKey = `${r.id}:in`;
                   return (
                     <div key={r.id}>
                       {/* Tờ phiếu cha */}
@@ -895,76 +885,44 @@ export function CrossBranchInventory() {
                         </div>
                       </button>
 
-                      {/* 2 phiếu con: xuất & nhập */}
+                      {/* 2 phiếu con: xuất & nhập — chỉ hiện tóm tắt, bấm để xem chi tiết trong popup */}
                       {isOpen && isApproved && (
                         <div className="px-4 sm:px-6 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                           {/* Phiếu xuất — Kho Tổng */}
-                          <div className="border border-red-200 rounded-xl overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() => toggleSub(outKey)}
-                              className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 transition-colors"
-                            >
+                          <button
+                            type="button"
+                            onClick={() => setSubReceiptDetail({ receipt: r, kind: 'out' })}
+                            className="text-left border border-red-200 rounded-xl overflow-hidden hover:border-red-400 hover:shadow-md transition-all"
+                          >
+                            <div className="flex items-center justify-between px-4 py-3 bg-red-50">
                               <span className="flex items-center gap-2 text-sm font-bold text-red-700">
                                 <ArrowUpFromLine className="w-4 h-4" />
                                 Phiếu xuất — Kho Tổng
                               </span>
-                              {expandedSubs.has(outKey) ? <ChevronDown className="w-4 h-4 text-red-400" /> : <ChevronRight className="w-4 h-4 text-red-400" />}
-                            </button>
-                            {expandedSubs.has(outKey) && (
-                              <div className="px-4 py-3 text-xs sm:text-sm">
-                                <div className="text-gray-500 mb-2">
-                                  Thời gian: <span className="font-semibold text-gray-700">{fullDateTime(r.approvedAt)}</span>
-                                </div>
-                                <div className="divide-y divide-gray-100">
-                                  {r.lines.map((line, i) => (
-                                    <div key={i} className="flex items-center gap-2 justify-between py-1.5">
-                                      <span className="flex items-center gap-1.5 font-medium text-gray-800">
-                                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
-                                        {line.productName}
-                                        {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
-                                      </span>
-                                      <span className="font-black text-red-600">-{line.quantity}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                              <ChevronRight className="w-4 h-4 text-red-400" />
+                            </div>
+                            <div className="px-4 py-3 text-xs sm:text-sm text-gray-500">
+                              {fullDateTime(r.approvedAt)} · {r.lines.length} sản phẩm
+                            </div>
+                          </button>
 
                           {/* Phiếu nhập — Chi nhánh */}
-                          <div className="border border-emerald-200 rounded-xl overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() => toggleSub(inKey)}
-                              className="w-full flex items-center justify-between px-4 py-3 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                            >
+                          <button
+                            type="button"
+                            onClick={() => setSubReceiptDetail({ receipt: r, kind: 'in' })}
+                            className="text-left border border-emerald-200 rounded-xl overflow-hidden hover:border-emerald-400 hover:shadow-md transition-all"
+                          >
+                            <div className="flex items-center justify-between px-4 py-3 bg-emerald-50">
                               <span className="flex items-center gap-2 text-sm font-bold text-emerald-700">
                                 <ArrowDownToLine className="w-4 h-4" />
                                 Phiếu nhập — {r.branchId}
                               </span>
-                              {expandedSubs.has(inKey) ? <ChevronDown className="w-4 h-4 text-emerald-400" /> : <ChevronRight className="w-4 h-4 text-emerald-400" />}
-                            </button>
-                            {expandedSubs.has(inKey) && (
-                              <div className="px-4 py-3 text-xs sm:text-sm">
-                                <div className="text-gray-500 mb-2">
-                                  Thời gian: <span className="font-semibold text-gray-700">{fullDateTime(r.approvedAt)}</span>
-                                </div>
-                                <div className="divide-y divide-gray-100">
-                                  {r.lines.map((line, i) => (
-                                    <div key={i} className="flex items-center gap-2 justify-between py-1.5">
-                                      <span className="flex items-center gap-1.5 font-medium text-gray-800">
-                                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
-                                        {line.productName}
-                                        {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
-                                      </span>
-                                      <span className="font-black text-emerald-600">+{line.quantity}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                              <ChevronRight className="w-4 h-4 text-emerald-400" />
+                            </div>
+                            <div className="px-4 py-3 text-xs sm:text-sm text-gray-500">
+                              {fullDateTime(r.approvedAt)} · {r.lines.length} sản phẩm
+                            </div>
+                          </button>
                         </div>
                       )}
 
@@ -1049,6 +1007,68 @@ export function CrossBranchInventory() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Popup chi tiết phiếu xuất/nhập */}
+      {subReceiptDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <div className={`sticky top-0 px-6 py-4 rounded-t-2xl flex items-center justify-between ${
+              subReceiptDetail.kind === 'out' ? 'bg-red-50 border-b border-red-200' : 'bg-emerald-50 border-b border-emerald-200'
+            }`}>
+              <div>
+                <h3 className={`text-lg font-black flex items-center gap-2 ${
+                  subReceiptDetail.kind === 'out' ? 'text-red-700' : 'text-emerald-700'
+                }`}>
+                  {subReceiptDetail.kind === 'out' ? (
+                    <ArrowUpFromLine className="w-5 h-5" />
+                  ) : (
+                    <ArrowDownToLine className="w-5 h-5" />
+                  )}
+                  {subReceiptDetail.kind === 'out'
+                    ? 'Phiếu xuất — Kho Tổng'
+                    : `Phiếu nhập — ${subReceiptDetail.receipt.branchId}`}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {subReceiptDetail.receipt.id} · {fullDateTime(subReceiptDetail.receipt.approvedAt)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubReceiptDetail(null)}
+                className="p-1.5 rounded-lg hover:bg-black/5 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-1">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 text-xs">
+                    <th className="pb-2 font-semibold">Sản phẩm</th>
+                    <th className="pb-2 font-semibold text-right">Số lượng</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {subReceiptDetail.receipt.lines.map((line, i) => (
+                    <tr key={i}>
+                      <td className="py-2 font-medium text-gray-800">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${line.type === 'topping' ? 'bg-violet-500' : 'bg-emerald-500'}`} />
+                          {line.productName}
+                          {line.variantKey && <span className="text-gray-400 ml-1 text-xs">{line.variantKey}</span>}
+                        </span>
+                      </td>
+                      <td className={`py-2 text-right font-black ${subReceiptDetail.kind === 'out' ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {subReceiptDetail.kind === 'out' ? '-' : '+'}{line.quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal sửa kho tổng */}

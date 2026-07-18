@@ -128,7 +128,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [menuProducts, setMenuProducts] = useState<MenuProductLite[]>([]);
   const branchRef = useRef<string | null>(null);
 
-  const isWarehouseReady = movements.some((m) => m.type === 'purchase');
+  const isWarehouseReady =
+    movements.some((m) => m.type === 'purchase') ||
+    inventory.some((item) => item.currentStock > 0) ||
+    Object.values(productInventory.smoothies || {}).some((variants) =>
+      Object.values(variants || {}).some((qty) => qty > 0)
+    ) ||
+    Object.values(productInventory.toppings || {}).some((qty) => qty > 0);
 
   const loadMovements = useCallback((branchId: string) => {
     api

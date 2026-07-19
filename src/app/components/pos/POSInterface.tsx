@@ -88,6 +88,9 @@ function POSInterfaceInner() {
   const [cashMoveAmount, setCashMoveAmount] = useState('');
   const [cashMoveNote, setCashMoveNote] = useState('');
   const [cashMoveSubmitting, setCashMoveSubmitting] = useState(false);
+  const [cashMoveHistory, setCashMoveHistory] = useState<api.ShiftCashMovement[]>([]);
+  const [cashMoveHistoryLoading, setCashMoveHistoryLoading] = useState(false);
+  const [activeCashShiftId, setActiveCashShiftId] = useState<string | null>(null);
   const [closingCashMovements, setClosingCashMovements] = useState<api.ShiftCashMovement[]>([]);
   const [billTemplate, setBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [actualCashInput, setActualCashInput] = useState('');
@@ -247,6 +250,41 @@ function POSInterfaceInner() {
     }
   };
 
+  const loadCashMoveHistory = async (shiftId: string) => {
+    setCashMoveHistoryLoading(true);
+    try {
+      const movements = await api.fetchCashMovements(shiftId);
+      setCashMoveHistory(movements);
+    } catch (err) {
+      setCashMoveHistory([]);
+    } finally {
+      setCashMoveHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showCashMovement || !session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const activeShifts = (await api.fetchShifts({
+          employeeId: session.employeeId,
+          status: 'in_progress',
+        })) as Shift[];
+        if (cancelled) return;
+        const shiftId = activeShifts[0]?.id || null;
+        setActiveCashShiftId(shiftId);
+        if (shiftId) await loadCashMoveHistory(shiftId);
+        else setCashMoveHistory([]);
+      } catch (err) {
+        if (!cancelled) setCashMoveHistory([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showCashMovement, session]);
+
   const handleAddCashMovement = async () => {
     if (!session) return;
     const amount = Number(cashMoveAmount);
@@ -256,24 +294,29 @@ function POSInterfaceInner() {
     }
     setCashMoveSubmitting(true);
     try {
-      const activeShifts = (await api.fetchShifts({
-        employeeId: session.employeeId,
-        status: 'in_progress',
-      })) as Shift[];
-      if (activeShifts.length === 0) {
+      let shiftId = activeCashShiftId;
+      if (!shiftId) {
+        const activeShifts = (await api.fetchShifts({
+          employeeId: session.employeeId,
+          status: 'in_progress',
+        })) as Shift[];
+        shiftId = activeShifts[0]?.id || null;
+        setActiveCashShiftId(shiftId);
+      }
+      if (!shiftId) {
         alert('Không tìm thấy ca đang mở để ghi thu/chi.');
         return;
       }
-      await api.addCashMovement(activeShifts[0].id, {
+      await api.addCashMovement(shiftId, {
         type: cashMoveType,
         amount,
         note: cashMoveNote.trim() || undefined,
         createdBy: session.employeeName,
       });
-      setShowCashMovement(false);
       setCashMoveAmount('');
       setCashMoveNote('');
       setCashMoveType('in');
+      await loadCashMoveHistory(shiftId);
     } catch (err) {
       alert('Ghi thu/chi thất bại. Vui lòng thử lại.');
     } finally {
@@ -818,43 +861,9 @@ function POSInterfaceInner() {
 
       {showCashMovement && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 text-center">Ghi thu/chi tiền mặt</h3>
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setCashMoveType('in')}
-                className={`flex-1 py-2 rounded-lg font-semibold text-sm ${cashMoveType === 'in' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-              >
-                Thu vào
-              </button>
-              <button
-                type="button"
-                onClick={() => setCashMoveType('out')}
-                className={`flex-1 py-2 rounded-lg font-semibold text-sm ${cashMoveType === 'out' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-              >
-                Chi ra
-              </button>
-            </div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Số tiền</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={cashMoveAmount}
-              onChange={(e) => setCashMoveAmount(e.target.value)}
-              placeholder="0"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-semibold mb-3"
-              autoFocus
-            />
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Ghi chú (không bắt buộc)</label>
-            <input
-              type="text"
-              value={cashMoveNote}
-              onChange={(e) => setCashMoveNote(e.target.value)}
-              placeholder="VD: đổi tiền lẻ..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
-            />
-            <div className="flex gap-2">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h3 className="text-lg font-bold text-gray-900">Ghi thu/chi tiền mặt</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -863,18 +872,104 @@ function POSInterfaceInner() {
                   setCashMoveNote('');
                   setCashMoveType('in');
                 }}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold"
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
               >
-                Hủy
+                ✕
               </button>
+            </div>
+
+            <div className="shrink-0">
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setCashMoveType('in')}
+                  className={`flex-1 py-2 rounded-lg font-semibold text-sm ${cashMoveType === 'in' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  Thu vào
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCashMoveType('out')}
+                  className={`flex-1 py-2 rounded-lg font-semibold text-sm ${cashMoveType === 'out' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  Chi ra
+                </button>
+              </div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Số tiền</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={cashMoveAmount}
+                onChange={(e) => setCashMoveAmount(e.target.value)}
+                placeholder="0"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-semibold mb-3"
+                autoFocus
+              />
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Ghi chú (không bắt buộc)</label>
+              <input
+                type="text"
+                value={cashMoveNote}
+                onChange={(e) => setCashMoveNote(e.target.value)}
+                placeholder="VD: đổi tiền lẻ..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+              />
               <button
                 type="button"
                 disabled={cashMoveSubmitting}
                 onClick={handleAddCashMovement}
-                className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold"
+                className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold mb-4"
               >
                 {cashMoveSubmitting ? 'Đang lưu...' : 'Lưu'}
               </button>
+            </div>
+
+            <div className="shrink-0 flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500">Lịch sử ca này</p>
+              {cashMoveHistory.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  <span className="text-emerald-700 font-semibold">
+                    +{cashMoveHistory.filter((m) => m.type === 'in').reduce((s, m) => s + m.amount, 0).toLocaleString('vi-VN')}đ
+                  </span>
+                  {' · '}
+                  <span className="text-red-600 font-semibold">
+                    -{cashMoveHistory.filter((m) => m.type === 'out').reduce((s, m) => s + m.amount, 0).toLocaleString('vi-VN')}đ
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto border border-gray-100 rounded-xl bg-gray-50">
+              {cashMoveHistoryLoading ? (
+                <p className="text-xs text-gray-400 text-center py-6">Đang tải...</p>
+              ) : cashMoveHistory.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">Chưa có khoản thu/chi nào trong ca này</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {[...cashMoveHistory]
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map((m) => (
+                      <div key={m.id} className="flex items-start justify-between gap-2 px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <span
+                            className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 ${
+                              m.type === 'in' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {m.type === 'in' ? 'Thu vào' : 'Chi ra'}
+                          </span>
+                          {m.note && <div className="text-gray-600 text-xs mt-0.5 truncate">{m.note}</div>}
+                          <div className="text-gray-400 text-[11px] mt-0.5">
+                            {new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                            {m.createdBy ? ` · ${m.createdBy}` : ''}
+                          </div>
+                        </div>
+                        <span className={`font-bold shrink-0 ${m.type === 'in' ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {m.type === 'in' ? '+' : '-'}
+                          {m.amount.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -288,17 +288,25 @@ app.post('/api/orders', (req, res) => {
   // không lọc theo chi nhánh sẽ gán nhầm doanh thu sang ca khác, làm kết ca bị thiếu/dư tiền.
   // Chỉ rơi về "ca in_progress bất kỳ" nếu không tìm được ca nào khớp chi nhánh — vẫn tốt hơn
   // là bỏ trắng shiftId hoàn toàn.
+  //
+  // Dùng sessionStaffId (người ĐANG ĐĂNG NHẬP máy POS, mở ca/kết ca) để tìm shiftId — KHÔNG
+  // dùng order.staffId (người được CHỌN gắn tên cho đơn này, chỉ để biết ai bán khi cần tra
+  // soát, không phải người mở ca). 1 ca có thể có 2 người làm chung nhưng chỉ 1 người đăng
+  // nhập POS; người còn lại chỉ xuất hiện trong danh sách chọn tên chứ không tự mở ca riêng —
+  // nếu dùng order.staffId để tìm shift sẽ không tìm thấy ca nào (người đó chưa check-in),
+  // khiến đơn bị rớt hẳn khỏi mọi lần kết ca. sessionStaffId luôn là người đang mở ca thật.
   const resolveShiftThenInsert = (salesStaffId, salesStaffName) => {
-    if (!order.staffId) return finishInsert(salesStaffId, salesStaffName, '');
+    const shiftOwnerId = order.sessionStaffId || order.staffId;
+    if (!shiftOwnerId) return finishInsert(salesStaffId, salesStaffName, '');
     db.get(
       "SELECT id FROM shifts WHERE employeeId = ? AND branch = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
-      [order.staffId, order.branchId || ''],
+      [shiftOwnerId, order.branchId || ''],
       (shiftErr, shiftRow) => {
         if (shiftErr) return finishInsert(salesStaffId, salesStaffName, '');
         if (shiftRow) return finishInsert(salesStaffId, salesStaffName, shiftRow.id);
         db.get(
           "SELECT id FROM shifts WHERE employeeId = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
-          [order.staffId],
+          [shiftOwnerId],
           (fallbackErr, fallbackRow) => {
             finishInsert(salesStaffId, salesStaffName, fallbackRow ? fallbackRow.id : '');
           }

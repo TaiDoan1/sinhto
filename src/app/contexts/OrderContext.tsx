@@ -27,6 +27,7 @@ export interface Order {
   salesStaffName?: string;
   stockDeducted?: boolean;
   staffId?: string;
+  sessionStaffId?: string;
   shiftId?: string;
   shipFee?: number;
   note?: string;

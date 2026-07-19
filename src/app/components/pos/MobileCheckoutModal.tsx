@@ -192,6 +192,9 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       total: total,
       staff: effectiveStaffName,
       staffId: effectiveStaffId,
+      // Người đăng nhập máy POS (mở ca) — dùng để gán đúng ca/kết ca, khác staffId (người được
+      // chọn gắn tên cho đơn này, có thể chưa tự check-in nếu làm chung ca với người đăng nhập).
+      sessionStaffId: session?.employeeId,
       paymentMethod: selectedPayment || undefined,
       note: orderNote.trim() || undefined,
     });

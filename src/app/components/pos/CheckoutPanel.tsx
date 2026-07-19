@@ -191,6 +191,11 @@ export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem
       total: total,
       staff: effectiveStaffName,
       staffId: effectiveStaffId,
+      // Người đang đăng nhập máy POS (mở ca) — dùng để gán đúng ca/kết ca, KHÁC với staffId ở
+      // trên (người được chọn gắn tên cho riêng đơn này, có thể là đồng nghiệp làm chung ca
+      // nhưng không tự đăng nhập POS). Nếu dùng staffId để tìm ca sẽ không ra ca nào cho người
+      // đó (họ chưa check-in), khiến đơn bị rớt khỏi kết ca.
+      sessionStaffId: session?.employeeId,
       customerName: activeCustomer?.name,
       customerPhone: activeCustomer?.phone,
       paymentMethod: selectedPayment || undefined,

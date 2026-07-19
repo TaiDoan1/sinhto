@@ -92,6 +92,7 @@ function POSInterfaceInner() {
   const [cashMoveHistoryLoading, setCashMoveHistoryLoading] = useState(false);
   const [activeCashShiftId, setActiveCashShiftId] = useState<string | null>(null);
   const [closingCashMovements, setClosingCashMovements] = useState<api.ShiftCashMovement[]>([]);
+  const [closingShiftOrders, setClosingShiftOrders] = useState<any[] | null>(null);
   const [billTemplate, setBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [actualCashInput, setActualCashInput] = useState('');
   const [noActiveShiftNotice, setNoActiveShiftNotice] = useState(false);
@@ -140,6 +141,7 @@ function POSInterfaceInner() {
   useEffect(() => {
     if (!closingShift) {
       setClosingCashMovements([]);
+      setClosingShiftOrders(null);
       setActualCashInput('');
       return;
     }
@@ -150,6 +152,14 @@ function POSInterfaceInner() {
         if (v && typeof v === 'object') setBillTemplate({ ...DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE, ...v });
       })
       .catch(() => setBillTemplate(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE));
+    // Lấy trực tiếp từ server theo shiftId thay vì lọc cache orders/history của tab — cache này chỉ
+    // đồng bộ qua SSE, nếu tab mất kết nối SSE dù chỉ 1 lần trong ca (rớt mạng, tab bị trình duyệt
+    // tạm dừng khi chuyển nền...) thì các đơn tạo/hoàn tất trong lúc mất kết nối sẽ biến mất khỏi
+    // cache mãi mãi, khiến bill kết ca hiện sai (thiếu đơn/doanh thu) dù server vẫn lưu đủ.
+    api
+      .fetchOrders({ shiftId: closingShift.id })
+      .then(setClosingShiftOrders)
+      .catch(() => setClosingShiftOrders(null));
   }, [closingShift]);
 
   const getCurrentShiftType = () => {
@@ -198,7 +208,8 @@ function POSInterfaceInner() {
 
   const shiftClosingSummary = closingShift
     ? (() => {
-        const shiftOrders = [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
+        const shiftOrders =
+          closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
         const actualCash = actualCashInput.trim() === '' ? undefined : Number(actualCashInput);
         return buildShiftClosingReceiptData(
           closingShift,

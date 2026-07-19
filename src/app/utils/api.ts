@@ -20,10 +20,11 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
   }
 }
 
-export async function fetchOrders(params?: { branchId?: string; salesStaffId?: string }) {
+export async function fetchOrders(params?: { branchId?: string; salesStaffId?: string; shiftId?: string }) {
   const qs = new URLSearchParams();
   if (params?.branchId) qs.set('branchId', params.branchId);
   if (params?.salesStaffId) qs.set('salesStaffId', params.salesStaffId);
+  if (params?.shiftId) qs.set('shiftId', params.shiftId);
   const query = qs.toString();
   const res = await fetch(`${BASE_URL}/orders${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Failed to fetch orders');

@@ -172,7 +172,7 @@ app.get('/api/events', (req, res) => {
 
 // Get all orders (active & completed history)
 app.get('/api/orders', (req, res) => {
-  const { branchId, salesStaffId } = req.query;
+  const { branchId, salesStaffId, shiftId } = req.query;
   let sql = 'SELECT * FROM orders WHERE 1=1';
   const params = [];
   if (branchId) {
@@ -182,6 +182,10 @@ app.get('/api/orders', (req, res) => {
   if (salesStaffId) {
     sql += ' AND salesStaffId = ?';
     params.push(salesStaffId);
+  }
+  if (shiftId) {
+    sql += ' AND shiftId = ?';
+    params.push(shiftId);
   }
   sql += ' ORDER BY time DESC';
   db.all(sql, params, (err, rows) => {

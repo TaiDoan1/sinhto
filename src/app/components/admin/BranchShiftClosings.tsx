@@ -52,9 +52,23 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const [date, setDate] = useState(todayStr());
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [detailShift, setDetailShift] = useState<ShiftRow | null>(null);
+  const [detailShiftOrders, setDetailShiftOrders] = useState<any[] | null>(null);
   const { subscribe } = useSSE();
   const { orders, history } = useOrders();
   const allOrders = useMemo(() => [...orders, ...history], [orders, history]);
+
+  useEffect(() => {
+    if (!detailShift) {
+      setDetailShiftOrders(null);
+      return;
+    }
+    // Lấy trực tiếp từ server thay vì cache orders/history — xem lý do ở handlePrintShift bên dưới.
+    api
+      .fetchOrders({ shiftId: detailShift.id })
+      .then((data: any[]) => setDetailShiftOrders(data.map((o) => ({ ...o, time: new Date(o.time) }))))
+      .catch(() => setDetailShiftOrders(getShiftOrders(detailShift)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailShift]);
 
   const load = () => {
     api
@@ -102,7 +116,15 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => o.shiftId === shift.id);
 
   const handlePrintShift = async (shift: ShiftRow) => {
-    const shiftOrders = getShiftOrders(shift);
+    // Lấy trực tiếp từ server theo shiftId thay vì lọc cache orders/history (OrderContext chỉ đồng
+    // bộ qua SSE — nếu có khoảng thời gian mất kết nối trong ca, cache sẽ thiếu đơn vĩnh viễn dù
+    // server vẫn lưu đủ). Chỉ dùng cache làm phương án dự phòng nếu gọi server thất bại.
+    let shiftOrders = getShiftOrders(shift);
+    try {
+      shiftOrders = await api.fetchOrders({ shiftId: shift.id });
+    } catch {
+      // giữ shiftOrders từ cache nếu server lỗi
+    }
     let cashMovements: { type: 'in' | 'out'; amount: number }[] = [];
     let template = DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE;
     try {
@@ -236,7 +258,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
               </button>
             </div>
             <div className="p-6 space-y-3">
-              {getShiftOrders(detailShift)
+              {(detailShiftOrders ?? [])
                 .sort((a, b) => a.time.getTime() - b.time.getTime())
                 .map((order) => (
                   <div key={order.id} className="border border-gray-200 rounded-lg p-3">
@@ -261,7 +283,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                     </div>
                   </div>
                 ))}
-              {getShiftOrders(detailShift).length === 0 && (
+              {(detailShiftOrders ?? []).length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-6">Không có đơn hàng nào</p>
               )}
             </div>

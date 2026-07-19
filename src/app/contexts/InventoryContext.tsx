@@ -182,6 +182,21 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     });
   }, [subscribe, loadMovements]);
 
+  // Tồn kho theo ml (smoothies/toppings, cái checkCartStock dùng để chặn bán khi thiếu hàng)
+  // được lưu qua saveSetting — trước đây chỉ tải 1 lần lúc loadForBranch nên máy POS đang mở
+  // sẵn không thấy ngay khi admin/máy khác vừa nhập kho, dẫn đến báo sai "không đủ tồn kho"
+  // dù kho thực tế đã đủ. Nghe SETTING_UPDATED để luôn khớp với dữ liệu mới nhất.
+  useEffect(() => {
+    return subscribe('SETTING_UPDATED', (payload: { key: string; value: any }) => {
+      if (branchRef.current && payload?.key === `branchProductInventory_${branchRef.current}`) {
+        setProductInventory({
+          smoothies: payload.value?.smoothies || {},
+          toppings: payload.value?.toppings || {},
+        });
+      }
+    });
+  }, [subscribe]);
+
   const syncInventory = (
     newInventory: InventoryItem[],
     newMovements: StockMovement[]

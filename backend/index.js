@@ -279,13 +279,26 @@ app.post('/api/orders', (req, res) => {
     });
   };
 
+  // Ưu tiên ca đang mở (in_progress) TẠI ĐÚNG CHI NHÁNH của đơn hàng này — nếu nhân viên hỗ
+  // trợ nhiều chi nhánh (hoặc lỡ "Thoát" mà không kết ca, để sót ca in_progress cũ), việc
+  // không lọc theo chi nhánh sẽ gán nhầm doanh thu sang ca khác, làm kết ca bị thiếu/dư tiền.
+  // Chỉ rơi về "ca in_progress bất kỳ" nếu không tìm được ca nào khớp chi nhánh — vẫn tốt hơn
+  // là bỏ trắng shiftId hoàn toàn.
   const resolveShiftThenInsert = (salesStaffId, salesStaffName) => {
     if (!order.staffId) return finishInsert(salesStaffId, salesStaffName, '');
     db.get(
-      "SELECT id FROM shifts WHERE employeeId = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
-      [order.staffId],
+      "SELECT id FROM shifts WHERE employeeId = ? AND branch = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
+      [order.staffId, order.branchId || ''],
       (shiftErr, shiftRow) => {
-        finishInsert(salesStaffId, salesStaffName, shiftRow ? shiftRow.id : '');
+        if (shiftErr) return finishInsert(salesStaffId, salesStaffName, '');
+        if (shiftRow) return finishInsert(salesStaffId, salesStaffName, shiftRow.id);
+        db.get(
+          "SELECT id FROM shifts WHERE employeeId = ? AND status = 'in_progress' ORDER BY checkIn DESC LIMIT 1",
+          [order.staffId],
+          (fallbackErr, fallbackRow) => {
+            finishInsert(salesStaffId, salesStaffName, fallbackRow ? fallbackRow.id : '');
+          }
+        );
       }
     );
   };

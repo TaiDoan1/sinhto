@@ -103,8 +103,15 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const unsubCreate = subscribe('ORDER_CREATED', (data) => {
       const newOrder = normalizeOrder(data);
       setOrders(prev => {
-        if (prev.some(o => o.id === newOrder.id)) return prev;
-        const updated = [newOrder, ...prev];
+        // Đơn do chính tab này tạo đã có sẵn 1 bản optimistic (cùng id, tự sinh ở addOrder())
+        // nhưng KHÔNG có shiftId/orderNumber vì đó là các trường server tự gán khi lưu. Phải
+        // GHI ĐÈ bằng bản chính thức từ server ở đây — nếu chỉ bỏ qua như trước, bản optimistic
+        // (shiftId rỗng) tồn tại mãi trên chính máy POS đã bán đơn đó, khiến kết ca ở đúng máy
+        // đó bị thiếu doanh thu của các đơn nó tự tạo ra.
+        const exists = prev.some(o => o.id === newOrder.id);
+        const updated = exists
+          ? prev.map(o => (o.id === newOrder.id ? newOrder : o))
+          : [newOrder, ...prev];
         localStorage.setItem('cached_active_orders', JSON.stringify(updated));
         return updated;
       });

@@ -339,6 +339,20 @@ export function ShiftSchedule() {
       )
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
+  // Lịch của nhân viên tại các chi nhánh KHÁC — chỉ để xem (không sửa được ở đây), giúp
+  // admin thấy ngay nhân viên hỗ trợ đã bận ngày nào bên chi nhánh kia mà không cần đổi
+  // dropdown chi nhánh qua lại.
+  const getOtherBranchShiftsForCell = (employeeId: string, date: string) =>
+    shiftBranch
+      ? shifts
+          .filter(s =>
+            s.employeeId === employeeId && s.date === date &&
+            s.branch !== shiftBranch &&
+            s.status !== 'pending' && s.status !== 'rejected'
+          )
+          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      : [];
+
   const pendingShifts = shifts.filter(s => s.status === 'pending');
 
   const handleApproveShift = async (shift: Shift) => {
@@ -583,6 +597,17 @@ export function ShiftSchedule() {
                                 </button>
                               </div>
                             )}
+                          </div>
+                        ))}
+
+                        {getOtherBranchShiftsForCell(emp.id, dateStr).map((s) => (
+                          <div
+                            key={s.id}
+                            className="text-[10px] leading-tight bg-gray-100 text-gray-500 border border-dashed border-gray-300 rounded-lg px-1.5 py-1"
+                            title={`${emp.fullName} đã có lịch tại ${s.branch}`}
+                          >
+                            <span className="font-bold">{s.branch}</span>{' '}
+                            {s.shiftType === 'off' ? 'Nghỉ' : `${s.startTime}-${s.endTime}`}
                           </div>
                         ))}
 

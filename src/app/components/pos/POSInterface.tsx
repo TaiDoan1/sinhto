@@ -89,6 +89,7 @@ function POSInterfaceInner() {
   const [closingCashMovements, setClosingCashMovements] = useState<api.ShiftCashMovement[]>([]);
   const [billTemplate, setBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [actualCashInput, setActualCashInput] = useState('');
+  const [noActiveShiftNotice, setNoActiveShiftNotice] = useState(false);
 
   useEffect(() => {
     if (branchId) {
@@ -146,10 +147,7 @@ function POSInterfaceInner() {
     } catch (err) {
       console.error('Failed to check active shift:', err);
     }
-    if (confirm('Đăng xuất máy POS?')) {
-      logout();
-      setCart([]);
-    }
+    setNoActiveShiftNotice(true);
   };
 
   // Thoát: đăng xuất thẳng về màn hình đăng nhập, không kết ca (VD: đổi người dùng máy nhanh).
@@ -731,6 +729,38 @@ function POSInterfaceInner() {
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold"
               >
                 {startCashSubmitting ? 'Đang lưu...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noActiveShiftNotice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
+            <Receipt className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Không tìm thấy ca đang mở</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Bạn chưa vào ca (chưa check-in) nên không có gì để kết ca. Đăng nhập lại để tự động vào ca, hoặc đăng xuất luôn nếu không cần kết ca.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNoActiveShiftNotice(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNoActiveShiftNotice(false);
+                  logout();
+                  setCart([]);
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold"
+              >
+                Đăng xuất luôn
               </button>
             </div>
           </div>

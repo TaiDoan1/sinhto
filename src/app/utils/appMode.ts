@@ -3,6 +3,7 @@ export type AppMode =
   | "online-sales"
   | "staff"
   | "pos"
+  | "pos-customer-display"
   | "admin"
   | "store-manager"
   | "shipper"
@@ -11,6 +12,7 @@ export type AppMode =
 const PATH_MODE: { prefix: string; mode: AppMode }[] = [
   { prefix: "/admin", mode: "admin" },
   { prefix: "/store-manager", mode: "store-manager" },
+  { prefix: "/pos/customer-display", mode: "pos-customer-display" },
   { prefix: "/pos", mode: "pos" },
   { prefix: "/cs", mode: "online-sales" },
   { prefix: "/cskh", mode: "online-sales" },
@@ -38,6 +40,8 @@ export function pathForMode(mode: AppMode): string {
       return "/store-manager";
     case "pos":
       return "/pos";
+    case "pos-customer-display":
+      return "/pos/customer-display";
     case "online-sales":
       return "/cs";
     case "staff":

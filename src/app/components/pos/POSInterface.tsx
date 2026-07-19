@@ -12,6 +12,7 @@ import {
   Receipt,
   Printer,
   Banknote,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
@@ -37,6 +38,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
+import { postCustomerDisplayState } from '../../hooks/useCustomerDisplayChannel';
 import {
   buildShiftClosingReceiptData,
   printShiftClosingReceipt,
@@ -99,6 +101,17 @@ function POSInterfaceInner() {
       return () => clearInterval(interval);
     }
   }, [branchId, loadForBranch]);
+
+  // Báo màn hình khách (nếu đang mở) biết chi nhánh hiện tại — trước khi có giỏ hàng gì để hiện.
+  useEffect(() => {
+    if (branchId) {
+      postCustomerDisplayState({ stage: 'idle', branchId, items: [], subtotal: 0, discount: 0, total: 0, updatedAt: Date.now() });
+    }
+  }, [branchId]);
+
+  const handleOpenCustomerDisplay = () => {
+    window.open('/pos/customer-display', 'fitblend_customer_display', 'noopener');
+  };
 
   useEffect(() => {
     if (!closingShift) {
@@ -401,6 +414,14 @@ function POSInterfaceInner() {
             )}
           </div>
           <PosFullscreenButton />
+          <button
+            type="button"
+            onClick={handleOpenCustomerDisplay}
+            className="shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
+            title="Mở màn hình khách (monitor thứ 2)"
+          >
+            <MonitorSmartphone className="w-4 h-4" />
+          </button>
           <button
             type="button"
             onClick={() => setShowPrinterSetup(true)}

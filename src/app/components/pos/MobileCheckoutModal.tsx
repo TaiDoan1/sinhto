@@ -1,5 +1,5 @@
 import { X, Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog, StickyNote } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { usePos } from '../../contexts/PosContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -9,6 +9,7 @@ import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import { usePaymentQr } from '../../hooks/usePaymentQr';
+import { postCustomerDisplayState } from '../../hooks/useCustomerDisplayChannel';
 import type { CartItem } from './ModifierModal';
 import type { Shift } from '../admin/ShiftSchedule';
 import {
@@ -80,6 +81,33 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
   const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
   const total = Math.max(0, subtotal - pointsDiscount);
   const estimatedPointsEarned = calcEarnedPoints(total);
+
+  // Đồng bộ màn hình khách (monitor thứ 2) — bị tạm ngưng vài giây sau khi thanh toán xong
+  // để màn hình "Cảm ơn quý khách" không bị đè ngay bởi trạng thái giỏ hàng rỗng kế tiếp.
+  const suppressDisplaySyncUntilRef = useRef(0);
+  useEffect(() => {
+    if (Date.now() < suppressDisplaySyncUntilRef.current) return;
+    const stage = showPaymentConfirm && selectedPayment ? 'payment' : cart.length > 0 ? 'cart' : 'idle';
+    postCustomerDisplayState({
+      stage,
+      branchId,
+      items: cart.map((item) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+        size: item.size,
+        toppings: item.toppings,
+      })),
+      subtotal,
+      discount: pointsDiscount,
+      total,
+      paymentMethod: selectedPayment,
+      qrImageUrl,
+      customerName: activeCustomer?.name,
+      updatedAt: Date.now(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, subtotal, total, pointsDiscount, selectedPayment, showPaymentConfirm, qrImageUrl, branchId, activeCustomer]);
 
   const makeOrderNumber = () =>
     `ORD-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
@@ -217,6 +245,25 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       () => printBothAfterPayment(buildReceipt(orderNumber, now, selectedPayment), cartToPrintLines()),
       100
     );
+
+    suppressDisplaySyncUntilRef.current = Date.now() + 5000;
+    postCustomerDisplayState({
+      stage: 'success',
+      branchId,
+      items: [],
+      subtotal,
+      discount: pointsDiscount,
+      total,
+      paymentMethod: selectedPayment,
+      qrImageUrl,
+      customerName: activeCustomer?.name,
+      pointsEarned: estimatedPointsEarned,
+      updatedAt: Date.now(),
+    });
+    setTimeout(() => {
+      suppressDisplaySyncUntilRef.current = 0;
+      postCustomerDisplayState({ stage: 'idle', branchId, items: [], subtotal: 0, discount: 0, total: 0, updatedAt: Date.now() });
+    }, 5000);
 
     onClearCart();
     setShowPaymentConfirm(false);

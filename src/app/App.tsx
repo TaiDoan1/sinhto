@@ -9,6 +9,7 @@ import { InventoryDashboard } from "./components/admin/InventoryDashboard";
 import { CrossBranchInventory } from "./components/admin/CrossBranchInventory";
 import { ShiftClosingBillSettings } from "./components/admin/ShiftClosingBillSettings";
 import { POSInterface } from "./components/pos/POSInterface";
+import { PosCustomerDisplay } from "./components/pos/PosCustomerDisplay";
 import { StaffApp } from "./components/staff/StaffApp";
 import { OnlineSalesApp } from "./components/online-sales/OnlineSalesApp";
 import { OnlineSalesProvider } from "./contexts/OnlineSalesContext";
@@ -332,6 +333,10 @@ function AppContent() {
         </div>
       </>
     );
+  }
+
+  if (mode === "pos-customer-display") {
+    return <PosCustomerDisplay />;
   }
 
   if (mode === "pos") {

@@ -13,6 +13,8 @@ import {
   Printer,
   Banknote,
   MonitorSmartphone,
+  Camera,
+  RefreshCw,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
@@ -27,6 +29,7 @@ import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { PosProvider, usePos } from '../../contexts/PosContext';
 import { PosLogin } from './PosLogin';
+import { AttendanceCamera } from '../staff/AttendanceCamera';
 import { PosKioskOverlay, PosFullscreenButton } from './PosKioskOverlay';
 import { PrinterSetupModal } from './PrinterSetupModal';
 import { PosKioskProvider } from '../../hooks/usePosKiosk';
@@ -95,6 +98,9 @@ function POSInterfaceInner() {
   const [closingShiftOrders, setClosingShiftOrders] = useState<any[] | null>(null);
   const [billTemplate, setBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [actualCashInput, setActualCashInput] = useState('');
+  const [closingPhoto, setClosingPhoto] = useState<string | null>(null);
+  const [showClosingCamera, setShowClosingCamera] = useState(false);
+  const [closingPhotoUploading, setClosingPhotoUploading] = useState(false);
   const [noActiveShiftNotice, setNoActiveShiftNotice] = useState(false);
   const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
   const customerDisplayWinRef = useRef<Window | null>(null);
@@ -143,6 +149,7 @@ function POSInterfaceInner() {
       setClosingCashMovements([]);
       setClosingShiftOrders(null);
       setActualCashInput('');
+      setClosingPhoto(null);
       return;
     }
     api.fetchCashMovements(closingShift.id).then(setClosingCashMovements).catch(() => setClosingCashMovements([]));
@@ -232,9 +239,13 @@ function POSInterfaceInner() {
       alert('Vui lòng nhập số tiền mặt thực tế đếm được.');
       return;
     }
+    if (!closingPhoto) {
+      alert('Vui lòng chụp ảnh checkout trước khi kết ca.');
+      return;
+    }
     setClosingSubmitting(true);
     try {
-      await api.shiftCheckIn(closingShift.id, 'out', undefined, { endCashActual: Number(actualCashInput) });
+      await api.shiftCheckIn(closingShift.id, 'out', closingPhoto, { endCashActual: Number(actualCashInput) });
       logout();
       setCart([]);
       setClosingShift(null);
@@ -242,6 +253,19 @@ function POSInterfaceInner() {
       alert('Kết ca thất bại. Vui lòng thử lại.');
     } finally {
       setClosingSubmitting(false);
+    }
+  };
+
+  const handleClosingPhotoCapture = async (file: File) => {
+    setClosingPhotoUploading(true);
+    try {
+      const photoUrl = await api.uploadImage(file);
+      setClosingPhoto(photoUrl);
+      setShowClosingCamera(false);
+    } catch {
+      alert('Tải ảnh lên thất bại. Vui lòng thử lại.');
+    } finally {
+      setClosingPhotoUploading(false);
     }
   };
 
@@ -757,6 +781,35 @@ function POSInterfaceInner() {
               )}
             </div>
 
+            <div className="text-left mt-3">
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Ảnh checkout *</label>
+              {closingPhoto ? (
+                <div className="relative">
+                  <img src={closingPhoto} alt="Ảnh checkout" className="w-full h-auto rounded-lg object-cover max-h-40" />
+                  <button
+                    type="button"
+                    onClick={() => setShowClosingCamera(true)}
+                    className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Chụp lại
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowClosingCamera(true)}
+                  disabled={closingPhotoUploading}
+                  className="w-full border-2 border-dashed border-gray-300 hover:border-emerald-400 rounded-xl py-4 flex flex-col items-center gap-1.5 text-gray-500 hover:text-emerald-700 disabled:opacity-60"
+                >
+                  <Camera className="w-6 h-6" />
+                  <span className="text-xs font-semibold">
+                    {closingPhotoUploading ? 'Đang tải ảnh...' : 'Chụp ảnh checkout'}
+                  </span>
+                </button>
+              )}
+            </div>
+
             {shiftClosingSummary.items.length > 0 && (
               <div className="text-left mt-4">
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Sản phẩm đã bán</p>
@@ -789,7 +842,7 @@ function POSInterfaceInner() {
               </button>
               <button
                 type="button"
-                disabled={closingSubmitting}
+                disabled={closingSubmitting || !closingPhoto}
                 onClick={handleConfirmClosing}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
               >
@@ -798,6 +851,14 @@ function POSInterfaceInner() {
             </div>
           </div>
         </div>
+      )}
+
+      {showClosingCamera && (
+        <AttendanceCamera
+          label="Chụp ảnh checkout"
+          onCapture={handleClosingPhotoCapture}
+          onCancel={() => setShowClosingCamera(false)}
+        />
       )}
 
       {pendingStartCashShiftId && (

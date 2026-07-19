@@ -335,9 +335,29 @@ function POSInterfaceInner() {
       <header className="bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-2 px-2 py-1">
           <div className="font-bold text-emerald-800 pos-header-brand shrink-0">FitBlend POS</div>
-          <div className="flex-1 min-w-0 pos-header-meta text-gray-500 truncate">
+          <div className="pos-header-meta text-gray-500 truncate shrink-0 max-w-[180px]">
             {branchLabel(branchId) || branchId} · {session.employeeName}
           </div>
+
+          <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => setShowCashMovement(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm font-bold shrink-0"
+            >
+              <Banknote className="w-4 h-4" />
+              Thu/Chi
+            </button>
+            <button
+              type="button"
+              onClick={handleEndShift}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold shrink-0"
+            >
+              <Receipt className="w-4 h-4" />
+              Kết ca
+            </button>
+          </div>
+
           <div className="relative shrink-0">
             <button
               type="button"
@@ -390,22 +410,6 @@ function POSInterfaceInner() {
             title="Kết nối máy in USB"
           >
             <Printer className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCashMovement(true)}
-            className="shrink-0 p-1.5 text-amber-700 hover:bg-amber-50 rounded-md"
-            title="Ghi thu/chi tiền mặt"
-          >
-            <Banknote className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleEndShift}
-            className="shrink-0 p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md"
-            title="Kết ca"
-          >
-            <Receipt className="w-4 h-4" />
           </button>
           <button
             type="button"

@@ -975,10 +975,19 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
     const field = action === 'out' ? 'checkOut' : 'checkIn';
     const photoField = action === 'out' ? 'checkOutPhoto' : 'checkInPhoto';
-    const updated = { ...row, [field]: now };
-    if (photo) updated[photoField] = photo;
-    if (action === 'in') updated.status = 'in_progress';
-    if (action === 'out') updated.status = 'completed';
+    // Giờ vào/ra ca đã được POS tự động ghi trước đó (để gán doanh thu đúng ca) — nếu giờ này đã
+    // có sẵn, lần gọi checkin này chỉ nhằm bổ sung ảnh xác nhận từ app điện thoại nhân viên, không
+    // được ghi đè lại giờ/trạng thái đã chốt (tránh sai giờ chấm công hoặc mở lại ca đã kết ca).
+    const isPhotoOnly = !!row[field];
+    const updated = { ...row };
+    if (isPhotoOnly) {
+      if (photo) updated[photoField] = photo;
+    } else {
+      updated[field] = now;
+      if (photo) updated[photoField] = photo;
+      if (action === 'in') updated.status = 'in_progress';
+      if (action === 'out') updated.status = 'completed';
+    }
     if (startCash != null) updated.startCash = Number(startCash) || 0;
     if (endCashActual != null) updated.endCashActual = Number(endCashActual) || 0;
 
@@ -1005,7 +1014,7 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
       );
     };
 
-    if (action === 'out') {
+    if (action === 'out' && !isPhotoOnly) {
       db.get(
         "SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?",
         [id],

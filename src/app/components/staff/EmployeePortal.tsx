@@ -316,25 +316,27 @@ export function EmployeePortal() {
                     </div>
                   )}
 
-                  {!todayShift.checkIn && (
+                  {/* Giờ vào/ra ca có thể đã được máy POS tự động ghi nhận (để tính doanh thu đúng ca) —
+                      ảnh xác nhận là bước riêng, chụp lúc nào trong ngày cũng được, không phụ thuộc giờ đó. */}
+                  {!todayShift.checkInPhoto && (
                     <button
                       onClick={() => setCameraMode('in')}
                       className="w-full bg-green-500 active:bg-green-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
                     >
                       <Camera className="w-5 h-5" />
-                      Check-in
+                      {todayShift.checkIn ? 'Chụp ảnh xác nhận vào ca' : 'Check-in'}
                     </button>
                   )}
-                  {todayShift.checkIn && !todayShift.checkOut && (
+                  {!todayShift.checkOutPhoto && (
                     <button
                       onClick={() => setCameraMode('out')}
                       className="w-full bg-emerald-600 active:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
                     >
                       <Camera className="w-5 h-5" />
-                      Check-out
+                      {todayShift.checkOut ? 'Chụp ảnh xác nhận tan ca' : 'Check-out'}
                     </button>
                   )}
-                  {todayShift.checkOut && (
+                  {todayShift.checkInPhoto && todayShift.checkOutPhoto && (
                     <div className="flex items-center justify-center gap-2 text-green-600 font-semibold py-2">
                       <CheckCircle className="w-5 h-5" />
                       Đã hoàn thành ca hôm nay

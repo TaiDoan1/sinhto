@@ -51,6 +51,23 @@ const legacyBlockTemplates: Record<string, { color: string; icon: string }> = {
   block_18_22: { color: 'from-indigo-500 to-purple-400', icon: '🕕' },
 };
 
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+// Khớp đúng logic chống trùng ca ở backend (findConflictingShift/timeRangesOverlap trong
+// backend/index.js) — xử lý cả ca qua đêm (VD 23:00-08:00) để không báo sai.
+function timeRangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  let a1 = timeToMinutes(startA);
+  let a2 = timeToMinutes(endA);
+  let b1 = timeToMinutes(startB);
+  let b2 = timeToMinutes(endB);
+  if (a2 <= a1) a2 += 24 * 60;
+  if (b2 <= b1) b2 += 24 * 60;
+  return a1 < b2 && b1 < a2;
+}
+
 function shiftTemplateFor(shiftType?: Shift['shiftType']) {
   const known = shiftTemplates.find((t) => t.id === shiftType);
   if (known) return known;
@@ -353,6 +370,20 @@ export function ShiftSchedule() {
           .sort((a, b) => a.startTime.localeCompare(b.startTime))
       : [];
 
+  // Toàn bộ ca của nhân viên ngày đó ở BẤT KỲ chi nhánh nào — dùng để chặn chọn giờ trùng
+  // ngay trên UI, khớp đúng phạm vi kiểm tra trùng giờ mà backend đã áp dụng khi lưu.
+  const getShiftsForConflictCheck = (employeeId: string, date: string, excludeShiftId?: string) =>
+    shifts.filter(s =>
+      s.employeeId === employeeId && s.date === date &&
+      s.id !== excludeShiftId &&
+      s.status !== 'rejected' && s.status !== 'cancelled'
+    );
+
+  const findTimeConflict = (employeeId: string, date: string, startTime: string, endTime: string, excludeShiftId?: string) =>
+    getShiftsForConflictCheck(employeeId, date, excludeShiftId).find(s =>
+      timeRangesOverlap(startTime, endTime, s.startTime, s.endTime)
+    ) || null;
+
   const pendingShifts = shifts.filter(s => s.status === 'pending');
 
   const handleApproveShift = async (shift: Shift) => {
@@ -632,6 +663,12 @@ export function ShiftSchedule() {
       {selectedCell && (() => {
         const emp = employees.find(e => e.id === selectedCell.employeeId);
         if (!emp) return null;
+        const dayConflicts = getShiftsForConflictCheck(selectedCell.employeeId, selectedCell.date);
+        const customConflict = customStart && customEnd
+          ? findTimeConflict(selectedCell.employeeId, selectedCell.date, customStart, customEnd)
+          : null;
+        const conflictLabel = (c: Shift) =>
+          `Trùng giờ ca ${c.startTime}-${c.endTime}${c.branch ? ` tại ${c.branch}` : ''}`;
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
@@ -643,21 +680,33 @@ export function ShiftSchedule() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 mb-4">
-                {shiftTemplates.map((tpl) => (
-                  <button
-                    key={tpl.name}
-                    onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, tpl.start, tpl.end, tpl.id)}
-                    className={`bg-gradient-to-r ${tpl.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all`}
-                  >
-                    <div className="text-xl">{tpl.icon}</div>
-                    <div className="text-xs font-semibold opacity-90 mt-0.5">{tpl.start} - {tpl.end}</div>
-                  </button>
-                ))}
+                {shiftTemplates.map((tpl) => {
+                  const conflict = findTimeConflict(selectedCell.employeeId, selectedCell.date, tpl.start, tpl.end);
+                  return (
+                    <button
+                      key={tpl.name}
+                      disabled={!!conflict}
+                      title={conflict ? conflictLabel(conflict) : undefined}
+                      onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, tpl.start, tpl.end, tpl.id)}
+                      className={`bg-gradient-to-r ${tpl.color} text-white rounded-xl py-3 font-bold transition-all ${
+                        conflict ? 'opacity-40 grayscale cursor-not-allowed' : 'hover:shadow-lg'
+                      }`}
+                    >
+                      <div className="text-xl">{tpl.icon}</div>
+                      <div className="text-xs font-semibold opacity-90 mt-0.5">{tpl.start} - {tpl.end}</div>
+                      {conflict && <div className="text-[10px] font-bold mt-0.5">Đã trùng giờ</div>}
+                    </button>
+                  );
+                })}
               </div>
 
               <button
                 onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, '00:00', '23:59', 'off')}
-                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${offTemplate.color} text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all mb-4`}
+                disabled={dayConflicts.length > 0}
+                title={dayConflicts.length > 0 ? conflictLabel(dayConflicts[0]) : undefined}
+                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${offTemplate.color} text-white rounded-xl py-3 font-bold transition-all mb-4 ${
+                  dayConflicts.length > 0 ? 'opacity-40 grayscale cursor-not-allowed' : 'hover:shadow-lg'
+                }`}
               >
                 <CalendarOff className="w-4 h-4" />
                 Đánh dấu nghỉ cả ngày
@@ -680,10 +729,13 @@ export function ShiftSchedule() {
                     className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm"
                   />
                 </div>
+                {customConflict && (
+                  <p className="text-xs text-red-600 font-semibold mt-1.5">{conflictLabel(customConflict)}</p>
+                )}
                 <button
                   onClick={() => handleAddShift(selectedCell.employeeId, selectedCell.date, customStart, customEnd, 'custom')}
-                  disabled={!customStart || !customEnd}
-                  className="w-full mt-2 bg-gradient-to-r from-slate-600 to-slate-500 disabled:opacity-40 text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all"
+                  disabled={!customStart || !customEnd || !!customConflict}
+                  className="w-full mt-2 bg-gradient-to-r from-slate-600 to-slate-500 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed text-white rounded-xl py-3 font-bold hover:shadow-lg transition-all"
                 >
                   ⏱️ Thêm ca này
                 </button>

@@ -56,3 +56,33 @@ export function useCustomerDisplayState(): CustomerDisplayState | null {
 
   return state;
 }
+
+const CUSTOMER_DISPLAY_WINDOW_NAME = 'fitblend_customer_display';
+const CUSTOMER_DISPLAY_PATH = '/pos/customer-display';
+
+/**
+ * Mở cửa sổ màn hình khách — máy POS là màn hình cảm ứng, không có chuột để kéo cửa sổ
+ * sang monitor phụ, nên dùng Window Management API (Chrome) để tự đặt đúng vị trí + kích
+ * thước màn hình thứ 2 nếu trình duyệt hỗ trợ và người dùng đã cấp quyền; nếu không, rơi về
+ * mở cửa sổ thường (người dùng tự kéo sang màn hình phụ 1 lần).
+ */
+export async function openCustomerDisplayWindow(): Promise<Window | null> {
+  const w = window as any;
+  if (typeof w.getScreenDetails === 'function') {
+    try {
+      const screenDetails = await w.getScreenDetails();
+      const target =
+        screenDetails.screens.find((s: any) => s !== screenDetails.currentScreen) ||
+        screenDetails.currentScreen;
+      const win = window.open(
+        CUSTOMER_DISPLAY_PATH,
+        CUSTOMER_DISPLAY_WINDOW_NAME,
+        `left=${target.availLeft},top=${target.availTop},width=${target.availWidth},height=${target.availHeight}`
+      );
+      return win;
+    } catch {
+      // Chưa cấp quyền quản lý màn hình hoặc trình duyệt không hỗ trợ — rơi về cách cũ.
+    }
+  }
+  return window.open(CUSTOMER_DISPLAY_PATH, CUSTOMER_DISPLAY_WINDOW_NAME, 'noopener');
+}

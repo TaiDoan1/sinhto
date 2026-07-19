@@ -25,6 +25,12 @@ export function PosCustomerDisplay() {
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  // Thử tự full màn hình khi vừa mở (một số trình duyệt chặn nếu không có thao tác trực
+  // tiếp trong đúng cửa sổ này — khi đó nút full màn hình góc trên vẫn dùng được).
+  useEffect(() => {
+    requestFullscreen();
+  }, []);
+
   const stage = state?.stage || 'idle';
   const branch = state?.branchId ? branchLabel(state.branchId) : '';
 

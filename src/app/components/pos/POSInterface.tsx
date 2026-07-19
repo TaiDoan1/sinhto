@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ShoppingBag,
   ClipboardList,
@@ -38,7 +38,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
-import { postCustomerDisplayState } from '../../hooks/useCustomerDisplayChannel';
+import { postCustomerDisplayState, openCustomerDisplayWindow } from '../../hooks/useCustomerDisplayChannel';
 import {
   buildShiftClosingReceiptData,
   printShiftClosingReceipt,
@@ -92,6 +92,8 @@ function POSInterfaceInner() {
   const [billTemplate, setBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [actualCashInput, setActualCashInput] = useState('');
   const [noActiveShiftNotice, setNoActiveShiftNotice] = useState(false);
+  const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
+  const customerDisplayWinRef = useRef<Window | null>(null);
 
   useEffect(() => {
     if (branchId) {
@@ -109,8 +111,27 @@ function POSInterfaceInner() {
     }
   }, [branchId]);
 
-  const handleOpenCustomerDisplay = () => {
-    window.open('/pos/customer-display', 'fitblend_customer_display', 'noopener');
+  // Theo dõi cửa sổ màn hình khách tự đóng (VD: nhân viên bấm X) để icon toggle luôn phản ánh đúng trạng thái.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (customerDisplayWinRef.current && customerDisplayWinRef.current.closed) {
+        customerDisplayWinRef.current = null;
+        setCustomerDisplayOpen(false);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleCustomerDisplay = async () => {
+    if (customerDisplayWinRef.current && !customerDisplayWinRef.current.closed) {
+      customerDisplayWinRef.current.close();
+      customerDisplayWinRef.current = null;
+      setCustomerDisplayOpen(false);
+      return;
+    }
+    const win = await openCustomerDisplayWindow();
+    customerDisplayWinRef.current = win;
+    setCustomerDisplayOpen(!!win);
   };
 
   useEffect(() => {
@@ -416,11 +437,18 @@ function POSInterfaceInner() {
           <PosFullscreenButton />
           <button
             type="button"
-            onClick={handleOpenCustomerDisplay}
-            className="shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
-            title="Mở màn hình khách (monitor thứ 2)"
+            onClick={handleToggleCustomerDisplay}
+            className={`shrink-0 p-1.5 rounded-md flex items-center gap-1 ${
+              customerDisplayOpen
+                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+            title={customerDisplayOpen ? 'Tắt màn hình khách' : 'Bật màn hình khách (monitor thứ 2)'}
           >
             <MonitorSmartphone className="w-4 h-4" />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${customerDisplayOpen ? 'bg-emerald-500' : 'bg-gray-300'}`}
+            />
           </button>
           <button
             type="button"

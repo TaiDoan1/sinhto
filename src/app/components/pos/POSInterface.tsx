@@ -232,9 +232,14 @@ function POSInterfaceInner() {
       alert('Vui lòng nhập số tiền mặt thực tế đếm được.');
       return;
     }
+    if (!shiftClosingSummary) return;
     setClosingSubmitting(true);
     try {
       await api.shiftCheckIn(closingShift.id, 'out', undefined, { endCashActual: Number(actualCashInput) });
+      // In bill là một phần bắt buộc của thao tác kết ca — chỉ đăng xuất SAU KHI bill đã được
+      // gửi đi in, để không có trường hợp kết ca xong nhưng không có bill (nhân viên quên bấm
+      // in riêng, hoặc bấm "Xác nhận" mà bỏ qua bước in).
+      await printShiftClosingReceipt(shiftClosingSummary);
       logout();
       setCart([]);
       setClosingShift(null);
@@ -344,6 +349,9 @@ function POSInterfaceInner() {
     try {
       const shifts = (await api.fetchShifts({ branch: branchId, date: today })) as Shift[];
       const todayShifts = shifts.filter((shift) => {
+        // Đã check-in (in_progress) thì luôn hiện, dù đến sớm/trễ hơn khung giờ trên lịch —
+        // nếu không, nhân viên đến sớm sẽ tạm thời "biến mất" khỏi danh sách cho tới đúng giờ ca.
+        if (shift.status === 'in_progress') return true;
         const startHour = parseInt(shift.startTime.split(':')[0], 10);
         const endHour = parseInt(shift.endTime.split(':')[0], 10);
         if (endHour < startHour) {
@@ -776,8 +784,11 @@ function POSInterfaceInner() {
               onClick={handlePrintClosingBill}
               className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
             >
-              🖨️ In bill kết ca
+              🖨️ Xem trước / In thử bill
             </button>
+            <p className="text-[11px] text-gray-400 text-center mt-1">
+              Bấm "Xác nhận kết ca &amp; In bill" bên dưới sẽ tự in bill chính thức trước khi đăng xuất — không cần in tay ở đây.
+            </p>
 
             <div className="flex gap-2 mt-3">
               <button
@@ -793,7 +804,7 @@ function POSInterfaceInner() {
                 onClick={handleConfirmClosing}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
               >
-                {closingSubmitting ? 'Đang kết ca...' : 'Xác nhận kết ca'}
+                {closingSubmitting ? 'Đang in bill & kết ca...' : 'Xác nhận kết ca & In bill'}
               </button>
             </div>
           </div>

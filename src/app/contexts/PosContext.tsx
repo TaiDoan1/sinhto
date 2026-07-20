@@ -5,6 +5,7 @@ import { isOnlineSalesPosition } from '../types/employee';
 
 const SESSION_KEY = 'pos_session';
 const DEVICE_BRANCH_KEY = 'pos_device_branch';
+const startCashDoneKey = (shiftId: string) => `pos_startcash_done_${shiftId}`;
 
 /** Nhân viên được dùng máy POS tại chi nhánh của mình */
 const POS_POSITIONS = new Set(['cashier', 'bartender', 'manager', 'store_manager', 'server']);
@@ -28,6 +29,7 @@ interface PosContextType {
   logout: () => void;
   pendingStartCashShiftId: string | null;
   clearPendingStartCash: () => void;
+  markStartCashDone: (shiftId: string) => void;
 }
 
 const PosContext = createContext<PosContextType | undefined>(undefined);
@@ -103,29 +105,42 @@ export function PosProvider({ children }: { children: ReactNode }) {
     try {
       const today = new Date().toISOString().split('T')[0];
       const todayShifts = (await api.fetchShifts({ employeeId: employee.id, date: today })) as any[];
-      const eligible = (todayShifts || []).filter(
-        (s) => s.status !== 'in_progress' && s.status !== 'completed' && s.status !== 'rejected'
-      );
+      const notDone = (todayShifts || []).filter((s) => s.status !== 'completed' && s.status !== 'rejected');
 
       // Store manager can check in shifts from any branch
-      const eligibleForBranch = employee.position === 'store_manager'
-        ? eligible
-        : eligible.filter((s) => s.branch === sessionBranch);
+      const forBranch = employee.position === 'store_manager'
+        ? notDone
+        : notDone.filter((s) => s.branch === sessionBranch);
 
-      const currentHour = new Date().getHours();
-      const matchingNow = eligibleForBranch.find((s) => {
-        const startHour = parseInt(s.startTime.split(':')[0], 10);
-        const endHour = parseInt(s.endTime.split(':')[0], 10);
-        if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua dem
-        return currentHour >= startHour && currentHour < endHour;
-      });
+      // Ca đang mở sẵn (in_progress) được ưu tiên — đây chính là ca của phiên đăng nhập lần
+      // trước, có thể đăng nhập lại (tải lại trang, đóng app giữa chừng) TRƯỚC KHI kịp nhập
+      // tiền mặt đầu ca. Nếu chỉ tìm ca "chưa bắt đầu" như trước, ca in_progress bị bỏ qua
+      // hoàn toàn — nhân viên không bao giờ được hỏi lại tiền mặt đầu ca cho ca đó nữa.
+      const alreadyOpen = forBranch.find((s) => s.status === 'in_progress');
 
-      const shiftToCheckIn =
-        matchingNow || [...eligibleForBranch].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+      let shiftToCheckIn = alreadyOpen;
+      if (!shiftToCheckIn) {
+        const eligibleForBranch = forBranch.filter((s) => s.status !== 'in_progress');
+        const currentHour = new Date().getHours();
+        const matchingNow = eligibleForBranch.find((s) => {
+          const startHour = parseInt(s.startTime.split(':')[0], 10);
+          const endHour = parseInt(s.endTime.split(':')[0], 10);
+          if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua dem
+          return currentHour >= startHour && currentHour < endHour;
+        });
+        shiftToCheckIn =
+          matchingNow || [...eligibleForBranch].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+      }
 
       if (shiftToCheckIn) {
-        await api.shiftCheckIn(shiftToCheckIn.id, 'in');
-        setPendingStartCashShiftId(shiftToCheckIn.id);
+        if (shiftToCheckIn.status !== 'in_progress') {
+          await api.shiftCheckIn(shiftToCheckIn.id, 'in');
+        }
+        // Chỉ hỏi lại tiền mặt đầu ca nếu ca này CHƯA từng được xác nhận (nộp hoặc bấm "Bỏ
+        // qua") trên chính máy này — tránh hỏi lặp lại mỗi lần tải lại trang.
+        if (!localStorage.getItem(startCashDoneKey(shiftToCheckIn.id))) {
+          setPendingStartCashShiftId(shiftToCheckIn.id);
+        }
       }
     } catch (err) {
       console.error('Auto check-in failed:', err);
@@ -139,8 +154,12 @@ export function PosProvider({ children }: { children: ReactNode }) {
     setPendingStartCashShiftId(null);
   };
 
+  const markStartCashDone = (shiftId: string) => {
+    localStorage.setItem(startCashDoneKey(shiftId), '1');
+  };
+
   return (
-    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, pendingStartCashShiftId, clearPendingStartCash }}>
+    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone }}>
       {children}
     </PosContext.Provider>
   );

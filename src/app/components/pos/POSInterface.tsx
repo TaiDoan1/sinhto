@@ -64,7 +64,7 @@ const POS_TABS: {
 ];
 
 function POSInterfaceInner() {
-  const { session, isLoggedIn, isLoading, logout, pendingStartCashShiftId, clearPendingStartCash } = usePos();
+  const { session, isLoggedIn, isLoading, logout, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
   const { orders, history } = useBranchOrders(branchId);
@@ -260,6 +260,7 @@ function POSInterfaceInner() {
     } catch (err) {
       console.error('Lưu tiền mặt đầu ca thất bại:', err);
     } finally {
+      markStartCashDone(pendingStartCashShiftId);
       setStartCashSubmitting(false);
       setStartCashInput('0');
       clearPendingStartCash();
@@ -833,6 +834,7 @@ function POSInterfaceInner() {
               <button
                 type="button"
                 onClick={() => {
+                  if (pendingStartCashShiftId) markStartCashDone(pendingStartCashShiftId);
                   setStartCashInput('0');
                   clearPendingStartCash();
                 }}

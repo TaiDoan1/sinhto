@@ -429,8 +429,12 @@ function POSInterfaceInner() {
       <header className="bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-2 px-2 py-1">
           <div className="font-bold text-emerald-800 pos-header-brand shrink-0">FitBlend POS</div>
-          <div className="pos-header-meta text-gray-500 truncate shrink-0 max-w-[180px]">
-            {branchLabel(branchId) || branchId} · {session.employeeName}
+          <div className="pos-header-meta text-gray-500 flex items-center gap-1 min-w-0 shrink-0 max-w-[360px]">
+            <span className="truncate">{branchLabel(branchId) || branchId}</span>
+            <span className="shrink-0">·</span>
+            {/* Tên nhân viên đang đăng nhập — luôn hiện đủ, không cắt ngắn, kể cả khi tên chi
+                nhánh dài phải rút gọn (max-w-[180px] cũ khiến tên NV luôn bị ẩn mất hoàn toàn). */}
+            <span className="font-semibold text-gray-700 shrink-0 whitespace-nowrap">{session.employeeName}</span>
           </div>
 
           <div className="flex-1 flex items-center justify-center gap-2 min-w-0">

@@ -3,6 +3,7 @@ import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Down
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
+import { parseLocalDateStr } from '../../utils/dateUtils';
 
 interface EmployeeRecord {
   id: string;
@@ -178,18 +179,25 @@ export function HRPayroll() {
         )
       : employees;
 
-    // Ưu tiên giờ check-in/check-out thực tế (chính xác hơn, đặc biệt với NV lương theo giờ);
-    // nếu ca chưa check-in/out (VD ca hôm nay chưa kết thúc) thì tạm tính theo giờ ca đã lên lịch.
+    // Công tính theo giờ TRÊN LỊCH (không theo giờ check-out thực tế — không tính OT/ở lại
+    // trễ), chỉ trừ giờ nếu check-in trễ hơn giờ lên ca. Chưa check-in thì chưa tính công ca đó.
+    const scheduledHoursOf = (shift: Shift) => {
+      const [startH, startM] = shift.startTime.split(':').map(Number);
+      const [endH, endM] = shift.endTime.split(':').map(Number);
+      let hours = endH + endM / 60 - (startH + startM / 60);
+      if (hours <= 0) hours += 24; // ca qua đêm
+      return hours;
+    };
+
     const sumHours = (shiftList: Shift[]) =>
       shiftList.reduce((total, shift) => {
-        if (shift.checkIn && shift.checkOut) {
-          const actualHours = (new Date(shift.checkOut).getTime() - new Date(shift.checkIn).getTime()) / 3600000;
-          return total + Math.max(0, actualHours);
-        }
-        const start = parseInt(shift.startTime.split(':')[0], 10);
-        const end = parseInt(shift.endTime.split(':')[0], 10);
-        const hours = end > start ? end - start : 24 - start + end;
-        return total + hours;
+        if (!shift.checkIn) return total;
+        const scheduledHours = scheduledHoursOf(shift);
+        const [startH, startM] = shift.startTime.split(':').map(Number);
+        const scheduledStart = parseLocalDateStr(shift.date);
+        scheduledStart.setHours(startH, startM, 0, 0);
+        const lateHours = Math.max(0, (new Date(shift.checkIn).getTime() - scheduledStart.getTime()) / 3600000);
+        return total + Math.max(0, scheduledHours - lateHours);
       }, 0);
 
     const records: EmployeeRecord[] = relevantEmployees
@@ -201,7 +209,8 @@ export function HRPayroll() {
 
         const hoursWorked = sumHours(employeeShifts);
         const substituteShifts = employeeShifts.filter((s) => s.isSubstitute).length;
-        const overtimeHours = Math.max(0, hoursWorked - employeeShifts.length * otSettings.otThreshold);
+        // Không tính OT — công đã tính theo giờ lịch trừ đi giờ đi trễ, không có giờ vượt ca.
+        const overtimeHours = 0;
 
         const comboSales = comboSubscriptions.filter(
           (c) =>
@@ -211,14 +220,14 @@ export function HRPayroll() {
 
         const isHourly = emp.payType === 'hourly';
         const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
-        const otPay = overtimeHours * hourlyRate * otSettings.otRate;
+        const otPay = 0;
         const comboBonus = comboSales * salarySettings.comboBonus;
 
         // Lương không chia theo % chi nhánh — nhân viên làm ở chi nhánh nào (chính hay hỗ trợ)
-        // đều tính công đầy đủ theo giờ check-in/check-out thực tế. Lọc theo chi nhánh chỉ để
+        // đều tính công đầy đủ theo giờ trên lịch (trừ đi trễ). Lọc theo chi nhánh chỉ để
         // xem giờ làm/số ca tại đúng nơi đó, không cắt bớt lương thực nhận của nhân viên.
         const regularPay = isHourly
-          ? Math.max(0, hoursWorked - overtimeHours) * hourlyRate
+          ? hoursWorked * hourlyRate
           : (emp.baseSalary || 0);
         const totalSalary = regularPay + otPay + comboBonus;
 

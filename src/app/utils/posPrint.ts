@@ -1,7 +1,37 @@
 /** In POS — 2 kiểu: bill tiền (khách) + tem thành phần (dán ly) */
 
 import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
-import { htmlToEscposCommands } from './escposRaster';
+import { htmlToEscposCommands, BASE_RENDER_WIDTH_PX } from './escposRaster';
+import * as api from './api';
+
+/** Cấu hình khổ giấy + cỡ chữ cho bill khách (role "receipt") — nhân viên tự chỉnh trong màn
+ * hình "Kết nối máy in USB" cho khớp với khổ giấy thật của máy in (VD 58mm, 75mm, 80mm...). */
+export interface PosPrinterSettings {
+  paperWidthMm: number;
+  fontScale: number;
+}
+
+export const DEFAULT_PRINTER_SETTINGS: PosPrinterSettings = { paperWidthMm: 58, fontScale: 1 };
+
+const PRINTER_SETTINGS_KEY = 'posPrinterSettings';
+let cachedPrinterSettings: PosPrinterSettings = DEFAULT_PRINTER_SETTINGS;
+
+export async function loadPosPrinterSettings(): Promise<PosPrinterSettings> {
+  try {
+    const saved = await api.fetchSetting(PRINTER_SETTINGS_KEY);
+    if (saved && typeof saved === 'object') {
+      cachedPrinterSettings = { ...DEFAULT_PRINTER_SETTINGS, ...saved };
+    }
+  } catch {
+    // Lỗi mạng — giữ nguyên giá trị cache/mặc định, không chặn luồng in.
+  }
+  return cachedPrinterSettings;
+}
+
+export async function savePosPrinterSettings(settings: PosPrinterSettings): Promise<void> {
+  cachedPrinterSettings = settings;
+  await api.saveSetting(PRINTER_SETTINGS_KEY, settings);
+}
 
 export interface PosPrintLine {
   productName: string;
@@ -47,7 +77,7 @@ export const RECEIPT_STYLE = `
   pre { white-space: pre-wrap; margin: 0; font-size: 12px; }
 `;
 
-function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
+function openPrintWindow(title: string, bodyHtml: string, paperWidthMm = 58, fontScale = 1) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     alert('Trình duyệt chặn cửa sổ in. Cho phép popup và thử lại.');
@@ -59,7 +89,7 @@ function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
         <title>${title}</title>
         <style>
           @page { margin: 4mm; }
-          body { font-family: 'Courier New', monospace; width: ${paperWidth}; margin: 0 auto; padding: 8px; }
+          body { font-family: 'Courier New', monospace; width: ${paperWidthMm}mm; margin: 0 auto; padding: 8px; font-size: ${fontScale}em; }
           ${RECEIPT_STYLE}
         </style>
       </head>
@@ -70,18 +100,17 @@ function openPrintWindow(title: string, bodyHtml: string, paperWidth = '58mm') {
   printWindow.document.close();
 }
 
-/** Số dot ngang theo khổ giấy — 203dpi là chuẩn phổ biến nhất của máy in nhiệt. */
-const DOTS_WIDTH: Record<string, number> = {
-  '58mm': 384,
-  '48mm': 320,
-  '80mm': 576,
-};
+/** Số dot ngang theo khổ giấy thật (mm) — 203dpi là chuẩn phổ biến nhất của máy in nhiệt. */
+function dotsForWidthMm(widthMm: number): number {
+  return Math.round((widthMm / 25.4) * 203);
+}
 
 /** Render 1 đoạn HTML hóa đơn ra lệnh ESC/POS và gửi thẳng qua USB tới máy in đã kết nối cho role này. */
 export async function printHtmlViaUsb(
   role: PrinterRole,
   bodyHtml: string,
-  paperWidth: '58mm' | '48mm' | '80mm' = '58mm'
+  paperWidthMm = 58,
+  fontScale = 1
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const device = await getRememberedPrinter(role).catch(() => null);
   if (!device) {
@@ -89,7 +118,11 @@ export async function printHtmlViaUsb(
   }
 
   try {
-    const commands = await htmlToEscposCommands(bodyHtml, RECEIPT_STYLE, DOTS_WIDTH[paperWidth]);
+    // Render ảnh ở bề rộng hẹp hơn khi fontScale > 1 — cùng 1 kích thước chữ tuyệt đối (px)
+    // sẽ chiếm tỉ lệ lớn hơn trong bề rộng render, nên sau khi co giãn về đúng khổ giấy thật,
+    // chữ hiện to hơn tương ứng mà không cần sửa từng font-size trong các mẫu bill.
+    const renderWidthPx = Math.round(BASE_RENDER_WIDTH_PX / fontScale);
+    const commands = await htmlToEscposCommands(bodyHtml, RECEIPT_STYLE, dotsForWidthMm(paperWidthMm), renderWidthPx);
     await sendToPrinter(device, commands);
     return { ok: true };
   } catch (err) {
@@ -104,16 +137,22 @@ export async function printHtmlViaUsb(
  * tự động fallback về cách in cũ (mở cửa sổ + window.print()). Không dùng alert() vì nó chặn
  * toàn bộ màn hình cho tới khi bấm OK — chỉ log lỗi ra console để không làm gián đoạn thao tác
  * bán hàng của nhân viên; cửa sổ in thay thế vẫn tự mở ra bình thường.
+ *
+ * Khổ giấy + cỡ chữ chỉ tùy chỉnh được cho bill khách ("receipt") — tem dán ly ("label") là
+ * khổ cố định của loại tem đang dùng, không phụ thuộc cấu hình máy in bill.
  */
 async function printViaUsbOrWindow(
   role: PrinterRole,
   title: string,
   bodyHtml: string,
-  paperWidth: '58mm' | '48mm' | '80mm' = '58mm'
+  fallbackWidthMm: number
 ) {
-  const result = await printHtmlViaUsb(role, bodyHtml, paperWidth);
+  const settings = role === 'receipt' ? await loadPosPrinterSettings() : DEFAULT_PRINTER_SETTINGS;
+  const widthMm = role === 'receipt' ? settings.paperWidthMm : fallbackWidthMm;
+  const fontScale = role === 'receipt' ? settings.fontScale : 1;
+  const result = await printHtmlViaUsb(role, bodyHtml, widthMm, fontScale);
   if (!result.ok) {
-    openPrintWindow(title, bodyHtml, paperWidth);
+    openPrintWindow(title, bodyHtml, widthMm, fontScale);
   }
 }
 
@@ -187,7 +226,7 @@ export async function printCustomerReceipt(data: CustomerReceiptData) {
     <div class="center" style="font-size:11px">Cảm ơn quý khách!<br/>Hẹn gặp lại 💚</div>
   `;
 
-  await printViaUsbOrWindow('receipt', 'Hóa đơn khách', html, '58mm');
+  await printViaUsbOrWindow('receipt', 'Hóa đơn khách', html, 58);
 }
 
 /** Tem thành phần — dán lên ly (không cần giá, rõ vị + size + topping) */
@@ -227,7 +266,7 @@ export async function printCupLabels(
 
   if (stickers.length === 0) return;
 
-  await printViaUsbOrWindow('label', 'Tem dán ly', stickers.join(''), '48mm');
+  await printViaUsbOrWindow('label', 'Tem dán ly', stickers.join(''), 48);
 }
 
 export function printBothAfterPayment(
@@ -450,5 +489,5 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
 
 /** Bill kết ca — đối chiếu tiền mặt/doanh thu theo hình thức thanh toán, đưa quản lý/nhân viên xác nhận */
 export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
-  await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), '58mm');
+  await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), 58);
 }

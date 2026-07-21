@@ -54,7 +54,7 @@ function canvasToRasterCommand(canvas: HTMLCanvasElement): Uint8Array {
   return concatBytes([header, bitmap]);
 }
 
-const BASE_WIDTH_PX = 300;
+export const BASE_RENDER_WIDTH_PX = 300;
 
 /**
  * Render HTML trong 1 iframe cô lập hoàn toàn (document riêng, không dính CSS của app) rồi chụp
@@ -62,13 +62,21 @@ const BASE_WIDTH_PX = 300;
  * như oklch()/oklab() — nếu render ngay trong trang, nó sẽ "dính" theo CSS global của app (ví dụ
  * Tailwind) và crash với lỗi "unsupported color function". Trong iframe riêng, ta tự viết toàn bộ
  * CSS (chỉ dùng màu hex) nên không thể dính phải oklch từ bất kỳ đâu khác.
+ *
+ * `renderWidthPx` hẹp hơn BASE_RENDER_WIDTH_PX mặc định sẽ làm chữ (vốn có font-size cố định theo
+ * px trong các mẫu bill) chiếm tỉ lệ lớn hơn trong khung render — dùng để phóng to cỡ chữ khi co
+ * giãn về khổ giấy thật ở bước sau, không cần sửa từng font-size trong mẫu.
  */
-async function renderIsolatedHtml(bodyHtml: string, styleCss: string): Promise<HTMLCanvasElement> {
+async function renderIsolatedHtml(
+  bodyHtml: string,
+  styleCss: string,
+  renderWidthPx: number = BASE_RENDER_WIDTH_PX
+): Promise<HTMLCanvasElement> {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.left = '-9999px';
   iframe.style.top = '0';
-  iframe.style.width = `${BASE_WIDTH_PX}px`;
+  iframe.style.width = `${renderWidthPx}px`;
   iframe.style.height = '1px';
   iframe.style.border = 'none';
   document.body.appendChild(iframe);
@@ -89,7 +97,7 @@ async function renderIsolatedHtml(bodyHtml: string, styleCss: string): Promise<H
             <style>
               * { box-sizing: border-box; }
               html, body { margin: 0; padding: 0; background: #ffffff; color: #000000; }
-              body { font-family: 'Courier New', monospace; width: ${BASE_WIDTH_PX}px; padding: 8px; }
+              body { font-family: 'Courier New', monospace; width: ${renderWidthPx}px; padding: 8px; }
               ${styleCss}
             </style>
           </head>
@@ -109,8 +117,8 @@ async function renderIsolatedHtml(bodyHtml: string, styleCss: string): Promise<H
 
     return await html2canvas(body, {
       backgroundColor: '#ffffff',
-      width: BASE_WIDTH_PX,
-      windowWidth: BASE_WIDTH_PX,
+      width: renderWidthPx,
+      windowWidth: renderWidthPx,
       logging: false,
     });
   } finally {
@@ -125,11 +133,12 @@ async function renderIsolatedHtml(bodyHtml: string, styleCss: string): Promise<H
 export async function htmlToEscposCommands(
   bodyHtml: string,
   styleCss: string,
-  printerDotsWidth = 384 // 384 dots ~ 58mm khổ giấy phổ biến ở 203dpi; đổi 576 nếu máy khổ 80mm
+  printerDotsWidth = 384, // 384 dots ~ 58mm khổ giấy phổ biến ở 203dpi; đổi 576 nếu máy khổ 80mm
+  renderWidthPx: number = BASE_RENDER_WIDTH_PX
 ): Promise<Uint8Array> {
-  const canvas = await renderIsolatedHtml(bodyHtml, styleCss);
+  const canvas = await renderIsolatedHtml(bodyHtml, styleCss, renderWidthPx);
 
-  // Scale đúng khổ máy in yêu cầu (canvas gốc render theo BASE_WIDTH_PX css px, không phải dot thật).
+  // Scale đúng khổ máy in yêu cầu (canvas gốc render theo renderWidthPx css px, không phải dot thật).
   const resized = document.createElement('canvas');
   resized.width = printerDotsWidth;
   resized.height = Math.round((canvas.height * printerDotsWidth) / canvas.width);

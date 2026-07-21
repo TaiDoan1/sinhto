@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Printer, X, CheckCircle, Loader2, PlayCircle } from 'lucide-react';
+import { Printer, X, CheckCircle, Loader2, PlayCircle, Save } from 'lucide-react';
 import {
   connectPrinter,
   forgetPrinter,
@@ -8,7 +8,13 @@ import {
   roleLabel,
   type PrinterRole,
 } from '../../utils/webUsbPrinter';
-import { printHtmlViaUsb } from '../../utils/posPrint';
+import {
+  printHtmlViaUsb,
+  loadPosPrinterSettings,
+  savePosPrinterSettings,
+  DEFAULT_PRINTER_SETTINGS,
+  type PosPrinterSettings,
+} from '../../utils/posPrint';
 
 interface PrinterSetupModalProps {
   onClose: () => void;
@@ -35,6 +41,9 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
   const [testing, setTesting] = useState<PrinterRole | null>(null);
   const [error, setError] = useState('');
   const [testResult, setTestResult] = useState<Record<PrinterRole, string>>({ receipt: '', label: '' });
+  const [printerSettings, setPrinterSettings] = useState<PosPrinterSettings>(DEFAULT_PRINTER_SETTINGS);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
   const supported = isWebUsbSupported();
 
   const refreshStatus = async () => {
@@ -46,7 +55,20 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
 
   useEffect(() => {
     refreshStatus();
+    loadPosPrinterSettings().then(setPrinterSettings);
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    setSettingsSaved(false);
+    try {
+      await savePosPrinterSettings(printerSettings);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleConnect = async (role: PrinterRole) => {
     setError('');
@@ -70,7 +92,10 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
     setTesting(role);
     setTestResult((prev) => ({ ...prev, [role]: '' }));
     try {
-      const result = await printHtmlViaUsb(role, TEST_HTML, role === 'label' ? '48mm' : '58mm');
+      const result =
+        role === 'label'
+          ? await printHtmlViaUsb(role, TEST_HTML, 48)
+          : await printHtmlViaUsb(role, TEST_HTML, printerSettings.paperWidthMm, printerSettings.fontScale);
       setTestResult((prev) => ({
         ...prev,
         [role]: result.ok ? '✅ Đã gửi lệnh in — kiểm tra máy in có ra giấy không.' : `❌ ${result.error}`,
@@ -168,6 +193,58 @@ export function PrinterSetupModal({ onClose }: PrinterSetupModalProps) {
             </div>
 
             {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+
+            <div className="border border-gray-200 rounded-xl p-3 mt-4">
+              <div className="font-semibold text-gray-800 text-sm mb-2">Khổ giấy &amp; cỡ chữ bill khách</div>
+              <p className="text-xs text-gray-500 mb-3">
+                Chỉnh đúng khổ giấy thật của máy in (mm) nếu chữ in ra bị nhỏ hoặc bị hụt lề — VD
+                giấy 75mm thì nhập 75 thay vì để mặc định 58.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Khổ giấy (mm)</label>
+                  <input
+                    type="number"
+                    min={30}
+                    max={120}
+                    value={printerSettings.paperWidthMm}
+                    onChange={(e) =>
+                      setPrinterSettings({ ...printerSettings, paperWidthMm: Number(e.target.value) || 58 })
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Cỡ chữ</label>
+                  <select
+                    value={printerSettings.fontScale}
+                    onChange={(e) => setPrinterSettings({ ...printerSettings, fontScale: Number(e.target.value) })}
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm font-semibold"
+                  >
+                    <option value={0.85}>Nhỏ</option>
+                    <option value={1}>Vừa (mặc định)</option>
+                    <option value={1.2}>Lớn</option>
+                    <option value={1.4}>Rất lớn</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
+              >
+                {savingSettings ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {settingsSaved ? 'Đã lưu ✓' : 'Lưu cấu hình'}
+              </button>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Sau khi lưu, bấm "In thử" ở trên (mục Máy in bill) để kiểm tra chữ đã rõ chưa.
+              </p>
+            </div>
 
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg p-3 mt-4">
               Khi bấm "Kết nối", trình duyệt hiện danh sách thiết bị USB — chọn đúng tên máy in

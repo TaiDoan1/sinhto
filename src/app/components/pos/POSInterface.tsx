@@ -350,6 +350,9 @@ function POSInterfaceInner() {
     try {
       const shifts = (await api.fetchShifts({ branch: branchId, date: today })) as Shift[];
       const todayShifts = shifts.filter((shift) => {
+        // Ca nghỉ ("off") lưu dưới dạng 1 dòng ca giả chiếm trọn ngày (00:00-23:59) để đánh dấu
+        // lịch nghỉ — không phải ca làm thật, không được hiện trong "Ca đang làm".
+        if (shift.shiftType === 'off') return false;
         // Đã check-in (in_progress) thì luôn hiện, dù đến sớm/trễ hơn khung giờ trên lịch —
         // nếu không, nhân viên đến sớm sẽ tạm thời "biến mất" khỏi danh sách cho tới đúng giờ ca.
         if (shift.status === 'in_progress') return true;

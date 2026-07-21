@@ -105,7 +105,11 @@ export function PosProvider({ children }: { children: ReactNode }) {
     try {
       const today = new Date().toISOString().split('T')[0];
       const todayShifts = (await api.fetchShifts({ employeeId: employee.id, date: today })) as any[];
-      const notDone = (todayShifts || []).filter((s) => s.status !== 'completed' && s.status !== 'rejected');
+      // Ca nghỉ ("off") là 1 dòng giả chiếm trọn ngày (00:00-23:59) để đánh dấu lịch nghỉ, không
+      // phải ca làm thật — nếu không loại ra, nhân viên nghỉ vẫn bị tự động check-in nhầm vào đó.
+      const notDone = (todayShifts || []).filter(
+        (s) => s.status !== 'completed' && s.status !== 'rejected' && s.shiftType !== 'off'
+      );
 
       // Store manager can check in shifts from any branch
       const forBranch = employee.position === 'store_manager'

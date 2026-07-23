@@ -3,6 +3,11 @@ import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Down
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
+import { localDateStr } from '../../utils/dateUtils';
+
+function currentMonthStr() {
+  return localDateStr().slice(0, 7); // "YYYY-MM"
+}
 
 interface EmployeeRecord {
   id: string;
@@ -60,6 +65,7 @@ export function HRPayroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [payrollBranchFilter, setPayrollBranchFilter] = useState<string>('ALL');
+  const [payrollMonth, setPayrollMonth] = useState<string>(currentMonthStr());
   const { activeBranches } = useBranches();
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>({
@@ -77,7 +83,7 @@ export function HRPayroll() {
   });
 
   const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
-  const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string }[]>([]);
+  const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string; createdAt?: string }[]>([]);
   const [selectedCheckInRecord, setSelectedCheckInRecord] = useState<CheckInRecord | null>(null);
   const [backupStatus, setBackupStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
   const [backupFiles, setBackupFiles] = useState<any[]>([]);
@@ -139,7 +145,7 @@ export function HRPayroll() {
     if (employees.length > 0) {
       calculatePayroll();
     }
-  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter]);
+  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter, payrollMonth]);
 
   const fetchBackupStatus = async () => {
     try {
@@ -196,7 +202,10 @@ export function HRPayroll() {
     const records: EmployeeRecord[] = relevantEmployees
       .map((emp) => {
         const employeeShifts = shifts.filter(
-          (s) => s.employeeId === emp.id && (!byBranch || s.branch === payrollBranchFilter)
+          (s) =>
+            s.employeeId === emp.id &&
+            (!byBranch || s.branch === payrollBranchFilter) &&
+            s.date.startsWith(payrollMonth)
         );
         if (byBranch && employeeShifts.length === 0) return null; // gán CN nhưng chưa có ca nào ở đây — chưa phát sinh chi phí
 
@@ -205,10 +214,13 @@ export function HRPayroll() {
         // Không tính OT — công đã tính theo giờ lịch trừ đi giờ đi trễ, không có giờ vượt ca.
         const overtimeHours = 0;
 
+        // Thưởng combo tính theo tháng đang xem (dựa vào lúc combo được chốt/tạo) — nếu không lọc
+        // theo tháng, thưởng combo cũ sẽ cộng dồn mãi mãi vào mọi tháng lương sau này.
         const comboSales = comboSubscriptions.filter(
           (c) =>
             (c.closedByStaffId === emp.id || c.careStaffId === emp.id) &&
-            ['active', 'completed'].includes(c.status)
+            ['active', 'completed'].includes(c.status) &&
+            (c.createdAt || '').startsWith(payrollMonth)
         ).length;
 
         const isHourly = emp.payType === 'hourly';
@@ -304,19 +316,27 @@ export function HRPayroll() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-500">
               {payrollBranchFilter === 'ALL'
-                ? 'Lương đầy đủ theo từng nhân viên — tính đủ công ở mọi chi nhánh họ làm việc, không chia %'
-                : `Xem giờ làm/số ca của nhân viên tại chi nhánh đã chọn (lương hiển thị vẫn là lương thực nhận đầy đủ, không bị cắt bớt)`}
+                ? `Lương tháng ${payrollMonth} theo từng nhân viên — tính đủ công ở mọi chi nhánh họ làm việc, không chia %`
+                : `Xem giờ làm/số ca tháng ${payrollMonth} tại chi nhánh đã chọn (lương hiển thị vẫn là lương thực nhận đầy đủ, không bị cắt bớt)`}
             </p>
-            <select
-              value={payrollBranchFilter}
-              onChange={(e) => setPayrollBranchFilter(e.target.value)}
-              className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
-            >
-              <option value="ALL">Tất cả chi nhánh</option>
-              {activeBranches.map((b) => (
-                <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={payrollMonth}
+                onChange={(e) => setPayrollMonth(e.target.value || currentMonthStr())}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              />
+              <select
+                value={payrollBranchFilter}
+                onChange={(e) => setPayrollBranchFilter(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              >
+                <option value="ALL">Tất cả chi nhánh</option>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-lg p-4 shadow-lg">

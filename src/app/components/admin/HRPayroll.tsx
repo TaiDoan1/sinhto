@@ -9,6 +9,45 @@ function currentMonthStr() {
   return localDateStr().slice(0, 7); // "YYYY-MM"
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function fmtDate(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// "YYYY-Www" (chuẩn input type="week") — tuần ISO bắt đầu Thứ 2.
+function currentWeekStr(): string {
+  const d = new Date();
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  const week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+  return `${d.getFullYear()}-W${pad2(week)}`;
+}
+
+// Đổi "YYYY-Www" thành khoảng ngày Thứ 2 - Chủ Nhật thật (chuỗi "YYYY-MM-DD" so sánh được trực tiếp).
+function weekRange(weekStr: string): { start: string; end: string } {
+  const [yearStr, weekPart] = weekStr.split('-W');
+  const year = Number(yearStr);
+  const week = Number(weekPart) || 1;
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = (jan4.getDay() + 6) % 7; // 0 = Thứ 2
+  const week1Monday = new Date(jan4);
+  week1Monday.setDate(jan4.getDate() - jan4Day);
+  const monday = new Date(week1Monday);
+  monday.setDate(week1Monday.getDate() + (week - 1) * 7);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { start: fmtDate(monday), end: fmtDate(sunday) };
+}
+
 interface EmployeeRecord {
   id: string;
   employeeId: string;
@@ -65,7 +104,9 @@ export function HRPayroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [payrollBranchFilter, setPayrollBranchFilter] = useState<string>('ALL');
+  const [payrollPeriodType, setPayrollPeriodType] = useState<'month' | 'week'>('month');
   const [payrollMonth, setPayrollMonth] = useState<string>(currentMonthStr());
+  const [payrollWeek, setPayrollWeek] = useState<string>(currentWeekStr());
   const { activeBranches } = useBranches();
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>({
@@ -145,7 +186,7 @@ export function HRPayroll() {
     if (employees.length > 0) {
       calculatePayroll();
     }
-  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter, payrollMonth]);
+  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter, payrollPeriodType, payrollMonth, payrollWeek]);
 
   const fetchBackupStatus = async () => {
     try {
@@ -199,13 +240,24 @@ export function HRPayroll() {
     const sumHours = (shiftList: Shift[]) =>
       shiftList.reduce((total, shift) => (shift.checkIn ? total + scheduledHoursOf(shift) : total), 0);
 
+    // Kỳ lương đang xem — theo tháng (prefix "YYYY-MM") hoặc theo tuần (khoảng ngày Thứ 2 - CN thật).
+    const inPeriod = (dateStr: string) => {
+      if (!dateStr) return false;
+      const day = dateStr.slice(0, 10);
+      if (payrollPeriodType === 'week') {
+        const { start, end } = weekRange(payrollWeek);
+        return day >= start && day <= end;
+      }
+      return day.startsWith(payrollMonth);
+    };
+
     const records: EmployeeRecord[] = relevantEmployees
       .map((emp) => {
         const employeeShifts = shifts.filter(
           (s) =>
             s.employeeId === emp.id &&
             (!byBranch || s.branch === payrollBranchFilter) &&
-            s.date.startsWith(payrollMonth)
+            inPeriod(s.date)
         );
         if (byBranch && employeeShifts.length === 0) return null; // gán CN nhưng chưa có ca nào ở đây — chưa phát sinh chi phí
 
@@ -214,13 +266,13 @@ export function HRPayroll() {
         // Không tính OT — công đã tính theo giờ lịch trừ đi giờ đi trễ, không có giờ vượt ca.
         const overtimeHours = 0;
 
-        // Thưởng combo tính theo tháng đang xem (dựa vào lúc combo được chốt/tạo) — nếu không lọc
-        // theo tháng, thưởng combo cũ sẽ cộng dồn mãi mãi vào mọi tháng lương sau này.
+        // Thưởng combo tính theo kỳ lương đang xem (dựa vào lúc combo được chốt/tạo) — nếu không
+        // lọc theo kỳ, thưởng combo cũ sẽ cộng dồn mãi mãi vào mọi kỳ lương sau này.
         const comboSales = comboSubscriptions.filter(
           (c) =>
             (c.closedByStaffId === emp.id || c.careStaffId === emp.id) &&
             ['active', 'completed'].includes(c.status) &&
-            (c.createdAt || '').startsWith(payrollMonth)
+            inPeriod(c.createdAt || '')
         ).length;
 
         const isHourly = emp.payType === 'hourly';
@@ -278,6 +330,15 @@ export function HRPayroll() {
     alert('Đã lưu cài đặt OT!');
   };
 
+  const periodLabel = (() => {
+    if (payrollPeriodType === 'week') {
+      const { start, end } = weekRange(payrollWeek);
+      const fmtVN = (s: string) => s.split('-').reverse().join('/');
+      return `tuần ${fmtVN(start)} - ${fmtVN(end)}`;
+    }
+    return `tháng ${payrollMonth}`;
+  })();
+
   const tabs = [
     { id: 'payroll' as PayrollTab, label: 'Bảng Lương', icon: DollarSign },
     { id: 'salary-settings' as PayrollTab, label: 'Cài Đặt Lương', icon: Settings },
@@ -313,19 +374,44 @@ export function HRPayroll() {
 
       {activeTab === 'payroll' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <p className="text-sm text-gray-500">
               {payrollBranchFilter === 'ALL'
-                ? `Lương tháng ${payrollMonth} theo từng nhân viên — tính đủ công ở mọi chi nhánh họ làm việc, không chia %`
-                : `Xem giờ làm/số ca tháng ${payrollMonth} tại chi nhánh đã chọn (lương hiển thị vẫn là lương thực nhận đầy đủ, không bị cắt bớt)`}
+                ? `Lương ${periodLabel} theo từng nhân viên — tính đủ công ở mọi chi nhánh họ làm việc, không chia %`
+                : `Xem giờ làm/số ca ${periodLabel} tại chi nhánh đã chọn (lương hiển thị vẫn là lương thực nhận đầy đủ, không bị cắt bớt)`}
             </p>
             <div className="flex items-center gap-2">
-              <input
-                type="month"
-                value={payrollMonth}
-                onChange={(e) => setPayrollMonth(e.target.value || currentMonthStr())}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
-              />
+              <div className="flex border-2 border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPayrollPeriodType('month')}
+                  className={`px-3 py-2 text-sm font-semibold ${payrollPeriodType === 'month' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  Theo tháng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayrollPeriodType('week')}
+                  className={`px-3 py-2 text-sm font-semibold ${payrollPeriodType === 'week' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  Theo tuần
+                </button>
+              </div>
+              {payrollPeriodType === 'month' ? (
+                <input
+                  type="month"
+                  value={payrollMonth}
+                  onChange={(e) => setPayrollMonth(e.target.value || currentMonthStr())}
+                  className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+                />
+              ) : (
+                <input
+                  type="week"
+                  value={payrollWeek}
+                  onChange={(e) => setPayrollWeek(e.target.value || currentWeekStr())}
+                  className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+                />
+              )}
               <select
                 value={payrollBranchFilter}
                 onChange={(e) => setPayrollBranchFilter(e.target.value)}

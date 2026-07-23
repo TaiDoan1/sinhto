@@ -133,9 +133,15 @@ function POSInterfaceInner() {
       setCustomerDisplayOpen(false);
       return;
     }
-    const win = await openCustomerDisplayWindow();
+    const { win, positioned, error } = await openCustomerDisplayWindow();
     customerDisplayWinRef.current = win;
     setCustomerDisplayOpen(!!win);
+    // Máy POS cảm ứng không có chuột để tự kéo cửa sổ sang màn hình phụ — nếu không tự đặt
+    // được đúng màn hình, phải báo rõ lý do ngay để biết cách sửa, thay vì để cửa sổ kẹt cứng
+    // đè lên màn hình thu ngân mà không ai kéo đi được.
+    if (win && !positioned && error) {
+      alert(`Đã mở màn hình khách nhưng CHƯA tự chuyển sang màn hình phụ được:\n\n${error}`);
+    }
   };
 
   useEffect(() => {

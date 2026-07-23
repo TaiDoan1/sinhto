@@ -13,6 +13,7 @@ import {
   Printer,
   Banknote,
   MonitorSmartphone,
+  RefreshCw,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
@@ -38,7 +39,14 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
-import { postCustomerDisplayState, openCustomerDisplayWindow } from '../../hooks/useCustomerDisplayChannel';
+import {
+  postCustomerDisplayState,
+  openCustomerDisplayWindow,
+  openCustomerDisplayOnScreen,
+  saveCustomerScreenKey,
+  clearCustomerScreenKey,
+  type DetectedScreen,
+} from '../../hooks/useCustomerDisplayChannel';
 import {
   buildShiftClosingReceiptData,
   printShiftClosingReceipt,
@@ -98,6 +106,7 @@ function POSInterfaceInner() {
   const [noActiveShiftNotice, setNoActiveShiftNotice] = useState(false);
   const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
   const customerDisplayWinRef = useRef<Window | null>(null);
+  const [screenPickerOptions, setScreenPickerOptions] = useState<DetectedScreen[] | null>(null);
 
   useEffect(() => {
     if (branchId) {
@@ -133,7 +142,15 @@ function POSInterfaceInner() {
       setCustomerDisplayOpen(false);
       return;
     }
-    const { win, positioned, error } = await openCustomerDisplayWindow();
+    const { win, positioned, error, needsScreenPicker, screens } = await openCustomerDisplayWindow();
+    // ≥2 màn hình nhưng chưa biết chọn cái nào (chưa lưu lựa chọn trước đó) — trước đây tự đoán
+    // "màn hình khác màn hình đang xem" là màn hình khách, nhưng đoán sai trên một số máy (lại
+    // chọn đúng màn hình chính). Giờ hỏi nhân viên xác nhận đúng màn hình 1 lần, nhớ luôn cho
+    // các lần sau.
+    if (needsScreenPicker && screens) {
+      setScreenPickerOptions(screens);
+      return;
+    }
     customerDisplayWinRef.current = win;
     setCustomerDisplayOpen(!!win);
     // Máy POS cảm ứng không có chuột để tự kéo cửa sổ sang màn hình phụ — nếu không tự đặt
@@ -141,6 +158,33 @@ function POSInterfaceInner() {
     // đè lên màn hình thu ngân mà không ai kéo đi được.
     if (win && !positioned && error) {
       alert(`Đã mở màn hình khách nhưng CHƯA tự chuyển sang màn hình phụ được:\n\n${error}`);
+    }
+  };
+
+  const handlePickCustomerScreen = async (screen: DetectedScreen) => {
+    setScreenPickerOptions(null);
+    saveCustomerScreenKey(screen.key);
+    const { win, positioned, error } = await openCustomerDisplayOnScreen(screen.key);
+    customerDisplayWinRef.current = win;
+    setCustomerDisplayOpen(!!win);
+    if (win && !positioned && error) {
+      alert(`Đã mở màn hình khách nhưng CHƯA tự chuyển sang màn hình phụ được:\n\n${error}`);
+    }
+  };
+
+  // Cho nhân viên chọn lại nếu lần trước lỡ chọn nhầm màn hình.
+  const handleChangeCustomerScreen = async () => {
+    clearCustomerScreenKey();
+    if (customerDisplayWinRef.current && !customerDisplayWinRef.current.closed) {
+      customerDisplayWinRef.current.close();
+      customerDisplayWinRef.current = null;
+      setCustomerDisplayOpen(false);
+    }
+    const { needsScreenPicker, screens, error } = await openCustomerDisplayWindow();
+    if (needsScreenPicker && screens) {
+      setScreenPickerOptions(screens);
+    } else if (error) {
+      alert(error);
     }
   };
 
@@ -528,6 +572,14 @@ function POSInterfaceInner() {
           </button>
           <button
             type="button"
+            onClick={handleChangeCustomerScreen}
+            className="shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
+            title="Chọn lại màn hình khách (nếu lỡ hiện sai màn hình)"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => setShowPrinterSetup(true)}
             className="shrink-0 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"
             title="Kết nối máy in USB"
@@ -545,6 +597,37 @@ function POSInterfaceInner() {
         </div>
 
         {showPrinterSetup && <PrinterSetupModal onClose={() => setShowPrinterSetup(false)} />}
+
+        {screenPickerOptions && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Chọn màn hình khách</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Máy đang có nhiều màn hình — chọn đúng màn hình quay ra phía khách hàng. Chỉ cần
+                chọn 1 lần, lần sau bấm "Bật màn hình khách" sẽ tự hiện đúng màn hình này.
+              </p>
+              <div className="space-y-2">
+                {screenPickerOptions.map((screen, idx) => (
+                  <button
+                    key={screen.key}
+                    type="button"
+                    onClick={() => handlePickCustomerScreen(screen)}
+                    className="w-full text-left px-4 py-3.5 rounded-xl border-2 border-gray-200 hover:border-emerald-500 hover:bg-emerald-50 font-semibold text-gray-800"
+                  >
+                    {screen.label || `Màn hình ${idx + 1}`}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setScreenPickerOptions(null)}
+                className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        )}
 
         <nav className="pos-tab-bar flex gap-1.5 px-2 py-2 overflow-x-auto scrollbar-hide">
           {POS_TABS.map((tab) => {

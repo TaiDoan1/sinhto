@@ -59,22 +59,88 @@ export function useCustomerDisplayState(): CustomerDisplayState | null {
 
 const CUSTOMER_DISPLAY_WINDOW_NAME = 'fitblend_customer_display';
 const CUSTOMER_DISPLAY_PATH = '/pos/customer-display';
+const SCREEN_PREF_KEY = 'pos_customer_display_screen_key';
 
 export interface OpenCustomerDisplayResult {
   win: Window | null;
-  /** true = đã tự đặt đúng sang màn hình thứ 2; false = rơi về mở cửa sổ thường, cần báo lý do. */
+  /** true = đã tự đặt đúng sang màn hình đã chọn; false = rơi về mở cửa sổ thường, cần báo lý do. */
   positioned: boolean;
   /** Lý do không tự đặt được — hiện cho người dùng biết chính xác cần sửa gì, vì máy POS cảm
    * ứng không có chuột để tự kéo cửa sổ sang màn hình phụ như cách khắc phục thủ công. */
   error?: string;
+  /** true = có ≥2 màn hình nhưng chưa biết chọn cái nào (chưa lưu lựa chọn trước đó) — caller
+   * cần hiện bảng chọn màn hình cho nhân viên, không tự đoán để tránh chọn nhầm màn hình chính. */
+  needsScreenPicker?: boolean;
+  screens?: DetectedScreen[];
+}
+
+export interface DetectedScreen {
+  key: string;
+  label: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function screenKey(s: any): string {
+  return s.id != null ? String(s.id) : `${s.left},${s.top},${s.width}x${s.height}`;
+}
+
+function openAt(target: any): Window | null {
+  return window.open(
+    CUSTOMER_DISPLAY_PATH,
+    CUSTOMER_DISPLAY_WINDOW_NAME,
+    `left=${target.availLeft},top=${target.availTop},width=${target.availWidth},height=${target.availHeight}`
+  );
+}
+
+export function getSavedCustomerScreenKey(): string | null {
+  return localStorage.getItem(SCREEN_PREF_KEY);
+}
+
+export function saveCustomerScreenKey(key: string) {
+  localStorage.setItem(SCREEN_PREF_KEY, key);
+}
+
+export function clearCustomerScreenKey() {
+  localStorage.removeItem(SCREEN_PREF_KEY);
+}
+
+/**
+ * Mở cửa sổ màn hình khách trên đúng màn hình có `key` đã chọn trước đó (xem
+ * `saveCustomerScreenKey`) — dùng khi đã biết chắc màn hình nào, không đoán mò.
+ */
+export async function openCustomerDisplayOnScreen(key: string): Promise<OpenCustomerDisplayResult> {
+  const w = window as any;
+  try {
+    const screenDetails = await w.getScreenDetails();
+    const target = (screenDetails.screens || []).find((s: any) => screenKey(s) === key);
+    if (!target) {
+      return {
+        win: null,
+        positioned: false,
+        error: 'Không tìm thấy đúng màn hình đã chọn trước đó — có thể cấu hình màn hình vừa thay đổi. Chọn lại màn hình khách.',
+      };
+    }
+    return { win: openAt(target), positioned: true };
+  } catch {
+    return {
+      win: null,
+      positioned: false,
+      error:
+        'Trình duyệt chưa cấp quyền hiển thị 2 màn hình. Bấm vào biểu tượng ổ khóa cạnh địa chỉ web → tìm "Quản lý cửa sổ" (Window management) → chọn Cho phép, rồi bấm lại nút này.',
+    };
+  }
 }
 
 /**
  * Mở cửa sổ màn hình khách — máy POS là màn hình cảm ứng, không có chuột để kéo cửa sổ
- * sang monitor phụ, nên dùng Window Management API (Chrome) để tự đặt đúng vị trí + kích
- * thước màn hình thứ 2 nếu trình duyệt hỗ trợ và người dùng đã cấp quyền. Nếu không tự đặt
- * được, vẫn mở cửa sổ (để không rơi vào im lặng) nhưng trả về lý do cụ thể cho caller hiện
- * alert — vì im lặng rơi về cửa sổ cùng màn hình sẽ kẹt cứng trên máy không có chuột.
+ * sang monitor phụ, nên dùng Window Management API (Chrome) để tự đặt vị trí. Trước đây tự
+ * đoán "màn hình không phải màn hình hiện tại" là màn hình khách — nhưng đoán sai trên một
+ * số máy (phát hiện nhầm màn hình chính là "không phải hiện tại"). Giờ nếu đã có lựa chọn
+ * lưu trước đó thì dùng thẳng; nếu chưa, KHÔNG đoán nữa mà báo caller hiện bảng chọn để nhân
+ * viên tự xác nhận đúng màn hình 1 lần, các lần sau tự nhớ.
  */
 export async function openCustomerDisplayWindow(): Promise<OpenCustomerDisplayResult> {
   const w = window as any;
@@ -88,7 +154,8 @@ export async function openCustomerDisplayWindow(): Promise<OpenCustomerDisplayRe
   }
   try {
     const screenDetails = await w.getScreenDetails();
-    if (!screenDetails.screens || screenDetails.screens.length < 2) {
+    const screens = screenDetails.screens || [];
+    if (screens.length < 2) {
       const win = window.open(CUSTOMER_DISPLAY_PATH, CUSTOMER_DISPLAY_WINDOW_NAME, 'noopener');
       return {
         win,
@@ -97,15 +164,23 @@ export async function openCustomerDisplayWindow(): Promise<OpenCustomerDisplayRe
           'Chỉ phát hiện 1 màn hình. Kiểm tra ở Windows: Cài đặt > Hệ thống > Màn hình phải để "Mở rộng các màn hình này" (Extend), không phải "Nhân bản" (Duplicate).',
       };
     }
-    const target =
-      screenDetails.screens.find((s: any) => s !== screenDetails.currentScreen) ||
-      screenDetails.currentScreen;
-    const win = window.open(
-      CUSTOMER_DISPLAY_PATH,
-      CUSTOMER_DISPLAY_WINDOW_NAME,
-      `left=${target.availLeft},top=${target.availTop},width=${target.availWidth},height=${target.availHeight}`
-    );
-    return { win, positioned: true };
+
+    const savedKey = getSavedCustomerScreenKey();
+    if (savedKey) {
+      const target = screens.find((s: any) => screenKey(s) === savedKey);
+      if (target) return { win: openAt(target), positioned: true };
+      // Lựa chọn cũ không còn khớp màn hình nào hiện có — hỏi lại từ đầu.
+    }
+
+    const detected: DetectedScreen[] = screens.map((s: any, idx: number) => ({
+      key: screenKey(s),
+      label: `Màn hình ${idx + 1} — ${s.width}×${s.height}${s === screenDetails.currentScreen ? ' (đang xem màn hình này)' : ''}`,
+      left: s.left,
+      top: s.top,
+      width: s.width,
+      height: s.height,
+    }));
+    return { win: null, positioned: false, needsScreenPicker: true, screens: detected };
   } catch {
     const win = window.open(CUSTOMER_DISPLAY_PATH, CUSTOMER_DISPLAY_WINDOW_NAME, 'noopener');
     return {

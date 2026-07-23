@@ -3,7 +3,6 @@ import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Down
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
-import { parseLocalDateStr } from '../../utils/dateUtils';
 
 interface EmployeeRecord {
   id: string;
@@ -179,8 +178,10 @@ export function HRPayroll() {
         )
       : employees;
 
-    // Công tính theo giờ TRÊN LỊCH (không theo giờ check-out thực tế — không tính OT/ở lại
-    // trễ), chỉ trừ giờ nếu check-in trễ hơn giờ lên ca. Chưa check-in thì chưa tính công ca đó.
+    // Công tính theo giờ TRÊN LỊCH (không theo giờ check-in/check-out thực tế — không tính
+    // OT/ở lại trễ, cũng không tự trừ giờ đi trễ). Đi trễ chỉ hiện báo cáo cho admin biết (xem
+    // "status: late" ở checkInRecords bên dưới) — admin tự quyết định có trừ lương hay không,
+    // hệ thống không tự động trừ. Chưa check-in thì chưa tính công ca đó.
     const scheduledHoursOf = (shift: Shift) => {
       const [startH, startM] = shift.startTime.split(':').map(Number);
       const [endH, endM] = shift.endTime.split(':').map(Number);
@@ -190,15 +191,7 @@ export function HRPayroll() {
     };
 
     const sumHours = (shiftList: Shift[]) =>
-      shiftList.reduce((total, shift) => {
-        if (!shift.checkIn) return total;
-        const scheduledHours = scheduledHoursOf(shift);
-        const [startH, startM] = shift.startTime.split(':').map(Number);
-        const scheduledStart = parseLocalDateStr(shift.date);
-        scheduledStart.setHours(startH, startM, 0, 0);
-        const lateHours = Math.max(0, (new Date(shift.checkIn).getTime() - scheduledStart.getTime()) / 3600000);
-        return total + Math.max(0, scheduledHours - lateHours);
-      }, 0);
+      shiftList.reduce((total, shift) => (shift.checkIn ? total + scheduledHoursOf(shift) : total), 0);
 
     const records: EmployeeRecord[] = relevantEmployees
       .map((emp) => {

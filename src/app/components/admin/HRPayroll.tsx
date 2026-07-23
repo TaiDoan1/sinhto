@@ -231,7 +231,10 @@ export function HRPayroll() {
           : (emp.baseSalary || 0);
         const totalSalary = regularPay + otPay + comboBonus;
 
-        const selfieChecks = employeeShifts.filter((s) => s.checkIn).length;
+        // Đếm số ca có ĐỦ ảnh xác nhận (check-in + check-out) — không dùng s.checkIn vì giờ đó
+        // có thể do POS tự động ghi lúc đăng nhập, không có ảnh xác minh thật sự. Chỉ tính là
+        // "đã chấm công đầy đủ" khi có ảnh từ app nhân viên.
+        const selfieChecks = employeeShifts.filter((s) => s.checkInPhoto && s.checkOutPhoto).length;
 
         return {
           id: emp.id,

@@ -68,7 +68,11 @@ export function EmployeePortal() {
   if (!activeEmployee) return null;
 
   const visibleFields = [...profileFields].filter(f => f.visible).sort((a, b) => a.order - b.order);
-  const todayShift = myShifts.find(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress'].includes(s.status));
+  // Bao gồm cả ca đã "completed" — nếu POS đã tự kết ca trước khi nhân viên kịp mở app chụp ảnh
+  // xác nhận, ca đó vẫn phải hiện ra để họ chụp bổ sung (ảnh tách riêng khỏi giờ/trạng thái ca,
+  // xem PosContext.tsx). Trước đây lọc bỏ "completed" khiến ca biến mất hẳn khỏi app — nhân viên
+  // không còn cách nào chụp ảnh checkout nữa.
+  const todayShift = myShifts.find(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status));
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));
 
   const handleSaveProfile = async () => {

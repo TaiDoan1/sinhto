@@ -10,6 +10,7 @@ import { ImageViewer } from './ImageViewer';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
+import type { WorkShift } from '../../types/employee';
 
 type Tab = EmployeeTab;
 
@@ -50,6 +51,9 @@ export function EmployeePortal() {
   const [showOffForm, setShowOffForm] = useState(false);
   const [offReason, setOffReason] = useState('');
   const [requestingOff, setRequestingOff] = useState(false);
+  const [scheduleView, setScheduleView] = useState<'mine' | 'branch'>('mine');
+  const [branchShifts, setBranchShifts] = useState<WorkShift[]>([]);
+  const [branchShiftsLoading, setBranchShiftsLoading] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -65,6 +69,17 @@ export function EmployeePortal() {
     setEditData(data);
   }, [activeEmployee, profileFields]);
 
+  // Lịch cả chi nhánh — chỉ tải khi nhân viên thực sự bật xem (tránh gọi API thừa mỗi lần vào tab).
+  useEffect(() => {
+    if (scheduleView !== 'branch' || !activeEmployee?.branch) return;
+    setBranchShiftsLoading(true);
+    api
+      .fetchShifts({ branch: activeEmployee.branch })
+      .then((data: WorkShift[]) => setBranchShifts(data || []))
+      .catch(() => setBranchShifts([]))
+      .finally(() => setBranchShiftsLoading(false));
+  }, [scheduleView, activeEmployee?.branch]);
+
   if (!activeEmployee) return null;
 
   const visibleFields = [...profileFields].filter(f => f.visible).sort((a, b) => a.order - b.order);
@@ -74,6 +89,21 @@ export function EmployeePortal() {
   // không còn cách nào chụp ảnh checkout nữa.
   const todayShift = myShifts.find(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status));
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Lịch cả chi nhánh — gộp theo ngày để hiện dạng "ngày -> danh sách ai làm ca nào", chỉ lấy từ
+  // hôm nay trở đi và bỏ qua ca đã hủy (rejected) cho gọn.
+  const branchScheduleByDate = (() => {
+    const upcoming = branchShifts
+      .filter(s => s.date >= todayStr() && s.status !== 'rejected')
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    const map = new Map<string, WorkShift[]>();
+    for (const s of upcoming) {
+      const list = map.get(s.date) || [];
+      list.push(s);
+      map.set(s.date, list);
+    }
+    return Array.from(map.entries());
+  })();
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -435,9 +465,27 @@ export function EmployeePortal() {
 
         {tab === 'schedule' && (
           <div className="space-y-4">
-            {/* My shifts list */}
+            {/* Chuyển giữa lịch của riêng mình và lịch cả chi nhánh */}
+            <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+              <button
+                type="button"
+                onClick={() => setScheduleView('mine')}
+                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${scheduleView === 'mine' ? 'bg-emerald-600 text-white' : 'text-gray-500'}`}
+              >
+                Ca của tôi
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleView('branch')}
+                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${scheduleView === 'branch' ? 'bg-emerald-600 text-white' : 'text-gray-500'}`}
+              >
+                Lịch cả chi nhánh
+              </button>
+            </div>
+
+            {scheduleView === 'mine' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-4 gap-2">
+              <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <h2 className="font-bold text-gray-800">Lịch làm của tôi</h2>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
@@ -506,6 +554,55 @@ export function EmployeePortal() {
                 </div>
               )}
             </div>
+            )}
+
+            {scheduleView === 'branch' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <h2 className="font-bold text-gray-800 mb-4">Lịch cả chi nhánh</h2>
+              {branchShiftsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                </div>
+              ) : branchScheduleByDate.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch nào</p>
+              ) : (
+                <div className="space-y-4">
+                  {branchScheduleByDate.map(([date, dayShifts]) => (
+                    <div key={date}>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                        {formatDate(date)}
+                      </div>
+                      <div className="space-y-1.5">
+                        {dayShifts.map(s => {
+                          const isOff = s.shiftType === 'off';
+                          return (
+                            <div
+                              key={s.id}
+                              className={`flex items-center justify-between gap-2 p-2.5 rounded-lg ${isOff ? 'bg-red-50' : 'bg-gray-50'}`}
+                            >
+                              <span className="font-semibold text-gray-800 text-sm truncate min-w-0">
+                                {s.employeeName}
+                              </span>
+                              {isOff ? (
+                                <span className="text-xs font-semibold text-red-600 flex items-center gap-1 flex-shrink-0">
+                                  <CalendarOff className="w-3.5 h-3.5" />
+                                  Nghỉ
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                                  {s.startTime}–{s.endTime}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            )}
           </div>
         )}
       </main>

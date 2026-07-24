@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, X,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, X, MessageCircle,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -18,8 +18,9 @@ import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
+import { FbMessagesTab } from './FbMessagesTab';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts' | 'fbMessages';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -323,6 +324,7 @@ export function OnlineSalesPortal() {
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
+    { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
 
@@ -550,6 +552,10 @@ export function OnlineSalesPortal() {
 
             {view === 'combo' && (
               <CustomerComboHub {...comboHubProps} />
+            )}
+
+            {view === 'fbMessages' && (
+              <FbMessagesTab staffId={activeEmployee.id} staffName={activeEmployee.fullName} />
             )}
 
             {view === 'alerts' && <DeliveryAlerts />}

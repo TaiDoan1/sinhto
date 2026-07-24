@@ -914,3 +914,66 @@ export async function fetchOnlineSalesTeamStats() {
   if (!res.ok) throw new Error('Failed to fetch team stats');
   return res.json();
 }
+
+export interface FbConversation {
+  id: string;
+  psid: string;
+  customerName: string;
+  profilePic?: string;
+  linkedCustomerPhone?: string | null;
+  lastMessageText: string;
+  lastMessageAt: string;
+  lastDirection: 'in' | 'out';
+  unreadCount: number;
+  assignedStaffId?: string | null;
+  assignedStaffName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FbMessage {
+  id: string;
+  conversationId: string;
+  direction: 'in' | 'out';
+  text: string;
+  staffId?: string | null;
+  staffName?: string | null;
+  createdAt: string;
+}
+
+export async function fetchFbConversations(): Promise<FbConversation[]> {
+  const res = await fetch(`${BASE_URL}/facebook/conversations`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch Facebook conversations');
+  return res.json();
+}
+
+export async function fetchFbMessages(conversationId: string): Promise<FbMessage[]> {
+  const res = await fetch(`${BASE_URL}/facebook/conversations/${conversationId}/messages`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch Facebook messages');
+  return res.json();
+}
+
+export async function sendFbReply(conversationId: string, text: string, staffId: string, staffName: string): Promise<FbMessage> {
+  const res = await fetch(`${BASE_URL}/facebook/conversations/${conversationId}/reply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, staffId, staffName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to send Facebook reply');
+  }
+  return res.json();
+}
+
+export async function updateFbConversation(conversationId: string, updates: Record<string, unknown>): Promise<FbConversation> {
+  const res = await fetch(`${BASE_URL}/facebook/conversations/${conversationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error('Failed to update Facebook conversation');
+  return res.json();
+}

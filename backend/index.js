@@ -12,6 +12,7 @@ const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
 const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
 const { registerCskhRoutes } = require('./cskhApi');
+const { registerFacebookRoutes } = require('./facebookApi');
 const {
   initBranchInventory,
   getInventoryForBranch,
@@ -2291,6 +2292,7 @@ async function start() {
     });
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
     registerCskhRoutes(app, db, { broadcast });
+    registerFacebookRoutes(app, db, { broadcast });
     registerBackupRoutes(app, db);
     initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
 

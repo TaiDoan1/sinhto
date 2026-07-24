@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS sales_activities (
   id TEXT PRIMARY KEY, customerPhone TEXT, leadId TEXT, careStaffId TEXT, careStaffName TEXT,
   activityType TEXT, content TEXT, createdAt TEXT
 );
+CREATE TABLE IF NOT EXISTS fb_conversations (
+  id TEXT PRIMARY KEY, psid TEXT UNIQUE, customerName TEXT, profilePic TEXT,
+  linkedCustomerPhone TEXT, lastMessageText TEXT, lastMessageAt TEXT, lastDirection TEXT,
+  unreadCount INTEGER DEFAULT 0, assignedStaffId TEXT, assignedStaffName TEXT,
+  createdAt TEXT, updatedAt TEXT
+);
+CREATE TABLE IF NOT EXISTS fb_messages (
+  id TEXT PRIMARY KEY, conversationId TEXT, direction TEXT, text TEXT,
+  staffId TEXT, staffName TEXT, createdAt TEXT
+);
 CREATE TABLE IF NOT EXISTS delivery_logs (
   id TEXT PRIMARY KEY,
   combo_order_id TEXT NOT NULL,

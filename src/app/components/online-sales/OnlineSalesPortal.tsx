@@ -17,6 +17,7 @@ import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { DeliveryAlerts } from './DeliveryAlerts';
+import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 
 type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts';
 
@@ -380,36 +381,27 @@ export function OnlineSalesPortal() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
         {view === 'dashboard' && (
               <div className={`space-y-6 ${dataLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+                <SalesAnalyticsDashboard />
+
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <MetricCard icon={TrendingUp} label="Doanh thu tháng" value={`${dashboard.revenueMonth.toLocaleString('vi-VN')}đ`} sub={`Tuần: ${dashboard.revenueWeek.toLocaleString('vi-VN')}đ`} />
-                  <MetricCard icon={Package} label="Combo active" value={String(dashboard.activeCombos)} sub={`${dashboard.expiringCombos} sắp hết`} />
                   <MetricCard icon={Store} label="Khách lẻ / combo" value={`${dashboard.retailCustomerCount} / ${dashboard.comboCustomerCount}`} sub={`${dashboard.leadCount} lead`} />
                   <MetricCard icon={AlertCircle} label="Cơ hội upsale" value={String(dashboard.upsellOpportunities)} sub={`Tỷ lệ chốt: ${dashboard.conversionRate}%`} />
                 </div>
-                <div className="grid lg:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border p-5">
-                    <h3 className="font-bold text-gray-800 mb-3">Doanh thu chi tiết tháng</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600">Combo</span><span className="font-bold">{dashboard.comboRevenueMonth.toLocaleString('vi-VN')}đ</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Bán lẻ</span><span className="font-bold">{dashboard.retailRevenueMonth.toLocaleString('vi-VN')}đ</span></div>
-                      <div className="flex justify-between border-t pt-2"><span className="text-gray-600">Chờ chốt</span><span className="font-bold text-amber-600">{dashboard.pendingClaims} đơn</span></div>
+
+                <div className="bg-white rounded-2xl border p-5">
+                  <h3 className="font-bold text-gray-800 mb-3">Việc ưu tiên</h3>
+                  {tasks.slice(0, 5).length === 0 ? (
+                    <p className="text-sm text-gray-400">Không có việc cần làm</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {tasks.slice(0, 5).map((t) => (
+                        <button key={t.id} type="button" onClick={() => handleTaskClick(t)} className={`w-full text-left p-3 rounded-xl border-l-4 bg-gray-50 hover:bg-indigo-50 text-sm ${PRIORITY_COLOR[t.priority]}`}>
+                          <p className="font-semibold text-gray-900">{t.title}</p>
+                          <p className="text-xs text-gray-500">{t.subtitle}</p>
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                  <div className="bg-white rounded-2xl border p-5">
-                    <h3 className="font-bold text-gray-800 mb-3">Việc ưu tiên</h3>
-                    {tasks.slice(0, 5).length === 0 ? (
-                      <p className="text-sm text-gray-400">Không có việc cần làm</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {tasks.slice(0, 5).map((t) => (
-                          <button key={t.id} type="button" onClick={() => handleTaskClick(t)} className={`w-full text-left p-3 rounded-xl border-l-4 bg-gray-50 hover:bg-indigo-50 text-sm ${PRIORITY_COLOR[t.priority]}`}>
-                            <p className="font-semibold text-gray-900">{t.title}</p>
-                            <p className="text-xs text-gray-500">{t.subtitle}</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             )}

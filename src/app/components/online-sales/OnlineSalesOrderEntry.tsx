@@ -12,6 +12,7 @@ import { calculateTotalCups } from '../../utils/comboUtils';
 import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
 import { useBranches } from '../../contexts/BranchContext';
+import { COMBO_PACKAGE_SETTING_KEY, type ComboPackageTemplate } from '../../types/comboPackage';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
@@ -55,6 +56,37 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [packageTemplates, setPackageTemplates] = useState<ComboPackageTemplate[]>([]);
+  const [showPackagePicker, setShowPackagePicker] = useState(false);
+
+  useEffect(() => {
+    api
+      .fetchSetting(COMBO_PACKAGE_SETTING_KEY)
+      .then((v: any) => {
+        if (Array.isArray(v)) setPackageTemplates(v.filter((t) => t.active));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Chọn nhanh 1 gói combo mẫu do Admin định nghĩa — dựng "raw" đúng dạng CustomComboBuilder
+  // trả về (mảng item theo ngày, gắn thêm thuộc tính duration/deliveryDays/deliveryTime ngay
+  // trên mảng) để dùng chung được handleSubmitCombo phía dưới, không cần sửa gì thêm.
+  const handlePickPackage = (tpl: ComboPackageTemplate) => {
+    const raw: any = tpl.items.map((it) => ({
+      assignedDay: it.assignedDay,
+      dayLabel: it.dayLabel,
+      productName: it.productName,
+      size: it.size,
+      protein: it.protein,
+      toppings: it.toppings,
+    }));
+    raw.duration = tpl.comboType;
+    raw.deliveryDays = tpl.items.map((it) => it.assignedDay);
+    raw.startDate = new Date().toISOString();
+    raw.deliveryTime = '08:00';
+    setPendingCombo({ name: tpl.name, price: tpl.price, raw });
+    setShowPackagePicker(false);
+  };
 
   useEffect(() => {
     if (prefill) {
@@ -538,6 +570,15 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
+                {packageTemplates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPackagePicker(true)}
+                    className="px-5 py-3 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-sm hover:bg-emerald-200"
+                  >
+                    Chọn gói có sẵn
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowComboBuilder(true)}
@@ -561,6 +602,33 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           )}
         </div>
       </div>
+
+      {showPackagePicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Chọn gói combo có sẵn</h3>
+              <button type="button" onClick={() => setShowPackagePicker(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="space-y-2">
+              {packageTemplates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => handlePickPackage(tpl)}
+                  className="w-full text-left p-3.5 rounded-xl border-2 border-gray-200 hover:border-emerald-500 hover:bg-emerald-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-gray-800">{tpl.name}</p>
+                    <p className="font-black text-emerald-700">{tpl.price.toLocaleString('vi-VN')}đ</p>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{tpl.comboType === 'weekly' ? 'Theo tuần' : 'Theo tháng'} · {tpl.items.length} ngày</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showComboBuilder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-black/60">

@@ -19,6 +19,7 @@ import { ComboShipBoard } from "./components/combo-ship/ComboShipBoard";
 import { ShipperApp } from "./components/shipper/ShipperApp";
 import { ProductManagement } from "./components/admin/ProductManagement";
 import { ComboManagement } from "./components/admin/ComboManagement";
+import { ComboPackageTemplates } from "./components/admin/ComboPackageTemplates";
 import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
 import { StoreManagerApp } from "./components/admin/StoreManagerApp";
 import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
@@ -198,6 +199,8 @@ function AdminShell() {
         return <ProductManagement />;
       case "combos":
         return <ComboManagement />;
+      case "combo-packages":
+        return <ComboPackageTemplates />;
       case "combo-ship":
         return <ComboShipBoard />;
       case "loyalty":

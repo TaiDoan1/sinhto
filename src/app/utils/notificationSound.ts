@@ -1,53 +1,57 @@
-let audioCtx: AudioContext | null = null;
+let audioEl: HTMLAudioElement | null = null;
+let unlocked = false;
 
-function getAudioContext(): AudioContext | null {
+function getAudioEl(): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null;
-  if (!audioCtx) {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return null;
-    audioCtx = new Ctx();
+  if (!audioEl) {
+    audioEl = new Audio('/sounds/notify.wav');
+    audioEl.preload = 'auto';
   }
-  return audioCtx;
+  return audioEl;
 }
 
-// Mở khóa AudioContext ngay khi người dùng tương tác lần đầu (chính sách autoplay của trình duyệt) —
-// nếu tin nhắn đầu tiên đến trước khi CSKH click gì trên trang, tiếng bíp vẫn có thể bị chặn âm thầm.
-// Có thêm nút "Bật âm thanh" thủ công (xem unlockAudio) để chắc chắn kích hoạt được.
+// Dùng thẻ <audio> chuẩn thay vì Web Audio API — Safari (đặc biệt trên iOS/Mac) chặn Web Audio
+// tự phát nghiêm ngặt hơn nhiều so với play() của <audio>. Mở khóa ngay khi người dùng tương tác
+// lần đầu; vẫn có nút "Bật âm thanh" thủ công (xem unlockAudio) để chắc chắn kích hoạt được.
 if (typeof window !== 'undefined') {
   const unlock = () => {
-    getAudioContext()?.resume();
+    const el = getAudioEl();
+    if (!el) return;
+    el.muted = true;
+    el.play()
+      .then(() => {
+        el.pause();
+        el.currentTime = 0;
+        el.muted = false;
+        unlocked = true;
+      })
+      .catch(() => {});
   };
   window.addEventListener('click', unlock);
   window.addEventListener('keydown', unlock);
+  window.addEventListener('touchstart', unlock);
 }
 
 export function unlockAudio(): boolean {
-  const ctx = getAudioContext();
-  if (!ctx) return false;
-  ctx.resume();
+  const el = getAudioEl();
+  if (!el) return false;
+  el.muted = false;
+  el.currentTime = 0;
+  el.play()
+    .then(() => {
+      unlocked = true;
+    })
+    .catch(() => {});
   return true;
 }
 
 export function isAudioRunning(): boolean {
-  return getAudioContext()?.state === 'running';
+  return unlocked;
 }
 
 export function playNotificationBeep() {
-  const ctx = getAudioContext();
-  if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
-
-  const now = ctx.currentTime;
-  [0, 0.16].forEach((offset, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = i === 0 ? 880 : 1046.5;
-    gain.gain.setValueAtTime(0, now + offset);
-    gain.gain.linearRampToValueAtTime(0.15, now + offset + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.18);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now + offset);
-    osc.stop(now + offset + 0.2);
-  });
+  const el = getAudioEl();
+  if (!el) return;
+  el.currentTime = 0;
+  el.play().catch(() => {});
 }

@@ -149,7 +149,7 @@ async function backfillConversations(db, { maxPages = 10 } = {}) {
 
   let url =
     `https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/conversations` +
-    `?fields=participants,updated_time,messages.limit(200){message,from,created_time}&limit=50&access_token=${token}`;
+    `?fields=participants,updated_time,messages.limit(25){message,from,created_time}&limit=10&access_token=${token}`;
 
   let conversations = 0;
   let messages = 0;

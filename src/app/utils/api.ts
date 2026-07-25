@@ -977,3 +977,12 @@ export async function updateFbConversation(conversationId: string, updates: Reco
   if (!res.ok) throw new Error('Failed to update Facebook conversation');
   return res.json();
 }
+
+export async function backfillFbConversations(): Promise<{ conversations: number; messages: number }> {
+  const res = await fetch(`${BASE_URL}/facebook/backfill`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to backfill Facebook conversations');
+  }
+  return res.json();
+}

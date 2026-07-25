@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Send, Link2, Loader2, Search } from 'lucide-react';
+import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { FbConversation, FbMessage } from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -31,6 +31,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   const [search, setSearch] = useState('');
   const [linkPhone, setLinkPhone] = useState('');
   const [linking, setLinking] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadConversations = useCallback(() => {
@@ -105,6 +106,20 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
     }
   };
 
+  const handleBackfill = async () => {
+    if (backfilling) return;
+    setBackfilling(true);
+    try {
+      const result = await api.backfillFbConversations();
+      alert(`Đã đồng bộ ${result.conversations} hội thoại, ${result.messages} tin nhắn từ Facebook.`);
+      loadConversations();
+    } catch (e: any) {
+      alert(e.message || 'Đồng bộ lịch sử thất bại');
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const filtered = conversations.filter((c) =>
     !search.trim() || c.customerName?.toLowerCase().includes(search.toLowerCase()) || c.linkedCustomerPhone?.includes(search)
   );
@@ -120,7 +135,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100vh-220px)] min-h-[420px]">
       <div className="border-r border-gray-200 flex flex-col min-h-0">
-        <div className="p-3 border-b border-gray-100">
+        <div className="p-3 border-b border-gray-100 space-y-2">
           <div className="relative">
             <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
             <input
@@ -130,6 +145,15 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
               className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 py-1.5"
+          >
+            {backfilling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Đồng bộ tin nhắn cũ từ Facebook
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 ? (

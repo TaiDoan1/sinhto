@@ -122,6 +122,79 @@ async function sendToMessenger(psid, text) {
   return data;
 }
 
+function dbGet(db, sql, params) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+}
+
+function dbRun(db, sql, params) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+function upsertConversationAsync(db, psid, patch) {
+  return new Promise((resolve, reject) => {
+    upsertConversation(db, psid, patch, (err, conv) => (err ? reject(err) : resolve(conv)));
+  });
+}
+
+// Nạp lại lịch sử hội thoại cũ (trước khi webhook được kích hoạt) qua Facebook Conversations API.
+async function backfillConversations(db, { maxPages = 10 } = {}) {
+  const token = process.env.FB_PAGE_ACCESS_TOKEN;
+  const pageId = process.env.FB_PAGE_ID;
+  if (!token) throw new Error('Chưa cấu hình FB_PAGE_ACCESS_TOKEN trên server');
+  if (!pageId) throw new Error('Chưa cấu hình FB_PAGE_ID trên server');
+
+  let url =
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/conversations` +
+    `?fields=participants,updated_time,messages.limit(200){message,from,created_time}&limit=50&access_token=${token}`;
+
+  let conversations = 0;
+  let messages = 0;
+
+  for (let page = 0; page < maxPages && url; page++) {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Lỗi Facebook Conversations API');
+
+    for (const conv of data.data || []) {
+      const customer = (conv.participants?.data || []).find((p) => p.id !== pageId);
+      if (!customer) continue;
+      const msgs = (conv.messages?.data || []).slice().reverse(); // API trả mới→cũ, đảo lại thành cũ→mới
+      if (!msgs.length) continue;
+
+      const last = msgs[msgs.length - 1];
+      const convRow = await upsertConversationAsync(db, customer.id, {
+        customerName: customer.name,
+        lastMessageText: last.message || '',
+        lastMessageAt: last.created_time,
+        lastDirection: last.from?.id === pageId ? 'out' : 'in',
+      });
+      conversations++;
+
+      for (const m of msgs) {
+        if (!m.message) continue;
+        const localId = `FBMSG-${m.id}`;
+        const existing = await dbGet(db, 'SELECT id FROM fb_messages WHERE id = ?', [localId]);
+        if (existing) continue;
+        await dbRun(
+          db,
+          `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [localId, convRow.id, m.from?.id === pageId ? 'out' : 'in', m.message, null, null, m.created_time]
+        );
+        messages++;
+      }
+    }
+
+    url = data.paging?.next || null;
+  }
+
+  return { conversations, messages };
+}
+
 function registerFacebookRoutes(app, db, { broadcast }) {
   // --- Webhook verify (Meta gọi khi bạn đăng ký webhook URL) ---
   app.get('/api/facebook/webhook', (req, res) => {
@@ -170,6 +243,19 @@ function registerFacebookRoutes(app, db, { broadcast }) {
     });
 
     res.sendStatus(200);
+  });
+
+  // --- Nạp lại lịch sử hội thoại cũ từ Facebook ---
+  app.post('/api/facebook/backfill', async (req, res) => {
+    try {
+      const result = await backfillConversations(db);
+      db.all('SELECT * FROM fb_conversations ORDER BY lastMessageAt DESC', [], (err, rows) => {
+        if (!err) (rows || []).forEach((r) => broadcast('FB_CONVERSATION_UPDATED', parseConversationRow(r)));
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(502).json({ error: e.message });
+    }
   });
 
   // --- Danh sách hội thoại ---

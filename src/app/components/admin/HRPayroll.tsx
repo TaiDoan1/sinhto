@@ -104,9 +104,11 @@ export function HRPayroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [payrollBranchFilter, setPayrollBranchFilter] = useState<string>('ALL');
-  const [payrollPeriodType, setPayrollPeriodType] = useState<'month' | 'week'>('month');
+  const [payrollPeriodType, setPayrollPeriodType] = useState<'month' | 'week' | 'custom'>('month');
   const [payrollMonth, setPayrollMonth] = useState<string>(currentMonthStr());
   const [payrollWeek, setPayrollWeek] = useState<string>(currentWeekStr());
+  const [payrollCustomStart, setPayrollCustomStart] = useState<string>(localDateStr());
+  const [payrollCustomEnd, setPayrollCustomEnd] = useState<string>(localDateStr());
   const { activeBranches } = useBranches();
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>({
@@ -186,7 +188,7 @@ export function HRPayroll() {
     if (employees.length > 0) {
       calculatePayroll();
     }
-  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter, payrollPeriodType, payrollMonth, payrollWeek]);
+  }, [employees, shifts, otSettings, salarySettings, comboSubscriptions, payrollBranchFilter, payrollPeriodType, payrollMonth, payrollWeek, payrollCustomStart, payrollCustomEnd]);
 
   const fetchBackupStatus = async () => {
     try {
@@ -246,6 +248,11 @@ export function HRPayroll() {
       const day = dateStr.slice(0, 10);
       if (payrollPeriodType === 'week') {
         const { start, end } = weekRange(payrollWeek);
+        return day >= start && day <= end;
+      }
+      if (payrollPeriodType === 'custom') {
+        const start = payrollCustomStart <= payrollCustomEnd ? payrollCustomStart : payrollCustomEnd;
+        const end = payrollCustomStart <= payrollCustomEnd ? payrollCustomEnd : payrollCustomStart;
         return day >= start && day <= end;
       }
       return day.startsWith(payrollMonth);
@@ -331,10 +338,15 @@ export function HRPayroll() {
   };
 
   const periodLabel = (() => {
+    const fmtVN = (s: string) => s.split('-').reverse().join('/');
     if (payrollPeriodType === 'week') {
       const { start, end } = weekRange(payrollWeek);
-      const fmtVN = (s: string) => s.split('-').reverse().join('/');
       return `tuần ${fmtVN(start)} - ${fmtVN(end)}`;
+    }
+    if (payrollPeriodType === 'custom') {
+      const start = payrollCustomStart <= payrollCustomEnd ? payrollCustomStart : payrollCustomEnd;
+      const end = payrollCustomStart <= payrollCustomEnd ? payrollCustomEnd : payrollCustomStart;
+      return start === end ? `ngày ${fmtVN(start)}` : `${fmtVN(start)} - ${fmtVN(end)}`;
     }
     return `tháng ${payrollMonth}`;
   })();
@@ -396,21 +408,46 @@ export function HRPayroll() {
                 >
                   Theo tuần
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPayrollPeriodType('custom')}
+                  className={`px-3 py-2 text-sm font-semibold ${payrollPeriodType === 'custom' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  Theo ngày
+                </button>
               </div>
-              {payrollPeriodType === 'month' ? (
+              {payrollPeriodType === 'month' && (
                 <input
                   type="month"
                   value={payrollMonth}
                   onChange={(e) => setPayrollMonth(e.target.value || currentMonthStr())}
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
                 />
-              ) : (
+              )}
+              {payrollPeriodType === 'week' && (
                 <input
                   type="week"
                   value={payrollWeek}
                   onChange={(e) => setPayrollWeek(e.target.value || currentWeekStr())}
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
                 />
+              )}
+              {payrollPeriodType === 'custom' && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={payrollCustomStart}
+                    onChange={(e) => setPayrollCustomStart(e.target.value || localDateStr())}
+                    className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+                  />
+                  <span className="text-gray-400 text-sm">đến</span>
+                  <input
+                    type="date"
+                    value={payrollCustomEnd}
+                    onChange={(e) => setPayrollCustomEnd(e.target.value || localDateStr())}
+                    className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+                  />
+                </div>
               )}
               <select
                 value={payrollBranchFilter}

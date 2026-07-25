@@ -67,7 +67,7 @@ function upsertConversation(db, psid, patch, cb) {
   });
 }
 
-function insertMessage(db, conversationId, direction, text, staff, cb) {
+function insertMessage(db, conversationId, direction, text, attachments, staff, cb) {
   const id = `FBMSG-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
   const msg = {
@@ -75,16 +75,28 @@ function insertMessage(db, conversationId, direction, text, staff, cb) {
     conversationId,
     direction,
     text,
+    attachments: attachments || [],
     staffId: staff?.staffId || null,
     staffName: staff?.staffName || null,
     createdAt: now,
   };
   db.run(
-    `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [msg.id, msg.conversationId, msg.direction, msg.text, msg.staffId, msg.staffName, msg.createdAt],
+    `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt, attachments)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [msg.id, msg.conversationId, msg.direction, msg.text, msg.staffId, msg.staffName, msg.createdAt, JSON.stringify(msg.attachments)],
     (err) => cb(err, msg)
   );
+}
+
+function parseMessageRow(row) {
+  if (!row) return null;
+  let attachments = [];
+  try {
+    attachments = JSON.parse(row.attachments || '[]');
+  } catch {
+    attachments = [];
+  }
+  return { ...row, attachments };
 }
 
 async function fetchProfileName(psid) {
@@ -102,9 +114,12 @@ async function fetchProfileName(psid) {
   return null;
 }
 
-async function sendToMessenger(psid, text) {
+async function sendToMessenger(psid, { text, imageUrl } = {}) {
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
   if (!token) throw new Error('Chưa cấu hình FB_PAGE_ACCESS_TOKEN trên server');
+  const message = imageUrl
+    ? { attachment: { type: 'image', payload: { url: imageUrl, is_reusable: true } } }
+    : { text };
   const res = await fetch(
     `https://graph.facebook.com/${GRAPH_API_VERSION}/me/messages?access_token=${token}`,
     {
@@ -112,7 +127,7 @@ async function sendToMessenger(psid, text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         recipient: { id: psid },
-        message: { text },
+        message,
         messaging_type: 'RESPONSE',
       }),
     }
@@ -120,6 +135,11 @@ async function sendToMessenger(psid, text) {
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Gửi tin nhắn Facebook thất bại');
   return data;
+}
+
+function publicBaseUrl(req) {
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  return `${req.protocol}://${req.get('host')}`;
 }
 
 function dbGet(db, sql, params) {
@@ -152,7 +172,7 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
   // Chỉ lấy ~25-30 hội thoại gần nhất (đủ dùng, tránh kéo cả trăm hội thoại cũ không cần thiết).
   let url =
     `https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/conversations` +
-    `?fields=participants,updated_time,messages.limit(25){message,from,created_time}&limit=25&access_token=${token}`;
+    `?fields=participants,updated_time,messages.limit(25){message,from,created_time,attachments}&limit=25&access_token=${token}`;
 
   let conversations = 0;
   let messages = 0;
@@ -169,9 +189,10 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
       if (!msgs.length) continue;
 
       const last = msgs[msgs.length - 1];
+      const lastAttachments = (last.attachments?.data || []).map((a) => a.image_data?.url).filter(Boolean);
       const convRow = await upsertConversationAsync(db, customer.id, {
         customerName: customer.name,
-        lastMessageText: last.message || '',
+        lastMessageText: last.message || (lastAttachments.length ? '[Hình ảnh]' : ''),
         lastMessageAt: last.created_time,
         lastDirection: last.from?.id === pageId ? 'out' : 'in',
       });
@@ -179,21 +200,22 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
 
       let newInbound = 0;
       for (const m of msgs) {
-        if (!m.message) continue;
+        const attachments = (m.attachments?.data || []).map((a) => a.image_data?.url).filter(Boolean);
+        if (!m.message && !attachments.length) continue;
         const localId = `FBMSG-${m.id}`;
         const existing = await dbGet(db, 'SELECT id FROM fb_messages WHERE id = ?', [localId]);
         if (existing) continue;
         const direction = m.from?.id === pageId ? 'out' : 'in';
         await dbRun(
           db,
-          `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [localId, convRow.id, direction, m.message, null, null, m.created_time]
+          `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt, attachments)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [localId, convRow.id, direction, m.message || '', null, null, m.created_time, JSON.stringify(attachments)]
         );
         messages++;
         if (direction === 'in') newInbound++;
         broadcast?.('FB_MESSAGE_CREATED', {
-          id: localId, conversationId: convRow.id, direction, text: m.message,
+          id: localId, conversationId: convRow.id, direction, text: m.message || '', attachments,
           staffId: null, staffName: null, createdAt: m.created_time,
         });
       }
@@ -226,15 +248,18 @@ function registerFacebookRoutes(app, db, { broadcast }) {
   // --- Webhook nhận sự kiện tin nhắn ---
   app.post('/api/facebook/webhook', (req, res) => {
     const body = req.body;
-    console.log('[fb webhook] nhận request:', JSON.stringify(body));
     if (body.object !== 'page') return res.sendStatus(404);
 
     (body.entry || []).forEach((entry) => {
       (entry.messaging || []).forEach(async (event) => {
         const psid = event.sender?.id;
         const text = event.message?.text;
-        console.log('[fb webhook] event:', JSON.stringify({ psid, text, isEcho: event.message?.is_echo }));
-        if (!psid || !text || event.message?.is_echo) return;
+        const attachments = (event.message?.attachments || [])
+          .filter((a) => a.type === 'image')
+          .map((a) => a.payload?.url)
+          .filter(Boolean);
+        console.log('[fb webhook] event:', JSON.stringify({ psid, text, attachments, isEcho: event.message?.is_echo }));
+        if (!psid || (!text && !attachments.length) || event.message?.is_echo) return;
 
         const profileName = await fetchProfileName(psid);
         upsertConversation(
@@ -242,7 +267,7 @@ function registerFacebookRoutes(app, db, { broadcast }) {
           psid,
           {
             customerName: profileName || undefined,
-            lastMessageText: text,
+            lastMessageText: text || (attachments.length ? '[Hình ảnh]' : ''),
             lastMessageAt: new Date().toISOString(),
             lastDirection: 'in',
             unreadCount: undefined, // tính riêng bên dưới
@@ -250,7 +275,7 @@ function registerFacebookRoutes(app, db, { broadcast }) {
           (err, conv) => {
             if (err) return console.error('fb upsertConversation error:', err.message);
             db.run('UPDATE fb_conversations SET unreadCount = unreadCount + 1 WHERE id = ?', [conv.id]);
-            insertMessage(db, conv.id, 'in', text, null, (e2, msg) => {
+            insertMessage(db, conv.id, 'in', text || '', attachments, null, (e2, msg) => {
               if (e2) return console.error('fb insertMessage error:', e2.message);
               broadcast('FB_MESSAGE_CREATED', msg);
               broadcast('FB_CONVERSATION_UPDATED', { ...conv, unreadCount: (conv.unreadCount || 0) + 1 });
@@ -288,35 +313,41 @@ function registerFacebookRoutes(app, db, { broadcast }) {
       [req.params.id],
       (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows || []);
+        res.json((rows || []).map(parseMessageRow));
       }
     );
   });
 
-  // --- Trả lời khách qua Messenger ---
+  // --- Trả lời khách qua Messenger (text và/hoặc ảnh — imageUrl là đường dẫn tương đối đã upload) ---
   app.post('/api/facebook/conversations/:id/reply', (req, res) => {
-    const { text, staffId, staffName } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+    const { text, imageUrl, staffId, staffName } = req.body;
+    const trimmedText = (text || '').trim();
+    if (!trimmedText && !imageUrl) return res.status(400).json({ error: 'text hoặc imageUrl bắt buộc' });
 
     db.get('SELECT * FROM fb_conversations WHERE id = ?', [req.params.id], async (err, conv) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!conv) return res.status(404).json({ error: 'conversation not found' });
 
+      const fullImageUrl = imageUrl ? `${publicBaseUrl(req)}${imageUrl}` : null;
+
       try {
-        await sendToMessenger(conv.psid, text.trim());
+        if (fullImageUrl) await sendToMessenger(conv.psid, { imageUrl: fullImageUrl });
+        if (trimmedText) await sendToMessenger(conv.psid, { text: trimmedText });
       } catch (e) {
         return res.status(502).json({ error: e.message });
       }
 
       const now = new Date().toISOString();
-      insertMessage(db, conv.id, 'out', text.trim(), { staffId, staffName }, (e2, msg) => {
+      const attachments = fullImageUrl ? [fullImageUrl] : [];
+      const previewText = trimmedText || (fullImageUrl ? '[Hình ảnh]' : '');
+      insertMessage(db, conv.id, 'out', trimmedText, attachments, { staffId, staffName }, (e2, msg) => {
         if (e2) return res.status(500).json({ error: e2.message });
         db.run(
           'UPDATE fb_conversations SET lastMessageText = ?, lastMessageAt = ?, lastDirection = ?, unreadCount = 0, updatedAt = ? WHERE id = ?',
-          [text.trim(), now, 'out', now, conv.id]
+          [previewText, now, 'out', now, conv.id]
         );
         broadcast('FB_MESSAGE_CREATED', msg);
-        broadcast('FB_CONVERSATION_UPDATED', { ...conv, lastMessageText: text.trim(), lastMessageAt: now, lastDirection: 'out', unreadCount: 0 });
+        broadcast('FB_CONVERSATION_UPDATED', { ...conv, lastMessageText: previewText, lastMessageAt: now, lastDirection: 'out', unreadCount: 0 });
         res.json(msg);
       });
     });

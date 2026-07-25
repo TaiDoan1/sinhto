@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw } from 'lucide-react';
+import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw, Image as ImageIcon, X } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { FbConversation, FbMessage } from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -32,7 +32,10 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   const [linkPhone, setLinkPhone] = useState('');
   const [linking, setLinking] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ url: string; previewUrl: string } | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadConversations = useCallback(() => {
     api.fetchFbConversations().then(setConversations).catch(() => {}).finally(() => setLoading(false));
@@ -61,6 +64,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
 
   useEffect(() => {
     if (!selectedId) return;
+    setPendingImage(null);
     setMessagesLoading(true);
     api
       .fetchFbMessages(selectedId)
@@ -93,15 +97,28 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   const selected = conversations.find((c) => c.id === selectedId) || null;
 
   const handleSend = async () => {
-    if (!selectedId || !draft.trim() || sending) return;
+    if (!selectedId || (!draft.trim() && !pendingImage) || sending) return;
     setSending(true);
     try {
-      await api.sendFbReply(selectedId, draft.trim(), staffId, staffName);
+      await api.sendFbReply(selectedId, draft.trim(), staffId, staffName, pendingImage?.url);
       setDraft('');
+      setPendingImage(null);
     } catch (e: any) {
       alert(e.message || 'Gửi tin nhắn thất bại');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handlePickImage = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const url = await api.uploadImage(file);
+      setPendingImage({ url, previewUrl: URL.createObjectURL(file) });
+    } catch {
+      alert('Tải ảnh lên thất bại');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -236,6 +253,15 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
                         m.direction === 'out' ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
                       }`}
                     >
+                      {(m.attachments || []).map((url, i) => (
+                        <img
+                          key={i}
+                          src={url}
+                          alt="Hình ảnh"
+                          className="rounded-lg max-w-full max-h-64 mb-1 cursor-pointer"
+                          onClick={() => window.open(url, '_blank')}
+                        />
+                      ))}
                       {m.text}
                       <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-indigo-200' : 'text-gray-400'}`}>
                         {new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -247,23 +273,57 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
               <div ref={bottomRef} />
             </div>
 
-            <div className="p-3 border-t border-gray-100 flex items-center gap-2">
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Nhập tin nhắn trả lời khách..."
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-              />
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={sending || !draft.trim()}
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-semibold text-sm"
-              >
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Gửi
-              </button>
+            <div className="border-t border-gray-100 p-3">
+              {pendingImage && (
+                <div className="mb-2 relative inline-block">
+                  <img src={pendingImage.previewUrl} alt="Ảnh sắp gửi" className="h-20 rounded-lg border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => setPendingImage(null)}
+                    className="absolute -top-2 -right-2 bg-gray-800 text-white rounded-full p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePickImage(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 disabled:opacity-50"
+                  title="Gửi ảnh"
+                >
+                  {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                </button>
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder="Nhập tin nhắn trả lời khách..."
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={sending || (!draft.trim() && !pendingImage)}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-semibold text-sm"
+                >
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Gửi
+                </button>
+              </div>
             </div>
           </>
         )}

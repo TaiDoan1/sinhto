@@ -936,6 +936,7 @@ export interface FbMessage {
   conversationId: string;
   direction: 'in' | 'out';
   text: string;
+  attachments?: string[];
   staffId?: string | null;
   staffName?: string | null;
   createdAt: string;
@@ -955,11 +956,17 @@ export async function fetchFbMessages(conversationId: string): Promise<FbMessage
   return res.json();
 }
 
-export async function sendFbReply(conversationId: string, text: string, staffId: string, staffName: string): Promise<FbMessage> {
+export async function sendFbReply(
+  conversationId: string,
+  text: string,
+  staffId: string,
+  staffName: string,
+  imageUrl?: string
+): Promise<FbMessage> {
   const res = await fetch(`${BASE_URL}/facebook/conversations/${conversationId}/reply`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, staffId, staffName }),
+    body: JSON.stringify({ text, staffId, staffName, imageUrl }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

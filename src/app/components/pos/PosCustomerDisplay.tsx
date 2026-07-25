@@ -15,7 +15,8 @@ function requestFullscreen() {
 }
 
 export function PosCustomerDisplay() {
-  const state = useCustomerDisplayState();
+  const [urlBranchId] = useState(() => new URLSearchParams(window.location.search).get('branch') || undefined);
+  const state = useCustomerDisplayState(urlBranchId);
   const { branchLabel } = useBranches();
   const [isFullscreen, setIsFullscreen] = useState(false);
 

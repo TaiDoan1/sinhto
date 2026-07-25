@@ -169,6 +169,16 @@ app.get('/api/events', (req, res) => {
   });
 });
 
+// Đồng bộ giỏ hàng sang màn hình khách (Subscreen) — đi qua server thay vì BroadcastChannel
+// vì máy POS Android (VD iMin) chạy màn hình khách trên tiến trình trình duyệt RIÊNG, không
+// cùng tab/process với máy chính nên BroadcastChannel không đồng bộ được. Loại theo branchId
+// để nhiều chi nhánh dùng chung server không bị lẫn dữ liệu giỏ hàng của nhau.
+app.post('/api/pos/customer-display', (req, res) => {
+  const { branchId } = req.body || {};
+  broadcast(`POS_CUSTOMER_DISPLAY_${branchId || 'default'}`, req.body);
+  res.sendStatus(200);
+});
+
 // --- ORDERS API ---
 
 // Get all orders (active & completed history)

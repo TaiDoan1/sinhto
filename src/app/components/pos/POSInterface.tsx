@@ -142,7 +142,7 @@ function POSInterfaceInner() {
       setCustomerDisplayOpen(false);
       return;
     }
-    const { win, positioned, error, needsScreenPicker, screens } = await openCustomerDisplayWindow();
+    const { win, positioned, error, needsScreenPicker, screens } = await openCustomerDisplayWindow(branchId);
     // ≥2 màn hình nhưng chưa biết chọn cái nào (chưa lưu lựa chọn trước đó) — trước đây tự đoán
     // "màn hình khác màn hình đang xem" là màn hình khách, nhưng đoán sai trên một số máy (lại
     // chọn đúng màn hình chính). Giờ hỏi nhân viên xác nhận đúng màn hình 1 lần, nhớ luôn cho
@@ -164,7 +164,7 @@ function POSInterfaceInner() {
   const handlePickCustomerScreen = async (screen: DetectedScreen) => {
     setScreenPickerOptions(null);
     saveCustomerScreenKey(screen.key);
-    const { win, positioned, error } = await openCustomerDisplayOnScreen(screen.key);
+    const { win, positioned, error } = await openCustomerDisplayOnScreen(screen.key, branchId);
     customerDisplayWinRef.current = win;
     setCustomerDisplayOpen(!!win);
     if (win && !positioned && error) {
@@ -180,7 +180,7 @@ function POSInterfaceInner() {
       customerDisplayWinRef.current = null;
       setCustomerDisplayOpen(false);
     }
-    const { needsScreenPicker, screens, error } = await openCustomerDisplayWindow();
+    const { needsScreenPicker, screens, error } = await openCustomerDisplayWindow(branchId);
     if (needsScreenPicker && screens) {
       setScreenPickerOptions(screens);
     } else if (error) {

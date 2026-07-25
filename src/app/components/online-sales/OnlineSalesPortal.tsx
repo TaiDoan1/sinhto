@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, X, MessageCircle,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, X, MessageCircle,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -21,7 +21,7 @@ import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
 import { useSSE } from '../../contexts/SSEContext';
 import { useToast } from '../../contexts/ToastContext';
-import { playNotificationBeep } from '../../utils/notificationSound';
+import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
 type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts' | 'fbMessages';
@@ -164,6 +164,7 @@ export function OnlineSalesPortal() {
   const { showNotify } = useToast();
   const [view, setView] = useState<View>('dashboard');
   const [fbConversations, setFbConversations] = useState<FbConversation[]>([]);
+  const [soundOn, setSoundOn] = useState(false);
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
   const [retailOrders, setRetailOrders] = useState<Order[]>([]);
   const [dashboard, setDashboard] = useState<OnlineSalesDashboard>(EMPTY_DASHBOARD);
@@ -245,6 +246,24 @@ export function OnlineSalesPortal() {
     };
   }, [fbUnreadTotal]);
 
+  // Trình duyệt chặn phát âm thanh tự động cho tới khi người dùng tương tác (click/gõ phím) —
+  // theo dõi trạng thái để hiện nút "Bật âm thanh" rõ ràng thay vì để CSKH tự hỏi vì sao im lặng.
+  useEffect(() => {
+    if (soundOn) return;
+    const check = setInterval(() => {
+      if (isAudioRunning()) {
+        setSoundOn(true);
+        clearInterval(check);
+      }
+    }, 1000);
+    return () => clearInterval(check);
+  }, [soundOn]);
+
+  const handleEnableSound = () => {
+    unlockAudio();
+    playNotificationBeep();
+    setSoundOn(true);
+  };
   const pendingCombos = useMemo(() => combos.filter((c) => c.status === 'pending'), [combos]);
   const myCombos = useMemo(
     () => combos.filter((c) => c.careStaffId === employeeId && c.status !== 'pending'),
@@ -383,6 +402,27 @@ export function OnlineSalesPortal() {
               <p className="text-indigo-200 text-sm">{branchLabel(activeEmployee.branch) || activeEmployee.branch}</p>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              {!soundOn && (
+                <button
+                  type="button"
+                  onClick={handleEnableSound}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-sm font-semibold animate-pulse"
+                  title="Bấm để bật âm thanh báo tin nhắn mới"
+                >
+                  <BellOff className="w-4 h-4" />
+                  Bật âm thanh
+                </button>
+              )}
+              {soundOn && (
+                <button
+                  type="button"
+                  onClick={() => playNotificationBeep()}
+                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20"
+                  title="Âm thanh thông báo đã bật — bấm để thử lại"
+                >
+                  <Bell className="w-5 h-5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={copyRefLink}

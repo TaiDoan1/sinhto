@@ -10,15 +10,26 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-// Mở khóa AudioContext ngay khi người dùng tương tác lần đầu (chính sách autoplay của trình duyệt).
+// Mở khóa AudioContext ngay khi người dùng tương tác lần đầu (chính sách autoplay của trình duyệt) —
+// nếu tin nhắn đầu tiên đến trước khi CSKH click gì trên trang, tiếng bíp vẫn có thể bị chặn âm thầm.
+// Có thêm nút "Bật âm thanh" thủ công (xem unlockAudio) để chắc chắn kích hoạt được.
 if (typeof window !== 'undefined') {
   const unlock = () => {
     getAudioContext()?.resume();
-    window.removeEventListener('click', unlock);
-    window.removeEventListener('keydown', unlock);
   };
   window.addEventListener('click', unlock);
   window.addEventListener('keydown', unlock);
+}
+
+export function unlockAudio(): boolean {
+  const ctx = getAudioContext();
+  if (!ctx) return false;
+  ctx.resume();
+  return true;
+}
+
+export function isAudioRunning(): boolean {
+  return getAudioContext()?.state === 'running';
 }
 
 export function playNotificationBeep() {

@@ -295,6 +295,15 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN refundedAt TEXT",
     "ALTER TABLE fb_messages ADD COLUMN attachments TEXT DEFAULT '[]'",
     "ALTER TABLE fb_conversations ADD COLUMN tags TEXT DEFAULT '[]'",
+    `CREATE TABLE IF NOT EXISTS gift_campaigns (
+      id TEXT PRIMARY KEY, name TEXT, branchId TEXT, giftSize TEXT DEFAULT '360ml',
+      giftProtein INTEGER DEFAULT 20, totalLimit INTEGER DEFAULT 0, redeemedCount INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1, createdAt TEXT, updatedAt TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS gift_redemptions (
+      id TEXT PRIMARY KEY, campaignId TEXT, branchId TEXT, customerPhone TEXT,
+      productName TEXT, orderId TEXT, staffId TEXT, staffName TEXT, createdAt TEXT
+    )`,
     `CREATE TABLE IF NOT EXISTS branch_inventory (
       branchId TEXT NOT NULL,
       itemId TEXT NOT NULL,

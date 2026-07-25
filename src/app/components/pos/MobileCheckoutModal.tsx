@@ -7,6 +7,7 @@ import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
+import { PosGiftCampaignBanner } from './PosGiftCampaignBanner';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import { usePaymentQr } from '../../hooks/usePaymentQr';
 import { postCustomerDisplayState } from '../../hooks/useCustomerDisplayChannel';
@@ -28,9 +29,10 @@ interface MobileCheckoutModalProps {
   onClose: () => void;
   onRemoveItem: (index: number) => void;
   onClearCart: () => void;
+  onAddItem: (item: CartItem) => void;
 }
 
-export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClose, onRemoveItem, onClearCart }: MobileCheckoutModalProps) {
+export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClose, onRemoveItem, onClearCart, onAddItem }: MobileCheckoutModalProps) {
   const { addOrder } = useOrders();
   const { session } = usePos();
   const staffName = session?.employeeName || 'POS - Nhân viên quầy';
@@ -356,7 +358,23 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
           </div>
         )}
 
-        {checkoutStep === 'loyalty' && <LoyaltyCustomerSection orderSubtotal={subtotal} />}
+        {checkoutStep === 'loyalty' && (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <LoyaltyCustomerSection orderSubtotal={subtotal} />
+            {activeCustomer && (
+              <div className="px-4 pb-3">
+                <PosGiftCampaignBanner
+                  branchId={branchId}
+                  customerPhone={activeCustomer.phone}
+                  staffId={effectiveStaffId}
+                  staffName={effectiveStaffName}
+                  alreadyGifted={cart.some((i) => i.isGift)}
+                  onGiftAdded={onAddItem}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {checkoutStep !== 'loyalty' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">

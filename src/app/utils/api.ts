@@ -994,3 +994,74 @@ export async function backfillFbConversations(): Promise<{ conversations: number
   }
   return res.json();
 }
+
+// --- Khuyến mãi tặng quà (gift campaigns) ---
+export interface GiftCampaign {
+  id: string;
+  name: string;
+  branchId: string;
+  giftSize: string;
+  giftProtein: number;
+  totalLimit: number;
+  redeemedCount: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchGiftCampaigns(params?: { branchId?: string; active?: boolean }): Promise<GiftCampaign[]> {
+  const qs = new URLSearchParams();
+  if (params?.branchId) qs.set('branchId', params.branchId);
+  if (params?.active !== undefined) qs.set('active', String(params.active));
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/gift-campaigns${query ? `?${query}` : ''}`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch gift campaigns');
+  return res.json();
+}
+
+export async function createGiftCampaign(data: {
+  name: string; branchId: string; giftSize?: string; giftProtein?: number; totalLimit: number;
+}): Promise<GiftCampaign> {
+  const res = await fetch(`${BASE_URL}/gift-campaigns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create gift campaign');
+  }
+  return res.json();
+}
+
+export async function updateGiftCampaign(id: string, updates: Record<string, unknown>): Promise<GiftCampaign> {
+  const res = await fetch(`${BASE_URL}/gift-campaigns/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error('Failed to update gift campaign');
+  return res.json();
+}
+
+export async function deleteGiftCampaign(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/gift-campaigns/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete gift campaign');
+}
+
+export async function redeemGiftCampaign(
+  id: string,
+  data: { customerPhone: string; productName: string; orderId?: string; staffId?: string; staffName?: string }
+): Promise<{ ok: boolean; campaign: GiftCampaign }> {
+  const res = await fetch(`${BASE_URL}/gift-campaigns/${id}/redeem`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to redeem gift campaign');
+  }
+  return res.json();
+}

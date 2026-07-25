@@ -737,6 +737,7 @@ function POSInterfaceInner() {
               currentShifts={currentShifts}
               onRemoveItem={handleRemoveItem}
               onClearCart={handleClearCart}
+              onAddItem={handleAddToCart}
             />
           </div>
         )}
@@ -791,6 +792,7 @@ function POSInterfaceInner() {
           onClose={() => setShowMobileCheckout(false)}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
+          onAddItem={handleAddToCart}
         />
       )}
 

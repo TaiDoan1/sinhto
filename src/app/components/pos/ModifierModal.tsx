@@ -64,6 +64,9 @@ export interface CartItem {
   name?: string;
   isCustomCombo?: boolean;
   rawComboData?: any;
+  /** Ly quà tặng từ chương trình khuyến mãi (giá 0đ) — không phải khách tự mua. */
+  isGift?: boolean;
+  giftCampaignId?: string;
 }
 
 const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;

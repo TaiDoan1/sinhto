@@ -390,6 +390,35 @@ async function initSchemaAndSeeds(pool) {
   `).catch(() => {});
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS gift_campaigns (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      "branchId" TEXT,
+      "giftSize" TEXT DEFAULT '360ml',
+      "giftProtein" INTEGER DEFAULT 20,
+      "totalLimit" INTEGER DEFAULT 0,
+      "redeemedCount" INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      "createdAt" TEXT,
+      "updatedAt" TEXT
+    )
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS gift_redemptions (
+      id TEXT PRIMARY KEY,
+      "campaignId" TEXT,
+      "branchId" TEXT,
+      "customerPhone" TEXT,
+      "productName" TEXT,
+      "orderId" TEXT,
+      "staffId" TEXT,
+      "staffName" TEXT,
+      "createdAt" TEXT
+    )
+  `).catch(() => {});
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS branch_inventory (
       "branchId" TEXT NOT NULL,
       "itemId" TEXT NOT NULL,

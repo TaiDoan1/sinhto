@@ -7,6 +7,7 @@ import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
+import { PosGiftCampaignBanner } from './PosGiftCampaignBanner';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import { usePaymentQr } from '../../hooks/usePaymentQr';
 import { postCustomerDisplayState } from '../../hooks/useCustomerDisplayChannel';
@@ -366,7 +367,6 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
                 staffId: effectiveStaffId,
                 staffName: effectiveStaffName,
                 alreadyGifted: cart.some((i) => i.isGift),
-                hasPurchase: cart.some((i) => !i.isGift && i.price > 0),
                 onGiftAdded: onAddItem,
               }}
             />
@@ -375,6 +375,16 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
 
         {checkoutStep !== 'loyalty' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {checkoutStep === 'cart' && (
+              <PosGiftCampaignBanner
+                branchId={branchId}
+                initialPhone={activeCustomer?.phone}
+                staffId={effectiveStaffId}
+                staffName={effectiveStaffName}
+                alreadyGifted={cart.some((i) => i.isGift)}
+                onGiftAdded={onAddItem}
+              />
+            )}
             {cart.length === 0 ? (
               <div className="text-center text-gray-400 py-12">
                 <div className="text-6xl mb-3">🛒</div>

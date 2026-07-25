@@ -25,10 +25,13 @@ export function PosCustomerDisplay() {
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  // Thử tự full màn hình khi vừa mở (một số trình duyệt chặn nếu không có thao tác trực
-  // tiếp trong đúng cửa sổ này — khi đó nút full màn hình góc trên vẫn dùng được).
+  // Chỉ tự full màn hình khi cửa sổ này ĐÃ được xác nhận đặt đúng sang màn hình phụ
+  // (đánh dấu bằng "?fs=1" — xem useCustomerDisplayChannel.ts). Nếu mở dự phòng do chưa xác
+  // định được đúng màn hình phụ, KHÔNG tự full — tránh full màn hình đè lên đúng màn hình
+  // đang có máy POS, làm mất luôn màn hình thu ngân (bug đã gặp thực tế).
   useEffect(() => {
-    requestFullscreen();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fs') === '1') requestFullscreen();
   }, []);
 
   const stage = state?.stage || 'idle';

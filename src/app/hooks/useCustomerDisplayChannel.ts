@@ -87,9 +87,12 @@ function screenKey(s: any): string {
   return s.id != null ? String(s.id) : `${s.left},${s.top},${s.width}x${s.height}`;
 }
 
+// "?fs=1" báo cho PosCustomerDisplay biết cửa sổ này ĐÃ được đặt đúng sang màn hình phụ,
+// nên mới được tự động full màn hình. Các nhánh mở cửa sổ dự phòng (không xác định được vị
+// trí) KHÔNG được thêm "fs=1" — tránh full màn hình đè lên đúng màn hình đang có máy POS.
 function openAt(target: any): Window | null {
   return window.open(
-    CUSTOMER_DISPLAY_PATH,
+    `${CUSTOMER_DISPLAY_PATH}?fs=1`,
     CUSTOMER_DISPLAY_WINDOW_NAME,
     `left=${target.availLeft},top=${target.availTop},width=${target.availWidth},height=${target.availHeight}`
   );

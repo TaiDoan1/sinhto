@@ -2,6 +2,8 @@ import { UserPlus, Search, Phone, Star, Gift } from 'lucide-react';
 import { useState } from 'react';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
+import { PosGiftCampaignBanner } from './PosGiftCampaignBanner';
+import type { CartItem } from './ModifierModal';
 import {
   getProgramTypeLabel,
   getProgramEligibility,
@@ -12,11 +14,20 @@ export function LoyaltyCustomerSection({
   allowLookup = true,
   orderSubtotal = 0,
   compact = false,
+  giftCampaign,
 }: {
   allowLookup?: boolean;
   orderSubtotal?: number;
   /** Giao diện gọn cho cột giỏ hàng POS */
   compact?: boolean;
+  /** Truyền vào để hiện thẻ khuyến mãi tặng quà ngay trên màn Tích Điểm — bỏ qua nếu không cần. */
+  giftCampaign?: {
+    branchId: string;
+    staffId?: string;
+    staffName?: string;
+    alreadyGifted: boolean;
+    onGiftAdded: (item: CartItem) => void;
+  };
 }) {
   const {
     lookupByPhone,
@@ -81,6 +92,17 @@ export function LoyaltyCustomerSection({
   return (
     <div className={`${pad} bg-gradient-to-b from-emerald-50 to-white border-b border-emerald-100 ${gap}`}>
       <PosVoucherRedeem orderSubtotal={orderSubtotal} variant={compact ? 'compact' : 'full'} />
+
+      {giftCampaign && (
+        <PosGiftCampaignBanner
+          branchId={giftCampaign.branchId}
+          initialPhone={activeCustomer?.phone}
+          staffId={giftCampaign.staffId}
+          staffName={giftCampaign.staffName}
+          alreadyGifted={giftCampaign.alreadyGifted}
+          onGiftAdded={giftCampaign.onGiftAdded}
+        />
+      )}
 
       {!activeCustomer ? (
         allowLookup ? (

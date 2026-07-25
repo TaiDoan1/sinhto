@@ -7,7 +7,6 @@ import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { useInventory } from '../../contexts/InventoryContext';
 import { LoyaltyCustomerSection } from './LoyaltyCustomerSection';
 import { PosVoucherRedeem } from './PosVoucherRedeem';
-import { PosGiftCampaignBanner } from './PosGiftCampaignBanner';
 import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import type { CartItem } from './ModifierModal';
 import type { Shift } from '../admin/ShiftSchedule';
@@ -365,19 +364,17 @@ export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem
 
       {checkoutStep === 'loyalty' ? (
         <div className="pos-loyalty-scroll flex-1 min-h-0 overflow-y-auto">
-          <LoyaltyCustomerSection orderSubtotal={subtotal} compact />
-          {activeCustomer && (
-            <div className="px-2 pb-2">
-              <PosGiftCampaignBanner
-                branchId={branchId}
-                customerPhone={activeCustomer.phone}
-                staffId={effectiveStaffId}
-                staffName={effectiveStaffName}
-                alreadyGifted={cart.some((i) => i.isGift)}
-                onGiftAdded={onAddItem}
-              />
-            </div>
-          )}
+          <LoyaltyCustomerSection
+            orderSubtotal={subtotal}
+            compact
+            giftCampaign={{
+              branchId,
+              staffId: effectiveStaffId,
+              staffName: effectiveStaffName,
+              alreadyGifted: cart.some((i) => i.isGift),
+              onGiftAdded: onAddItem,
+            }}
+          />
           <div className="px-3 pb-2">{renderTotals(true)}</div>
         </div>
       ) : (

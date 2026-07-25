@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Gift, Loader2, X } from 'lucide-react';
+import { Gift, Loader2, X, ArrowRight } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { GiftCampaign } from '../../utils/api';
 import { useMenu } from '../../contexts/MenuContext';
@@ -7,7 +7,8 @@ import type { CartItem } from './ModifierModal';
 
 interface Props {
   branchId: string;
-  customerPhone: string;
+  /** SĐT đã biết sẵn (VD khách đã tìm ở mục Tích Điểm) — chỉ để điền sẵn, khách vẫn có thể sửa. */
+  initialPhone?: string;
   staffId?: string;
   staffName?: string;
   /** true nếu giỏ hàng đã có 1 ly quà tặng — ẩn gợi ý để tránh tặng trùng trong cùng đơn. */
@@ -15,13 +16,14 @@ interface Props {
   onGiftAdded: (item: CartItem) => void;
 }
 
-/** Gợi ý tặng quà theo chương trình khuyến mãi đang chạy tại đúng chi nhánh — hiện ngay khi
- * đã biết SĐT khách (thu qua ô tìm/đăng ký ở LoyaltyCustomerSection phía trên), không cần
- * khách có điểm/tài khoản. Chỉ dừng gợi ý khi chương trình hết hạn mức hoặc đã tặng trong đơn. */
-export function PosGiftCampaignBanner({ branchId, customerPhone, staffId, staffName, alreadyGifted, onGiftAdded }: Props) {
+/** Gợi ý tặng quà theo chương trình khuyến mãi đang chạy tại đúng chi nhánh — luôn hiện thẻ
+ * quảng cáo cho mọi khách, chỉ hỏi SĐT khi bấm vào (không cần đã tìm khách hàng thành viên
+ * trước). Chỉ ẩn khi chương trình hết hạn mức hoặc đã tặng trong đơn hiện tại. */
+export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffName, alreadyGifted, onGiftAdded }: Props) {
   const { products } = useMenu();
   const [campaign, setCampaign] = useState<GiftCampaign | null>(null);
-  const [showPicker, setShowPicker] = useState(false);
+  const [step, setStep] = useState<'closed' | 'phone' | 'flavor'>('closed');
+  const [phone, setPhone] = useState('');
   const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
@@ -35,22 +37,35 @@ export function PosGiftCampaignBanner({ branchId, customerPhone, staffId, staffN
       .catch(() => setCampaign(null));
   }, [branchId]);
 
-  if (!campaign || !customerPhone.trim() || alreadyGifted) return null;
+  if (!campaign || alreadyGifted) return null;
 
   const remaining = Math.max(0, campaign.totalLimit - campaign.redeemedCount);
   const smoothieProducts = products.filter((p) => p.category === 'smoothies');
+
+  const openFlow = () => {
+    setPhone(initialPhone?.trim() || '');
+    setStep('phone');
+  };
+
+  const handleContinuePhone = () => {
+    if (!phone.trim()) {
+      alert('Vui lòng nhập số điện thoại khách hàng.');
+      return;
+    }
+    setStep('flavor');
+  };
 
   const handlePickFlavor = async (productName: string) => {
     setRedeeming(true);
     try {
       const { campaign: updated } = await api.redeemGiftCampaign(campaign.id, {
-        customerPhone: customerPhone.trim(),
+        customerPhone: phone.trim(),
         productName,
         staffId,
         staffName,
       });
       setCampaign(updated);
-      setShowPicker(false);
+      setStep('closed');
       onGiftAdded({
         productId: `gift-${campaign.id}-${Date.now()}`,
         productName,
@@ -65,7 +80,7 @@ export function PosGiftCampaignBanner({ branchId, customerPhone, staffId, staffN
       });
     } catch (e: any) {
       alert(e.message || 'Không áp dụng được quà tặng — có thể chương trình vừa hết hạn mức.');
-      setShowPicker(false);
+      setStep('closed');
     } finally {
       setRedeeming(false);
     }
@@ -73,31 +88,62 @@ export function PosGiftCampaignBanner({ branchId, customerPhone, staffId, staffN
 
   return (
     <>
-      <div className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl p-3.5 shadow-lg flex items-center gap-3">
+      <button
+        type="button"
+        onClick={openFlow}
+        className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-2xl p-3.5 shadow-lg flex items-center gap-3 text-left"
+      >
         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
           <Gift className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-bold text-sm">{campaign.name}</p>
-          <p className="text-xs text-white/80">Khách đủ điều kiện nhận 1 ly tặng — còn {remaining.toLocaleString('vi-VN')} ly</p>
+          <p className="text-xs text-white/80">Nhấn để tặng khách 1 ly — còn {remaining.toLocaleString('vi-VN')} ly</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowPicker(true)}
-          className="shrink-0 bg-white text-rose-600 text-xs font-bold px-3 py-2 rounded-xl hover:bg-rose-50"
-        >
-          Chọn vị tặng
-        </button>
-      </div>
+        <ArrowRight className="w-4 h-4 shrink-0" />
+      </button>
 
-      {showPicker && (
+      {step === 'phone' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-rose-600 text-white">
+              <div className="font-bold flex items-center gap-2">
+                <Gift className="w-4 h-4" /> Nhập SĐT khách để tặng quà
+              </div>
+              <button type="button" onClick={() => setStep('closed')}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <input
+                type="tel"
+                autoFocus
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleContinuePhone()}
+                placeholder="Số điện thoại khách hàng..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleContinuePhone}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-xl font-bold text-sm"
+              >
+                Tiếp tục — Chọn vị tặng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 'flavor' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b bg-rose-600 text-white">
               <div className="font-bold flex items-center gap-2">
                 <Gift className="w-4 h-4" /> Chọn vị ly tặng ({campaign.giftSize}, {campaign.giftProtein}g)
               </div>
-              <button type="button" onClick={() => setShowPicker(false)} disabled={redeeming}>
+              <button type="button" onClick={() => setStep('closed')} disabled={redeeming}>
                 <X className="w-5 h-5" />
               </button>
             </div>

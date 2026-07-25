@@ -141,7 +141,9 @@ function upsertConversationAsync(db, psid, patch) {
 }
 
 // Nạp lại lịch sử hội thoại cũ (trước khi webhook được kích hoạt) qua Facebook Conversations API.
-async function backfillConversations(db, { maxPages = 1 } = {}) {
+// Cũng dùng làm cơ chế đồng bộ định kỳ thay cho webhook thật (App chưa qua App Review nên
+// Facebook không tự đẩy tin nhắn khách thật tới webhook — xem ghi chú ở nơi gọi setInterval).
+async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
   const pageId = process.env.FB_PAGE_ID;
   if (!token) throw new Error('Chưa cấu hình FB_PAGE_ACCESS_TOKEN trên server');
@@ -175,18 +177,31 @@ async function backfillConversations(db, { maxPages = 1 } = {}) {
       });
       conversations++;
 
+      let newInbound = 0;
       for (const m of msgs) {
         if (!m.message) continue;
         const localId = `FBMSG-${m.id}`;
         const existing = await dbGet(db, 'SELECT id FROM fb_messages WHERE id = ?', [localId]);
         if (existing) continue;
+        const direction = m.from?.id === pageId ? 'out' : 'in';
         await dbRun(
           db,
           `INSERT INTO fb_messages (id, conversationId, direction, text, staffId, staffName, createdAt)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [localId, convRow.id, m.from?.id === pageId ? 'out' : 'in', m.message, null, null, m.created_time]
+          [localId, convRow.id, direction, m.message, null, null, m.created_time]
         );
         messages++;
+        if (direction === 'in') newInbound++;
+        broadcast?.('FB_MESSAGE_CREATED', {
+          id: localId, conversationId: convRow.id, direction, text: m.message,
+          staffId: null, staffName: null, createdAt: m.created_time,
+        });
+      }
+
+      if (newInbound > 0) {
+        await dbRun(db, 'UPDATE fb_conversations SET unreadCount = unreadCount + ? WHERE id = ?', [newInbound, convRow.id]);
+        const updated = await dbGet(db, 'SELECT * FROM fb_conversations WHERE id = ?', [convRow.id]);
+        broadcast?.('FB_CONVERSATION_UPDATED', parseConversationRow(updated));
       }
     }
 
@@ -251,10 +266,7 @@ function registerFacebookRoutes(app, db, { broadcast }) {
   // --- Nạp lại lịch sử hội thoại cũ từ Facebook ---
   app.post('/api/facebook/backfill', async (req, res) => {
     try {
-      const result = await backfillConversations(db);
-      db.all('SELECT * FROM fb_conversations ORDER BY lastMessageAt DESC', [], (err, rows) => {
-        if (!err) (rows || []).forEach((r) => broadcast('FB_CONVERSATION_UPDATED', parseConversationRow(r)));
-      });
+      const result = await backfillConversations(db, { broadcast });
       res.json(result);
     } catch (e) {
       res.status(502).json({ error: e.message });
@@ -338,6 +350,14 @@ function registerFacebookRoutes(app, db, { broadcast }) {
       );
     });
   });
+
+  // App chưa qua Facebook App Review nên webhook chỉ nhận được tin của Admin/Tester —
+  // tự động đồng bộ định kỳ qua Conversations API để bù cho tin nhắn khách hàng thật.
+  if (process.env.FB_PAGE_ACCESS_TOKEN && process.env.FB_PAGE_ID) {
+    setInterval(() => {
+      backfillConversations(db, { broadcast }).catch((e) => console.error('fb auto-poll error:', e.message));
+    }, 45000);
+  }
 }
 
 module.exports = { registerFacebookRoutes };

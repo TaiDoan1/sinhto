@@ -141,15 +141,16 @@ function upsertConversationAsync(db, psid, patch) {
 }
 
 // Nạp lại lịch sử hội thoại cũ (trước khi webhook được kích hoạt) qua Facebook Conversations API.
-async function backfillConversations(db, { maxPages = 60 } = {}) {
+async function backfillConversations(db, { maxPages = 1 } = {}) {
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
   const pageId = process.env.FB_PAGE_ID;
   if (!token) throw new Error('Chưa cấu hình FB_PAGE_ACCESS_TOKEN trên server');
   if (!pageId) throw new Error('Chưa cấu hình FB_PAGE_ID trên server');
 
+  // Chỉ lấy ~25-30 hội thoại gần nhất (đủ dùng, tránh kéo cả trăm hội thoại cũ không cần thiết).
   let url =
     `https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/conversations` +
-    `?fields=participants,updated_time,messages.limit(25){message,from,created_time}&limit=10&access_token=${token}`;
+    `?fields=participants,updated_time,messages.limit(25){message,from,created_time}&limit=25&access_token=${token}`;
 
   let conversations = 0;
   let messages = 0;
@@ -210,12 +211,14 @@ function registerFacebookRoutes(app, db, { broadcast }) {
   // --- Webhook nhận sự kiện tin nhắn ---
   app.post('/api/facebook/webhook', (req, res) => {
     const body = req.body;
+    console.log('[fb webhook] nhận request:', JSON.stringify(body));
     if (body.object !== 'page') return res.sendStatus(404);
 
     (body.entry || []).forEach((entry) => {
       (entry.messaging || []).forEach(async (event) => {
         const psid = event.sender?.id;
         const text = event.message?.text;
+        console.log('[fb webhook] event:', JSON.stringify({ psid, text, isEcho: event.message?.is_echo }));
         if (!psid || !text || event.message?.is_echo) return;
 
         const profileName = await fetchProfileName(psid);

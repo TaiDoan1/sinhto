@@ -1,8 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw, Image as ImageIcon, X } from 'lucide-react';
+import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw, Image as ImageIcon, X, Tag as TagIcon, ChevronDown } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { FbConversation, FbMessage } from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+
+const TAG_OPTIONS: { key: string; label: string; dot: string; chip: string }[] = [
+  { key: 'vip', label: 'VIP', dot: 'bg-purple-500', chip: 'bg-purple-100 text-purple-700' },
+  { key: 'contacted', label: 'Đã tư vấn', dot: 'bg-blue-500', chip: 'bg-blue-100 text-blue-700' },
+  { key: 'urgent', label: 'Cần gấp', dot: 'bg-red-500', chip: 'bg-red-100 text-red-700' },
+  { key: 'ordered', label: 'Đã chốt đơn', dot: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700' },
+  { key: 'not_interested', label: 'Không quan tâm', dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600' },
+];
+
+function tagInfo(key: string) {
+  return TAG_OPTIONS.find((t) => t.key === key) || { key, label: key, dot: 'bg-gray-400', chip: 'bg-gray-100 text-gray-600' };
+}
 
 function initialOf(name?: string) {
   const trimmed = (name || '').trim();
@@ -39,6 +51,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   const [backfilling, setBackfilling] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ url: string; previewUrl: string } | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +83,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   useEffect(() => {
     if (!selectedId) return;
     setPendingImage(null);
+    setTagMenuOpen(false);
     setMessagesLoading(true);
     api
       .fetchFbMessages(selectedId)
@@ -140,6 +154,18 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
     }
   };
 
+  const handleToggleTag = async (key: string) => {
+    if (!selected) return;
+    const current = selected.tags || [];
+    const next = current.includes(key) ? current.filter((t) => t !== key) : [...current, key];
+    try {
+      const conv = await api.updateFbConversation(selected.id, { tags: next });
+      setConversations((prev) => prev.map((c) => (c.id === conv.id ? conv : c)));
+    } catch {
+      alert('Cập nhật tag thất bại');
+    }
+  };
+
   const handleBackfill = async () => {
     if (backfilling) return;
     setBackfilling(true);
@@ -167,7 +193,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100vh-220px)] min-h-[420px]">
+    <div className="bg-white rounded-2xl shadow overflow-hidden grid grid-cols-1 md:grid-cols-[340px_1fr] h-[calc(100vh-130px)] min-h-[640px]">
       <div className="border-r border-gray-200 flex flex-col min-h-0">
         <div className="p-3 border-b border-gray-100 space-y-2">
           <div className="relative">
@@ -200,8 +226,8 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors flex items-start gap-2.5 ${
-                  selectedId === c.id ? 'bg-indigo-50' : ''
+                className={`w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-red-100/60 transition-colors flex items-start gap-2.5 ${
+                  selectedId === c.id ? 'bg-indigo-50' : c.unreadCount > 0 ? 'bg-red-50' : ''
                 }`}
               >
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 mt-0.5 ${c.unreadCount > 0 ? 'bg-red-600' : 'bg-slate-400'}`}>
@@ -217,7 +243,14 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
                 <p className={`text-xs truncate mt-0.5 ${c.unreadCount > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
                   {c.lastDirection === 'out' ? 'Bạn: ' : ''}{c.lastMessageText}
                 </p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(c.lastMessageAt)}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-[11px] text-gray-400">{timeAgo(c.lastMessageAt)}</p>
+                  {(c.tags || []).map((key) => (
+                    <span key={key} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${tagInfo(key).chip}`}>
+                      {tagInfo(key).label}
+                    </span>
+                  ))}
+                </div>
                 </div>
               </button>
             ))
@@ -239,7 +272,45 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
               </div>
               <div className="mr-auto min-w-0">
                 <p className="font-bold text-gray-800 truncate">{selected.customerName}</p>
-                <p className="text-[11px] text-gray-400">Khách Messenger</p>
+                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <p className="text-[11px] text-gray-400">Khách Messenger</p>
+                  {(selected.tags || []).map((key) => (
+                    <span key={key} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${tagInfo(key).chip}`}>
+                      {tagInfo(key).label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setTagMenuOpen((v) => !v)}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-indigo-600 border border-gray-200 rounded-lg px-2 py-1.5"
+                >
+                  <TagIcon className="w-3.5 h-3.5" /> Tag <ChevronDown className="w-3 h-3" />
+                </button>
+                {tagMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setTagMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-20 w-48">
+                      {TAG_OPTIONS.map((t) => {
+                        const active = (selected.tags || []).includes(t.key);
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => handleToggleTag(t.key)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-left hover:bg-gray-50 ${active ? 'font-bold text-gray-900' : 'text-gray-600'}`}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${t.dot}`} />
+                            <span className="flex-1">{t.label}</span>
+                            {active && <span className="text-indigo-600">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
               <Link2 className="w-3.5 h-3.5 text-gray-400" />
               <input

@@ -344,6 +344,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "refundAmount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "refundedAt" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE fb_messages ADD COLUMN IF NOT EXISTS attachments TEXT DEFAULT '[]'`).catch(() => {});
+  await pool.query(`ALTER TABLE fb_conversations ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "staffId" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shiftId" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipFee" INTEGER DEFAULT 0`).catch(() => {});

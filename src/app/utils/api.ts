@@ -927,6 +927,7 @@ export interface FbConversation {
   unreadCount: number;
   assignedStaffId?: string | null;
   assignedStaffName?: string | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }

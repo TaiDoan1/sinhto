@@ -468,7 +468,13 @@ export function OnlineSalesPortal() {
         </div>
       </nav>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+      <main
+        className={
+          view === 'fbMessages'
+            ? 'flex-1 w-full mx-auto px-2 sm:px-3 py-2 lg:py-3'
+            : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6'
+        }
+      >
         {view === 'dashboard' && (
               <div className={`space-y-6 ${dataLoading ? 'opacity-60 pointer-events-none' : ''}`}>
                 <SalesAnalyticsDashboard />

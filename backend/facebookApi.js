@@ -6,7 +6,13 @@ const GRAPH_API_VERSION = 'v19.0';
 
 function parseConversationRow(row) {
   if (!row) return null;
-  return { ...row, unreadCount: Number(row.unreadCount) || 0 };
+  let tags = [];
+  try {
+    tags = JSON.parse(row.tags || '[]');
+  } catch {
+    tags = [];
+  }
+  return { ...row, unreadCount: Number(row.unreadCount) || 0, tags };
 }
 
 function upsertConversation(db, psid, patch, cb) {
@@ -14,6 +20,12 @@ function upsertConversation(db, psid, patch, cb) {
     if (err) return cb(err);
     const now = new Date().toISOString();
     if (existing) {
+      let existingTags = [];
+      try {
+        existingTags = JSON.parse(existing.tags || '[]');
+      } catch {
+        existingTags = [];
+      }
       const merged = {
         ...existing,
         customerName: patch.customerName || existing.customerName,
@@ -21,6 +33,7 @@ function upsertConversation(db, psid, patch, cb) {
         lastMessageAt: patch.lastMessageAt ?? existing.lastMessageAt,
         lastDirection: patch.lastDirection ?? existing.lastDirection,
         updatedAt: now,
+        tags: existingTags,
       };
       db.run(
         `UPDATE fb_conversations SET customerName = ?, lastMessageText = ?, lastMessageAt = ?,
@@ -49,6 +62,7 @@ function upsertConversation(db, psid, patch, cb) {
         unreadCount: patch.unreadCount || 0,
         assignedStaffId: null,
         assignedStaffName: null,
+        tags: [],
         createdAt: now,
         updatedAt: now,
       };
@@ -368,7 +382,7 @@ function registerFacebookRoutes(app, db, { broadcast }) {
 
   // --- Đánh dấu đã đọc / gán khách / liên kết SĐT ---
   app.patch('/api/facebook/conversations/:id', (req, res) => {
-    const { markRead, linkedCustomerPhone, assignedStaffId, assignedStaffName, customerName } = req.body;
+    const { markRead, linkedCustomerPhone, assignedStaffId, assignedStaffName, customerName, tags } = req.body;
     db.get('SELECT * FROM fb_conversations WHERE id = ?', [req.params.id], (err, conv) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!conv) return res.status(404).json({ error: 'conversation not found' });
@@ -379,15 +393,16 @@ function registerFacebookRoutes(app, db, { broadcast }) {
         assignedStaffId: assignedStaffId !== undefined ? assignedStaffId : conv.assignedStaffId,
         assignedStaffName: assignedStaffName !== undefined ? assignedStaffName : conv.assignedStaffName,
         customerName: customerName || conv.customerName,
+        tags: Array.isArray(tags) ? JSON.stringify(tags) : conv.tags,
         updatedAt: new Date().toISOString(),
       };
       db.run(
         `UPDATE fb_conversations SET unreadCount = ?, linkedCustomerPhone = ?, assignedStaffId = ?,
-         assignedStaffName = ?, customerName = ?, updatedAt = ? WHERE id = ?`,
-        [next.unreadCount, next.linkedCustomerPhone, next.assignedStaffId, next.assignedStaffName, next.customerName, next.updatedAt, conv.id],
+         assignedStaffName = ?, customerName = ?, tags = ?, updatedAt = ? WHERE id = ?`,
+        [next.unreadCount, next.linkedCustomerPhone, next.assignedStaffId, next.assignedStaffName, next.customerName, next.tags, next.updatedAt, conv.id],
         (e2) => {
           if (e2) return res.status(500).json({ error: e2.message });
-          const updated = { ...conv, ...next };
+          const updated = parseConversationRow({ ...conv, ...next });
           broadcast('FB_CONVERSATION_UPDATED', updated);
           res.json(updated);
         }

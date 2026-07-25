@@ -294,6 +294,7 @@ async function init() {
     "ALTER TABLE combo_subscriptions ADD COLUMN refundAmount INTEGER",
     "ALTER TABLE combo_subscriptions ADD COLUMN refundedAt TEXT",
     "ALTER TABLE fb_messages ADD COLUMN attachments TEXT DEFAULT '[]'",
+    "ALTER TABLE fb_conversations ADD COLUMN tags TEXT DEFAULT '[]'",
     `CREATE TABLE IF NOT EXISTS branch_inventory (
       branchId TEXT NOT NULL,
       itemId TEXT NOT NULL,

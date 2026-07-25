@@ -78,6 +78,18 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Tự làm mới định kỳ — không chỉ dựa vào SSE, vì backend cũng chỉ đồng bộ Facebook mỗi 45s
+  // (chưa qua App Review nên không có webhook thật đẩy tức thì).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadConversations();
+      if (selectedId) {
+        api.fetchFbMessages(selectedId).then(setMessages).catch(() => {});
+      }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [loadConversations, selectedId]);
+
   const selected = conversations.find((c) => c.id === selectedId) || null;
 
   const handleSend = async () => {

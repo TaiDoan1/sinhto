@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { CheckCircle2, XCircle, X } from 'lucide-react';
+import { CheckCircle2, XCircle, BellRing, X } from 'lucide-react';
 
-type ToastType = 'success' | 'error';
+type ToastType = 'success' | 'error' | 'notify';
 
 interface ToastItem {
   id: number;
@@ -12,6 +12,7 @@ interface ToastItem {
 interface ToastContextType {
   showSuccess: (message: string) => void;
   showError: (message: string) => void;
+  showNotify: (message: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -33,9 +34,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showSuccess = useCallback((message: string) => show('success', message), [show]);
   const showError = useCallback((message: string) => show('error', message), [show]);
+  const showNotify = useCallback((message: string) => show('notify', message), [show]);
 
   return (
-    <ToastContext.Provider value={{ showSuccess, showError }}>
+    <ToastContext.Provider value={{ showSuccess, showError, showNotify }}>
       {children}
       <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2 items-end pointer-events-none">
         {toasts.map(t => (
@@ -44,11 +46,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             className={`pointer-events-auto flex items-center gap-2 max-w-xs sm:max-w-sm px-4 py-3 rounded-xl shadow-lg border text-sm font-semibold animate-in slide-in-from-top-2 fade-in ${
               t.type === 'success'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : t.type === 'notify'
+                ? 'bg-red-50 border-red-300 text-red-700'
                 : 'bg-red-50 border-red-200 text-red-700'
             }`}
           >
             {t.type === 'success' ? (
               <CheckCircle2 className="w-5 h-5 shrink-0" />
+            ) : t.type === 'notify' ? (
+              <BellRing className="w-5 h-5 shrink-0 text-red-600" />
             ) : (
               <XCircle className="w-5 h-5 shrink-0" />
             )}

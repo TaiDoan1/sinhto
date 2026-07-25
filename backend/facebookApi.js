@@ -190,11 +190,13 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
 
       const last = msgs[msgs.length - 1];
       const lastAttachments = (last.attachments?.data || []).map((a) => a.image_data?.url).filter(Boolean);
+      const lastIsInbound = last.from?.id !== pageId;
+      const existedBefore = !!(await dbGet(db, 'SELECT id FROM fb_conversations WHERE psid = ?', [customer.id]));
       const convRow = await upsertConversationAsync(db, customer.id, {
         customerName: customer.name,
         lastMessageText: last.message || (lastAttachments.length ? '[Hình ảnh]' : ''),
         lastMessageAt: last.created_time,
-        lastDirection: last.from?.id === pageId ? 'out' : 'in',
+        lastDirection: lastIsInbound ? 'in' : 'out',
       });
       conversations++;
 
@@ -220,10 +222,15 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
         });
       }
 
-      if (newInbound > 0) {
+      // Chỉ báo "chưa đọc" khi: hội thoại đã từng thấy trước đó (không phải lần nạp lịch sử đầu
+      // tiên — vì phần lớn tin cũ đó đã được trả lời từ trước) VÀ tin mới nhất vẫn là của khách
+      // (chưa được ai trả lời) — tránh báo nhầm những hội thoại đã trả lời rồi thành "chưa đọc".
+      if (newInbound > 0 && existedBefore && lastIsInbound) {
         await dbRun(db, 'UPDATE fb_conversations SET unreadCount = unreadCount + ? WHERE id = ?', [newInbound, convRow.id]);
         const updated = await dbGet(db, 'SELECT * FROM fb_conversations WHERE id = ?', [convRow.id]);
         broadcast?.('FB_CONVERSATION_UPDATED', parseConversationRow(updated));
+      } else if (!lastIsInbound) {
+        await dbRun(db, 'UPDATE fb_conversations SET unreadCount = 0 WHERE id = ?', [convRow.id]);
       }
     }
 
@@ -234,6 +241,12 @@ async function backfillConversations(db, { maxPages = 1, broadcast } = {}) {
 }
 
 function registerFacebookRoutes(app, db, { broadcast }) {
+  // Dọn dữ liệu cũ: các bản ghi đồng bộ trước khi có logic chống báo nhầm "chưa đọc" có thể
+  // đang lưu unreadCount > 0 dù tin cuối cùng đã là của staff (đã trả lời) — chạy 1 lần khi khởi động.
+  db.run("UPDATE fb_conversations SET unreadCount = 0 WHERE lastDirection = 'out' AND unreadCount > 0", [], (err) => {
+    if (err) console.error('fb cleanup unreadCount error:', err.message);
+  });
+
   // --- Webhook verify (Meta gọi khi bạn đăng ký webhook URL) ---
   app.get('/api/facebook/webhook', (req, res) => {
     const mode = req.query['hub.mode'];

@@ -4,6 +4,11 @@ import * as api from '../../utils/api';
 import type { FbConversation, FbMessage } from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 
+function initialOf(name?: string) {
+  const trimmed = (name || '').trim();
+  return trimmed ? trimmed[0].toUpperCase() : '?';
+}
+
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60000);
@@ -195,20 +200,25 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                className={`w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors flex items-start gap-2.5 ${
                   selectedId === c.id ? 'bg-indigo-50' : ''
                 }`}
               >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 mt-0.5 ${c.unreadCount > 0 ? 'bg-red-600' : 'bg-slate-400'}`}>
+                  {initialOf(c.customerName)}
+                </div>
+                <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-sm text-gray-800 truncate">{c.customerName}</p>
+                  <p className={`text-sm truncate ${c.unreadCount > 0 ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>{c.customerName}</p>
                   {c.unreadCount > 0 && (
-                    <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0">{c.unreadCount}</span>
+                    <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0">{c.unreadCount}</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 truncate mt-0.5">
+                <p className={`text-xs truncate mt-0.5 ${c.unreadCount > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
                   {c.lastDirection === 'out' ? 'Bạn: ' : ''}{c.lastMessageText}
                 </p>
                 <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(c.lastMessageAt)}</p>
+                </div>
               </button>
             ))
           )}
@@ -223,8 +233,14 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
           </div>
         ) : (
           <>
-            <div className="p-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
-              <p className="font-bold text-gray-800 mr-auto">{selected.customerName}</p>
+            <div className="p-3 border-b border-gray-100 flex items-center gap-3 flex-wrap bg-white">
+              <div className="w-9 h-9 rounded-full bg-slate-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                {initialOf(selected.customerName)}
+              </div>
+              <div className="mr-auto min-w-0">
+                <p className="font-bold text-gray-800 truncate">{selected.customerName}</p>
+                <p className="text-[11px] text-gray-400">Khách Messenger</p>
+              </div>
               <Link2 className="w-3.5 h-3.5 text-gray-400" />
               <input
                 value={linkPhone}
@@ -242,33 +258,52 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50">
               {messagesLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-indigo-500" /></div>
               ) : (
-                messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
-                    <div
-                      className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
-                        m.direction === 'out' ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
-                      }`}
-                    >
-                      {(m.attachments || []).map((url, i) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt="Hình ảnh"
-                          className="rounded-lg max-w-full max-h-64 mb-1 cursor-pointer"
-                          onClick={() => window.open(url, '_blank')}
-                        />
-                      ))}
-                      {m.text}
-                      <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-indigo-200' : 'text-gray-400'}`}>
-                        {new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                messages.map((m, i) => {
+                  const isOut = m.direction === 'out';
+                  const prev = messages[i - 1];
+                  const isNewGroup = !prev || prev.direction !== m.direction;
+                  return (
+                    <div key={m.id} className={`flex items-end gap-2 ${isOut ? 'justify-end' : 'justify-start'} ${isNewGroup ? 'mt-3' : 'mt-0.5'}`}>
+                      {!isOut && (
+                        <div className={`w-6 h-6 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0 ${isNewGroup ? '' : 'invisible'}`}>
+                          {initialOf(selected.customerName)}
+                        </div>
+                      )}
+                      <div className="max-w-[72%]">
+                        {isNewGroup && (
+                          <p className={`text-[11px] font-semibold mb-0.5 px-1 ${isOut ? 'text-right text-indigo-500' : 'text-slate-500'}`}>
+                            {isOut ? (m.staffName || 'CSKH FitBlend') : selected.customerName}
+                          </p>
+                        )}
+                        <div
+                          className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${
+                            isOut
+                              ? 'bg-indigo-600 text-white rounded-br-sm'
+                              : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+                          }`}
+                        >
+                          {(m.attachments || []).map((url, ai) => (
+                            <img
+                              key={ai}
+                              src={url}
+                              alt="Hình ảnh"
+                              className="rounded-lg max-w-full max-h-64 mb-1 cursor-pointer"
+                              onClick={() => window.open(url, '_blank')}
+                            />
+                          ))}
+                          {m.text}
+                          <p className={`text-[10px] mt-1 ${isOut ? 'text-indigo-200' : 'text-gray-400'}`}>
+                            {new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={bottomRef} />
             </div>

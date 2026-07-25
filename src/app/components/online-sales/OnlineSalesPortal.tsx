@@ -161,7 +161,7 @@ export function OnlineSalesPortal() {
   const { combos } = useCombos();
   const { loadForBranch } = useInventory();
   const { subscribe } = useSSE();
-  const { showSuccess } = useToast();
+  const { showNotify } = useToast();
   const [view, setView] = useState<View>('dashboard');
   const [fbConversations, setFbConversations] = useState<FbConversation[]>([]);
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
@@ -227,13 +227,13 @@ export function OnlineSalesPortal() {
       if (msg.direction !== 'in') return;
       playNotificationBeep();
       const conv = fbConversations.find((c) => c.id === msg.conversationId);
-      showSuccess(`Tin nhắn Facebook mới${conv ? ` từ ${conv.customerName}` : ''}: ${msg.text.slice(0, 60)}`);
+      showNotify(`Tin nhắn Facebook mới${conv ? ` từ ${conv.customerName}` : ''}: ${msg.text.slice(0, 60)}`);
     });
     return () => {
       unsubConv();
       unsubMsg();
     };
-  }, [subscribe, fbConversations, showSuccess]);
+  }, [subscribe, fbConversations, showNotify]);
 
   const fbUnreadTotal = useMemo(() => fbConversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0), [fbConversations]);
 
@@ -415,7 +415,13 @@ export function OnlineSalesPortal() {
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
               {item.badge != null && item.badge > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">{item.badge}</span>
+                <span
+                  className={`text-white text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                    item.id === 'fbMessages' ? 'bg-red-600' : 'bg-amber-500'
+                  }`}
+                >
+                  {item.badge}
+                </span>
               )}
             </button>
           ))}

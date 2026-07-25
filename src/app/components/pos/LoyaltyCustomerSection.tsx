@@ -26,6 +26,8 @@ export function LoyaltyCustomerSection({
     staffId?: string;
     staffName?: string;
     alreadyGifted: boolean;
+    /** true nếu giỏ hàng đã có ít nhất 1 sản phẩm trả tiền — bắt buộc để chặn tặng "chay". */
+    hasPurchase: boolean;
     onGiftAdded: (item: CartItem) => void;
   };
 }) {
@@ -93,7 +95,7 @@ export function LoyaltyCustomerSection({
     <div className={`${pad} bg-gradient-to-b from-emerald-50 to-white border-b border-emerald-100 ${gap}`}>
       <PosVoucherRedeem orderSubtotal={orderSubtotal} variant={compact ? 'compact' : 'full'} />
 
-      {giftCampaign && (
+      {giftCampaign && giftCampaign.hasPurchase && (
         <PosGiftCampaignBanner
           branchId={giftCampaign.branchId}
           initialPhone={activeCustomer?.phone}

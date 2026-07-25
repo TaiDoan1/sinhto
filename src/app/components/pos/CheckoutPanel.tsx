@@ -372,6 +372,7 @@ export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem
               staffId: effectiveStaffId,
               staffName: effectiveStaffName,
               alreadyGifted: cart.some((i) => i.isGift),
+              hasPurchase: cart.some((i) => !i.isGift && i.price > 0),
               onGiftAdded: onAddItem,
             }}
           />

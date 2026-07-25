@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Gift, Plus, Save, Loader2, CheckCircle, Trash2, Pencil, Eye, EyeOff, X } from 'lucide-react';
+import { Gift, Plus, Save, Loader2, CheckCircle, Trash2, Pencil, Eye, EyeOff, X, Users } from 'lucide-react';
 import * as api from '../../utils/api';
-import type { GiftCampaign } from '../../utils/api';
+import type { GiftCampaign, GiftRedemption } from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
 
 const SIZE_OPTIONS = ['250ml', '360ml', '500ml', '700ml'];
@@ -39,6 +39,9 @@ export function GiftCampaigns() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState<EditingCampaign | null>(null);
+  const [viewingRedemptions, setViewingRedemptions] = useState<GiftCampaign | null>(null);
+  const [redemptions, setRedemptions] = useState<GiftRedemption[]>([]);
+  const [loadingRedemptions, setLoadingRedemptions] = useState(false);
 
   const load = () => {
     api.fetchGiftCampaigns().then(setCampaigns).catch(() => {}).finally(() => setLoading(false));
@@ -51,6 +54,12 @@ export function GiftCampaigns() {
   const handleToggleActive = async (c: GiftCampaign) => {
     const updated = await api.updateGiftCampaign(c.id, { active: !c.active });
     setCampaigns((prev) => prev.map((x) => (x.id === c.id ? updated : x)));
+  };
+
+  const handleViewRedemptions = (c: GiftCampaign) => {
+    setViewingRedemptions(c);
+    setLoadingRedemptions(true);
+    api.fetchGiftRedemptions(c.id).then(setRedemptions).catch(() => setRedemptions([])).finally(() => setLoadingRedemptions(false));
   };
 
   const handleDelete = async (c: GiftCampaign) => {
@@ -162,7 +171,10 @@ export function GiftCampaigns() {
                     <div className={`h-full ${exhausted ? 'bg-red-400' : 'bg-pink-500'}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button onClick={() => handleViewRedemptions(c)} className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-pink-700">
+                    <Users className="w-3.5 h-3.5" /> Đã tặng ({c.redeemedCount.toLocaleString('vi-VN')})
+                  </button>
                   <button onClick={() => setEditing({ id: c.id, name: c.name, branchId: c.branchId, giftSize: c.giftSize, giftProtein: c.giftProtein, totalLimit: c.totalLimit })} className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-pink-700">
                     <Pencil className="w-3.5 h-3.5" /> Sửa
                   </button>
@@ -243,7 +255,7 @@ export function GiftCampaigns() {
                 </div>
               </div>
               <p className="text-xs text-gray-400">
-                Khách chọn vị bất kỳ trong menu khi nhận quà — chỉ cố định size và mức protein. Chương trình tự tắt khi tặng đủ số lượng giới hạn.
+                Khách chọn vị bất kỳ trong menu khi nhận quà — chỉ cố định size và mức protein. Chương trình tự tắt khi tặng đủ số lượng giới hạn. Mỗi số điện thoại chỉ được nhận quà 1 lần trong chương trình.
               </p>
             </div>
 
@@ -257,6 +269,52 @@ export function GiftCampaigns() {
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Lưu chương trình
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingRedemptions && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Danh sách đã tặng</h3>
+                <p className="text-xs text-gray-500">{viewingRedemptions.name}</p>
+              </div>
+              <button onClick={() => setViewingRedemptions(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {loadingRedemptions ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="w-6 h-6 animate-spin text-pink-600" />
+                </div>
+              ) : redemptions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-10">Chưa có khách nào nhận quà trong chương trình này.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 border-b">
+                      <th className="py-2 pr-2">SĐT</th>
+                      <th className="py-2 pr-2">Mã</th>
+                      <th className="py-2 pr-2">Vị</th>
+                      <th className="py-2 pr-2">NV tặng</th>
+                      <th className="py-2 pr-2">Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {redemptions.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-2 pr-2 font-semibold text-gray-800">{r.customerPhone}</td>
+                        <td className="py-2 pr-2 font-mono font-bold text-pink-700">{r.code || '-'}</td>
+                        <td className="py-2 pr-2 text-gray-600">{r.productName}</td>
+                        <td className="py-2 pr-2 text-gray-600">{r.staffName || '-'}</td>
+                        <td className="py-2 pr-2 text-gray-400 text-xs">{new Date(r.createdAt).toLocaleString('vi-VN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>

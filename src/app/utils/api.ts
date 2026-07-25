@@ -1053,7 +1053,7 @@ export async function deleteGiftCampaign(id: string): Promise<void> {
 export async function redeemGiftCampaign(
   id: string,
   data: { customerPhone: string; productName: string; orderId?: string; staffId?: string; staffName?: string }
-): Promise<{ ok: boolean; campaign: GiftCampaign }> {
+): Promise<{ ok: boolean; campaign: GiftCampaign; code: string }> {
   const res = await fetch(`${BASE_URL}/gift-campaigns/${id}/redeem`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1063,5 +1063,25 @@ export async function redeemGiftCampaign(
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to redeem gift campaign');
   }
+  return res.json();
+}
+
+export interface GiftRedemption {
+  id: string;
+  campaignId: string;
+  branchId: string;
+  customerPhone: string;
+  productName: string;
+  orderId: string;
+  staffId: string;
+  staffName: string;
+  createdAt: string;
+  code: string;
+}
+
+export async function fetchGiftRedemptions(campaignId: string): Promise<GiftRedemption[]> {
+  const res = await fetch(`${BASE_URL}/gift-campaigns/${campaignId}/redemptions`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch gift redemptions');
   return res.json();
 }

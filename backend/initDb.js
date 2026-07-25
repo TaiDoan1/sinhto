@@ -418,6 +418,9 @@ async function initSchemaAndSeeds(pool) {
     )
   `).catch(() => {});
 
+  await pool.query(`ALTER TABLE gift_redemptions ADD COLUMN IF NOT EXISTS code TEXT`).catch(() => {});
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_redemptions_campaign_code ON gift_redemptions("campaignId", code)`).catch(() => {});
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS branch_inventory (
       "branchId" TEXT NOT NULL,

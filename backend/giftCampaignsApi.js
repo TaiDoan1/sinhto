@@ -3,6 +3,15 @@
  * giới hạn 1000 ly, áp dụng 1 chi nhánh) — Admin tạo chương trình, POS thu SĐT khách và
  * gợi ý tặng khi còn hạn mức, không cần khách có điểm/tài khoản thành viên.
  */
+const GIFT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // bỏ ký tự dễ nhầm I,O,0,1
+function generateGiftCode() {
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += GIFT_CODE_CHARS[Math.floor(Math.random() * GIFT_CODE_CHARS.length)];
+  }
+  return code;
+}
+
 function parseCampaignRow(row) {
   if (!row) return null;
   return {
@@ -107,29 +116,56 @@ function registerGiftCampaignRoutes(app, db, { broadcast }) {
   // đọc-rồi-ghi, tránh race condition). ---
   app.post('/api/gift-campaigns/:id/redeem', (req, res) => {
     const { customerPhone, productName, orderId, staffId, staffName } = req.body;
-    db.run(
-      'UPDATE gift_campaigns SET redeemedCount = redeemedCount + 1 WHERE id = ? AND active = 1 AND redeemedCount < totalLimit',
-      [req.params.id],
-      function (err) {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!this.changes) {
-          return res.status(409).json({ error: 'Chương trình đã hết hạn mức hoặc đang tắt' });
+    const phone = (customerPhone || '').trim();
+    if (!phone) {
+      return res.status(400).json({ error: 'Thiếu số điện thoại khách hàng' });
+    }
+    db.get(
+      'SELECT id FROM gift_redemptions WHERE campaignId = ? AND customerPhone = ?',
+      [req.params.id, phone],
+      (e0, existing) => {
+        if (e0) return res.status(500).json({ error: e0.message });
+        if (existing) {
+          return res.status(409).json({ error: 'Số điện thoại này đã nhận quà trong chương trình này rồi' });
         }
-        const redemptionId = `GIFTRD-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const now = new Date().toISOString();
-        db.get('SELECT * FROM gift_campaigns WHERE id = ?', [req.params.id], (e2, campaign) => {
-          if (e2) return res.status(500).json({ error: e2.message });
-          db.run(
-            `INSERT INTO gift_redemptions (id, campaignId, branchId, customerPhone, productName, orderId, staffId, staffName, createdAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [redemptionId, req.params.id, campaign?.branchId, customerPhone || '', productName || '', orderId || '', staffId || '', staffName || '', now],
-            (e3) => {
-              if (e3) return res.status(500).json({ error: e3.message });
-              broadcast('GIFT_CAMPAIGN_UPDATED', parseCampaignRow(campaign));
-              res.json({ ok: true, campaign: parseCampaignRow(campaign) });
+        db.run(
+          'UPDATE gift_campaigns SET redeemedCount = redeemedCount + 1 WHERE id = ? AND active = 1 AND redeemedCount < totalLimit',
+          [req.params.id],
+          function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!this.changes) {
+              return res.status(409).json({ error: 'Chương trình đã hết hạn mức hoặc đang tắt' });
             }
-          );
-        });
+            const now = new Date().toISOString();
+            db.get('SELECT * FROM gift_campaigns WHERE id = ?', [req.params.id], (e2, campaign) => {
+              if (e2) return res.status(500).json({ error: e2.message });
+
+              const tryInsert = (attempt = 0) => {
+                if (attempt > 8) {
+                  return res.status(500).json({ error: 'Không tạo được mã quà tặng duy nhất' });
+                }
+                const redemptionId = `GIFTRD-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                const code = generateGiftCode();
+                db.run(
+                  `INSERT INTO gift_redemptions (id, campaignId, branchId, customerPhone, productName, orderId, staffId, staffName, createdAt, code)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [redemptionId, req.params.id, campaign?.branchId, phone, productName || '', orderId || '', staffId || '', staffName || '', now, code],
+                  (e3) => {
+                    if (e3) {
+                      if (String(e3.message || '').toLowerCase().includes('unique')) {
+                        return tryInsert(attempt + 1);
+                      }
+                      return res.status(500).json({ error: e3.message });
+                    }
+                    broadcast('GIFT_CAMPAIGN_UPDATED', parseCampaignRow(campaign));
+                    res.json({ ok: true, campaign: parseCampaignRow(campaign), code });
+                  }
+                );
+              };
+              tryInsert();
+            });
+          }
+        );
       }
     );
   });

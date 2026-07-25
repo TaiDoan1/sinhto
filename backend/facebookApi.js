@@ -356,7 +356,7 @@ function registerFacebookRoutes(app, db, { broadcast }) {
   if (process.env.FB_PAGE_ACCESS_TOKEN && process.env.FB_PAGE_ID) {
     setInterval(() => {
       backfillConversations(db, { broadcast }).catch((e) => console.error('fb auto-poll error:', e.message));
-    }, 45000);
+    }, 10000);
   }
 }
 

@@ -19,6 +19,10 @@ import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
+import { useSSE } from '../../contexts/SSEContext';
+import { useToast } from '../../contexts/ToastContext';
+import { playNotificationBeep } from '../../utils/notificationSound';
+import type { FbConversation, FbMessage } from '../../utils/api';
 
 type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts' | 'fbMessages';
 
@@ -156,7 +160,10 @@ export function OnlineSalesPortal() {
   const { branchLabel } = useBranches();
   const { combos } = useCombos();
   const { loadForBranch } = useInventory();
+  const { subscribe } = useSSE();
+  const { showSuccess } = useToast();
   const [view, setView] = useState<View>('dashboard');
+  const [fbConversations, setFbConversations] = useState<FbConversation[]>([]);
   const [assignments, setAssignments] = useState<CustomerCareAssignment[]>([]);
   const [retailOrders, setRetailOrders] = useState<Order[]>([]);
   const [dashboard, setDashboard] = useState<OnlineSalesDashboard>(EMPTY_DASHBOARD);
@@ -202,6 +209,41 @@ export function OnlineSalesPortal() {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Theo dõi tin nhắn Facebook toàn cục (kể cả khi không ở tab "Tin nhắn FB") — báo âm thanh,
+  // toast, và đổi tiêu đề tab trình duyệt để CSKH không bỏ sót khách nhắn tới.
+  useEffect(() => {
+    api.fetchFbConversations().then(setFbConversations).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const unsubConv = subscribe('FB_CONVERSATION_UPDATED', (conv: FbConversation) => {
+      setFbConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === conv.id);
+        return idx >= 0 ? [...prev.slice(0, idx), conv, ...prev.slice(idx + 1)] : [conv, ...prev];
+      });
+    });
+    const unsubMsg = subscribe('FB_MESSAGE_CREATED', (msg: FbMessage) => {
+      if (msg.direction !== 'in') return;
+      playNotificationBeep();
+      const conv = fbConversations.find((c) => c.id === msg.conversationId);
+      showSuccess(`Tin nhắn Facebook mới${conv ? ` từ ${conv.customerName}` : ''}: ${msg.text.slice(0, 60)}`);
+    });
+    return () => {
+      unsubConv();
+      unsubMsg();
+    };
+  }, [subscribe, fbConversations, showSuccess]);
+
+  const fbUnreadTotal = useMemo(() => fbConversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0), [fbConversations]);
+
+  useEffect(() => {
+    const baseTitle = 'FitBlend CSKH';
+    document.title = fbUnreadTotal > 0 ? `(${fbUnreadTotal}) ${baseTitle}` : baseTitle;
+    return () => {
+      document.title = baseTitle;
+    };
+  }, [fbUnreadTotal]);
 
   const pendingCombos = useMemo(() => combos.filter((c) => c.status === 'pending'), [combos]);
   const myCombos = useMemo(
@@ -324,7 +366,7 @@ export function OnlineSalesPortal() {
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
-    { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle },
+    { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
 

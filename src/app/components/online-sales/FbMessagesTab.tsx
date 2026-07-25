@@ -86,7 +86,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
       if (selectedId) {
         api.fetchFbMessages(selectedId).then(setMessages).catch(() => {});
       }
-    }, 20000);
+    }, 8000);
     return () => clearInterval(interval);
   }, [loadConversations, selectedId]);
 

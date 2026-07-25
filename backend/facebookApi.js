@@ -141,7 +141,7 @@ function upsertConversationAsync(db, psid, patch) {
 }
 
 // Nạp lại lịch sử hội thoại cũ (trước khi webhook được kích hoạt) qua Facebook Conversations API.
-async function backfillConversations(db, { maxPages = 10 } = {}) {
+async function backfillConversations(db, { maxPages = 60 } = {}) {
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
   const pageId = process.env.FB_PAGE_ID;
   if (!token) throw new Error('Chưa cấu hình FB_PAGE_ACCESS_TOKEN trên server');

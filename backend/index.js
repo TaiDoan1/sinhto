@@ -2324,6 +2324,14 @@ async function start() {
     const distDir = path.join(__dirname, '../dist');
     if (fs.existsSync(distDir)) {
       app.use(express.static(distDir));
+      // "Thêm vào Màn hình chính" đọc title/icon từ HTML TĨNH ban đầu server trả về, không đợi
+      // JS chạy xong — nên cổng /staff cần 1 file HTML riêng (staff.html, sinh ra lúc build bởi
+      // scripts/generate-mode-html.js) thay vì dùng chung index.html của POS.
+      app.get(/^\/staff(\/.*)?$/, (req, res, next) => {
+        const staffHtmlPath = path.join(distDir, 'staff.html');
+        if (fs.existsSync(staffHtmlPath)) return res.sendFile(staffHtmlPath);
+        res.sendFile(path.join(distDir, 'index.html'));
+      });
       app.get(/.*/, (req, res, next) => {
         if (req.path.startsWith('/api')) return next();
         res.sendFile(path.join(distDir, 'index.html'));

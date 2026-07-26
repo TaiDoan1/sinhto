@@ -6,6 +6,7 @@
   "scripts": {
     "start": "cd backend && npm start",
     "build": "vite build",
+    "postbuild": "node scripts/generate-mode-html.cjs",
     "build:railway": "bash build.sh",
     "dev": "concurrently \"npm run backend\" \"vite\"",
     "backend": "node backend/index.js",

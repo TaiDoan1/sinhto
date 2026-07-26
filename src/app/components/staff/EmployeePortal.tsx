@@ -533,7 +533,7 @@ export function EmployeePortal() {
                       className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
                     >
                       {printingClosedBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                      In bill
+                      In bill kết ca
                     </button>
                   ) : (
                     <button

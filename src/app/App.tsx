@@ -272,6 +272,35 @@ function AppContent() {
     return () => window.removeEventListener("popstate", syncModeFromUrl);
   }, [syncModeFromUrl]);
 
+  // Cho phép "Thêm vào Màn hình chính" cài thành app riêng theo từng cổng (POS, Nhân viên...) —
+  // mỗi cổng có icon/tên riêng trên màn hình chính thay vì chỉ có 1 app POS chung cho cả site.
+  useEffect(() => {
+    const manifestByMode: Partial<Record<AppMode, { href: string; title: string }>> = {
+      pos: { href: "/manifest-pos.webmanifest", title: "FitBlend POS" },
+      staff: { href: "/manifest-staff.webmanifest", title: "FitBlend Nhân Viên" },
+    };
+    const config = manifestByMode[mode];
+    if (!config) return;
+
+    let manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!manifestLink) {
+      manifestLink = document.createElement("link");
+      manifestLink.rel = "manifest";
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = config.href;
+
+    let appleTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    if (!appleTitle) {
+      appleTitle = document.createElement("meta");
+      appleTitle.name = "apple-mobile-web-app-title";
+      document.head.appendChild(appleTitle);
+    }
+    appleTitle.content = config.title;
+
+    document.title = config.title;
+  }, [mode]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get("ref") || params.get("pt");

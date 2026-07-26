@@ -492,17 +492,40 @@ export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
   await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), 58);
 }
 
-/** Lưu bill kết ca thành file ảnh (PNG) tải về máy/điện thoại — dùng cho bill xem online, không
- * cần máy in vật lý. Render rộng hơn khổ giấy nhiệt (58mm) để chữ rõ khi xem lại trên điện thoại. */
+/** Lưu bill kết ca thành ảnh PNG — ưu tiên lưu THẲNG vào album ảnh máy (qua hộp thoại chia sẻ
+ * gốc của điện thoại, chọn "Lưu vào Ảnh"/"Save Image"), không phải tải về thư mục Downloads.
+ * Render rộng hơn khổ giấy nhiệt (58mm) để chữ rõ khi xem lại trên điện thoại. */
 export async function saveShiftClosingReceiptAsImage(data: ShiftClosingReceiptData, employeeName?: string) {
   const canvas = await renderIsolatedHtml(buildShiftClosingHtml(data), RECEIPT_STYLE, 420);
-  const dataUrl = canvas.toDataURL('image/png');
   const dateStr = new Date().toISOString().slice(0, 10);
   const namePart = (employeeName || data.employeeName || 'bill').replace(/\s+/g, '-');
-  const a = document.createElement('a');
-  a.href = dataUrl;
-  a.download = `bill-ket-ca-${namePart}-${dateStr}.png`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const fileName = `bill-ket-ca-${namePart}-${dateStr}.png`;
+
+  const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('Không tạo được ảnh bill');
+  const file = new File([blob], fileName, { type: 'image/png' });
+
+  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> };
+  if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+    try {
+      await nav.share({ files: [file], title: 'Bill kết ca' });
+      return;
+    } catch (err) {
+      // Người dùng tự bấm Hủy trên hộp thoại chia sẻ — không phải lỗi, không cần rơi về cách khác.
+      if (err instanceof Error && err.name === 'AbortError') return;
+    }
+  }
+
+  // Trình duyệt không hỗ trợ chia sẻ file (VD desktop) — mở ảnh ở tab mới để nhấn giữ lưu thủ
+  // công; nếu popup bị chặn thì mới rơi về tải file thông thường.
+  const dataUrl = canvas.toDataURL('image/png');
+  const win = window.open(dataUrl, '_blank');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 }

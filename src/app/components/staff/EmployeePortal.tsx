@@ -14,7 +14,6 @@ import type { WorkShift } from '../../types/employee';
 import {
   buildShiftClosingReceiptData,
   buildShiftClosingHtml,
-  printShiftClosingReceipt,
   saveShiftClosingReceiptAsImage,
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
   RECEIPT_STYLE,
@@ -1068,25 +1067,15 @@ export function EmployeePortal() {
             </div>
             <div className="p-3 border-t shrink-0 space-y-2">
               {closedSummary && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSaveBillImage}
-                    disabled={savingBillImage}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-semibold text-sm"
-                  >
-                    {savingBillImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Lưu ảnh về máy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => printShiftClosingReceipt(closedSummary)}
-                    className="flex-1 flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2.5 rounded-xl font-semibold text-sm"
-                  >
-                    <Printer className="w-4 h-4" />
-                    In giấy
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveBillImage}
+                  disabled={savingBillImage}
+                  className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-semibold text-sm"
+                >
+                  {savingBillImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Lưu ảnh vào album
+                </button>
               )}
               <button
                 type="button"

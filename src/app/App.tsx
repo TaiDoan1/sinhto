@@ -275,9 +275,9 @@ function AppContent() {
   // Cho phép "Thêm vào Màn hình chính" cài thành app riêng theo từng cổng (POS, Nhân viên...) —
   // mỗi cổng có icon/tên riêng trên màn hình chính thay vì chỉ có 1 app POS chung cho cả site.
   useEffect(() => {
-    const manifestByMode: Partial<Record<AppMode, { href: string; title: string }>> = {
-      pos: { href: "/manifest-pos.webmanifest", title: "FitBlend POS" },
-      staff: { href: "/manifest-staff.webmanifest", title: "FitBlend Nhân Viên" },
+    const manifestByMode: Partial<Record<AppMode, { href: string; title: string; icon: string; themeColor: string }>> = {
+      pos: { href: "/manifest-pos.webmanifest", title: "FitBlend POS", icon: "/images/pos-icon.svg", themeColor: "#047857" },
+      staff: { href: "/manifest-staff.webmanifest", title: "FitBlend Nhân Viên", icon: "/images/staff-icon.svg", themeColor: "#7c3aed" },
     };
     const config = manifestByMode[mode];
     if (!config) return;
@@ -297,6 +297,30 @@ function AppContent() {
       document.head.appendChild(appleTitle);
     }
     appleTitle.content = config.title;
+
+    let appleTouchIcon = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+    if (!appleTouchIcon) {
+      appleTouchIcon = document.createElement("link");
+      appleTouchIcon.rel = "apple-touch-icon";
+      document.head.appendChild(appleTouchIcon);
+    }
+    appleTouchIcon.href = config.icon;
+
+    let favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.rel = "icon";
+      document.head.appendChild(favicon);
+    }
+    favicon.href = config.icon;
+
+    let themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!themeMeta) {
+      themeMeta = document.createElement("meta");
+      themeMeta.name = "theme-color";
+      document.head.appendChild(themeMeta);
+    }
+    themeMeta.content = config.themeColor;
 
     document.title = config.title;
   }, [mode]);

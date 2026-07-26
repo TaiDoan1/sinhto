@@ -34,6 +34,7 @@ import { LoyaltyProvider } from "./contexts/LoyaltyContext";
 import { EmployeeProvider } from "./contexts/EmployeeContext";
 import { BranchProvider } from "./contexts/BranchContext";
 import { ToastProvider } from "./contexts/ToastContext";
+import { SplashScreen } from "./components/SplashScreen";
 import { captureSalesRefFromUrl } from "./utils/salesRef";
 import {
   type AppMode,
@@ -408,27 +409,31 @@ function AppContent() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   return (
-    <ToastProvider>
-      <SSEProvider>
-        <MenuProvider>
-          <InventoryProvider>
-            <OrderProvider>
-              <ComboProvider>
-                <AffiliateProvider>
-                  <LoyaltyProvider>
-                    <EmployeeProvider>
-                      <BranchProvider>
-                        <AppContent />
-                      </BranchProvider>
-                    </EmployeeProvider>
-                  </LoyaltyProvider>
-                </AffiliateProvider>
-              </ComboProvider>
-            </OrderProvider>
-          </InventoryProvider>
-        </MenuProvider>
-      </SSEProvider>
-    </ToastProvider>
+    <>
+      <ToastProvider>
+        <SSEProvider>
+          <MenuProvider>
+            <InventoryProvider>
+              <OrderProvider>
+                <ComboProvider>
+                  <AffiliateProvider>
+                    <LoyaltyProvider>
+                      <EmployeeProvider>
+                        <BranchProvider>
+                          <AppContent />
+                        </BranchProvider>
+                      </EmployeeProvider>
+                    </LoyaltyProvider>
+                  </AffiliateProvider>
+                </ComboProvider>
+              </OrderProvider>
+            </InventoryProvider>
+          </MenuProvider>
+        </SSEProvider>
+      </ToastProvider>
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+    </>
   );
 }

@@ -21,6 +21,7 @@ import { ProductManagement } from "./components/admin/ProductManagement";
 import { ComboManagement } from "./components/admin/ComboManagement";
 import { ComboPackageTemplates } from "./components/admin/ComboPackageTemplates";
 import { GiftCampaigns } from "./components/admin/GiftCampaigns";
+import { OrderNotificationSettings } from "./components/admin/OrderNotificationSettings";
 import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
 import { StoreManagerApp } from "./components/admin/StoreManagerApp";
 import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
@@ -209,6 +210,8 @@ function AdminShell() {
         return <LoyaltyManagement />;
       case "gift-campaigns":
         return <GiftCampaigns />;
+      case "order-notification":
+        return <OrderNotificationSettings />;
       case "online-sales":
         return <CustomerCareManagement />;
       default:

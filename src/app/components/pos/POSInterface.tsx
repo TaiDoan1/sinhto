@@ -54,7 +54,8 @@ import {
   type ShiftClosingBillTemplate,
 } from '../../utils/posPrint';
 import { useSSE } from '../../contexts/SSEContext';
-import { playOrderNotification } from '../../utils/notificationSound';
+import { speakOrderNotification } from '../../utils/notificationSound';
+import { usePosOrderNotificationText } from '../../hooks/usePosOrderNotificationText';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -82,6 +83,7 @@ function POSInterfaceInner() {
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
   const { isWarehouseReady, loadForBranch } = useInventory();
   const { subscribe } = useSSE();
+  const orderNotificationText = usePosOrderNotificationText();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -125,11 +127,11 @@ function POSInterfaceInner() {
     if (!branchId) return;
     const unsub = subscribe('ORDER_CREATED', (data: any) => {
       if (data?.branchId === branchId && data?.source !== 'counter') {
-        playOrderNotification();
+        speakOrderNotification(orderNotificationText);
       }
     });
     return unsub;
-  }, [branchId, subscribe]);
+  }, [branchId, subscribe, orderNotificationText]);
 
   // Báo màn hình khách (nếu đang mở) biết chi nhánh hiện tại — trước khi có giỏ hàng gì để hiện.
   useEffect(() => {

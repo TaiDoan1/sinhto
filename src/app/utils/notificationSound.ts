@@ -80,10 +80,30 @@ export function playNotificationBeep() {
   el.play().catch(() => {});
 }
 
-// Thông báo giọng nói "Có đơn hàng online mới" — dùng cho đơn CSKH đưa xuống POS chi nhánh.
+// Thông báo giọng nói "Có đơn hàng online mới" (file ghi sẵn, mặc định) — dùng khi CSKH đưa
+// đơn xuống POS chi nhánh, hoặc làm phương án dự phòng khi trình duyệt không hỗ trợ đọc chữ.
 export function playOrderNotification() {
   const el = getAudioEl(ORDER_SRC);
   if (!el) return;
   el.currentTime = 0;
   el.play().catch(() => {});
+}
+
+// Đọc bằng giọng đọc trình duyệt (Web Speech API) — cho phép Admin đổi nội dung câu thông báo
+// mà không cần tạo lại file âm thanh. Rơi về file ghi sẵn nếu trình duyệt không hỗ trợ đọc.
+export function speakOrderNotification(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    playOrderNotification();
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'vi-VN';
+    utter.rate = 1;
+    utter.onerror = () => playOrderNotification();
+    window.speechSynthesis.speak(utter);
+  } catch {
+    playOrderNotification();
+  }
 }

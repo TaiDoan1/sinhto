@@ -6,7 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { removeDiacritics, deepConvert, convertMaybeJson } = require('./vietnamese');
+const { removeDiacritics, deepConvert } = require('./vietnamese');
 const { hashPassword, verifyPassword, isHashed } = require('./password');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
@@ -1324,8 +1324,9 @@ app.get('/api/settings/:key', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const { key, value } = req.body;
-  const raw = typeof value === 'string' ? value : JSON.stringify(value);
-  const stringValue = convertMaybeJson(raw);
+  // Lưu nguyên văn — TUYỆT ĐỐI không bỏ dấu tiếng Việt ở đây (từng có convertMaybeJson() làm
+  // hỏng ngầm mọi setting có dấu, VD tiêu đề/ghi chú bill kết ca, câu thông báo giọng nói POS).
+  const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
   db.run(
     'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
     [key, stringValue],

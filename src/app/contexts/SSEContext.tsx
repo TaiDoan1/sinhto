@@ -15,6 +15,7 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const eventSource = new EventSource('/api/events');
+    let hadConnectedBefore = false;
 
     eventSource.onmessage = (event) => {
       try {
@@ -27,6 +28,18 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error('Lỗi phân tích cú pháp SSE:', err);
       }
+    };
+
+    // Trình duyệt tự retry kết nối EventSource, nhưng bất kỳ sự kiện nào server bắn ra trong
+    // lúc mất kết nối đều bị bỏ lỡ vĩnh viễn (không có cơ chế phát lại). onopen bắn lại mỗi lần
+    // kết nối/kết nối lại thành công — dùng làm tín hiệu "SSE_RECONNECTED" để các Context (đơn
+    // hàng, ...) tự tải lại dữ liệu mới nhất, tránh phải F5 mới thấy đơn/tin nhắn bị lỡ.
+    eventSource.onopen = () => {
+      if (hadConnectedBefore) {
+        const listeners = listenersMap.current.get('SSE_RECONNECTED');
+        if (listeners) listeners.forEach((cb) => cb(null));
+      }
+      hadConnectedBefore = true;
     };
 
     eventSource.onerror = (err) => {

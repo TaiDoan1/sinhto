@@ -161,12 +161,20 @@ app.get('/api/events', (req, res) => {
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive'
   });
-  
+
   const clientId = Date.now();
   const newClient = { id: clientId, res };
   clients.push(newClient);
 
+  // Không có dữ liệu nào chạy qua trong lúc idle thì proxy (Railway) sẽ âm thầm đóng kết nối
+  // sau ~30-60s, khiến POS "điếc" tới khi tải lại trang. Gửi comment ping định kỳ để giữ kết
+  // nối sống — client không xử lý dòng bắt đầu bằng ":" nên không ảnh hưởng logic hiện có.
+  const heartbeat = setInterval(() => {
+    res.write(': ping\n\n');
+  }, 20000);
+
   req.on('close', () => {
+    clearInterval(heartbeat);
     clients = clients.filter(c => c.id !== clientId);
   });
 });

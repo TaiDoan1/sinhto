@@ -76,23 +76,30 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   // Load orders and offline queue on mount
   useEffect(() => {
     // 1. Fetch from server
-    api.fetchOrders()
-      .then((data: any[]) => {
-        const normalized = data.map(normalizeOrder);
-        const active = normalized.filter(o => o.status !== 'completed');
-        const completed = normalized.filter(o => o.status === 'completed');
-        setOrders(active);
-        setHistory(completed);
-      })
-      .catch(err => {
-        console.error("Lỗi khi load orders từ backend, load từ local tạm thời:", err);
-        const localCached = localStorage.getItem('cached_active_orders');
-        if (localCached) {
-          try {
-            setOrders(JSON.parse(localCached).map(normalizeOrder));
-          } catch { /* ignore */ }
-        }
-      });
+    const loadOrders = () => {
+      api.fetchOrders()
+        .then((data: any[]) => {
+          const normalized = data.map(normalizeOrder);
+          const active = normalized.filter(o => o.status !== 'completed');
+          const completed = normalized.filter(o => o.status === 'completed');
+          setOrders(active);
+          setHistory(completed);
+        })
+        .catch(err => {
+          console.error("Lỗi khi load orders từ backend, load từ local tạm thời:", err);
+          const localCached = localStorage.getItem('cached_active_orders');
+          if (localCached) {
+            try {
+              setOrders(JSON.parse(localCached).map(normalizeOrder));
+            } catch { /* ignore */ }
+          }
+        });
+    };
+    loadOrders();
+
+    // Kết nối SSE bị đứt rồi tự nối lại (proxy timeout, mất mạng...) — tải lại đơn hàng để
+    // không bỏ lỡ đơn nào phát sinh trong lúc gián đoạn (broadcast không có cơ chế phát lại).
+    const unsubReconnect = subscribe('SSE_RECONNECTED', loadOrders);
 
     // 2. Load offline queue from localStorage
     const savedQueue = localStorage.getItem('offline_orders_queue');
@@ -147,6 +154,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     return () => {
       unsubCreate();
       unsubUpdate();
+      unsubReconnect();
     };
   }, [subscribe]);
 

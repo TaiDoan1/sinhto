@@ -306,6 +306,10 @@ async function init() {
       id TEXT PRIMARY KEY, campaignId TEXT, branchId TEXT, customerPhone TEXT,
       productName TEXT, orderId TEXT, staffId TEXT, staffName TEXT, createdAt TEXT
     )`,
+    `CREATE TABLE IF NOT EXISTS saved_replies (
+      id TEXT PRIMARY KEY, title TEXT, message TEXT, imageUrl TEXT DEFAULT '',
+      usageCount INTEGER DEFAULT 0, createdBy TEXT, createdAt TEXT, updatedAt TEXT
+    )`,
     `CREATE TABLE IF NOT EXISTS branch_inventory (
       branchId TEXT NOT NULL,
       itemId TEXT NOT NULL,

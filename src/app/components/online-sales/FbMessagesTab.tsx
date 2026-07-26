@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw, Image as ImageIcon, X, Tag as TagIcon, ChevronDown } from 'lucide-react';
+import { MessageCircle, Send, Link2, Loader2, Search, RefreshCw, Image as ImageIcon, X, Tag as TagIcon, ChevronDown, MessageSquareText } from 'lucide-react';
 import * as api from '../../utils/api';
-import type { FbConversation, FbMessage } from '../../utils/api';
+import type { FbConversation, FbMessage, SavedReply } from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
+import { SavedRepliesPanel } from './SavedRepliesPanel';
 
 const TAG_OPTIONS: { key: string; label: string; dot: string; chip: string }[] = [
   { key: 'vip', label: 'VIP', dot: 'bg-purple-500', chip: 'bg-purple-100 text-purple-700' },
@@ -52,6 +53,7 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
   const [pendingImage, setPendingImage] = useState<{ url: string; previewUrl: string } | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [savedRepliesOpen, setSavedRepliesOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -139,6 +141,14 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
     } finally {
       setUploadingImage(false);
     }
+  };
+
+  const handlePickSavedReply = (reply: SavedReply) => {
+    setDraft(reply.message);
+    if (reply.imageUrl) {
+      setPendingImage({ url: reply.imageUrl, previewUrl: reply.imageUrl });
+    }
+    setSavedRepliesOpen(false);
   };
 
   const handleLink = async () => {
@@ -413,6 +423,14 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
                 >
                   {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSavedRepliesOpen(true)}
+                  className="shrink-0 p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300"
+                  title="Tin trả lời lưu sẵn"
+                >
+                  <MessageSquareText className="w-4 h-4" />
+                </button>
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -434,6 +452,14 @@ export function FbMessagesTab({ staffId, staffName }: Props) {
           </>
         )}
       </div>
+
+      {savedRepliesOpen && (
+        <SavedRepliesPanel
+          staffName={staffName}
+          onClose={() => setSavedRepliesOpen(false)}
+          onPick={handlePickSavedReply}
+        />
+      )}
     </div>
   );
 }

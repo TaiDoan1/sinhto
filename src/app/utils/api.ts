@@ -995,6 +995,59 @@ export async function backfillFbConversations(): Promise<{ conversations: number
   return res.json();
 }
 
+// --- Tin trả lời lưu sẵn (saved replies) — CSKH ---
+export interface SavedReply {
+  id: string;
+  title: string;
+  message: string;
+  imageUrl: string;
+  usageCount: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchSavedReplies(): Promise<SavedReply[]> {
+  const res = await fetch(`${BASE_URL}/saved-replies`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch saved replies');
+  return res.json();
+}
+
+export async function createSavedReply(data: {
+  title: string; message: string; imageUrl?: string; createdBy?: string;
+}): Promise<SavedReply> {
+  const res = await fetch(`${BASE_URL}/saved-replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create saved reply');
+  }
+  return res.json();
+}
+
+export async function updateSavedReply(id: string, updates: Record<string, unknown>): Promise<SavedReply> {
+  const res = await fetch(`${BASE_URL}/saved-replies/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error('Failed to update saved reply');
+  return res.json();
+}
+
+export async function deleteSavedReply(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/saved-replies/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete saved reply');
+}
+
+export async function useSavedReply(id: string): Promise<void> {
+  await fetch(`${BASE_URL}/saved-replies/${id}/use`, { method: 'POST' }).catch(() => {});
+}
+
 // --- Khuyến mãi tặng quà (gift campaigns) ---
 export interface GiftCampaign {
   id: string;

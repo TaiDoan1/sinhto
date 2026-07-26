@@ -422,6 +422,19 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_redemptions_campaign_code ON gift_redemptions("campaignId", code)`).catch(() => {});
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS saved_replies (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      message TEXT,
+      "imageUrl" TEXT DEFAULT '',
+      "usageCount" INTEGER DEFAULT 0,
+      "createdBy" TEXT,
+      "createdAt" TEXT,
+      "updatedAt" TEXT
+    )
+  `).catch(() => {});
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS branch_inventory (
       "branchId" TEXT NOT NULL,
       "itemId" TEXT NOT NULL,

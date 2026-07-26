@@ -14,6 +14,7 @@ const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForC
 const { registerCskhRoutes } = require('./cskhApi');
 const { registerFacebookRoutes } = require('./facebookApi');
 const { registerGiftCampaignRoutes } = require('./giftCampaignsApi');
+const { registerSavedRepliesRoutes } = require('./savedRepliesApi');
 const {
   initBranchInventory,
   getInventoryForBranch,
@@ -2305,6 +2306,7 @@ async function start() {
     registerCskhRoutes(app, db, { broadcast });
     registerFacebookRoutes(app, db, { broadcast });
     registerGiftCampaignRoutes(app, db, { broadcast });
+    registerSavedRepliesRoutes(app, db, { broadcast });
     registerBackupRoutes(app, db);
     initBranchInventory(db).catch((err) => console.error('branch inventory init:', err.message));
 

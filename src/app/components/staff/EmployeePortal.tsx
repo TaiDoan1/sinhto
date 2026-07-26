@@ -8,6 +8,7 @@ import type { ProfileFieldConfig } from '../../types/employee';
 import { AttendanceCamera } from './AttendanceCamera';
 import { ImageViewer } from './ImageViewer';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
+import { InstallAppBanner } from './InstallAppBanner';
 import * as api from '../../utils/api';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 import type { WorkShift } from '../../types/employee';
@@ -404,6 +405,7 @@ export function EmployeePortal() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-28">
+        <InstallAppBanner />
         {tab === 'info' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">

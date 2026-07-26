@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -11,6 +11,15 @@ import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 import type { WorkShift } from '../../types/employee';
+import {
+  buildShiftClosingReceiptData,
+  buildShiftClosingHtml,
+  printShiftClosingReceipt,
+  DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
+  RECEIPT_STYLE,
+  type ShiftClosingBillTemplate,
+  type ShiftClosingReceiptData,
+} from '../../utils/posPrint';
 
 type Tab = EmployeeTab;
 
@@ -34,7 +43,7 @@ function todayStr() {
 export function EmployeePortal() {
   const { activeEmployee, profileFields, myShifts, logout, updateProfile, requestShift, requestOff, cancelShift, checkIn, checkOut } = useEmployee();
   const { orders, history } = useOrders();
-  const { branchLabel } = useBranches();
+  const { branchLabel, activeBranches } = useBranches();
   const [tab, setTab] = useState<Tab>('attendance');
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -54,6 +63,20 @@ export function EmployeePortal() {
   const [scheduleView, setScheduleView] = useState<'mine' | 'branch'>('mine');
   const [branchShifts, setBranchShifts] = useState<WorkShift[]>([]);
   const [branchShiftsLoading, setBranchShiftsLoading] = useState(false);
+  const [scheduleBranchFilter, setScheduleBranchFilter] = useState<string>('all');
+
+  // Kết ca + xem bill online (đỡ tốn giấy) — chốt doanh thu/tiền mặt của ca đang mở, xem bill
+  // ngay trên màn hình thay vì bắt buộc in giấy như ở máy POS.
+  const [closingShift, setClosingShift] = useState<WorkShift | null>(null);
+  const [closingCashMovements, setClosingCashMovements] = useState<api.ShiftCashMovement[]>([]);
+  const [closingShiftOrders, setClosingShiftOrders] = useState<any[] | null>(null);
+  const [closingBillTemplate, setClosingBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
+  const [closingActualCashInput, setClosingActualCashInput] = useState('');
+  const [closingSubmitting, setClosingSubmitting] = useState(false);
+  const [findingShiftToClose, setFindingShiftToClose] = useState(false);
+  const [showBillPreview, setShowBillPreview] = useState(false);
+  const [closedBillHtml, setClosedBillHtml] = useState('');
+  const [closedSummary, setClosedSummary] = useState<ShiftClosingReceiptData | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -70,15 +93,37 @@ export function EmployeePortal() {
   }, [activeEmployee, profileFields]);
 
   // Lịch cả chi nhánh — chỉ tải khi nhân viên thực sự bật xem (tránh gọi API thừa mỗi lần vào tab).
+  // Tải TẤT CẢ chi nhánh (không lọc theo branch của nhân viên) để xem được lịch đầy đủ mọi
+  // chi nhánh, không chỉ chi nhánh mình đang làm — lọc lại theo scheduleBranchFilter khi hiển thị.
   useEffect(() => {
-    if (scheduleView !== 'branch' || !activeEmployee?.branch) return;
+    if (scheduleView !== 'branch') return;
     setBranchShiftsLoading(true);
     api
-      .fetchShifts({ branch: activeEmployee.branch })
+      .fetchShifts({})
       .then((data: WorkShift[]) => setBranchShifts(data || []))
       .catch(() => setBranchShifts([]))
       .finally(() => setBranchShiftsLoading(false));
-  }, [scheduleView, activeEmployee?.branch]);
+  }, [scheduleView]);
+
+  useEffect(() => {
+    if (!closingShift) {
+      setClosingCashMovements([]);
+      setClosingShiftOrders(null);
+      setClosingActualCashInput('');
+      return;
+    }
+    api.fetchCashMovements(closingShift.id).then(setClosingCashMovements).catch(() => setClosingCashMovements([]));
+    api
+      .fetchSetting('shiftClosingBillTemplate')
+      .then((v: any) => {
+        if (v && typeof v === 'object') setClosingBillTemplate({ ...DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE, ...v });
+      })
+      .catch(() => setClosingBillTemplate(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE));
+    api
+      .fetchOrders({ shiftId: closingShift.id })
+      .then(setClosingShiftOrders)
+      .catch(() => setClosingShiftOrders(null));
+  }, [closingShift]);
 
   if (!activeEmployee) return null;
 
@@ -95,6 +140,7 @@ export function EmployeePortal() {
   const branchScheduleByDate = (() => {
     const upcoming = branchShifts
       .filter(s => s.date >= todayStr() && s.status !== 'rejected')
+      .filter(s => scheduleBranchFilter === 'all' || s.branch === scheduleBranchFilter)
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
     const map = new Map<string, WorkShift[]>();
     for (const s of upcoming) {
@@ -204,6 +250,58 @@ export function EmployeePortal() {
       await cancelShift(shiftId);
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  // Tìm ca đang mở (in_progress) của chính mình để kết ca — không giới hạn theo chi nhánh vì
+  // nhân viên có thể hỗ trợ chi nhánh khác chi nhánh mặc định của họ.
+  const handleOpenEndShift = async () => {
+    setFindingShiftToClose(true);
+    try {
+      const activeShifts = (await api.fetchShifts({
+        employeeId: activeEmployee.id,
+        status: 'in_progress',
+      })) as WorkShift[];
+      if (activeShifts.length === 0) {
+        alert('Không có ca nào đang mở để kết ca.');
+        return;
+      }
+      setClosingShift(activeShifts[0]);
+    } catch {
+      alert('Không kiểm tra được ca đang mở — thử lại nhé.');
+    } finally {
+      setFindingShiftToClose(false);
+    }
+  };
+
+  const closingSummary = closingShift
+    ? (() => {
+        const shiftOrders =
+          closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
+        const actualCash = closingActualCashInput.trim() === '' ? undefined : Number(closingActualCashInput);
+        return buildShiftClosingReceiptData(closingShift, shiftOrders, closingCashMovements, closingBillTemplate, actualCash);
+      })()
+    : null;
+
+  const handleConfirmEndShift = async () => {
+    if (!closingShift || !closingSummary) return;
+    if (closingActualCashInput.trim() === '' || Number.isNaN(Number(closingActualCashInput))) {
+      alert('Vui lòng nhập số tiền mặt thực tế đếm được.');
+      return;
+    }
+    setClosingSubmitting(true);
+    try {
+      await api.shiftCheckIn(closingShift.id, 'out', undefined, { endCashActual: Number(closingActualCashInput) });
+      // Bill online — hiện ngay trên màn hình thay vì bắt buộc in giấy, đỡ tốn giấy như yêu cầu.
+      const finalSummary = { ...closingSummary, endCashActual: Number(closingActualCashInput) };
+      setClosedSummary(finalSummary);
+      setClosedBillHtml(buildShiftClosingHtml(finalSummary));
+      setClosingShift(null);
+      setShowBillPreview(true);
+    } catch {
+      alert('Kết ca thất bại — thử lại nhé.');
+    } finally {
+      setClosingSubmitting(false);
     }
   };
 
@@ -376,6 +474,15 @@ export function EmployeePortal() {
                       Đã hoàn thành ca hôm nay
                     </div>
                   )}
+
+                  <button
+                    onClick={handleOpenEndShift}
+                    disabled={findingShiftToClose}
+                    className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
+                  >
+                    {findingShiftToClose ? <Loader2 className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
+                    Kết ca & Xem bill
+                  </button>
                 </div>
               ) : (
                 <div className="text-gray-500 py-4 space-y-4">
@@ -558,7 +665,26 @@ export function EmployeePortal() {
 
             {scheduleView === 'branch' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <h2 className="font-bold text-gray-800 mb-4">Lịch cả chi nhánh</h2>
+              <h2 className="font-bold text-gray-800 mb-3">Lịch cả chi nhánh</h2>
+              <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setScheduleBranchFilter('all')}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${scheduleBranchFilter === 'all' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  Tất cả chi nhánh
+                </button>
+                {activeBranches.map((b) => (
+                  <button
+                    type="button"
+                    key={b.id}
+                    onClick={() => setScheduleBranchFilter(b.id)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${scheduleBranchFilter === b.id ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
               {branchShiftsLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
@@ -580,9 +706,16 @@ export function EmployeePortal() {
                               key={s.id}
                               className={`flex items-center justify-between gap-2 p-2.5 rounded-lg ${isOff ? 'bg-red-50' : 'bg-gray-50'}`}
                             >
-                              <span className="font-semibold text-gray-800 text-sm truncate min-w-0">
-                                {s.employeeName}
-                              </span>
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-gray-800 text-sm truncate block">
+                                  {s.employeeName}
+                                </span>
+                                {scheduleBranchFilter === 'all' && s.branch && (
+                                  <span className="text-[11px] text-emerald-700 font-semibold">
+                                    {branchLabel(s.branch) || s.branch}
+                                  </span>
+                                )}
+                              </div>
                               {isOff ? (
                                 <span className="text-xs font-semibold text-red-600 flex items-center gap-1 flex-shrink-0">
                                   <CalendarOff className="w-3.5 h-3.5" />
@@ -750,6 +883,147 @@ export function EmployeePortal() {
           timestamp={viewingImage.timestamp}
           onClose={() => setViewingImage(null)}
         />
+      )}
+
+      {closingShift && closingSummary && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center my-4">
+            <Receipt className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Kết ca</h3>
+            <p className="text-sm text-gray-500 mb-4">{closingShift.startTime} - {closingShift.endTime}</p>
+
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Số đơn đã bán</span>
+                <span className="font-bold text-gray-900">{closingSummary.orderCount} đơn</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Doanh thu</span>
+                <span className="font-bold text-emerald-700">{closingSummary.totalRevenue.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-3 text-left space-y-1.5">
+              <p className="text-xs font-semibold text-amber-800 mb-1">Đối chiếu tiền mặt</p>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600">Tiền mặt đầu ca</span>
+                <span className="font-semibold text-gray-800">{closingSummary.startCash.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600">Doanh thu tiền mặt</span>
+                <span className="font-semibold text-gray-800">{closingSummary.breakdown.cash.toLocaleString('vi-VN')}đ</span>
+              </div>
+              {closingSummary.cashIn > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Thu vào khác</span>
+                  <span className="font-semibold text-gray-800">+{closingSummary.cashIn.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
+              {closingSummary.cashOut > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Chi ra</span>
+                  <span className="font-semibold text-gray-800">-{closingSummary.cashOut.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs pt-1 border-t border-amber-200">
+                <span className="text-gray-600 font-semibold">Dự kiến</span>
+                <span className="font-bold text-gray-900">{closingSummary.expectedCash.toLocaleString('vi-VN')}đ</span>
+              </div>
+
+              <label className="block text-xs font-semibold text-gray-700 mt-2">Tiền mặt thực tế đếm được *</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={closingActualCashInput}
+                onChange={(e) => setClosingActualCashInput(e.target.value)}
+                placeholder="Nhập số tiền..."
+                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm font-semibold"
+              />
+              {closingActualCashInput.trim() !== '' && !Number.isNaN(Number(closingActualCashInput)) && (
+                <div className="flex justify-between text-xs pt-1">
+                  <span className="text-gray-600 font-semibold">Chênh lệch</span>
+                  <span className={`font-bold ${closingSummary.cashDiscrepancy < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                    {closingSummary.cashDiscrepancy >= 0 ? '+' : ''}
+                    {closingSummary.cashDiscrepancy.toLocaleString('vi-VN')}đ
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {closingSummary.items.length > 0 && (
+              <div className="text-left mt-4">
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Sản phẩm đã bán</p>
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-40 overflow-y-auto">
+                  {closingSummary.items.map((it) => (
+                    <div key={it.productName} className="flex justify-between text-xs">
+                      <span className="text-gray-700">{it.productName} x{it.quantity}</span>
+                      <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-[11px] text-gray-400 text-center mt-4">
+              Bấm "Xác nhận kết ca" bên dưới — bill sẽ hiện ngay trên màn hình, không cần in giấy.
+            </p>
+
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setClosingShift(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={closingSubmitting}
+                onClick={handleConfirmEndShift}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
+              >
+                {closingSubmitting ? 'Đang kết ca...' : 'Xác nhận kết ca'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBillPreview && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm my-4 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-emerald-600" />
+                Bill kết ca
+              </h3>
+              <button type="button" onClick={() => setShowBillPreview(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              <style>{RECEIPT_STYLE}</style>
+              <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
+            </div>
+            <div className="p-3 border-t shrink-0 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBillPreview(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
+              >
+                Đóng
+              </button>
+              {closedSummary && (
+                <button
+                  type="button"
+                  onClick={() => printShiftClosingReceipt(closedSummary)}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold text-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  In giấy (tùy chọn)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

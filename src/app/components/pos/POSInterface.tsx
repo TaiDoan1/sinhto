@@ -54,7 +54,7 @@ import {
   type ShiftClosingBillTemplate,
 } from '../../utils/posPrint';
 import { useSSE } from '../../contexts/SSEContext';
-import { playNotificationBeep } from '../../utils/notificationSound';
+import { playOrderNotification } from '../../utils/notificationSound';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -125,7 +125,7 @@ function POSInterfaceInner() {
     if (!branchId) return;
     const unsub = subscribe('ORDER_CREATED', (data: any) => {
       if (data?.branchId === branchId && data?.source !== 'counter') {
-        playNotificationBeep();
+        playOrderNotification();
       }
     });
     return unsub;

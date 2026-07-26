@@ -103,17 +103,22 @@ export function playNotificationBeep() {
   el.play().catch(() => {});
 }
 
-// Đọc bằng giọng đọc trình duyệt (Web Speech API) — cho phép Admin đổi nội dung câu thông báo
-// mà không cần tạo lại file âm thanh. LUÔN phát kèm tiếng "ting" thật (không chỉ khi lỗi) —
-// speechSynthesis có thể bị chặn ÂM THẦM (không bắn onerror) trên một số trình duyệt/WebView
-// thiếu giọng đọc tiếng Việt, khiến nhân viên tưởng không có thông báo gì cả nếu chỉ dựa vào
-// giọng đọc. Tiếng "ting" qua thẻ <audio> đáng tin cậy hơn nhiều nên luôn đảm bảo nghe được.
-export function speakOrderNotification(text: string) {
-  playNotificationBeep();
+// Phát file ghi âm giọng thật do Admin tự thu — đáng tin cậy hơn NHIỀU so với giọng đọc máy
+// (speechSynthesis), vì chỉ là phát <audio> bình thường như tiếng "ting", không phụ thuộc máy
+// có cài giọng đọc tiếng Việt hay không. Đây là đường ưu tiên khi Admin đã ghi âm.
+export function playCustomOrderAudio(url: string) {
+  const el = getAudioEl(url);
+  if (!el) return;
+  el.currentTime = 0;
+  el.play().catch(() => {});
+}
+
+// Đọc bằng giọng đọc trình duyệt (Web Speech API) — chỉ dùng khi Admin CHƯA ghi âm giọng thật.
+// speechSynthesis có thể bị chặn ÂM THẦM hoặc "treo" sau một lúc trên một số trình duyệt/WebView
+// (đã xác nhận qua thực tế) nên chỉ nên coi là phương án tạm, khuyến khích dùng ghi âm thay thế.
+function speakWithBrowserVoice(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
-    // Chỉ cancel() khi thật sự đang đọc dở — gọi cancel() vô tội vạ là một trong các nguyên
-    // nhân được ghi nhận khiến engine dễ bị treo hơn.
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
     }
@@ -123,6 +128,18 @@ export function speakOrderNotification(text: string) {
     utter.rate = 1;
     window.speechSynthesis.speak(utter);
   } catch {
-    /* tiếng "ting" đã phát ở trên, không cần fallback thêm */
+    /* tiếng "ting" đã phát riêng, không cần fallback thêm */
+  }
+}
+
+// Thông báo đơn CSKH đưa xuống POS — LUÔN phát tiếng "ting" thật để đảm bảo nghe được gì đó.
+// Nếu Admin đã ghi âm giọng thật (audioUrl) thì phát đúng file đó; nếu chưa, thử đọc bằng
+// giọng máy như phương án tạm.
+export function speakOrderNotification(text: string, audioUrl?: string) {
+  playNotificationBeep();
+  if (audioUrl) {
+    playCustomOrderAudio(audioUrl);
+  } else {
+    speakWithBrowserVoice(text);
   }
 }

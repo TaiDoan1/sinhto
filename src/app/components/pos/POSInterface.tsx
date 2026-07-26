@@ -55,7 +55,7 @@ import {
 } from '../../utils/posPrint';
 import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
-import { usePosOrderNotificationText } from '../../hooks/usePosOrderNotificationText';
+import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl } from '../../hooks/usePosOrderNotificationText';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -84,6 +84,7 @@ function POSInterfaceInner() {
   const { isWarehouseReady, loadForBranch } = useInventory();
   const { subscribe } = useSSE();
   const orderNotificationText = usePosOrderNotificationText();
+  const orderNotificationAudioUrl = usePosOrderNotificationAudioUrl();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -127,11 +128,11 @@ function POSInterfaceInner() {
     if (!branchId) return;
     const unsub = subscribe('ORDER_CREATED', (data: any) => {
       if (data?.branchId === branchId && data?.source !== 'counter') {
-        speakOrderNotification(orderNotificationText);
+        speakOrderNotification(orderNotificationText, orderNotificationAudioUrl);
       }
     });
     return unsub;
-  }, [branchId, subscribe, orderNotificationText]);
+  }, [branchId, subscribe, orderNotificationText, orderNotificationAudioUrl]);
 
   // Nhắc lại mỗi 1 phút nếu vẫn còn đơn CSKH "Chờ xác nhận" (chưa bấm Nhận Đơn & Làm Món) —
   // dùng ref để đọc dữ liệu mới nhất mỗi lần tick, tránh việc reset lại chu kỳ 60s mỗi khi có
@@ -140,12 +141,14 @@ function POSInterfaceInner() {
   ordersRef.current = orders;
   const orderNotificationTextRef = useRef(orderNotificationText);
   orderNotificationTextRef.current = orderNotificationText;
+  const orderNotificationAudioUrlRef = useRef(orderNotificationAudioUrl);
+  orderNotificationAudioUrlRef.current = orderNotificationAudioUrl;
   useEffect(() => {
     if (!branchId) return;
     const interval = setInterval(() => {
       const hasUnhandled = ordersRef.current.some((o) => o.source !== 'counter' && o.status === 'pending');
       if (hasUnhandled) {
-        speakOrderNotification(orderNotificationTextRef.current);
+        speakOrderNotification(orderNotificationTextRef.current, orderNotificationAudioUrlRef.current);
       }
     }, 60000);
     return () => clearInterval(interval);

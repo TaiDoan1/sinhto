@@ -3,6 +3,7 @@ import { useSSE } from '../contexts/SSEContext';
 import * as api from '../utils/api';
 
 const SETTING_KEY = 'posOrderNotificationText';
+const AUDIO_SETTING_KEY = 'posOrderNotificationAudioUrl';
 export const DEFAULT_ORDER_NOTIFICATION_TEXT = 'Ê ê Ê ê ê ê Ê ê Ê ê ê ê Có đơn hàng online, bạn xử lý nhé';
 
 /** Nội dung câu thông báo giọng nói khi CSKH đưa đơn xuống POS — chỉnh ở Admin, POS nhận
@@ -30,4 +31,31 @@ export function usePosOrderNotificationText() {
 
 export async function saveOrderNotificationText(text: string): Promise<void> {
   await api.saveSetting(SETTING_KEY, text);
+}
+
+/** URL file ghi âm giọng thật (ưu tiên hơn giọng đọc máy — đáng tin cậy hơn nhiều vì máy nào
+ * cũng phát <audio> được, không phụ thuộc máy có cài giọng đọc tiếng Việt hay không). */
+export function usePosOrderNotificationAudioUrl() {
+  const { subscribe } = useSSE();
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    api
+      .fetchSetting(AUDIO_SETTING_KEY)
+      .then((v) => setUrl(typeof v === 'string' ? v : ''))
+      .catch(() => {});
+
+    const unsub = subscribe('SETTING_UPDATED', (data: { key: string; value: unknown }) => {
+      if (data?.key === AUDIO_SETTING_KEY) {
+        setUrl(typeof data.value === 'string' ? data.value : '');
+      }
+    });
+    return unsub;
+  }, [subscribe]);
+
+  return url;
+}
+
+export async function saveOrderNotificationAudioUrl(url: string): Promise<void> {
+  await api.saveSetting(AUDIO_SETTING_KEY, url);
 }

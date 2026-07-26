@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { LogIn, User, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
-import { InstallAppBanner } from './InstallAppBanner';
 
 export function EmployeeLogin() {
   const { login } = useEmployee();
@@ -27,7 +26,6 @@ export function EmployeeLogin() {
     <div className="min-h-full flex flex-col bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600">
       <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 pb-[env(safe-area-inset-bottom)]">
         <div className="w-full">
-          <InstallAppBanner variant="onDark" />
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
               <User className="w-8 h-8 text-white" />

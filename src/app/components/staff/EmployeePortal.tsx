@@ -79,6 +79,7 @@ export function EmployeePortal() {
   const [closedBillHtml, setClosedBillHtml] = useState('');
   const [closedSummary, setClosedSummary] = useState<ShiftClosingReceiptData | null>(null);
   const [savingBillImage, setSavingBillImage] = useState(false);
+  const [printingClosedBill, setPrintingClosedBill] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -319,6 +320,41 @@ export function EmployeePortal() {
     }
   };
 
+  // Ca đã được kết trên máy POS (máy tính) rồi — chỉ in lại đúng bill đó bằng số liệu đã chốt
+  // sẵn (startCash/endCashActual đã lưu), không hỏi lại tiền mặt. Y hệt cách Admin in lại bill
+  // kết ca ở "Kết Ca Nhân Viên" (BranchShiftClosings.tsx) — dùng chung buildShiftClosingReceiptData
+  // + printShiftClosingReceipt, không qua bước xem/xác nhận online.
+  const handlePrintClosedShiftBill = async (shift: WorkShift) => {
+    setPrintingClosedBill(true);
+    try {
+      let shiftOrders: any[] = [];
+      try {
+        shiftOrders = await api.fetchOrders({ shiftId: shift.id });
+      } catch {
+        shiftOrders = [...orders, ...history].filter((o) => o.shiftId === shift.id);
+      }
+      let cashMovements: api.ShiftCashMovement[] = [];
+      try {
+        cashMovements = await api.fetchCashMovements(shift.id);
+      } catch {
+        cashMovements = [];
+      }
+      let template = DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE;
+      try {
+        const saved = await api.fetchSetting('shiftClosingBillTemplate');
+        if (saved && typeof saved === 'object') template = { ...DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE, ...saved };
+      } catch {
+        // giữ mặc định
+      }
+      const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
+      await printShiftClosingReceipt(data);
+    } catch {
+      alert('In bill thất bại — thử lại nhé.');
+    } finally {
+      setPrintingClosedBill(false);
+    }
+  };
+
   const statusLabel: Record<string, string> = {
     pending: '⏳ Chờ duyệt',
     scheduled: '✅ Đã xếp ca',
@@ -489,14 +525,26 @@ export function EmployeePortal() {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleOpenEndShift}
-                    disabled={findingShiftToClose}
-                    className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
-                  >
-                    {findingShiftToClose ? <Loader2 className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
-                    Kết ca & Xem bill
-                  </button>
+                  {todayShift.status === 'completed' ? (
+                    // Ca đã được kết trên máy POS rồi — chỉ cần in lại đúng bill đó, không hỏi lại tiền mặt.
+                    <button
+                      onClick={() => handlePrintClosedShiftBill(todayShift)}
+                      disabled={printingClosedBill}
+                      className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
+                    >
+                      {printingClosedBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+                      In bill
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleOpenEndShift}
+                      disabled={findingShiftToClose}
+                      className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
+                    >
+                      {findingShiftToClose ? <Loader2 className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
+                      Kết ca & Xem bill
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="text-gray-500 py-4 space-y-4">

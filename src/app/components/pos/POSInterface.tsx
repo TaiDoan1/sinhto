@@ -49,7 +49,6 @@ import {
 } from '../../hooks/useCustomerDisplayChannel';
 import {
   buildShiftClosingReceiptData,
-  printShiftClosingReceipt,
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
   type ShiftClosingBillTemplate,
 } from '../../utils/posPrint';
@@ -311,11 +310,6 @@ function POSInterfaceInner() {
       })()
     : null;
 
-  const handlePrintClosingBill = () => {
-    if (!shiftClosingSummary) return;
-    printShiftClosingReceipt(shiftClosingSummary);
-  };
-
   const handleConfirmClosing = async () => {
     if (!closingShift) return;
     if (actualCashInput.trim() === '' || Number.isNaN(Number(actualCashInput))) {
@@ -325,11 +319,9 @@ function POSInterfaceInner() {
     if (!shiftClosingSummary) return;
     setClosingSubmitting(true);
     try {
+      // Không còn bắt buộc in giấy — nhân viên xem/lưu ảnh/gửi Zalo bill kết ca qua app điện
+      // thoại (đã có sẵn lưu ảnh online), không cần máy in vật lý ở bước này nữa.
       await api.shiftCheckIn(closingShift.id, 'out', undefined, { endCashActual: Number(actualCashInput) });
-      // In bill là một phần bắt buộc của thao tác kết ca — chỉ đăng xuất SAU KHI bill đã được
-      // gửi đi in, để không có trường hợp kết ca xong nhưng không có bill (nhân viên quên bấm
-      // in riêng, hoặc bấm "Xác nhận" mà bỏ qua bước in).
-      await printShiftClosingReceipt(shiftClosingSummary);
       logout();
       setCart([]);
       setClosingShift(null);
@@ -918,15 +910,8 @@ function POSInterfaceInner() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handlePrintClosingBill}
-              className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
-            >
-              🖨️ Xem trước / In thử bill
-            </button>
-            <p className="text-[11px] text-gray-400 text-center mt-1">
-              Bấm "Xác nhận kết ca &amp; In bill" bên dưới sẽ tự in bill chính thức trước khi đăng xuất — không cần in tay ở đây.
+            <p className="text-[11px] text-gray-400 text-center mt-4">
+              Xem/lưu ảnh/gửi Zalo bill kết ca này ở app Nhân Viên trên điện thoại — không cần in giấy.
             </p>
 
             <div className="flex gap-2 mt-3">
@@ -943,7 +928,7 @@ function POSInterfaceInner() {
                 onClick={handleConfirmClosing}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
               >
-                {closingSubmitting ? 'Đang in bill & kết ca...' : 'Xác nhận kết ca & In bill'}
+                {closingSubmitting ? 'Đang kết ca...' : 'Xác nhận kết ca'}
               </button>
             </div>
           </div>

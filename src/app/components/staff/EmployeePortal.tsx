@@ -320,10 +320,9 @@ export function EmployeePortal() {
     }
   };
 
-  // Ca đã được kết trên máy POS (máy tính) rồi — chỉ in lại đúng bill đó bằng số liệu đã chốt
-  // sẵn (startCash/endCashActual đã lưu), không hỏi lại tiền mặt. Y hệt cách Admin in lại bill
-  // kết ca ở "Kết Ca Nhân Viên" (BranchShiftClosings.tsx) — dùng chung buildShiftClosingReceiptData
-  // + printShiftClosingReceipt, không qua bước xem/xác nhận online.
+  // Ca đã được kết trên máy POS (máy tính) rồi — lấy đúng số liệu đã chốt sẵn (startCash/
+  // endCashActual đã lưu, không hỏi lại tiền mặt) rồi hiện bill lên màn hình, y hệt bill vừa
+  // kết ca xong: có nút tải ảnh về máy + in giấy tùy chọn, không tự động in luôn.
   const handlePrintClosedShiftBill = async (shift: WorkShift) => {
     setPrintingClosedBill(true);
     try {
@@ -347,9 +346,11 @@ export function EmployeePortal() {
         // giữ mặc định
       }
       const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
-      await printShiftClosingReceipt(data);
+      setClosedSummary(data);
+      setClosedBillHtml(buildShiftClosingHtml(data));
+      setShowBillPreview(true);
     } catch {
-      alert('In bill thất bại — thử lại nhé.');
+      alert('Không lấy được dữ liệu bill — thử lại nhé.');
     } finally {
       setPrintingClosedBill(false);
     }

@@ -3,7 +3,7 @@ import { useSSE } from '../contexts/SSEContext';
 import * as api from '../utils/api';
 
 const SETTING_KEY = 'posOrderNotificationText';
-export const DEFAULT_ORDER_NOTIFICATION_TEXT = 'Nguyên ơi, có đơn hàng online nè';
+export const DEFAULT_ORDER_NOTIFICATION_TEXT = 'Ê ê Ê ê ê ê Ê ê Ê ê ê ê Có đơn hàng online, bạn xử lý nhé';
 
 /** Nội dung câu thông báo giọng nói khi CSKH đưa đơn xuống POS — chỉnh ở Admin, POS nhận
  * ngay không cần tải lại trang (qua SETTING_UPDATED, giống các setting dùng chung khác). */

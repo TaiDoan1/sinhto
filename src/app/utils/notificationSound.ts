@@ -94,22 +94,20 @@ export function playNotificationBeep() {
 }
 
 // Đọc bằng giọng đọc trình duyệt (Web Speech API) — cho phép Admin đổi nội dung câu thông báo
-// mà không cần tạo lại file âm thanh. Nếu máy không đọc được (thiếu giọng đọc, trình duyệt cũ),
-// rơi về tiếng "ting" trung tính — CỐ Ý không dùng file ghi âm câu cũ ở đây, vì phát nhầm đúng
-// nguyên văn câu cũ sẽ khiến người dùng tưởng cài đặt mới ở Admin chưa có tác dụng.
+// mà không cần tạo lại file âm thanh. LUÔN phát kèm tiếng "ting" thật (không chỉ khi lỗi) —
+// speechSynthesis có thể bị chặn ÂM THẦM (không bắn onerror) trên một số trình duyệt/WebView
+// thiếu giọng đọc tiếng Việt, khiến nhân viên tưởng không có thông báo gì cả nếu chỉ dựa vào
+// giọng đọc. Tiếng "ting" qua thẻ <audio> đáng tin cậy hơn nhiều nên luôn đảm bảo nghe được.
 export function speakOrderNotification(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    playNotificationBeep();
-    return;
-  }
+  playNotificationBeep();
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'vi-VN';
     utter.rate = 1;
-    utter.onerror = () => playNotificationBeep();
     window.speechSynthesis.speak(utter);
   } catch {
-    playNotificationBeep();
+    /* tiếng "ting" đã phát ở trên, không cần fallback thêm */
   }
 }

@@ -133,6 +133,24 @@ function POSInterfaceInner() {
     return unsub;
   }, [branchId, subscribe, orderNotificationText]);
 
+  // Nhắc lại mỗi 1 phút nếu vẫn còn đơn CSKH "Chờ xác nhận" (chưa bấm Nhận Đơn & Làm Món) —
+  // dùng ref để đọc dữ liệu mới nhất mỗi lần tick, tránh việc reset lại chu kỳ 60s mỗi khi có
+  // đơn/order khác cập nhật (chỉ cần 1 đồng hồ đếm ổn định, không phụ thuộc dependency đổi liên tục).
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const orderNotificationTextRef = useRef(orderNotificationText);
+  orderNotificationTextRef.current = orderNotificationText;
+  useEffect(() => {
+    if (!branchId) return;
+    const interval = setInterval(() => {
+      const hasUnhandled = ordersRef.current.some((o) => o.source !== 'counter' && o.status === 'pending');
+      if (hasUnhandled) {
+        speakOrderNotification(orderNotificationTextRef.current);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [branchId]);
+
   // Báo màn hình khách (nếu đang mở) biết chi nhánh hiện tại — trước khi có giỏ hàng gì để hiện.
   useEffect(() => {
     if (branchId) {

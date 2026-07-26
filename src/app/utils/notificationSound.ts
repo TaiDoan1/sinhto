@@ -66,6 +66,16 @@ if (typeof window !== 'undefined') {
   window.addEventListener('click', unlockAll);
   window.addEventListener('keydown', unlockAll);
   window.addEventListener('touchstart', unlockAll);
+
+  // Bug đã biết của Chrome: engine speechSynthesis tự "treo" (đứng yên, không đọc gì nữa,
+  // không báo lỗi) sau một khoảng idle hoặc sau nhiều lần gọi speak() liên tiếp — đúng kiểu
+  // POS gặp phải với thông báo lặp lại mỗi phút. Định kỳ gọi resume() để "đánh thức" engine,
+  // không cần đợi người dùng tải lại trang mới đọc được tiếp.
+  if ('speechSynthesis' in window) {
+    setInterval(() => {
+      window.speechSynthesis.resume();
+    }, 10000);
+  }
 }
 
 export function unlockAudio(): boolean {
@@ -102,7 +112,12 @@ export function speakOrderNotification(text: string) {
   playNotificationBeep();
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
-    window.speechSynthesis.cancel();
+    // Chỉ cancel() khi thật sự đang đọc dở — gọi cancel() vô tội vạ là một trong các nguyên
+    // nhân được ghi nhận khiến engine dễ bị treo hơn.
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+    window.speechSynthesis.resume();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'vi-VN';
     utter.rate = 1;

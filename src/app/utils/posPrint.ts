@@ -1,7 +1,7 @@
 /** In POS — 2 kiểu: bill tiền (khách) + tem thành phần (dán ly) */
 
 import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
-import { htmlToEscposCommands, BASE_RENDER_WIDTH_PX } from './escposRaster';
+import { htmlToEscposCommands, renderIsolatedHtml, BASE_RENDER_WIDTH_PX } from './escposRaster';
 import * as api from './api';
 
 /** Cấu hình khổ giấy + cỡ chữ cho bill khách (role "receipt") — nhân viên tự chỉnh trong màn
@@ -490,4 +490,19 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
 /** Bill kết ca — đối chiếu tiền mặt/doanh thu theo hình thức thanh toán, đưa quản lý/nhân viên xác nhận */
 export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
   await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), 58);
+}
+
+/** Lưu bill kết ca thành file ảnh (PNG) tải về máy/điện thoại — dùng cho bill xem online, không
+ * cần máy in vật lý. Render rộng hơn khổ giấy nhiệt (58mm) để chữ rõ khi xem lại trên điện thoại. */
+export async function saveShiftClosingReceiptAsImage(data: ShiftClosingReceiptData, employeeName?: string) {
+  const canvas = await renderIsolatedHtml(buildShiftClosingHtml(data), RECEIPT_STYLE, 420);
+  const dataUrl = canvas.toDataURL('image/png');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const namePart = (employeeName || data.employeeName || 'bill').replace(/\s+/g, '-');
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `bill-ket-ca-${namePart}-${dateStr}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }

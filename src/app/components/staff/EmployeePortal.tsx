@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer, Download } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -15,6 +15,7 @@ import {
   buildShiftClosingReceiptData,
   buildShiftClosingHtml,
   printShiftClosingReceipt,
+  saveShiftClosingReceiptAsImage,
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
   RECEIPT_STYLE,
   type ShiftClosingBillTemplate,
@@ -77,6 +78,7 @@ export function EmployeePortal() {
   const [showBillPreview, setShowBillPreview] = useState(false);
   const [closedBillHtml, setClosedBillHtml] = useState('');
   const [closedSummary, setClosedSummary] = useState<ShiftClosingReceiptData | null>(null);
+  const [savingBillImage, setSavingBillImage] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -302,6 +304,18 @@ export function EmployeePortal() {
       alert('Kết ca thất bại — thử lại nhé.');
     } finally {
       setClosingSubmitting(false);
+    }
+  };
+
+  const handleSaveBillImage = async () => {
+    if (!closedSummary) return;
+    setSavingBillImage(true);
+    try {
+      await saveShiftClosingReceiptAsImage(closedSummary, activeEmployee.fullName);
+    } catch {
+      alert('Lưu ảnh bill thất bại — thử lại nhé.');
+    } finally {
+      setSavingBillImage(false);
     }
   };
 
@@ -1003,24 +1017,35 @@ export function EmployeePortal() {
               <style>{RECEIPT_STYLE}</style>
               <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
             </div>
-            <div className="p-3 border-t shrink-0 flex gap-2">
+            <div className="p-3 border-t shrink-0 space-y-2">
+              {closedSummary && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveBillImage}
+                    disabled={savingBillImage}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-semibold text-sm"
+                  >
+                    {savingBillImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Lưu ảnh về máy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printShiftClosingReceipt(closedSummary)}
+                    className="flex-1 flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2.5 rounded-xl font-semibold text-sm"
+                  >
+                    <Printer className="w-4 h-4" />
+                    In giấy
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setShowBillPreview(false)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
               >
                 Đóng
               </button>
-              {closedSummary && (
-                <button
-                  type="button"
-                  onClick={() => printShiftClosingReceipt(closedSummary)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold text-sm"
-                >
-                  <Printer className="w-4 h-4" />
-                  In giấy (tùy chọn)
-                </button>
-              )}
             </div>
           </div>
         </div>

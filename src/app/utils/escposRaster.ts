@@ -67,7 +67,7 @@ export const BASE_RENDER_WIDTH_PX = 300;
  * px trong các mẫu bill) chiếm tỉ lệ lớn hơn trong khung render — dùng để phóng to cỡ chữ khi co
  * giãn về khổ giấy thật ở bước sau, không cần sửa từng font-size trong mẫu.
  */
-async function renderIsolatedHtml(
+export async function renderIsolatedHtml(
   bodyHtml: string,
   styleCss: string,
   renderWidthPx: number = BASE_RENDER_WIDTH_PX

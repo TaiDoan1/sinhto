@@ -1,24 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, Save, Loader2, CheckCircle, PlayCircle, Mic, Square, Trash2 } from 'lucide-react';
+import { Volume2, Save, Loader2, CheckCircle, PlayCircle, Mic, Square, Trash2, Keyboard } from 'lucide-react';
 import {
   usePosOrderNotificationText,
   saveOrderNotificationText,
   DEFAULT_ORDER_NOTIFICATION_TEXT,
   usePosOrderNotificationAudioUrl,
   saveOrderNotificationAudioUrl,
+  usePosOrderNotificationMode,
+  saveOrderNotificationMode,
+  type OrderNotificationMode,
 } from '../../hooks/usePosOrderNotificationText';
-import { speakOrderNotification, playCustomOrderAudio } from '../../utils/notificationSound';
+import { speakWithBrowserVoice, playCustomOrderAudio } from '../../utils/notificationSound';
 import * as api from '../../utils/api';
 
 /** Chỉnh thông báo mà POS phát lên khi CSKH đưa đơn xuống đúng chi nhánh — đổi ở đây, các
- * máy POS đang mở nhận ngay không cần tải lại trang. Ưu tiên phát bản ghi âm giọng thật (đáng
- * tin cậy trên mọi thiết bị) — nếu chưa ghi âm, POS thử đọc bằng giọng máy như phương án tạm. */
+ * máy POS đang mở nhận ngay không cần tải lại trang. Chọn 1 trong 2 cách: đọc bằng giọng máy
+ * (theo chữ gõ) hoặc phát bản ghi âm giọng thật — giữ được cả 2, chuyển qua lại không cần xóa. */
 export function OrderNotificationSettings() {
   const savedText = usePosOrderNotificationText();
   const savedAudioUrl = usePosOrderNotificationAudioUrl();
+  const savedMode = usePosOrderNotificationMode();
   const [text, setText] = useState(savedText);
+  const [mode, setMode] = useState<OrderNotificationMode>(savedMode);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setMode(savedMode);
+  }, [savedMode]);
 
   const [recording, setRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -48,8 +57,17 @@ export function OrderNotificationSettings() {
     }
   };
 
+  const handleModeChange = async (next: OrderNotificationMode) => {
+    setMode(next);
+    await saveOrderNotificationMode(next);
+  };
+
   const handlePreview = () => {
-    speakOrderNotification(text.trim() || DEFAULT_ORDER_NOTIFICATION_TEXT, savedAudioUrl);
+    if (mode === 'recording' && savedAudioUrl) {
+      playCustomOrderAudio(savedAudioUrl);
+    } else {
+      speakWithBrowserVoice(text.trim() || DEFAULT_ORDER_NOTIFICATION_TEXT);
+    }
   };
 
   const handleStartRecording = async () => {
@@ -125,9 +143,33 @@ export function OrderNotificationSettings() {
       </div>
 
       <div className="space-y-5">
-        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div>
+          <label className="text-xs text-gray-500 font-semibold">Cách POS thông báo</label>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange('tts')}
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm border-2 ${
+                mode === 'tts' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <Keyboard className="w-4 h-4" /> Đọc theo chữ (giọng máy)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('recording')}
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm border-2 ${
+                mode === 'recording' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <Mic className="w-4 h-4" /> Phát bản ghi âm
+            </button>
+          </div>
+        </div>
+
+        <div className={`border border-gray-200 rounded-xl p-4 space-y-3 ${mode !== 'recording' ? 'opacity-60' : ''}`}>
           <div>
-            <p className="font-bold text-sm text-gray-800">Ghi âm giọng thật (khuyến nghị)</p>
+            <p className="font-bold text-sm text-gray-800">Ghi âm giọng thật</p>
             <p className="text-xs text-gray-500 mt-0.5">
               Đáng tin cậy hơn giọng đọc máy nhiều — mọi thiết bị POS đều phát được, không phụ thuộc máy có cài giọng đọc tiếng Việt hay không.
             </p>
@@ -183,8 +225,8 @@ export function OrderNotificationSettings() {
           {micError && <p className="text-xs text-red-600">{micError}</p>}
         </div>
 
-        <div>
-          <label className="text-xs text-gray-500 font-semibold">Nội dung câu (dùng để đọc bằng giọng máy nếu chưa ghi âm)</label>
+        <div className={mode !== 'tts' ? 'opacity-60' : ''}>
+          <label className="text-xs text-gray-500 font-semibold">Nội dung câu (POS đọc bằng giọng máy)</label>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

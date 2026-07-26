@@ -59,3 +59,33 @@ export function usePosOrderNotificationAudioUrl() {
 export async function saveOrderNotificationAudioUrl(url: string): Promise<void> {
   await api.saveSetting(AUDIO_SETTING_KEY, url);
 }
+
+export type OrderNotificationMode = 'tts' | 'recording';
+const MODE_SETTING_KEY = 'posOrderNotificationMode';
+
+/** Chọn POS đọc bằng giọng máy (theo chữ) hay phát bản ghi âm — cho phép giữ cả 2 và chuyển
+ * qua lại mà không cần xóa cái đang không dùng. Mặc định 'tts' theo chữ nhập. */
+export function usePosOrderNotificationMode(): OrderNotificationMode {
+  const { subscribe } = useSSE();
+  const [mode, setMode] = useState<OrderNotificationMode>('tts');
+
+  useEffect(() => {
+    api
+      .fetchSetting(MODE_SETTING_KEY)
+      .then((v) => setMode(v === 'recording' ? 'recording' : 'tts'))
+      .catch(() => {});
+
+    const unsub = subscribe('SETTING_UPDATED', (data: { key: string; value: unknown }) => {
+      if (data?.key === MODE_SETTING_KEY) {
+        setMode(data.value === 'recording' ? 'recording' : 'tts');
+      }
+    });
+    return unsub;
+  }, [subscribe]);
+
+  return mode;
+}
+
+export async function saveOrderNotificationMode(mode: OrderNotificationMode): Promise<void> {
+  await api.saveSetting(MODE_SETTING_KEY, mode);
+}

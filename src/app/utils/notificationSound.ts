@@ -113,10 +113,8 @@ export function playCustomOrderAudio(url: string) {
   el.play().catch(() => {});
 }
 
-// Đọc bằng giọng đọc trình duyệt (Web Speech API) — chỉ dùng khi Admin CHƯA ghi âm giọng thật.
-// speechSynthesis có thể bị chặn ÂM THẦM hoặc "treo" sau một lúc trên một số trình duyệt/WebView
-// (đã xác nhận qua thực tế) nên chỉ nên coi là phương án tạm, khuyến khích dùng ghi âm thay thế.
-function speakWithBrowserVoice(text: string) {
+// Đọc bằng giọng đọc trình duyệt (Web Speech API).
+export function speakWithBrowserVoice(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     if (window.speechSynthesis.speaking) {
@@ -133,11 +131,10 @@ function speakWithBrowserVoice(text: string) {
 }
 
 // Thông báo đơn CSKH đưa xuống POS — LUÔN phát tiếng "ting" thật để đảm bảo nghe được gì đó.
-// Nếu Admin đã ghi âm giọng thật (audioUrl) thì phát đúng file đó; nếu chưa, thử đọc bằng
-// giọng máy như phương án tạm.
-export function speakOrderNotification(text: string, audioUrl?: string) {
+// mode do Admin chọn: 'recording' phát đúng file đã ghi âm, 'tts' đọc theo chữ bằng giọng máy.
+export function speakOrderNotification(text: string, mode: 'tts' | 'recording', audioUrl?: string) {
   playNotificationBeep();
-  if (audioUrl) {
+  if (mode === 'recording' && audioUrl) {
     playCustomOrderAudio(audioUrl);
   } else {
     speakWithBrowserVoice(text);

@@ -55,7 +55,7 @@ import {
 } from '../../utils/posPrint';
 import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
-import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl } from '../../hooks/usePosOrderNotificationText';
+import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode } from '../../hooks/usePosOrderNotificationText';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -85,6 +85,7 @@ function POSInterfaceInner() {
   const { subscribe } = useSSE();
   const orderNotificationText = usePosOrderNotificationText();
   const orderNotificationAudioUrl = usePosOrderNotificationAudioUrl();
+  const orderNotificationMode = usePosOrderNotificationMode();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -128,11 +129,11 @@ function POSInterfaceInner() {
     if (!branchId) return;
     const unsub = subscribe('ORDER_CREATED', (data: any) => {
       if (data?.branchId === branchId && data?.source !== 'counter') {
-        speakOrderNotification(orderNotificationText, orderNotificationAudioUrl);
+        speakOrderNotification(orderNotificationText, orderNotificationMode, orderNotificationAudioUrl);
       }
     });
     return unsub;
-  }, [branchId, subscribe, orderNotificationText, orderNotificationAudioUrl]);
+  }, [branchId, subscribe, orderNotificationText, orderNotificationMode, orderNotificationAudioUrl]);
 
   // Nhắc lại mỗi 1 phút nếu vẫn còn đơn CSKH "Chờ xác nhận" (chưa bấm Nhận Đơn & Làm Món) —
   // dùng ref để đọc dữ liệu mới nhất mỗi lần tick, tránh việc reset lại chu kỳ 60s mỗi khi có
@@ -143,12 +144,14 @@ function POSInterfaceInner() {
   orderNotificationTextRef.current = orderNotificationText;
   const orderNotificationAudioUrlRef = useRef(orderNotificationAudioUrl);
   orderNotificationAudioUrlRef.current = orderNotificationAudioUrl;
+  const orderNotificationModeRef = useRef(orderNotificationMode);
+  orderNotificationModeRef.current = orderNotificationMode;
   useEffect(() => {
     if (!branchId) return;
     const interval = setInterval(() => {
       const hasUnhandled = ordersRef.current.some((o) => o.source !== 'counter' && o.status === 'pending');
       if (hasUnhandled) {
-        speakOrderNotification(orderNotificationTextRef.current, orderNotificationAudioUrlRef.current);
+        speakOrderNotification(orderNotificationTextRef.current, orderNotificationModeRef.current, orderNotificationAudioUrlRef.current);
       }
     }, 60000);
     return () => clearInterval(interval);

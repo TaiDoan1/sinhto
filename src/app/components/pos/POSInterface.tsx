@@ -53,6 +53,8 @@ import {
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
   type ShiftClosingBillTemplate,
 } from '../../utils/posPrint';
+import { useSSE } from '../../contexts/SSEContext';
+import { playNotificationBeep } from '../../utils/notificationSound';
 
 type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -79,6 +81,7 @@ function POSInterfaceInner() {
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
   const { isWarehouseReady, loadForBranch } = useInventory();
+  const { subscribe } = useSSE();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -116,6 +119,17 @@ function POSInterfaceInner() {
       return () => clearInterval(interval);
     }
   }, [branchId, loadForBranch]);
+
+  // Báo âm thanh khi CSKH đưa đơn xuống đúng chi nhánh này — không kêu với đơn máy POS tự tạo.
+  useEffect(() => {
+    if (!branchId) return;
+    const unsub = subscribe('ORDER_CREATED', (data: any) => {
+      if (data?.branchId === branchId && data?.source !== 'counter') {
+        playNotificationBeep();
+      }
+    });
+    return unsub;
+  }, [branchId, subscribe]);
 
   // Báo màn hình khách (nếu đang mở) biết chi nhánh hiện tại — trước khi có giỏ hàng gì để hiện.
   useEffect(() => {

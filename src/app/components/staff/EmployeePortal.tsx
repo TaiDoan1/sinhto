@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer, Download } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -14,7 +14,6 @@ import type { WorkShift } from '../../types/employee';
 import {
   buildShiftClosingReceiptData,
   buildShiftClosingHtml,
-  saveShiftClosingReceiptAsImage,
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
   RECEIPT_STYLE,
   type ShiftClosingBillTemplate,
@@ -77,7 +76,6 @@ export function EmployeePortal() {
   const [showBillPreview, setShowBillPreview] = useState(false);
   const [closedBillHtml, setClosedBillHtml] = useState('');
   const [closedSummary, setClosedSummary] = useState<ShiftClosingReceiptData | null>(null);
-  const [savingBillImage, setSavingBillImage] = useState(false);
   const [printingClosedBill, setPrintingClosedBill] = useState(false);
 
   useEffect(() => {
@@ -304,18 +302,6 @@ export function EmployeePortal() {
       alert('Kết ca thất bại — thử lại nhé.');
     } finally {
       setClosingSubmitting(false);
-    }
-  };
-
-  const handleSaveBillImage = async () => {
-    if (!closedSummary) return;
-    setSavingBillImage(true);
-    try {
-      await saveShiftClosingReceiptAsImage(closedSummary, activeEmployee.fullName);
-    } catch {
-      alert('Lưu ảnh bill thất bại — thử lại nhé.');
-    } finally {
-      setSavingBillImage(false);
     }
   };
 
@@ -1066,17 +1052,9 @@ export function EmployeePortal() {
               <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
             </div>
             <div className="p-3 border-t shrink-0 space-y-2">
-              {closedSummary && (
-                <button
-                  type="button"
-                  onClick={handleSaveBillImage}
-                  disabled={savingBillImage}
-                  className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-semibold text-sm"
-                >
-                  {savingBillImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Lưu ảnh vào album
-                </button>
-              )}
+              <p className="text-center text-xs text-gray-400">
+                Chụp màn hình (screenshot) để lưu bill vào máy hoặc gửi Zalo cho quản lý.
+              </p>
               <button
                 type="button"
                 onClick={() => setShowBillPreview(false)}

@@ -119,8 +119,19 @@ export function loadMacroToppings(): MacroTopping[] {
   }
 }
 
+/** Bỏ dấu tiếng Việt — backend luôn trả tên sản phẩm KHÔNG dấu (quy ước chung toàn hệ thống,
+ * xem backend/vietnamese.js) trong khi Bảng Macro Tham Khảo lưu tên CÓ dấu, nên phải bỏ dấu cả
+ * 2 vế trước khi so khớp, không thì không bao giờ khớp được (VD "Chuoi hat chia" vs "Chuối hạt chia"). */
+function removeDiacritics(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
 function normalize(str: string): string {
-  return str.trim().toLowerCase();
+  return removeDiacritics(str.trim().toLowerCase());
 }
 
 function parseDelta(value: string): number {

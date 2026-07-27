@@ -504,8 +504,27 @@ export async function saveShiftClosingReceiptAsImage(data: ShiftClosingReceiptDa
   const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('Không tạo được ảnh bill');
 
-  // Tải thẳng file về máy qua thẻ <a download> — không dùng navigator.share nữa vì trong
-  // webview Zalo, share sheet cố mở app ngoài rồi báo "không tìm thấy ứng dụng" thay vì lưu ảnh.
+  // Webview trong app Zalo/Facebook/Messenger... chặn navigator.share (hiện "Bạn sẽ thoát Zalo"
+  // rồi báo lỗi không tìm thấy ứng dụng) — chỉ những webview này mới tải file trực tiếp.
+  // Safari/Chrome thật thì share sheet hoạt động bình thường và là cách DUY NHẤT để ảnh vào
+  // thẳng Album ảnh (trình duyệt không cho web ghi thẳng vào album mà không qua xác nhận nào).
+  const ua = navigator.userAgent || '';
+  const isEmbeddedWebview = /Zalo|FBAN|FBAV|FB_IAB|Instagram|Line\//i.test(ua);
+
+  if (!isEmbeddedWebview) {
+    const file = new File([blob], fileName, { type: 'image/png' });
+    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> };
+    if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+      try {
+        await nav.share({ files: [file], title: 'Bill kết ca' });
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // Lỗi khác (hiếm) — rơi xuống tải file trực tiếp bên dưới.
+      }
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

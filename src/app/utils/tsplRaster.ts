@@ -47,7 +47,9 @@ function canvasToTsplBitmap(canvas: HTMLCanvasElement, heightDots: number): { wi
       const b = imageData.data[idx + 2];
       const a = imageData.data[idx + 3];
       const luminance = r * 0.299 + g * 0.587 + b * 0.114;
-      const isDark = a > 128 && luminance < 200;
+      // Ngưỡng 220 (thay vì 200) để các điểm ảnh xám mờ ở viền chữ (do khử răng cưa) cũng được
+      // tính là "chữ" luôn — chữ in ra dày/rõ hơn, đỡ mờ hơn so với ngưỡng chặt trước đó.
+      const isDark = a > 128 && luminance < 220;
       // Firmware của máy này hiểu bit=1 là "để trắng" và bit=0 là "in đen" — ngược với quy ước
       // ESC/POS raster thông thường (bit=1 = in đen). Không đảo lại thì tem ra nền đen chữ trắng.
       if (!isDark) {
@@ -116,7 +118,10 @@ export async function htmlLabelsToTsplCommands(
     encoder.encode(
       `SIZE ${widthMm} mm, ${heightMm} mm${CRLF}` +
       `GAP ${gapMm} mm, 0 mm${CRLF}` +
-      `DIRECTION 1${CRLF}`
+      `DIRECTION 1${CRLF}` +
+      // Mực in mặc định của máy đang mờ — tăng độ đậm (DENSITY, thang 0-15) để chữ rõ hơn.
+      `DENSITY 12${CRLF}` +
+      `SPEED 2${CRLF}`
     ),
   ];
 

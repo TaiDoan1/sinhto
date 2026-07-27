@@ -287,14 +287,18 @@ export async function printCupLabels(
     const count = Math.max(1, item.quantity);
     for (let i = 0; i < count; i++) {
       cupIndex += 1;
-      const options: string[] = [];
+      // Ghép ml + protein chung 1 dòng với tên vị (VD "Cacao chuối · 360ml · Protein 40g") thay
+      // vì tách riêng thành gạch đầu dòng — chỉ topping/túi/ghi chú mới xuống dòng gạch đầu dòng.
+      const nameParts = [item.productName];
       if (item.isCustomCombo) {
-        options.push('COMBO TÙY CHỈNH');
+        nameParts.push('COMBO TÙY CHỈNH');
       } else {
-        if (item.size) options.push(item.size);
-        if (item.bagSize) options.push(`Túi ${item.bagSize}`);
-        if (item.protein != null) options.push(`Protein ${item.protein}g`);
+        if (item.size) nameParts.push(item.size);
+        if (item.protein != null) nameParts.push(`Protein ${item.protein}g`);
       }
+
+      const options: string[] = [];
+      if (!item.isCustomCombo && item.bagSize) options.push(`Túi ${item.bagSize}`);
       if (item.toppings && item.toppings.length > 0) options.push(...item.toppings);
       if (meta.note) options.push(`Ghi chú: ${meta.note}`);
 
@@ -302,10 +306,10 @@ export async function printCupLabels(
 <div class="cup-label">
   <div class="cup-order">${meta.orderNumber}(${cupIndex}/${totalCups})</div>
   <div class="line"></div>
-  <div class="cup-name">${item.productName}</div>
+  <div class="cup-name">${nameParts.join(' · ')}</div>
   ${options.length > 0 ? `<ul class="cup-options">${options.map((o) => `<li>${o}</li>`).join('')}</ul>` : ''}
   <div class="line"></div>
-  <div class="cup-footer">${item.price.toLocaleString('vi-VN')}đ - ${dateStr} ${timeStr}</div>
+  <div class="cup-footer">${dateStr} ${timeStr}</div>
 </div>`);
     }
   });

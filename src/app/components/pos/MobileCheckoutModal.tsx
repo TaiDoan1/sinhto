@@ -280,7 +280,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
 
   const handlePrintCupLabels = () => {
     const now = new Date();
-    printCupLabels(cartToPrintLines(), { orderNumber: makeOrderNumber(), time: now });
+    printCupLabels(cartToPrintLines(), { orderNumber: makeOrderNumber(), time: now, note: orderNote.trim() || undefined });
   };
 
   const handlePrintCustomerReceipt = () => {

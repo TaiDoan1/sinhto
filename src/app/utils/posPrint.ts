@@ -72,9 +72,12 @@ export const RECEIPT_STYLE = `
     margin-bottom: 12px;
     page-break-inside: avoid;
   }
-  .cup-name { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 6px; }
-  .cup-meta { font-size: 13px; text-align: center; }
-  .cup-toppings { font-size: 12px; margin-top: 6px; }
+  .cup-order { font-size: 12px; font-weight: bold; }
+  .cup-name { font-size: 15px; font-weight: bold; margin: 6px 0; }
+  .cup-options { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  .cup-options li { margin: 2px 0; }
+  .cup-options li::before { content: '- '; }
+  .cup-footer { font-size: 11px; }
   pre { white-space: pre-wrap; margin: 0; font-size: 12px; }
 `;
 
@@ -236,38 +239,42 @@ export async function printCustomerReceipt(data: CustomerReceiptData) {
   await printViaUsbOrWindow('receipt', 'Hóa đơn khách', html, 58);
 }
 
-/** Tem thành phần — dán lên ly (không cần giá, rõ vị + size + topping) */
+/** Tem dán ly — mã đơn + số thứ tự ly/tổng số ly, tên món, danh sách gạch đầu dòng
+ * (size/túi/protein/topping/ghi chú), giá + ngày giờ ở cuối. */
 export async function printCupLabels(
   lines: PosPrintLine[],
-  meta: { orderNumber: string; time: Date }
+  meta: { orderNumber: string; time: Date; note?: string }
 ) {
   const stickers: string[] = [];
+  const totalCups = lines.reduce((sum, item) => sum + Math.max(1, item.quantity), 0);
+  const dateStr = meta.time.toLocaleDateString('vi-VN');
+  const timeStr = meta.time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  let cupIndex = 0;
 
   lines.forEach((item) => {
     const count = Math.max(1, item.quantity);
     for (let i = 0; i < count; i++) {
+      cupIndex += 1;
+      const options: string[] = [];
       if (item.isCustomCombo) {
-        stickers.push(`
-<div class="cup-label">
-  <div class="cup-name">${item.productName}</div>
-  <div class="cup-meta">COMBO TÙY CHỈNH</div>
-  ${item.toppings?.length ? `<div class="cup-toppings"><b>Topping:</b><br/>${item.toppings.join('<br/>')}</div>` : ''}
-  <div class="line"></div>
-  <div style="font-size:10px;text-align:center">${meta.orderNumber} · ${meta.time.toLocaleTimeString('vi-VN')}</div>
-</div>`);
+        options.push('COMBO TÙY CHỈNH');
       } else {
-        stickers.push(`
-<div class="cup-label">
-  <div class="cup-name">${item.productName}</div>
-  <div class="cup-meta">${item.size || '360ml'} · Túi ${item.bagSize || '-'} · Protein ${item.protein ?? 40}g</div>
-  <div class="cup-toppings">
-    <b>Thành phần / Topping:</b><br/>
-    ${item.toppings && item.toppings.length > 0 ? item.toppings.join('<br/>') : 'Không thêm topping'}
-  </div>
-  <div class="line"></div>
-  <div style="font-size:10px;text-align:center">${meta.orderNumber} · ${meta.time.toLocaleTimeString('vi-VN')}</div>
-</div>`);
+        if (item.size) options.push(item.size);
+        if (item.bagSize) options.push(`Túi ${item.bagSize}`);
+        if (item.protein != null) options.push(`Protein ${item.protein}g`);
       }
+      if (item.toppings && item.toppings.length > 0) options.push(...item.toppings);
+      if (meta.note) options.push(`Ghi chú: ${meta.note}`);
+
+      stickers.push(`
+<div class="cup-label">
+  <div class="cup-order">${meta.orderNumber}(${cupIndex}/${totalCups})</div>
+  <div class="line"></div>
+  <div class="cup-name">${item.productName}</div>
+  ${options.length > 0 ? `<ul class="cup-options">${options.map((o) => `<li>${o}</li>`).join('')}</ul>` : ''}
+  <div class="line"></div>
+  <div class="cup-footer">${item.price.toLocaleString('vi-VN')}đ - ${dateStr} ${timeStr}</div>
+</div>`);
     }
   });
 
@@ -280,7 +287,7 @@ export function printBothAfterPayment(
   receipt: CustomerReceiptData,
   cupLines: PosPrintLine[]
 ) {
-  printCupLabels(cupLines, { orderNumber: receipt.orderNumber, time: receipt.time });
+  printCupLabels(cupLines, { orderNumber: receipt.orderNumber, time: receipt.time, note: receipt.note });
   setTimeout(() => printCustomerReceipt(receipt), 400);
 }
 

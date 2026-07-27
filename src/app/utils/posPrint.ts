@@ -2,7 +2,7 @@
 
 import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
 import { htmlToEscposCommands, renderIsolatedHtml, BASE_RENDER_WIDTH_PX } from './escposRaster';
-import { htmlToTsplCommands } from './tsplRaster';
+import { htmlToTsplCommands, htmlLabelsToTsplCommands } from './tsplRaster';
 import * as api from './api';
 
 /** Cấu hình khổ giấy + cỡ chữ cho bill khách (role "receipt") — nhân viên tự chỉnh trong màn
@@ -109,6 +109,11 @@ function dotsForWidthMm(widthMm: number): number {
   return Math.round((widthMm / 25.4) * 203);
 }
 
+/** Khổ tem cắt sẵn cố định đang dùng (đo thực tế): 48x30mm, khoảng gap giữa 2 tờ ~2mm. */
+const LABEL_WIDTH_MM = 48;
+const LABEL_HEIGHT_MM = 30;
+const LABEL_GAP_MM = 2;
+
 /** Render 1 đoạn HTML thành lệnh in và gửi thẳng qua USB tới máy in đã kết nối cho role này.
  * Máy in bill ("receipt") dùng chuẩn ESC/POS; máy in tem ("label", VD iTP3350) dùng chuẩn TSPL
  * — 2 dòng máy in nhiệt này không chung 1 chuẩn lệnh, gửi nhầm chuẩn khiến USB vẫn báo gửi lệnh
@@ -131,7 +136,7 @@ export async function printHtmlViaUsb(
     const renderWidthPx = Math.round(BASE_RENDER_WIDTH_PX / fontScale);
     const commands =
       role === 'label'
-        ? await htmlToTsplCommands(bodyHtml, RECEIPT_STYLE, paperWidthMm, renderWidthPx)
+        ? await htmlToTsplCommands(bodyHtml, RECEIPT_STYLE, LABEL_WIDTH_MM, LABEL_HEIGHT_MM, LABEL_GAP_MM, renderWidthPx)
         : await htmlToEscposCommands(bodyHtml, RECEIPT_STYLE, dotsForWidthMm(paperWidthMm), renderWidthPx);
     await sendToPrinter(device, commands);
     return { ok: true };
@@ -140,6 +145,33 @@ export async function printHtmlViaUsb(
     console.error(`In USB thất bại (${role}):`, err);
     return { ok: false, error: message };
   }
+}
+
+/** In nhiều tem dán ly — mỗi tem là 1 chuỗi HTML riêng, khớp đúng khung tem cắt sẵn cố định
+ * (48x30mm, gap 2mm) — KHÔNG gộp chung thành 1 ảnh dài như trước (gộp chung khiến nội dung tràn
+ * qua tờ kế tiếp khi có nhiều topping, bị cắt đứt đoạn giữa chừng). Nếu chưa kết nối máy in tem
+ * qua USB, rơi về cách in cũ (mở cửa sổ in, gộp tất cả tem vào 1 trang để xem/in thử bằng máy in
+ * thường — không áp dụng giới hạn khung tem vì đây chỉ là bản xem tạm, không phải in tem thật).
+ */
+async function printLabelsViaUsbOrWindow(title: string, stickerHtmls: string[]) {
+  const device = await getRememberedPrinter('label').catch(() => null);
+  if (device) {
+    try {
+      const commands = await htmlLabelsToTsplCommands(
+        stickerHtmls,
+        RECEIPT_STYLE,
+        LABEL_WIDTH_MM,
+        LABEL_HEIGHT_MM,
+        LABEL_GAP_MM,
+        BASE_RENDER_WIDTH_PX
+      );
+      await sendToPrinter(device, commands);
+      return;
+    } catch (err) {
+      console.error('In USB thất bại (label):', err);
+    }
+  }
+  openPrintWindow(title, stickerHtmls.join(''), LABEL_WIDTH_MM, 1);
 }
 
 /**
@@ -280,7 +312,7 @@ export async function printCupLabels(
 
   if (stickers.length === 0) return;
 
-  await printViaUsbOrWindow('label', 'Tem dán ly', stickers.join(''), 48);
+  await printLabelsViaUsbOrWindow('Tem dán ly', stickers);
 }
 
 export function printBothAfterPayment(

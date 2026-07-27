@@ -3,9 +3,9 @@ import type { Order } from '../../contexts/OrderContext';
 
 export const sourceColors: Record<string, string> = {
   counter: 'bg-green-500',
-  mobile: 'bg-emerald-600',
-  web: 'bg-emerald-500',
-  online_sales: 'bg-purple-600',
+  mobile: 'bg-sky-600',
+  web: 'bg-sky-600',
+  online_sales: 'bg-sky-600',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -13,6 +13,17 @@ export const sourceLabels: Record<string, string> = {
   mobile: 'Đặt Online',
   web: 'Web',
   online_sales: 'CSKH Chốt Đơn',
+};
+
+// Nhóm nguồn đơn: "off" (bán trực tiếp tại quầy) vs "online" (mobile/web/CSKH chốt đơn) —
+// dùng để tách tab và tô màu thẻ đơn cho dễ phân biệt nhanh trong hàng đợi.
+export function isOnlineSource(source: string): boolean {
+  return source !== 'counter';
+}
+
+export const orderCardColors = {
+  counter: { border: 'border-green-300 hover:border-green-400', bg: 'bg-green-50/60' },
+  online: { border: 'border-sky-300 hover:border-sky-400', bg: 'bg-sky-50/60' },
 };
 
 export const statusBadgeColors: Record<Order['status'], string> = {

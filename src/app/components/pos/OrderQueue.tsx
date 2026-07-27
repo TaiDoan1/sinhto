@@ -4,8 +4,10 @@ import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { VoidOrderModal } from './VoidOrderModal';
 import { OrderDetailModal } from './OrderDetailModal';
-import { sourceColors, sourceLabels, statusBadgeColors, statusShortLabels, getPrimaryAction } from './orderQueueShared';
+import { sourceColors, sourceLabels, statusBadgeColors, statusShortLabels, getPrimaryAction, isOnlineSource, orderCardColors } from './orderQueueShared';
 import type { Order } from '../../contexts/OrderContext';
+
+type QueueFilter = 'all' | 'counter' | 'online';
 
 export function OrderQueue({ branchId }: { branchId: string }) {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -14,6 +16,7 @@ export function OrderQueue({ branchId }: { branchId: string }) {
   const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [editingOrderData, setEditingOrderData] = useState<{orderId: string, itemIdx: number} | null>(null);
   const [initialComboData, setInitialComboData] = useState<any>(null);
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('all');
 
   const weekDayLabels = [
     { id: 0, label: 'CN' }, { id: 1, label: 'T2' }, { id: 2, label: 'T3' },
@@ -51,22 +54,58 @@ export function OrderQueue({ branchId }: { branchId: string }) {
   // Danh sách hiển thị luôn phản ánh order mới nhất (vd sau khi updateOrderStatus) khi popup chi tiết đang mở
   const detailOrderLive = detailOrder ? orders.find(o => o.id === detailOrder.id) || detailOrder : null;
 
+  const counterCount = orders.filter(o => !isOnlineSource(o.source)).length;
+  const onlineCount = orders.filter(o => isOnlineSource(o.source)).length;
+  const filteredOrders = orders.filter(o => {
+    if (queueFilter === 'counter') return !isOnlineSource(o.source);
+    if (queueFilter === 'online') return isOnlineSource(o.source);
+    return true;
+  });
+
+  const queueTabs: { id: QueueFilter; label: string; count: number }[] = [
+    { id: 'all', label: 'Tất cả', count: orders.length },
+    { id: 'counter', label: 'Tại quầy', count: counterCount },
+    { id: 'online', label: 'Online', count: onlineCount },
+  ];
+
   return (
     <div className="flex flex-col h-full bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-2 px-3 pt-3 shrink-0">
+        {queueTabs.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setQueueFilter(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+              queueFilter === t.id
+                ? 'bg-emerald-600 text-white'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300'
+            }`}
+          >
+            {t.label}
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+              queueFilter === t.id ? 'bg-white/20' : 'bg-gray-100'
+            }`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="text-center text-gray-400 py-20">
             <Package className="w-20 h-20 mx-auto mb-4 opacity-50" />
             <p className="text-lg">Không có đơn hàng</p>
             <p className="text-sm mt-2">Đơn hàng mới sẽ hiện tại đây</p>
           </div>
         ) : (
-          orders.map(order => {
+          filteredOrders.map(order => {
             const elapsed = getElapsedMinutes(order.time);
             const isOverdue = elapsed > 15;
             const primaryAction = getPrimaryAction(order);
             const summary = order.customerName
               || (order.items || []).map(i => typeof i === 'string' ? i : i?.name).filter(Boolean).join(', ');
+            const groupColors = isOnlineSource(order.source) ? orderCardColors.online : orderCardColors.counter;
 
             return (
               <div
@@ -75,8 +114,8 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                 tabIndex={0}
                 onClick={() => setDetailOrder(order)}
                 onKeyDown={(e) => { if (e.key === 'Enter') setDetailOrder(order); }}
-                className={`w-full flex items-center gap-2 rounded-xl px-3 py-2.5 border-2 bg-white shadow-sm cursor-pointer transition-all ${
-                  isOverdue ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-emerald-300'
+                className={`w-full flex items-center gap-2 rounded-xl px-3 py-2.5 border-2 shadow-sm cursor-pointer transition-all ${
+                  isOverdue ? 'border-red-400 bg-red-50' : `${groupColors.border} ${groupColors.bg}`
                 }`}
               >
                 <div className="text-lg font-black text-emerald-700 shrink-0 w-11 text-center">

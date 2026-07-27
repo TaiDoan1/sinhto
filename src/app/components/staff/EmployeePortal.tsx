@@ -341,13 +341,32 @@ export function EmployeePortal() {
     }
   };
 
-  const handleDownloadBillImage = () => {
+  // <a download> chỉ tải vào Files/Downloads, KHÔNG vào Album ảnh — trình duyệt chỉ cho web
+  // ghi thẳng vào Album qua hộp thoại chia sẻ gốc (chọn "Lưu ảnh"), nên ưu tiên share trước,
+  // chỉ tải file khi máy/trình duyệt không hỗ trợ share ảnh.
+  const handleSaveBillImage = async () => {
     if (!billImageUrl) return;
     const namePart = (closedSummary?.employeeName || activeEmployee.fullName || 'bill').replace(/\s+/g, '-');
     const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `bill-ket-ca-${namePart}-${dateStr}.png`;
+
+    try {
+      const res = await fetch(billImageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], fileName, { type: 'image/png' });
+      const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> };
+      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+        await nav.share({ files: [file], title: 'Bill kết ca' });
+        return;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      // Lỗi khác — rơi xuống tải file trực tiếp bên dưới.
+    }
+
     const a = document.createElement('a');
     a.href = billImageUrl;
-    a.download = `bill-ket-ca-${namePart}-${dateStr}.png`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1064,12 +1083,15 @@ export function EmployeePortal() {
                 <img src={billImageUrl} alt="Bill kết ca" className="w-full rounded-lg border mb-3" />
                 <button
                   type="button"
-                  onClick={handleDownloadBillImage}
+                  onClick={handleSaveBillImage}
                   className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold text-sm"
                 >
                   <Download className="w-4 h-4" />
-                  Tải ảnh về máy
+                  Lưu ảnh vào Album
                 </button>
+                <p className="text-center text-[11px] text-gray-400 mt-2">
+                  Nếu không lưu được, giữ ảnh và chọn "Lưu ảnh" để lưu vào Album.
+                </p>
               </>
             ) : (
               <div className="flex items-center justify-center py-20 text-gray-400">

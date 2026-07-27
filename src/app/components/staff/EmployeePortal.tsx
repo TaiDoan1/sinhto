@@ -1038,31 +1038,20 @@ export function EmployeePortal() {
       )}
 
       {showBillPreview && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm my-4 flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-emerald-600" />
-                Bill kết ca
-              </h3>
-              <button type="button" onClick={() => setShowBillPreview(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="overflow-y-auto p-4">
-              <style>{RECEIPT_STYLE}</style>
-              <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
-            </div>
-            <div className="p-3 border-t shrink-0 space-y-2">
-              <p className="text-center text-xs text-gray-400">
-                Chụp màn hình (screenshot) để lưu bill vào máy hoặc gửi Zalo cho quản lý.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowBillPreview(false)}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm"
-              >
-                Đóng
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
+          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b bg-white/95 backdrop-blur">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-emerald-600" />
+              Bill kết ca
+            </h3>
+            <button type="button" onClick={() => setShowBillPreview(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
+          </div>
+          <p className="text-center text-xs text-gray-400 pt-3">
+            Chụp màn hình (screenshot) để lưu bill vào máy hoặc gửi Zalo cho quản lý.
+          </p>
+          <div className="p-4 max-w-sm mx-auto">
+            <style>{RECEIPT_STYLE}</style>
+            <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
           </div>
         </div>
       )}

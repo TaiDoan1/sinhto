@@ -3,6 +3,7 @@
 import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
 import { htmlToEscposCommands, renderIsolatedHtml, BASE_RENDER_WIDTH_PX } from './escposRaster';
 import { htmlToTsplCommands, htmlLabelsToTsplCommands } from './tsplRaster';
+import { lookupMacro } from './macroData';
 import * as api from './api';
 
 /** Cấu hình khổ giấy + cỡ chữ cho bill khách (role "receipt") — nhân viên tự chỉnh trong màn
@@ -299,6 +300,10 @@ export async function printCupLabels(
 
       const options: string[] = [];
       if (!item.isCustomCombo && item.bagSize) options.push(`Túi ${item.bagSize}`);
+      // Tra bảng Macro Tham Khảo (Bán hàng → Macro) theo đúng vị + size + topping đã chọn —
+      // cộng dồn cả cal/fat của topping vào, không hiện dòng này nếu không khớp được vị/size nào.
+      const macro = !item.isCustomCombo ? lookupMacro(item.productName, item.size, item.toppings) : null;
+      if (macro) options.push(`~${macro.cal} kcal · Fat ${macro.fat}g`);
       if (item.toppings && item.toppings.length > 0) options.push(...item.toppings);
       if (meta.note) options.push(`Ghi chú: ${meta.note}`);
 

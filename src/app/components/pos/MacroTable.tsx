@@ -2,81 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { BookOpen, Info, Leaf, Edit2, Save, X, RotateCcw } from 'lucide-react';
+import { DEFAULT_MACRO_SIZES, DEFAULT_MACRO_TOPPINGS } from '../../utils/macroData';
 
 // ============================================================
-// DỮ LIỆU MACRO MẶC ĐỊNH TRÍCH TỪ FILE PDF BẢNG THAM KHẢO FITBLEND
+// DỮ LIỆU MACRO MẶC ĐỊNH TRÍCH TỪ FILE PDF BẢNG THAM KHẢO FITBLEND — chuyển sang
+// utils/macroData.ts để dùng chung với tem dán ly (posPrint.ts), tránh 2 nơi lệch dữ liệu.
 // ============================================================
 
-const DEFAULT_SIZES = [
-  {
-    label: 'Standard',
-    ml: '360ml',
-    protein: '40g',
-    color: 'from-emerald-500 to-teal-500',
-    bgLight: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
-    textColor: 'text-emerald-700',
-    headerBg: 'bg-emerald-600',
-    data: [
-      { flavor: 'Chuối hạt chia',      cal: 320, protein: 40, carb: 24, fat: 7 },
-      { flavor: 'Dâu chuối',           cal: 300, protein: 40, carb: 22, fat: 5 },
-      { flavor: 'Cacao yến mạch',      cal: 360, protein: 40, carb: 30, fat: 8 },
-      { flavor: 'Bơ chuối',            cal: 390, protein: 40, carb: 20, fat: 15 },
-      { flavor: 'Việt quất chuối',     cal: 310, protein: 40, carb: 25, fat: 5 },
-      { flavor: 'Phúc bồn tử chuối',  cal: 300, protein: 40, carb: 23, fat: 5 },
-      { flavor: 'Xoài cam',            cal: 290, protein: 40, carb: 26, fat: 4 },
-      { flavor: 'Chanh dây chuối',     cal: 305, protein: 40, carb: 27, fat: 4 },
-    ],
-  },
-  {
-    label: 'Large',
-    ml: '500ml',
-    protein: '60g',
-    color: 'from-blue-500 to-indigo-500',
-    bgLight: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    textColor: 'text-blue-700',
-    headerBg: 'bg-blue-600',
-    data: [
-      { flavor: 'Chuối hạt chia',      cal: 430, protein: 60, carb: 30, fat: 9 },
-      { flavor: 'Dâu chuối',           cal: 410, protein: 60, carb: 28, fat: 7 },
-      { flavor: 'Cacao yến mạch',      cal: 490, protein: 60, carb: 38, fat: 11 },
-      { flavor: 'Bơ chuối',            cal: 540, protein: 60, carb: 26, fat: 20 },
-      { flavor: 'Việt quất chuối',     cal: 420, protein: 60, carb: 32, fat: 7 },
-      { flavor: 'Phúc bồn tử chuối',  cal: 415, protein: 60, carb: 30, fat: 7 },
-      { flavor: 'Xoài cam',            cal: 400, protein: 60, carb: 34, fat: 6 },
-      { flavor: 'Chanh dây chuối',     cal: 410, protein: 60, carb: 35, fat: 6 },
-    ],
-  },
-  {
-    label: 'Elite Mass',
-    ml: '700ml',
-    protein: '90g',
-    color: 'from-purple-500 to-rose-500',
-    bgLight: 'bg-purple-50',
-    borderColor: 'border-purple-200',
-    textColor: 'text-purple-700',
-    headerBg: 'bg-purple-600',
-    data: [
-      { flavor: 'Chuối hạt chia',      cal: 620, protein: 90, carb: 42, fat: 13 },
-      { flavor: 'Dâu chuối',           cal: 590, protein: 90, carb: 38, fat: 10 },
-      { flavor: 'Cacao yến mạch',      cal: 710, protein: 90, carb: 55, fat: 16 },
-      { flavor: 'Bơ chuối',            cal: 780, protein: 90, carb: 35, fat: 28 },
-      { flavor: 'Việt quất chuối',     cal: 600, protein: 90, carb: 44, fat: 10 },
-      { flavor: 'Phúc bồn tử chuối',  cal: 595, protein: 90, carb: 42, fat: 10 },
-      { flavor: 'Xoài cam',            cal: 570, protein: 90, carb: 48, fat: 8 },
-      { flavor: 'Chanh dây chuối',     cal: 585, protein: 90, carb: 50, fat: 8 },
-    ],
-  },
-];
-
-const DEFAULT_TOPPINGS = [
-  { name: 'Bơ đậu phộng', cal: '+90', protein: '+4g', carb: '+3g', fat: '+8g' },
-  { name: 'Dừa sấy',       cal: '+70', protein: '+1g', carb: '+3g', fat: '+6g' },
-  { name: 'Hạt đác',       cal: '+35', protein: '0g',  carb: '+8g', fat: '0g'  },
-  { name: 'Yến mạch',      cal: '+80', protein: '+3g', carb: '+14g',fat: '+1.5g'},
-  { name: 'Chia seed',     cal: '+60', protein: '+2g', carb: '+5g', fat: '+4g' },
-];
+const DEFAULT_SIZES = DEFAULT_MACRO_SIZES;
+const DEFAULT_TOPPINGS = DEFAULT_MACRO_TOPPINGS;
 
 export function MacroTable() {
   const [activeSize, setActiveSize] = useState(0);

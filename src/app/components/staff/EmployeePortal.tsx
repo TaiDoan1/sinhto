@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer } from 'lucide-react';
+import { LogOut, Save, Loader2, CheckCircle, MapPin, Camera, X, Clock, CalendarOff, Receipt, Printer, Download } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
@@ -339,6 +339,18 @@ export function EmployeePortal() {
     } finally {
       setPrintingClosedBill(false);
     }
+  };
+
+  const handleDownloadBillImage = () => {
+    if (!billImageUrl) return;
+    const namePart = (closedSummary?.employeeName || activeEmployee.fullName || 'bill').replace(/\s+/g, '-');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = billImageUrl;
+    a.download = `bill-ket-ca-${namePart}-${dateStr}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const statusLabel: Record<string, string> = {
@@ -1046,12 +1058,19 @@ export function EmployeePortal() {
             </h3>
             <button type="button" onClick={() => setShowBillPreview(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
           </div>
-          <p className="text-center text-xs text-gray-400 pt-3 px-4">
-            Nhấn giữ vào ảnh bên dưới rồi chọn "Lưu ảnh" để lưu thẳng vào album, hoặc "Chia sẻ" để gửi Zalo.
-          </p>
           <div className="p-4 max-w-sm mx-auto">
             {billImageUrl ? (
-              <img src={billImageUrl} alt="Bill kết ca" className="w-full rounded-lg border" />
+              <>
+                <img src={billImageUrl} alt="Bill kết ca" className="w-full rounded-lg border mb-3" />
+                <button
+                  type="button"
+                  onClick={handleDownloadBillImage}
+                  className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Tải ảnh về máy
+                </button>
+              </>
             ) : (
               <div className="flex items-center justify-center py-20 text-gray-400">
                 <Loader2 className="w-6 h-6 animate-spin" />

@@ -26,7 +26,9 @@ function canvasToTsplBitmap(canvas: HTMLCanvasElement): { widthBytes: number; he
       const a = imageData.data[idx + 3];
       const luminance = r * 0.299 + g * 0.587 + b * 0.114;
       const isDark = a > 128 && luminance < 200;
-      if (isDark) {
+      // Firmware của máy này hiểu bit=1 là "để trắng" và bit=0 là "in đen" — ngược với quy ước
+      // ESC/POS raster thông thường (bit=1 = in đen). Không đảo lại thì tem ra nền đen chữ trắng.
+      if (!isDark) {
         const byteIndex = y * widthBytes + (x >> 3);
         bitmap[byteIndex] |= 0x80 >> (x % 8);
       }

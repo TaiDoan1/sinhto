@@ -492,3 +492,13 @@ export async function printShiftClosingReceipt(data: ShiftClosingReceiptData) {
   await printViaUsbOrWindow('receipt', 'Bill kết ca', buildShiftClosingHtml(data), 58);
 }
 
+/** Render bill kết ca thành 1 ảnh PNG DUY NHẤT (data URL) chứa TOÀN BỘ nội dung, không phụ
+ * thuộc chiều cao màn hình điện thoại — vì màn hình chỉ chụp được đúng phần đang hiển thị nên
+ * bill dài (nhiều sản phẩm) sẽ luôn bị chụp thiếu nếu hiện dạng HTML cuộn thông thường. Người
+ * dùng chỉ cần nhấn giữ vào ảnh và chọn "Lưu ảnh" — thao tác gốc của máy, chạy được ở mọi nơi
+ * (kể cả webview Zalo), không qua share sheet hay download API nào cả. */
+export async function renderShiftClosingReceiptImage(data: ShiftClosingReceiptData): Promise<string> {
+  const canvas = await renderIsolatedHtml(buildShiftClosingHtml(data), RECEIPT_STYLE, 420);
+  return canvas.toDataURL('image/png');
+}
+

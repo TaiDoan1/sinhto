@@ -13,9 +13,8 @@ import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 import type { WorkShift } from '../../types/employee';
 import {
   buildShiftClosingReceiptData,
-  buildShiftClosingHtml,
+  renderShiftClosingReceiptImage,
   DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE,
-  RECEIPT_STYLE,
   type ShiftClosingBillTemplate,
   type ShiftClosingReceiptData,
 } from '../../utils/posPrint';
@@ -74,7 +73,7 @@ export function EmployeePortal() {
   const [closingSubmitting, setClosingSubmitting] = useState(false);
   const [findingShiftToClose, setFindingShiftToClose] = useState(false);
   const [showBillPreview, setShowBillPreview] = useState(false);
-  const [closedBillHtml, setClosedBillHtml] = useState('');
+  const [billImageUrl, setBillImageUrl] = useState('');
   const [closedSummary, setClosedSummary] = useState<ShiftClosingReceiptData | null>(null);
   const [printingClosedBill, setPrintingClosedBill] = useState(false);
 
@@ -295,7 +294,7 @@ export function EmployeePortal() {
       // Bill online — hiện ngay trên màn hình thay vì bắt buộc in giấy, đỡ tốn giấy như yêu cầu.
       const finalSummary = { ...closingSummary, endCashActual: Number(closingActualCashInput) };
       setClosedSummary(finalSummary);
-      setClosedBillHtml(buildShiftClosingHtml(finalSummary));
+      setBillImageUrl(await renderShiftClosingReceiptImage(finalSummary));
       setClosingShift(null);
       setShowBillPreview(true);
     } catch {
@@ -310,6 +309,7 @@ export function EmployeePortal() {
   // kết ca xong: có nút tải ảnh về máy + in giấy tùy chọn, không tự động in luôn.
   const handlePrintClosedShiftBill = async (shift: WorkShift) => {
     setPrintingClosedBill(true);
+    setBillImageUrl('');
     try {
       let shiftOrders: any[] = [];
       try {
@@ -332,7 +332,7 @@ export function EmployeePortal() {
       }
       const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
       setClosedSummary(data);
-      setClosedBillHtml(buildShiftClosingHtml(data));
+      setBillImageUrl(await renderShiftClosingReceiptImage(data));
       setShowBillPreview(true);
     } catch {
       alert('Không lấy được dữ liệu bill — thử lại nhé.');
@@ -1046,12 +1046,17 @@ export function EmployeePortal() {
             </h3>
             <button type="button" onClick={() => setShowBillPreview(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
           </div>
-          <p className="text-center text-xs text-gray-400 pt-3">
-            Chụp màn hình (screenshot) để lưu bill vào máy hoặc gửi Zalo cho quản lý.
+          <p className="text-center text-xs text-gray-400 pt-3 px-4">
+            Nhấn giữ vào ảnh bên dưới rồi chọn "Lưu ảnh" để lưu thẳng vào album, hoặc "Chia sẻ" để gửi Zalo.
           </p>
           <div className="p-4 max-w-sm mx-auto">
-            <style>{RECEIPT_STYLE}</style>
-            <div dangerouslySetInnerHTML={{ __html: closedBillHtml }} />
+            {billImageUrl ? (
+              <img src={billImageUrl} alt="Bill kết ca" className="w-full rounded-lg border" />
+            ) : (
+              <div className="flex items-center justify-center py-20 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            )}
           </div>
         </div>
       )}

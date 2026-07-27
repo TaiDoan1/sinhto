@@ -2,6 +2,7 @@
 
 import { getRememberedPrinter, sendToPrinter, type PrinterRole } from './webUsbPrinter';
 import { htmlToEscposCommands, renderIsolatedHtml, BASE_RENDER_WIDTH_PX } from './escposRaster';
+import { htmlToTsplCommands } from './tsplRaster';
 import * as api from './api';
 
 /** Cấu hình khổ giấy + cỡ chữ cho bill khách (role "receipt") — nhân viên tự chỉnh trong màn
@@ -105,7 +106,10 @@ function dotsForWidthMm(widthMm: number): number {
   return Math.round((widthMm / 25.4) * 203);
 }
 
-/** Render 1 đoạn HTML hóa đơn ra lệnh ESC/POS và gửi thẳng qua USB tới máy in đã kết nối cho role này. */
+/** Render 1 đoạn HTML thành lệnh in và gửi thẳng qua USB tới máy in đã kết nối cho role này.
+ * Máy in bill ("receipt") dùng chuẩn ESC/POS; máy in tem ("label", VD iTP3350) dùng chuẩn TSPL
+ * — 2 dòng máy in nhiệt này không chung 1 chuẩn lệnh, gửi nhầm chuẩn khiến USB vẫn báo gửi lệnh
+ * thành công nhưng máy hoàn toàn im lặng vì không hiểu được lệnh nhận vào. */
 export async function printHtmlViaUsb(
   role: PrinterRole,
   bodyHtml: string,
@@ -122,7 +126,10 @@ export async function printHtmlViaUsb(
     // sẽ chiếm tỉ lệ lớn hơn trong bề rộng render, nên sau khi co giãn về đúng khổ giấy thật,
     // chữ hiện to hơn tương ứng mà không cần sửa từng font-size trong các mẫu bill.
     const renderWidthPx = Math.round(BASE_RENDER_WIDTH_PX / fontScale);
-    const commands = await htmlToEscposCommands(bodyHtml, RECEIPT_STYLE, dotsForWidthMm(paperWidthMm), renderWidthPx);
+    const commands =
+      role === 'label'
+        ? await htmlToTsplCommands(bodyHtml, RECEIPT_STYLE, paperWidthMm, renderWidthPx)
+        : await htmlToEscposCommands(bodyHtml, RECEIPT_STYLE, dotsForWidthMm(paperWidthMm), renderWidthPx);
     await sendToPrinter(device, commands);
     return { ok: true };
   } catch (err) {

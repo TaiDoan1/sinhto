@@ -503,29 +503,15 @@ export async function saveShiftClosingReceiptAsImage(data: ShiftClosingReceiptDa
 
   const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('Không tạo được ảnh bill');
-  const file = new File([blob], fileName, { type: 'image/png' });
 
-  const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> };
-  if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
-    try {
-      await nav.share({ files: [file], title: 'Bill kết ca' });
-      return;
-    } catch (err) {
-      // Người dùng tự bấm Hủy trên hộp thoại chia sẻ — không phải lỗi, không cần rơi về cách khác.
-      if (err instanceof Error && err.name === 'AbortError') return;
-    }
-  }
-
-  // Trình duyệt không hỗ trợ chia sẻ file (VD desktop) — mở ảnh ở tab mới để nhấn giữ lưu thủ
-  // công; nếu popup bị chặn thì mới rơi về tải file thông thường.
-  const dataUrl = canvas.toDataURL('image/png');
-  const win = window.open(dataUrl, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+  // Tải thẳng file về máy qua thẻ <a download> — không dùng navigator.share nữa vì trong
+  // webview Zalo, share sheet cố mở app ngoài rồi báo "không tìm thấy ứng dụng" thay vì lưu ảnh.
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

@@ -126,6 +126,10 @@ export function HRPayroll() {
   });
 
   const [checkinRecords, setCheckinRecords] = useState<CheckInRecord[]>([]);
+  const [checkinStart, setCheckinStart] = useState<string>('');
+  const [checkinEnd, setCheckinEnd] = useState<string>('');
+  const [checkinBranchFilter, setCheckinBranchFilter] = useState<string>('ALL');
+  const [checkinEmployeeQuery, setCheckinEmployeeQuery] = useState<string>('');
   const [comboSubscriptions, setComboSubscriptions] = useState<{ careStaffId?: string; closedByStaffId?: string; status: string; createdAt?: string }[]>([]);
   const [selectedCheckInRecord, setSelectedCheckInRecord] = useState<CheckInRecord | null>(null);
   const [backupStatus, setBackupStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
@@ -350,6 +354,19 @@ export function HRPayroll() {
     }
     return `tháng ${payrollMonth}`;
   })();
+
+  // Lọc lịch sử check-in/out theo khoảng ngày + chi nhánh + tên/mã NV — mặc định không lọc gì
+  // (checkinStart/End rỗng) để vẫn thấy ngay danh sách gần nhất như trước, chỉ lọc khi nhập.
+  const filteredCheckinRecords = checkinRecords.filter((r) => {
+    if (checkinStart && r.date < checkinStart) return false;
+    if (checkinEnd && r.date > checkinEnd) return false;
+    if (checkinBranchFilter !== 'ALL' && r.location !== checkinBranchFilter) return false;
+    if (checkinEmployeeQuery.trim()) {
+      const q = checkinEmployeeQuery.trim().toLowerCase();
+      if (!r.employeeName.toLowerCase().includes(q) && !r.employeeId.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const tabs = [
     { id: 'payroll' as PayrollTab, label: 'Bảng Lương', icon: DollarSign },
@@ -840,6 +857,48 @@ export function HRPayroll() {
                 </ul>
               </div>
             )}
+
+            <div className="flex items-center gap-2 flex-wrap mt-4">
+              <input
+                type="date"
+                value={checkinStart}
+                onChange={(e) => setCheckinStart(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              />
+              <span className="text-gray-400 text-sm">đến</span>
+              <input
+                type="date"
+                value={checkinEnd}
+                onChange={(e) => setCheckinEnd(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              />
+              <select
+                value={checkinBranchFilter}
+                onChange={(e) => setCheckinBranchFilter(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              >
+                <option value="ALL">Tất cả chi nhánh</option>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={checkinEmployeeQuery}
+                onChange={(e) => setCheckinEmployeeQuery(e.target.value)}
+                placeholder="Tìm theo tên/mã NV..."
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm flex-1 min-w-[160px]"
+              />
+              {(checkinStart || checkinEnd || checkinBranchFilter !== 'ALL' || checkinEmployeeQuery) && (
+                <button
+                  type="button"
+                  onClick={() => { setCheckinStart(''); setCheckinEnd(''); setCheckinBranchFilter('ALL'); setCheckinEmployeeQuery(''); }}
+                  className="text-sm text-gray-500 underline hover:text-gray-700"
+                >
+                  Bỏ lọc
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -857,7 +916,7 @@ export function HRPayroll() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {checkinRecords.slice(0, 50).map(record => (
+                {filteredCheckinRecords.slice(0, 50).map(record => (
                   <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {new Date(record.date).toLocaleDateString('vi-VN')}
@@ -921,16 +980,17 @@ export function HRPayroll() {
           <div className="p-4 bg-gray-50 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600">
-                Hiển thị 50 bản ghi gần nhất
+                Hiển thị {Math.min(50, filteredCheckinRecords.length)}/{filteredCheckinRecords.length} bản ghi
+                {filteredCheckinRecords.length !== checkinRecords.length ? ` (đã lọc từ ${checkinRecords.length})` : ' gần nhất'}
               </p>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-xs text-gray-600">Đúng Giờ: {checkinRecords.filter(r => r.status === 'on-time').length}</span>
+                  <span className="text-xs text-gray-600">Đúng Giờ: {filteredCheckinRecords.filter(r => r.status === 'on-time').length}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-xs text-gray-600">Đi Muộn: {checkinRecords.filter(r => r.status === 'late').length}</span>
+                  <span className="text-xs text-gray-600">Đi Muộn: {filteredCheckinRecords.filter(r => r.status === 'late').length}</span>
                 </div>
               </div>
             </div>

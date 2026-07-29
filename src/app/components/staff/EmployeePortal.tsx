@@ -131,7 +131,19 @@ export function EmployeePortal() {
   // xác nhận, ca đó vẫn phải hiện ra để họ chụp bổ sung (ảnh tách riêng khỏi giờ/trạng thái ca,
   // xem PosContext.tsx). Trước đây lọc bỏ "completed" khiến ca biến mất hẳn khỏi app — nhân viên
   // không còn cách nào chụp ảnh checkout nữa.
-  const todayShift = myShifts.find(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status));
+  //
+  // Fix: khi có nhiều ca trong ngày (vd nhân viên làm 2 ca), ưu tiên ca chưa hoàn thành
+  // (scheduled/approved/in_progress) theo startTime tăng dần. Chỉ fallback về ca "completed"
+  // khi tất cả ca trong ngày đều đã xong — để nhân viên vẫn chụp được ảnh bổ sung.
+  const todayShift = (() => {
+    const todayShifts = myShifts
+      .filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return (
+      todayShifts.find(s => s.status !== 'completed') ?? // ưu tiên ca chưa xong
+      todayShifts[todayShifts.length - 1]                // fallback: ca completed cuối cùng
+    );
+  })();
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));
 
   // Lịch cả chi nhánh — gộp theo ngày để hiện dạng "ngày -> danh sách ai làm ca nào", chỉ lấy từ

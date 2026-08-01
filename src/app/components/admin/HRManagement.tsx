@@ -10,7 +10,12 @@ import { useAdmin } from '../../contexts/AdminContext';
 
 type HRTab = 'payroll' | 'register' | 'list' | 'schedule' | 'config' | 'inventory';
 
-export function HRManagement() {
+interface HRManagementProps {
+  /** Ẩn 2 tab Cài Đặt Lương/OT bên trong Bảng Lương — dùng cho màn hình Nhân Sự thu gọn. */
+  hidePayrollSettings?: boolean;
+}
+
+export function HRManagement({ hidePayrollSettings = false }: HRManagementProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
 
@@ -57,7 +62,7 @@ export function HRManagement() {
       </div>
 
       <div>
-        {activeTab === 'payroll' && <HRPayroll />}
+        {activeTab === 'payroll' && <HRPayroll hideSettingsTabs={hidePayrollSettings} />}
         {activeTab === 'schedule' && <ShiftSchedule />}
         {activeTab === 'register' && <EmployeeRegistration />}
         {activeTab === 'list' && <EmployeeList />}

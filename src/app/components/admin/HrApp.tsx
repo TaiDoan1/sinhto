@@ -45,7 +45,7 @@ export function HrApp() {
       </header>
 
       <main className="p-3 sm:p-6 max-w-7xl mx-auto">
-        <HRManagement />
+        <HRManagement hidePayrollSettings />
       </main>
     </div>
   );

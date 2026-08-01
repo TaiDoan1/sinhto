@@ -98,7 +98,13 @@ type PayrollTab = 'payroll' | 'salary-settings' | 'ot-settings' | 'checkin-histo
 
 import * as api from '../../utils/api';
 
-export function HRPayroll() {
+interface HRPayrollProps {
+  /** Ẩn 2 tab cấu hình (Cài Đặt Lương/OT) — dùng cho màn hình Nhân Sự thu gọn, chỉ xem/tính
+   * lương chứ không chỉnh công thức lương chung của cả hệ thống. */
+  hideSettingsTabs?: boolean;
+}
+
+export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   const [activeTab, setActiveTab] = useState<PayrollTab>('payroll');
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -368,32 +374,35 @@ export function HRPayroll() {
     return true;
   });
 
-  const tabs = [
+  const allTabs = [
     { id: 'payroll' as PayrollTab, label: 'Bảng Lương', icon: DollarSign },
     { id: 'salary-settings' as PayrollTab, label: 'Cài Đặt Lương', icon: Settings },
     { id: 'ot-settings' as PayrollTab, label: 'Cài Đặt OT', icon: Clock },
     { id: 'checkin-history' as PayrollTab, label: 'Lịch Sử Check In/Out', icon: History },
   ];
+  const tabs = hideSettingsTabs
+    ? allTabs.filter(t => t.id !== 'salary-settings' && t.id !== 'ot-settings')
+    : allTabs;
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Nhân Sự & Bảng Lương</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-6">Nhân Sự & Bảng Lương</h1>
 
-      <div className="mb-6 bg-white rounded-xl shadow-lg p-2">
-        <div className="flex gap-2">
+      <div className="mb-6 bg-white rounded-xl shadow-lg p-2 overflow-x-auto">
+        <div className="flex gap-2 min-w-min">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base whitespace-nowrap transition-all ${
                   activeTab === tab.id
                     ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 sm:w-5 h-4 sm:h-5 shrink-0" />
                 {tab.label}
               </button>
             );

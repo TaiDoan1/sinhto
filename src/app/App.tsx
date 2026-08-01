@@ -24,6 +24,7 @@ import { GiftCampaigns } from "./components/admin/GiftCampaigns";
 import { OrderNotificationSettings } from "./components/admin/OrderNotificationSettings";
 import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
 import { StoreManagerApp } from "./components/admin/StoreManagerApp";
+import { HrApp } from "./components/admin/HrApp";
 import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
 import { OrderProvider } from "./contexts/OrderContext";
 import { ComboProvider } from "./contexts/ComboContext";
@@ -59,6 +60,7 @@ function DevModeNavigation({
     { id: "combo-ship", label: "🚚 Giao Combo" },
     { id: "admin", label: "⚙️ Admin" },
     { id: "store-manager", label: "🏪 Cửa hàng trưởng" },
+    { id: "hr", label: "🧑‍💼 Nhân Sự" },
   ];
 
   return (
@@ -99,6 +101,11 @@ function ModeSelectionScreen({
       mode: "store-manager",
       title: "Cửa hàng trưởng",
       description: "Đi tới màn hình riêng dành cho cửa hàng trưởng",
+    },
+    {
+      mode: "hr",
+      title: "Nhân Sự",
+      description: "Xem lịch làm, chấm công, check in/out và tính lương nhân viên",
     },
     {
       mode: "online-sales",
@@ -455,6 +462,19 @@ function AppContent() {
         <div className={devPad}>
           <AdminProvider>
             <StoreManagerApp />
+          </AdminProvider>
+        </div>
+      </>
+    );
+  }
+
+  if (mode === "hr") {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <AdminProvider>
+            <HrApp />
           </AdminProvider>
         </div>
       </>

@@ -3,7 +3,8 @@ import { Gift, Loader2, X, ArrowRight, Check } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { GiftCampaign } from '../../utils/api';
 import { useMenu } from '../../contexts/MenuContext';
-import { DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
+import { useMenuPricing } from '../../hooks/useMenuPricing';
+import { DEFAULT_TOPPINGS, DEFAULT_COMBO_TOPPINGS, formatToppingPrice, type MenuComboTopping } from '../../config/menuToppings';
 import type { CartItem } from './ModifierModal';
 
 interface Props {
@@ -22,21 +23,31 @@ interface Props {
  * trước). Chỉ ẩn khi chương trình hết hạn mức hoặc đã tặng trong đơn hiện tại. */
 export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffName, alreadyGifted, onGiftAdded }: Props) {
   const { products } = useMenu();
+  const { comboToppings: comboListFromApi } = useMenuPricing();
   const [campaign, setCampaign] = useState<GiftCampaign | null>(null);
   const [step, setStep] = useState<'closed' | 'phone' | 'flavor' | 'topping'>('closed');
   const [phone, setPhone] = useState('');
   const [pickedFlavor, setPickedFlavor] = useState('');
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
+  const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
   const [redeeming, setRedeeming] = useState(false);
 
   const dynamicToppings = products
     .filter((p) => p.category === 'toppings')
     .map((p) => ({ name: p.name, price: p.basePrice }));
   const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : DEFAULT_TOPPINGS;
+  const comboList = (comboListFromApi as MenuComboTopping[]).length > 0
+    ? (comboListFromApi as MenuComboTopping[])
+    : DEFAULT_COMBO_TOPPINGS;
   const toppingsExtra = selectedToppings.reduce((sum, name) => {
     const topping = toppingsList.find((t) => t.name === name);
     return sum + (topping?.price || 0);
   }, 0);
+  const comboExtra = selectedCombos.reduce((sum, comboId) => {
+    const combo = comboList.find((c) => c.id === comboId);
+    return sum + (combo?.price || 0);
+  }, 0);
+  const surchargeTotal = toppingsExtra + comboExtra;
 
   useEffect(() => {
     if (!branchId) return;
@@ -70,6 +81,7 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
   const handlePickFlavor = (productName: string) => {
     setPickedFlavor(productName);
     setSelectedToppings([]);
+    setSelectedCombos([]);
     setStep('topping');
   };
 
@@ -77,8 +89,12 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
     setSelectedToppings((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]));
   };
 
+  const toggleCombo = (comboId: string) => {
+    setSelectedCombos((prev) => (prev.includes(comboId) ? prev.filter((c) => c !== comboId) : [...prev, comboId]));
+  };
+
   // Ly nền (vị + size) luôn miễn phí theo hạn mức khuyến mãi — chỉ tính thêm tiền nếu khách
-  // chọn thêm topping, phần đó khách vẫn trả như đơn thường.
+  // chọn thêm topping/combo topping, phần đó khách vẫn trả như đơn thường.
   const handleConfirmToppings = async () => {
     setRedeeming(true);
     try {
@@ -90,14 +106,21 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
       });
       setCampaign(updated);
       setStep('closed');
+      const finalToppings = [
+        ...selectedCombos.map((comboId) => {
+          const combo = comboList.find((c) => c.id === comboId);
+          return `Combo Topping: ${combo?.name || comboId}`;
+        }),
+        ...selectedToppings,
+      ];
       onGiftAdded({
         productId: `gift-${campaign.id}-${Date.now()}`,
         productName: pickedFlavor,
         name: `${pickedFlavor} (Quà tặng KM)`,
         size: campaign.giftSize,
         protein: campaign.giftProtein,
-        toppings: selectedToppings,
-        price: toppingsExtra,
+        toppings: finalToppings,
+        price: surchargeTotal,
         quantity: 1,
         isGift: true,
         giftCampaignId: campaign.id,
@@ -207,11 +230,47 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="px-4 pt-3 text-xs text-gray-500">Ly nền miễn phí — topping chọn thêm khách vẫn trả tiền như bình thường.</p>
-            <div className="overflow-y-auto p-3 space-y-2">
+            <p className="px-4 pt-3 text-xs text-gray-500">Ly nền miễn phí — topping/combo topping chọn thêm khách vẫn trả tiền như bình thường.</p>
+            <div className="overflow-y-auto p-3 space-y-3">
+              {comboList.length > 0 && (
+                <div>
+                  <p className="text-xs font-black text-rose-700 uppercase tracking-wider mb-1.5">🌟 Combo Topping (siêu tiết kiệm)</p>
+                  <div className="space-y-2">
+                    {comboList.map((combo) => {
+                      const isSelected = selectedCombos.includes(combo.id);
+                      return (
+                        <button
+                          key={combo.id}
+                          type="button"
+                          disabled={redeeming}
+                          onClick={() => toggleCombo(combo.id)}
+                          className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border-2 text-left disabled:opacity-50 ${
+                            isSelected ? 'bg-rose-600 border-rose-600 text-white' : 'border-gray-200 text-gray-800 hover:border-rose-400 hover:bg-rose-50'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="font-black text-sm truncate flex items-center gap-1.5">
+                              {isSelected && <Check className="w-4 h-4 shrink-0" />}
+                              {combo.name}
+                            </p>
+                            <p className={`text-xs truncate ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>{combo.items}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-sm">{combo.price.toLocaleString('vi-VN')}đ</p>
+                            <p className={`text-xs line-through ${isSelected ? 'text-white/60' : 'text-gray-400'}`}>{combo.originalPrice.toLocaleString('vi-VN')}đ</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-black text-rose-700 uppercase tracking-wider mb-1.5">🍬 Topping lẻ</p>
               {toppingsList.length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-6">Chưa có topping nào trong menu.</p>
               )}
+              <div className="space-y-2">
               {toppingsList.map((topping) => {
                 const isSelected = selectedToppings.includes(topping.name);
                 return (
@@ -232,11 +291,13 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
                   </button>
                 );
               })}
+              </div>
+              </div>
             </div>
             <div className="p-3 border-t space-y-2">
               <div className="flex items-center justify-between text-sm font-semibold text-gray-700 px-1">
-                <span>Phụ thu topping</span>
-                <span>{toppingsExtra.toLocaleString('vi-VN')}đ</span>
+                <span>Phụ thu topping + combo</span>
+                <span>{surchargeTotal.toLocaleString('vi-VN')}đ</span>
               </div>
               <button
                 type="button"

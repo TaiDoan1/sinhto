@@ -420,6 +420,17 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const weekDays = getWeekDays();
   const shiftBranch = selectedBranch === 'ALL' ? null : selectedBranch;
 
+  // Danh sách lịch gộp theo ngày (mỗi ngày → ai làm ca nào) — chỉ dùng cho bản xem trên điện
+  // thoại ở chế độ readOnly, cùng kiểu trình bày với "Lịch cả chi nhánh" bên app Nhân Viên để
+  // Nhân Sự thấy quen mắt, dễ dùng hơn bảng lưới vốn phải cuộn ngang rất khó xem trên màn nhỏ.
+  const mobileScheduleByDay = weekDays.map((day) => {
+    const dateStr = localDateStr(day);
+    const entries = availableEmployees.flatMap((emp) =>
+      getShiftsForCell(emp.id, dateStr).map((shift) => ({ emp, shift }))
+    );
+    return { day, dateStr, entries };
+  });
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -513,8 +524,68 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
         </button>
       </div>
 
+      {/* Bản xem thẻ theo ngày trên điện thoại (chỉ chế độ readOnly) — cùng kiểu "Lịch cả chi
+          nhánh" bên app Nhân Viên, đỡ phải cuộn ngang như bảng lưới. */}
+      {readOnly && (
+        <div className="sm:hidden space-y-4 pb-4">
+          {mobileScheduleByDay.every(d => d.entries.length === 0) ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center text-gray-400 text-sm">
+              Chưa có ca làm nào trong tuần này
+            </div>
+          ) : (
+            mobileScheduleByDay.map(({ day, dateStr, entries }) => {
+              if (entries.length === 0) return null;
+              const isToday = day.toDateString() === new Date().toDateString();
+              return (
+                <div key={dateStr} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                  <div className={`text-xs font-bold uppercase tracking-wide mb-2 ${isToday ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    {day.toLocaleDateString('vi-VN', { weekday: 'long' })} · {day.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                    {isToday ? ' · Hôm nay' : ''}
+                  </div>
+                  <div className="space-y-1.5">
+                    {entries.map(({ emp, shift }) => {
+                      const isOff = shift.shiftType === 'off';
+                      return (
+                        <div
+                          key={shift.id}
+                          className={`flex items-center justify-between gap-2 p-2.5 rounded-lg ${isOff ? 'bg-red-50' : 'bg-gray-50'}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold text-gray-800 text-sm truncate block">
+                              {emp.fullName}
+                            </span>
+                            {selectedBranch === 'ALL' && shift.branch && (
+                              <span className="text-[11px] text-emerald-700 font-semibold">{shift.branch}</span>
+                            )}
+                            {shift.isSubstitute && shift.originalEmployeeName && (
+                              <span className="text-[11px] text-sky-700 font-semibold block">
+                                Thay: {shift.originalEmployeeName}
+                              </span>
+                            )}
+                          </div>
+                          {isOff ? (
+                            <span className="text-xs font-semibold text-red-600 flex items-center gap-1 flex-shrink-0">
+                              <CalendarOff className="w-3.5 h-3.5" />
+                              Nghỉ
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                              {shift.startTime}–{shift.endTime}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* Table */}
-      <div className="flex-1 bg-white rounded-xl shadow-lg overflow-auto">
+      <div className={`flex-1 bg-white rounded-xl shadow-lg overflow-auto ${readOnly ? 'hidden sm:block' : ''}`}>
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-gray-50 z-10">
             <tr>

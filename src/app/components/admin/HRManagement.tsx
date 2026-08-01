@@ -15,9 +15,13 @@ interface HRManagementProps {
   hidePayrollSettings?: boolean;
   /** Lịch Làm Việc chỉ xem, không cho duyệt/thêm/sửa/xóa ca — dùng cho màn hình Nhân Sự thu gọn. */
   readOnlySchedule?: boolean;
+  /** Chuyển thanh tab chính xuống thanh điều hướng cố định ở đáy màn hình trên điện thoại
+   * (giống EmployeeBottomNav bên app Nhân Viên) thay vì dải tab cuộn ngang phía trên — dùng cho
+   * màn hình Nhân Sự thu gọn để bấm chuyển mục dễ hơn bằng ngón cái. */
+  useBottomNavOnMobile?: boolean;
 }
 
-export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = false }: HRManagementProps = {}) {
+export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = false, useBottomNavOnMobile = false }: HRManagementProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
 
@@ -41,7 +45,7 @@ export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = f
 
   return (
     <div>
-      <div className="mb-4 bg-white rounded-lg shadow p-1 overflow-x-auto">
+      <div className={`mb-4 bg-white rounded-lg shadow p-1 overflow-x-auto ${useBottomNavOnMobile ? 'hidden sm:block' : ''}`}>
         <div className="flex gap-1 min-w-min sm:gap-2 sm:min-w-0">
           {tabs.map(tab => {
             const Icon = tab.icon;
@@ -63,7 +67,7 @@ export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = f
         </div>
       </div>
 
-      <div>
+      <div className={useBottomNavOnMobile ? 'pb-24 sm:pb-0' : ''}>
         {activeTab === 'payroll' && <HRPayroll hideSettingsTabs={hidePayrollSettings} />}
         {activeTab === 'schedule' && <ShiftSchedule readOnly={readOnlySchedule} />}
         {activeTab === 'register' && <EmployeeRegistration />}
@@ -71,6 +75,36 @@ export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = f
         {activeTab === 'config' && <EmployeeProfileConfig />}
         {activeTab === 'inventory' && <CrossBranchInventory />}
       </div>
+
+      {/* Thanh điều hướng cố định đáy màn hình trên điện thoại — cùng kiểu EmployeeBottomNav
+          bên app Nhân Viên, dễ bấm bằng ngón cái hơn dải tab cuộn ngang phía trên. */}
+      {useBottomNavOnMobile && (
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]">
+          <div className="flex">
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-[56px] transition-colors active:scale-95 ${
+                    active ? 'text-emerald-600' : 'text-gray-400'
+                  }`}
+                >
+                  <div className={`p-1 rounded-xl transition-colors ${active ? 'bg-emerald-50' : ''}`}>
+                    <Icon className={`w-6 h-6 ${active ? 'stroke-[2.5px]' : ''}`} />
+                  </div>
+                  <span className={`text-[11px] leading-tight text-center px-0.5 ${active ? 'font-bold' : 'font-medium'}`}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Gift, Loader2, X, ArrowRight } from 'lucide-react';
+import { Gift, Loader2, X, ArrowRight, Check } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { GiftCampaign } from '../../utils/api';
 import { useMenu } from '../../contexts/MenuContext';
+import { DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
 import type { CartItem } from './ModifierModal';
 
 interface Props {
@@ -22,9 +23,20 @@ interface Props {
 export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffName, alreadyGifted, onGiftAdded }: Props) {
   const { products } = useMenu();
   const [campaign, setCampaign] = useState<GiftCampaign | null>(null);
-  const [step, setStep] = useState<'closed' | 'phone' | 'flavor'>('closed');
+  const [step, setStep] = useState<'closed' | 'phone' | 'flavor' | 'topping'>('closed');
   const [phone, setPhone] = useState('');
+  const [pickedFlavor, setPickedFlavor] = useState('');
+  const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [redeeming, setRedeeming] = useState(false);
+
+  const dynamicToppings = products
+    .filter((p) => p.category === 'toppings')
+    .map((p) => ({ name: p.name, price: p.basePrice }));
+  const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : DEFAULT_TOPPINGS;
+  const toppingsExtra = selectedToppings.reduce((sum, name) => {
+    const topping = toppingsList.find((t) => t.name === name);
+    return sum + (topping?.price || 0);
+  }, 0);
 
   useEffect(() => {
     if (!branchId) return;
@@ -55,12 +67,24 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
     setStep('flavor');
   };
 
-  const handlePickFlavor = async (productName: string) => {
+  const handlePickFlavor = (productName: string) => {
+    setPickedFlavor(productName);
+    setSelectedToppings([]);
+    setStep('topping');
+  };
+
+  const toggleTopping = (name: string) => {
+    setSelectedToppings((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]));
+  };
+
+  // Ly nền (vị + size) luôn miễn phí theo hạn mức khuyến mãi — chỉ tính thêm tiền nếu khách
+  // chọn thêm topping, phần đó khách vẫn trả như đơn thường.
+  const handleConfirmToppings = async () => {
     setRedeeming(true);
     try {
       const { campaign: updated } = await api.redeemGiftCampaign(campaign.id, {
         customerPhone: phone.trim(),
-        productName,
+        productName: pickedFlavor,
         staffId,
         staffName,
       });
@@ -68,12 +92,12 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
       setStep('closed');
       onGiftAdded({
         productId: `gift-${campaign.id}-${Date.now()}`,
-        productName,
-        name: `${productName} (Quà tặng KM)`,
+        productName: pickedFlavor,
+        name: `${pickedFlavor} (Quà tặng KM)`,
         size: campaign.giftSize,
         protein: campaign.giftProtein,
-        toppings: [],
-        price: 0,
+        toppings: selectedToppings,
+        price: toppingsExtra,
         quantity: 1,
         isGift: true,
         giftCampaignId: campaign.id,
@@ -168,6 +192,62 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
                 <Loader2 className="w-4 h-4 animate-spin" /> Đang áp dụng...
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {step === 'topping' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-rose-600 text-white">
+              <div className="font-bold flex items-center gap-2">
+                <Gift className="w-4 h-4" /> Thêm topping cho {pickedFlavor}
+              </div>
+              <button type="button" onClick={() => setStep('closed')} disabled={redeeming}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="px-4 pt-3 text-xs text-gray-500">Ly nền miễn phí — topping chọn thêm khách vẫn trả tiền như bình thường.</p>
+            <div className="overflow-y-auto p-3 space-y-2">
+              {toppingsList.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Chưa có topping nào trong menu.</p>
+              )}
+              {toppingsList.map((topping) => {
+                const isSelected = selectedToppings.includes(topping.name);
+                return (
+                  <button
+                    key={topping.name}
+                    type="button"
+                    disabled={redeeming}
+                    onClick={() => toggleTopping(topping.name)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 font-semibold text-sm disabled:opacity-50 ${
+                      isSelected ? 'bg-rose-600 border-rose-600 text-white' : 'border-gray-200 text-gray-800 hover:border-rose-400 hover:bg-rose-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {isSelected && <Check className="w-4 h-4" />}
+                      {topping.name}
+                    </span>
+                    <span className={isSelected ? 'text-white/90' : 'text-rose-700'}>{formatToppingPrice(topping.price)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-3 border-t space-y-2">
+              <div className="flex items-center justify-between text-sm font-semibold text-gray-700 px-1">
+                <span>Phụ thu topping</span>
+                <span>{toppingsExtra.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <button
+                type="button"
+                disabled={redeeming}
+                onClick={handleConfirmToppings}
+                className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+              >
+                {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                {redeeming ? 'Đang áp dụng...' : 'Xác nhận tặng'}
+              </button>
+            </div>
           </div>
         </div>
       )}

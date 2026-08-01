@@ -13,9 +13,11 @@ type HRTab = 'payroll' | 'register' | 'list' | 'schedule' | 'config' | 'inventor
 interface HRManagementProps {
   /** Ẩn 2 tab Cài Đặt Lương/OT bên trong Bảng Lương — dùng cho màn hình Nhân Sự thu gọn. */
   hidePayrollSettings?: boolean;
+  /** Lịch Làm Việc chỉ xem, không cho duyệt/thêm/sửa/xóa ca — dùng cho màn hình Nhân Sự thu gọn. */
+  readOnlySchedule?: boolean;
 }
 
-export function HRManagement({ hidePayrollSettings = false }: HRManagementProps = {}) {
+export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = false }: HRManagementProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
 
@@ -63,7 +65,7 @@ export function HRManagement({ hidePayrollSettings = false }: HRManagementProps 
 
       <div>
         {activeTab === 'payroll' && <HRPayroll hideSettingsTabs={hidePayrollSettings} />}
-        {activeTab === 'schedule' && <ShiftSchedule />}
+        {activeTab === 'schedule' && <ShiftSchedule readOnly={readOnlySchedule} />}
         {activeTab === 'register' && <EmployeeRegistration />}
         {activeTab === 'list' && <EmployeeList />}
         {activeTab === 'config' && <EmployeeProfileConfig />}

@@ -79,7 +79,13 @@ function shiftTemplateFor(shiftType?: Shift['shiftType']) {
   return shiftTemplates[0];
 }
 
-export function ShiftSchedule() {
+interface ShiftScheduleProps {
+  /** Chỉ xem lịch làm — ẩn hết Duyệt/Từ chối, Thêm ca, Ghim/Thay ca/Xóa, Xoay Ca, Xóa lịch tuần.
+   * Dùng cho màn hình Nhân Sự thu gọn (không được sửa lịch, chỉ xem để tính công/lương). */
+  readOnly?: boolean;
+}
+
+export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
   const { activeBranches } = useBranches();
@@ -434,19 +440,23 @@ export function ShiftSchedule() {
           >
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <button onClick={handleRotateShifts} className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 flex items-center gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Xoay Ca
-          </button>
-          <button onClick={handleClearWeek} className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 flex items-center gap-2">
-            <Trash2 className="w-4 h-4" />
-            Xóa
-          </button>
+          {!readOnly && (
+            <>
+              <button onClick={handleRotateShifts} className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Xoay Ca
+              </button>
+              <button onClick={handleClearWeek} className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                Xóa
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Pending shift requests */}
-      {pendingShifts.length > 0 && (
+      {/* Pending shift requests — chỉ Admin/Cửa hàng trưởng mới thấy và duyệt được, Nhân Sự chỉ xem lịch nên ẩn hẳn mục này */}
+      {!readOnly && pendingShifts.length > 0 && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
           <h3 className="font-bold text-amber-800 mb-3">Yêu cầu đăng ký lịch ({pendingShifts.length})</h3>
           <div className="space-y-2">
@@ -572,29 +582,31 @@ export function ShiftSchedule() {
                               <span className="text-xs font-bold">
                                 {shift.shiftType === 'off' ? <CalendarOff className="w-3.5 h-3.5" /> : shiftTemplateFor(shift.shiftType).icon}
                               </span>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleTogglePin(shift.id)}
-                                  className={`p-1 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
-                                  title={shift.isPinned ? 'Bỏ ghim' : 'Ghim'}
-                                >
-                                  <Pin className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => setSubstituteModal({ shift })}
-                                  className="p-1 bg-white/20 hover:bg-white/30 rounded"
-                                  title="Thay ca"
-                                >
-                                  <Repeat className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteShift(shift.id)}
-                                  className="p-1 bg-red-500 rounded hover:bg-red-600"
-                                  title="Xóa"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
+                              {!readOnly && (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleTogglePin(shift.id)}
+                                    className={`p-1 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
+                                    title={shift.isPinned ? 'Bỏ ghim' : 'Ghim'}
+                                  >
+                                    <Pin className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setSubstituteModal({ shift })}
+                                    className="p-1 bg-white/20 hover:bg-white/30 rounded"
+                                    title="Thay ca"
+                                  >
+                                    <Repeat className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteShift(shift.id)}
+                                    className="p-1 bg-red-500 rounded hover:bg-red-600"
+                                    title="Xóa"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                             <div className="text-xs font-semibold">
                               {shift.shiftType === 'off' ? 'Nghỉ' : `${shift.startTime} - ${shift.endTime}`}
@@ -620,12 +632,14 @@ export function ShiftSchedule() {
                                 <div className="text-xs opacity-90">
                                   <span className="font-semibold">Thay:</span> {shift.originalEmployeeName}
                                 </div>
-                                <button
-                                  onClick={() => handleCancelSubstitute(shift.id)}
-                                  className="mt-1 text-xs underline hover:no-underline"
-                                >
-                                  Hủy thay ca
-                                </button>
+                                {!readOnly && (
+                                  <button
+                                    onClick={() => handleCancelSubstitute(shift.id)}
+                                    className="mt-1 text-xs underline hover:no-underline"
+                                  >
+                                    Hủy thay ca
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -642,13 +656,15 @@ export function ShiftSchedule() {
                           </div>
                         ))}
 
-                        <button
-                          onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
-                          className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 && !isPicking ? 'min-h-[60px]' : 'py-1'}`}
-                          title="Thêm ca"
-                        >
-                          <div className={dayShifts.length === 0 && !isPicking ? 'text-2xl' : 'text-sm'}>+</div>
-                        </button>
+                        {!readOnly && (
+                          <button
+                            onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
+                            className={`w-full flex items-center justify-center text-gray-300 hover:bg-green-50 hover:text-green-500 transition-colors rounded-lg ${dayShifts.length === 0 && !isPicking ? 'min-h-[60px]' : 'py-1'}`}
+                            title="Thêm ca"
+                          >
+                            <div className={dayShifts.length === 0 && !isPicking ? 'text-2xl' : 'text-sm'}>+</div>
+                          </button>
+                        )}
                       </div>
                     </td>
                   );

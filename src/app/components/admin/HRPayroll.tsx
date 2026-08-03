@@ -133,6 +133,8 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   const [backupStatus, setBackupStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
   const [backupFiles, setBackupFiles] = useState<any[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [payrollSort, setPayrollSort] = useState<'default' | 'desc' | 'asc'>('default');
+  const [checkinSort, setCheckinSort] = useState<'newest' | 'oldest'>('newest');
 
   useEffect(() => {
     Promise.all([
@@ -380,6 +382,14 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     return true;
   });
 
+  // checkinRecords vốn đã sắp xếp mới nhất trước (xem effect tính toán ở trên) — 'oldest' chỉ
+  // cần đảo ngược lại, không cần so sánh lại từ đầu.
+  const sortedCheckinRecords = checkinSort === 'oldest' ? [...filteredCheckinRecords].reverse() : filteredCheckinRecords;
+
+  const sortedEmployeeRecords = payrollSort === 'default'
+    ? employeeRecords
+    : [...employeeRecords].sort((a, b) => payrollSort === 'desc' ? b.totalSalary - a.totalSalary : a.totalSalary - b.totalSalary);
+
   const shiftTypeLabel = (type: Shift['shiftType']) => {
     if (type === 'off') return 'Nghỉ';
     return '';
@@ -416,7 +426,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
         { header: 'Số lần chấm công có ảnh', key: 'selfieChecks', width: 18 },
       ];
       payrollSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
-      employeeRecords.forEach((r) => payrollSheet.addRow(r));
+      sortedEmployeeRecords.forEach((r) => payrollSheet.addRow(r));
 
       // Sheet 2 — Lịch Sử Check In/Out (theo đúng kỳ + chi nhánh đang chọn ở Bảng Lương)
       const checkinSheet = workbook.addWorksheet('Lịch Sử Check In-Out');
@@ -431,8 +441,10 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
       ];
       checkinSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
       const statusLabels: Record<string, string> = { 'on-time': 'Đúng giờ', late: 'Trễ', 'early-leave': 'Về sớm' };
-      checkinRecords
-        .filter((r) => r.date >= start && r.date <= end && (!byBranch || r.location === payrollBranchFilter))
+      const periodCheckinRecords = checkinRecords.filter(
+        (r) => r.date >= start && r.date <= end && (!byBranch || r.location === payrollBranchFilter)
+      );
+      (checkinSort === 'oldest' ? [...periodCheckinRecords].reverse() : periodCheckinRecords)
         .forEach((r) => checkinSheet.addRow({ ...r, statusLabel: statusLabels[r.status] || r.status }));
 
       // Sheet 3 — Lịch Làm Việc (cùng kỳ + chi nhánh)
@@ -616,6 +628,15 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                   <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
                 ))}
               </select>
+              <select
+                value={payrollSort}
+                onChange={(e) => setPayrollSort(e.target.value as typeof payrollSort)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              >
+                <option value="default">Sắp xếp: Mặc định</option>
+                <option value="desc">Lương: Cao → Thấp</option>
+                <option value="asc">Lương: Thấp → Cao</option>
+              </select>
               <button
                 type="button"
                 onClick={handleExportExcel}
@@ -699,7 +720,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {employeeRecords.map(emp => (
+                {sortedEmployeeRecords.map(emp => (
                   <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{emp.employeeId}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">
@@ -1031,6 +1052,14 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                   <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
                 ))}
               </select>
+              <select
+                value={checkinSort}
+                onChange={(e) => setCheckinSort(e.target.value as typeof checkinSort)}
+                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
+              >
+                <option value="newest">Ngày: Mới nhất trước</option>
+                <option value="oldest">Ngày: Cũ nhất trước</option>
+              </select>
               <input
                 type="text"
                 value={checkinEmployeeQuery}
@@ -1065,7 +1094,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredCheckinRecords.slice(0, 50).map(record => (
+                {sortedCheckinRecords.slice(0, 50).map(record => (
                   <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {new Date(record.date).toLocaleDateString('vi-VN')}

@@ -90,12 +90,12 @@ export function ComboShipBoard() {
 
     setDeliveringId(combo.id);
     try {
-      const ok = deductStockForOrder(combo.id, [line], `Ship ${branchId}`);
+      const ok = deductStockForOrder(combo.id, [line], `Ship ${branchName}`);
       if (!ok) {
         alert('Trừ kho thất bại.');
         return;
       }
-      await confirmDelivery(combo.id, `Ship ${branchId}`, branchId, shipNotes[combo.id]);
+      await confirmDelivery(combo.id, `Ship ${branchName}`, branchId, shipNotes[combo.id]);
     } finally {
       setDeliveringId(null);
     }

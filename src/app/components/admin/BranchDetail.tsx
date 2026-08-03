@@ -47,7 +47,6 @@ export function BranchDetail({ branch, onBack, onEdit }: BranchDetailProps) {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">{branch.name}</h1>
-            <p className="text-gray-600 mt-1">Mã: {branch.id}</p>
             {branch.address && (
               <p className="text-gray-600 mt-2 flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-1 shrink-0" />

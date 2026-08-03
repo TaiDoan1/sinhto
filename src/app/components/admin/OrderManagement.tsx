@@ -1,9 +1,11 @@
 import { Clock, AlertCircle, CheckCircle, Package, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useBranches } from '../../contexts/BranchContext';
 
 export function OrderManagement() {
   const { orders } = useOrders();
+  const { branchLabel } = useBranches();
   const [filter, setFilter] = useState<'all' | 'delayed' | 'waiting'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -252,7 +254,7 @@ export function OrderManagement() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {order.branchId}
+                        {branchLabel(order.branchId)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 rounded text-xs font-semibold ${

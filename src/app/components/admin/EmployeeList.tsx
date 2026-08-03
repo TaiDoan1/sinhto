@@ -17,11 +17,11 @@ const positions = [
 ];
 
 export function EmployeeList() {
-  const { activeBranches } = useBranches();
+  const { activeBranches, branchLabel } = useBranches();
   const branchOptions = [
     { id: 'ALL', name: 'Tất cả chi nhánh' },
     { id: 'UNASSIGNED', name: '🕐 Chờ phân bổ' },
-    ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
+    ...activeBranches.map((b) => ({ id: b.id, name: b.name })),
   ];
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -187,13 +187,13 @@ export function EmployeeList() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {emp.branch ? (
-                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{emp.branch}</span>
+                          <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{branchLabel(emp.branch)}</span>
                         ) : (
                           <span className="px-2 py-0.5 bg-amber-100 rounded text-xs font-semibold text-amber-700">Chờ phân bổ</span>
                         )}
                         {(emp.secondaryBranches || []).map(b => (
                           <span key={b} className="px-2 py-0.5 bg-sky-100 rounded text-xs font-semibold text-sky-700" title="Chi nhánh hỗ trợ thêm">
-                            +{b}
+                            +{branchLabel(b)}
                           </span>
                         ))}
                       </div>

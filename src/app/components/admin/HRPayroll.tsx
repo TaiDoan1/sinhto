@@ -107,7 +107,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   const [payrollWeek, setPayrollWeek] = useState<string>(localDateStr());
   const [payrollCustomStart, setPayrollCustomStart] = useState<string>(localDateStr());
   const [payrollCustomEnd, setPayrollCustomEnd] = useState<string>(localDateStr());
-  const { activeBranches } = useBranches();
+  const { activeBranches, branchLabel } = useBranches();
 
   const [salarySettings, setSalarySettings] = useState<SalarySettings>({
     baseSalaryMin: 5000000,
@@ -426,7 +426,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
         { header: 'Số lần chấm công có ảnh', key: 'selfieChecks', width: 18 },
       ];
       payrollSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
-      sortedEmployeeRecords.forEach((r) => payrollSheet.addRow(r));
+      sortedEmployeeRecords.forEach((r) => payrollSheet.addRow({ ...r, branch: branchLabel(r.branch) }));
 
       // Sheet 2 — Lịch Sử Check In/Out (theo đúng kỳ + chi nhánh đang chọn ở Bảng Lương)
       const checkinSheet = workbook.addWorksheet('Lịch Sử Check In-Out');
@@ -445,7 +445,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
         (r) => r.date >= start && r.date <= end && (!byBranch || r.location === payrollBranchFilter)
       );
       (checkinSort === 'oldest' ? [...periodCheckinRecords].reverse() : periodCheckinRecords)
-        .forEach((r) => checkinSheet.addRow({ ...r, statusLabel: statusLabels[r.status] || r.status }));
+        .forEach((r) => checkinSheet.addRow({ ...r, location: branchLabel(r.location), statusLabel: statusLabels[r.status] || r.status }));
 
       // Sheet 3 — Lịch Làm Việc (cùng kỳ + chi nhánh)
       const scheduleSheet = workbook.addWorksheet('Lịch Làm Việc');
@@ -465,7 +465,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
           scheduleSheet.addRow({
             date: s.date,
             weekday: parseLocalDateStr(s.date).toLocaleDateString('vi-VN', { weekday: 'long' }),
-            branch: s.branch,
+            branch: branchLabel(s.branch),
             employeeName: s.employeeName,
             time: s.shiftType === 'off' ? shiftTypeLabel('off') : `${s.startTime}–${s.endTime}`,
             substituteNote: s.isSubstitute && s.originalEmployeeName ? `Thay: ${s.originalEmployeeName}` : '',
@@ -625,7 +625,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
               >
                 <option value="ALL">Tất cả chi nhánh</option>
                 {activeBranches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
               <select
@@ -733,7 +733,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
-                        {emp.branch}
+                        {branchLabel(emp.branch)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -1049,7 +1049,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
               >
                 <option value="ALL">Tất cả chi nhánh</option>
                 {activeBranches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
               <select
@@ -1115,7 +1115,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">
-                        {record.location}
+                        {branchLabel(record.location)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
+import { useBranches } from '../../contexts/BranchContext';
 import { Calendar, CheckCircle2, Phone, Truck } from 'lucide-react';
 import {
   getComboItemForToday,
@@ -16,6 +17,7 @@ interface Props {
 export function BranchComboDeliveries({ branchId }: Props) {
   const { combos, confirmDelivery } = useCombos();
   const { deductStockForOrder, formatShortageMessage, checkCartStock, loadForBranch } = useInventory();
+  const { branchLabel } = useBranches();
   const [todayDeliveries, setTodayDeliveries] = useState<ComboSubscription[]>([]);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
 
@@ -47,12 +49,12 @@ export function BranchComboDeliveries({ branchId }: Props) {
 
     setDeliveringId(combo.id);
     try {
-      const success = deductStockForOrder(combo.id, [line], `Chi nhánh ${branchId}`);
+      const success = deductStockForOrder(combo.id, [line], `Chi nhánh ${branchLabel(branchId)}`);
       if (!success) {
         alert('Trừ kho thất bại. Kiểm tra tồn kho chi nhánh.');
         return;
       }
-      await confirmDelivery(combo.id, `Chi nhánh ${branchId}`, branchId);
+      await confirmDelivery(combo.id, `Chi nhánh ${branchLabel(branchId)}`, branchId);
       alert(`Đã xác nhận giao combo cho ${combo.customerName}.`);
     } finally {
       setDeliveringId(null);

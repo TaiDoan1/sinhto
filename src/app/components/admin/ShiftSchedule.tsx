@@ -88,10 +88,10 @@ interface ShiftScheduleProps {
 export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
-  const { activeBranches } = useBranches();
+  const { activeBranches, branchLabel } = useBranches();
   const branches = [
     ...(isStoreManager ? [{ id: 'ALL', name: 'Tất cả chi nhánh' }] : []),
-    ...activeBranches.map((b) => ({ id: b.id, name: `${b.id} — ${b.name}` })),
+    ...activeBranches.map((b) => ({ id: b.id, name: b.name })),
   ];
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -486,7 +486,7 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                       {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · {s.startTime}–{s.endTime}
                     </span>
                   )}
-                  {s.branch && <span className="text-xs text-gray-400 ml-2">({s.branch})</span>}
+                  {s.branch && <span className="text-xs text-gray-400 ml-2">({branchLabel(s.branch)})</span>}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -555,7 +555,7 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                               {emp.fullName}
                             </span>
                             {selectedBranch === 'ALL' && shift.branch && (
-                              <span className="text-[11px] text-emerald-700 font-semibold">{shift.branch}</span>
+                              <span className="text-[11px] text-emerald-700 font-semibold">{branchLabel(shift.branch)}</span>
                             )}
                             {shift.isSubstitute && shift.originalEmployeeName && (
                               <span className="text-[11px] text-sky-700 font-semibold block">
@@ -629,11 +629,11 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm text-gray-800 truncate">{emp.fullName}</div>
                       {selectedBranch === 'ALL' && (
-                        <div className="text-xs text-gray-500">{emp.branch}</div>
+                        <div className="text-xs text-gray-500">{branchLabel(emp.branch)}</div>
                       )}
                       {selectedBranch !== 'ALL' && emp.branch !== selectedBranch && (
                         <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                          Hỗ trợ từ {emp.branch || 'chưa gán CN'}
+                          Hỗ trợ từ {emp.branch ? branchLabel(emp.branch) : 'chưa gán chi nhánh'}
                         </span>
                       )}
                     </div>
@@ -720,9 +720,9 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                           <div
                             key={s.id}
                             className="text-[10px] leading-tight bg-gray-100 text-gray-500 border border-dashed border-gray-300 rounded-lg px-1.5 py-1"
-                            title={`${emp.fullName} đã có lịch tại ${s.branch}`}
+                            title={`${emp.fullName} đã có lịch tại ${branchLabel(s.branch)}`}
                           >
-                            <span className="font-bold">{s.branch}</span>{' '}
+                            <span className="font-bold">{branchLabel(s.branch)}</span>{' '}
                             {s.shiftType === 'off' ? 'Nghỉ' : `${s.startTime}-${s.endTime}`}
                           </div>
                         ))}
@@ -755,7 +755,7 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
           ? findTimeConflict(selectedCell.employeeId, selectedCell.date, customStart, customEnd)
           : null;
         const conflictLabel = (c: Shift) =>
-          `Trùng giờ ca ${c.startTime}-${c.endTime}${c.branch ? ` tại ${c.branch}` : ''}`;
+          `Trùng giờ ca ${c.startTime}-${c.endTime}${c.branch ? ` tại ${branchLabel(c.branch)}` : ''}`;
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">

@@ -102,7 +102,7 @@ function fullDateTime(iso?: string) {
 }
 
 export function CrossBranchInventory() {
-  const { activeBranches } = useBranches();
+  const { activeBranches, branchLabel } = useBranches();
   const { subscribe } = useSSE();
   const { showSuccess, showError } = useToast();
 
@@ -285,7 +285,7 @@ export function CrossBranchInventory() {
         itemId: moveModal.itemId,
         itemName: moveModal.itemName,
         quantity: -moveModal.quantity,
-        reason: `Chuyển kho sang ${moveModal.toBranch}`,
+        reason: `Chuyển kho sang ${branchLabel(moveModal.toBranch)}`,
         performedBy: 'store_manager',
         cost: 0,
         branchId: moveModal.fromBranch,
@@ -297,7 +297,7 @@ export function CrossBranchInventory() {
         itemId: moveModal.itemId,
         itemName: moveModal.itemName,
         quantity: moveModal.quantity,
-        reason: `Chuyển kho từ ${moveModal.fromBranch}`,
+        reason: `Chuyển kho từ ${branchLabel(moveModal.fromBranch)}`,
         performedBy: 'store_manager',
         cost: 0,
         branchId: moveModal.toBranch,
@@ -386,7 +386,7 @@ export function CrossBranchInventory() {
     setProcessingId(receipt.id);
     try {
       await api.approveStockReceipt(receipt.id, 'Admin');
-      showSuccess(`Đã duyệt phiếu ${receipt.id} — đã cập nhật kho tổng và kho ${receipt.branchId}`);
+      showSuccess(`Đã duyệt phiếu ${receipt.id} — đã cập nhật kho tổng và kho ${branchLabel(receipt.branchId)}`);
       loadReceipts();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Duyệt phiếu thất bại');
@@ -615,7 +615,7 @@ export function CrossBranchInventory() {
               className="border rounded-lg px-3 py-1.5 text-sm font-bold text-gray-800"
             >
               {activeBranches.map((b) => (
-                <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
@@ -640,10 +640,7 @@ export function CrossBranchInventory() {
                   onClick={() => setSelectedBranchDetail(branch.id)}
                   className="text-left bg-white rounded-xl shadow-md p-5 border-2 border-transparent hover:border-emerald-400 hover:shadow-lg transition-all group"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
-                      {branch.id}
-                    </span>
+                  <div className="flex items-center justify-end mb-3">
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-600 transition-colors" />
                   </div>
                   <div className="font-bold text-gray-900 mb-3">{branch.name}</div>
@@ -695,8 +692,8 @@ export function CrossBranchInventory() {
                     <th className="px-2 sm:px-6 py-2 sm:py-3 text-left font-semibold text-gray-700">Min</th>
                     <th className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700 bg-emerald-50">Tổng</th>
                     {activeBranches.map((branch) => (
-                      <th key={branch.id} className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700">
-                        {branch.id}
+                      <th key={branch.id} title={branch.name} className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700 max-w-[120px] truncate">
+                        {branch.name}
                       </th>
                     ))}
                     <th className="px-2 sm:px-6 py-2 sm:py-3 text-center font-semibold text-gray-700">Hành động</th>
@@ -770,7 +767,7 @@ export function CrossBranchInventory() {
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Chờ duyệt</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {fullDateTime(r.createdAt)} · Chi nhánh <span className="font-bold text-gray-700">{r.branchId}</span> · {r.createdBy}
+                      {fullDateTime(r.createdAt)} · Chi nhánh <span className="font-bold text-gray-700">{branchLabel(r.branchId)}</span> · {r.createdBy}
                       {r.note ? ` · ${r.note}` : ''}
                     </div>
                   </div>
@@ -878,7 +875,7 @@ export function CrossBranchInventory() {
                               </span>
                             </div>
                             <div className="text-xs text-gray-500 mt-0.5">
-                              {fullDateTime(r.approvedAt || r.createdAt)} · Kho Tổng → <span className="font-bold">{r.branchId}</span> · {r.lines.length} sản phẩm
+                              {fullDateTime(r.approvedAt || r.createdAt)} · Kho Tổng → <span className="font-bold">{branchLabel(r.branchId)}</span> · {r.lines.length} sản phẩm
                             </div>
                           </div>
                         </div>
@@ -917,7 +914,7 @@ export function CrossBranchInventory() {
                             <div className="flex items-center justify-between px-4 py-3 bg-emerald-50">
                               <span className="flex items-center gap-2 text-sm font-bold text-emerald-700">
                                 <ArrowDownToLine className="w-4 h-4" />
-                                Phiếu nhập — {r.branchId}
+                                Phiếu nhập — {branchLabel(r.branchId)}
                               </span>
                               <ChevronRight className="w-4 h-4 text-emerald-400" />
                             </div>
@@ -1029,7 +1026,7 @@ export function CrossBranchInventory() {
                   )}
                   {subReceiptDetail.kind === 'out'
                     ? 'Phiếu xuất — Kho Tổng'
-                    : `Phiếu nhập — ${subReceiptDetail.receipt.branchId}`}
+                    : `Phiếu nhập — ${branchLabel(subReceiptDetail.receipt.branchId)}`}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
                   {subReceiptDetail.receipt.id} · {fullDateTime(subReceiptDetail.receipt.approvedAt)}
@@ -1185,7 +1182,7 @@ export function CrossBranchInventory() {
                   <option value="">Chọn chi nhánh</option>
                   {activeBranches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
-                      {branch.id} — {branch.name}
+                      {branch.name}
                     </option>
                   ))}
                 </select>
@@ -1200,7 +1197,7 @@ export function CrossBranchInventory() {
                   <option value="">Chọn chi nhánh</option>
                   {activeBranches.map((branch) => (
                     <option key={branch.id} value={branch.id} disabled={branch.id === moveModal.fromBranch}>
-                      {branch.id} — {branch.name}
+                      {branch.name}
                     </option>
                   ))}
                 </select>

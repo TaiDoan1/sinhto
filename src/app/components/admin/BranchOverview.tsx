@@ -100,7 +100,6 @@ export function BranchOverview() {
                     <h3 className="text-lg font-bold text-gray-800 group-hover:text-emerald-700">
                       {branch.name}
                     </h3>
-                    <span className="text-sm text-gray-500">{branch.id}</span>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-600" />

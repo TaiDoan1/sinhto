@@ -270,7 +270,7 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
               <h3 className="text-lg font-bold">
-                {editForm.id ? 'Sửa nhân viên' : 'Thêm nhân viên'} — {branchId}
+                {editForm.id ? 'Sửa nhân viên' : 'Thêm nhân viên'} — {branchName}
               </h3>
               <button type="button" onClick={() => setShowForm(false)}>
                 <X className="w-6 h-6 text-gray-500" />
@@ -402,7 +402,7 @@ export function BranchStaff({ branchId, branchName }: BranchStaffProps) {
                         disabled={assigningId === emp.id}
                         className="shrink-0 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                       >
-                        {assigningId === emp.id ? 'Đang gán...' : `Gán vào ${branchId}`}
+                        {assigningId === emp.id ? 'Đang gán...' : `Gán vào ${branchName}`}
                       </button>
                     </div>
                   ))}

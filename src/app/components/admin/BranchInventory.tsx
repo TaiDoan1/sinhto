@@ -70,7 +70,7 @@ function parseProductInventory(data: unknown): ProductInventoryState {
 export function BranchInventory({ branchId }: BranchInventoryProps) {
   const { loadForBranch, isWarehouseReady } = useInventory();
   const { subscribe } = useSSE();
-  const { activeBranches } = useBranches();
+  const { activeBranches, branchLabel } = useBranches();
 
   const [receiptStage, setReceiptStage] = useState<ReceiptStage>('idle');
   const [receiptName, setReceiptName] = useState('');
@@ -233,7 +233,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     <div>
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Tồn Kho — {branchId}</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Tồn Kho — {branchLabel(branchId)}</h2>
           <p className="text-sm text-gray-500 mt-1">
             {isEditing
               ? 'Đang chỉnh sửa tồn kho trực tiếp — bấm "Lưu phiếu" ở góc phải khi xong'
@@ -493,7 +493,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
           </div>
           <div className="p-4 space-y-3">
             <div className="text-xs text-gray-500">
-              Chi nhánh: <span className="font-bold text-gray-800">{branchId}</span>
+              Chi nhánh: <span className="font-bold text-gray-800">{branchLabel(branchId)}</span>
             </div>
             <div className="text-xs text-gray-500">
               {diffLines.length === 0 ? (
@@ -563,7 +563,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   </span>
                 </div>
                 <div className="text-gray-500">
-                  Chi nhánh: <span className="font-semibold text-gray-800">{createdReceipt.branchId}</span>
+                  Chi nhánh: <span className="font-semibold text-gray-800">{branchLabel(createdReceipt.branchId)}</span>
                 </div>
                 <div className="text-gray-500">
                   Người tạo: <span className="font-semibold text-gray-800">{createdReceipt.createdBy}</span>

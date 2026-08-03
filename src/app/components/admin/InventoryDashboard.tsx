@@ -47,7 +47,7 @@ export function InventoryDashboard() {
           <p className="font-bold text-emerald-900 text-lg">Tồn kho theo chi nhánh</p>
           <p className="text-emerald-800 mt-1">
             Mỗi chi nhánh có kho riêng. Để xem tồn kho, nhập kho và lịch sử — vào{' '}
-            <strong>Tổng Quan</strong>, chọn chi nhánh (CN1 / CN2 / CN3), mở tab <strong>Tồn Kho</strong>.
+            <strong>Tổng Quan</strong>, chọn chi nhánh cần xem, mở tab <strong>Tồn Kho</strong>.
           </p>
         </div>
       </div>

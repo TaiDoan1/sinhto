@@ -1,5 +1,6 @@
 import { LogOut, Users, UserCog } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
+import { useBranches } from '../../contexts/BranchContext';
 import { AdminLogin } from './AdminLogin';
 import { HRManagement } from './HRManagement';
 
@@ -9,6 +10,7 @@ import { HRManagement } from './HRManagement';
  * doanh thu...) — dùng cho người chỉ phụ trách nhân sự/tính lương, không cần toàn quyền Admin. */
 export function HrApp() {
   const { adminUser, isLoggedIn, isLoading, logout } = useAdmin();
+  const { branchLabel } = useBranches();
 
   if (isLoading) {
     return (
@@ -39,7 +41,7 @@ export function HrApp() {
           <div className="min-w-0">
             <h1 className="text-lg font-black text-slate-900 leading-tight">Nhân Sự</h1>
             <p className="text-xs text-slate-500 truncate">
-              {adminUser?.fullName}{adminUser?.branch ? ` · ${adminUser.branch}` : ''}
+              {adminUser?.fullName}{adminUser?.branch ? ` · ${branchLabel(adminUser.branch)}` : ''}
             </p>
           </div>
         </div>

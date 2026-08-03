@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Download, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Download, Loader2, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
@@ -15,6 +15,16 @@ function pad2(n: number) {
 
 function fmtDate(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function fmtVN(dateStr: string) {
+  return dateStr.split('-').reverse().join('/');
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = parseLocalDateStr(dateStr);
+  d.setDate(d.getDate() + days);
+  return fmtDate(d);
 }
 
 // Nhận 1 ngày bất kỳ (chuỗi "YYYY-MM-DD") và trả về khoảng Thứ 2 - Chủ Nhật thật của tuần chứa
@@ -331,7 +341,6 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   };
 
   const periodLabel = (() => {
-    const fmtVN = (s: string) => s.split('-').reverse().join('/');
     if (payrollPeriodType === 'week') {
       const { start, end } = weekRange(payrollWeek);
       return `tuần ${fmtVN(start)} - ${fmtVN(end)}`;
@@ -547,15 +556,39 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
                 />
               )}
-              {payrollPeriodType === 'week' && (
-                <input
-                  type="date"
-                  title="Chọn 1 ngày bất kỳ trong tuần muốn xem"
-                  value={payrollWeek}
-                  onChange={(e) => setPayrollWeek(e.target.value || localDateStr())}
-                  className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
-                />
-              )}
+              {payrollPeriodType === 'week' && (() => {
+                const { start, end } = weekRange(payrollWeek);
+                return (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPayrollWeek(addDays(payrollWeek, -7))}
+                      title="Tuần trước"
+                      className="p-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="px-3 py-2 border-2 border-gray-300 rounded-lg font-semibold text-sm bg-white whitespace-nowrap">
+                      {fmtVN(start)} – {fmtVN(end)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPayrollWeek(addDays(payrollWeek, 7))}
+                      title="Tuần sau"
+                      className="p-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="date"
+                      title="Nhảy đến tuần chứa ngày này"
+                      value={payrollWeek}
+                      onChange={(e) => setPayrollWeek(e.target.value || localDateStr())}
+                      className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none text-sm"
+                    />
+                  </div>
+                );
+              })()}
               {payrollPeriodType === 'custom' && (
                 <div className="flex items-center gap-1.5">
                   <input

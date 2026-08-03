@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Download, Loader2 } from 'lucide-react';
+import { Clock, Camera, DollarSign, Award, Repeat, Settings, History, Save, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
-import { localDateStr } from '../../utils/dateUtils';
+import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 
 function currentMonthStr() {
   return localDateStr().slice(0, 7); // "YYYY-MM"
@@ -140,6 +140,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   const [selectedCheckInRecord, setSelectedCheckInRecord] = useState<CheckInRecord | null>(null);
   const [backupStatus, setBackupStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
   const [backupFiles, setBackupFiles] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -361,6 +362,20 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     return `tháng ${payrollMonth}`;
   })();
 
+  // Khoảng ngày thật (Thứ 2-CN / mùng 1-cuối tháng / tùy chỉnh) của kỳ đang chọn — dùng để lọc
+  // check-in/lịch làm việc theo ĐÚNG kỳ lương đang xem, đồng bộ với cách calculatePayroll() tính.
+  const periodDateRange = (() => {
+    if (payrollPeriodType === 'week') return weekRange(payrollWeek);
+    if (payrollPeriodType === 'custom') {
+      const start = payrollCustomStart <= payrollCustomEnd ? payrollCustomStart : payrollCustomEnd;
+      const end = payrollCustomStart <= payrollCustomEnd ? payrollCustomEnd : payrollCustomStart;
+      return { start, end };
+    }
+    const [y, m] = payrollMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return { start: `${payrollMonth}-01`, end: `${payrollMonth}-${pad2(lastDay)}` };
+  })();
+
   // Lọc lịch sử check-in/out theo khoảng ngày + chi nhánh + tên/mã NV — mặc định không lọc gì
   // (checkinStart/End rỗng) để vẫn thấy ngay danh sách gần nhất như trước, chỉ lọc khi nhập.
   const filteredCheckinRecords = checkinRecords.filter((r) => {
@@ -373,6 +388,101 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     }
     return true;
   });
+
+  const shiftTypeLabel = (type: Shift['shiftType']) => {
+    if (type === 'off') return 'Nghỉ';
+    return '';
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const { start, end } = periodDateRange;
+      const byBranch = payrollBranchFilter !== 'ALL';
+
+      const ExcelJS = (await import('exceljs')).default;
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'FitBlend';
+      workbook.created = new Date();
+
+      const headerStyle = { font: { bold: true } } as const;
+
+      // Sheet 1 — Bảng Lương
+      const payrollSheet = workbook.addWorksheet('Bảng Lương');
+      payrollSheet.columns = [
+        { header: 'Mã NV', key: 'employeeId', width: 12 },
+        { header: 'Họ tên', key: 'name', width: 24 },
+        { header: 'Chi nhánh', key: 'branch', width: 12 },
+        { header: 'Số ca làm', key: 'shifts', width: 10 },
+        { header: 'Số ca thay ca', key: 'substituteShifts', width: 12 },
+        { header: 'Giờ công', key: 'hoursWorked', width: 10 },
+        { header: 'Giờ OT', key: 'overtimeHours', width: 10 },
+        { header: 'Doanh số combo', key: 'comboSales', width: 14 },
+        { header: 'Lương cơ bản', key: 'baseSalary', width: 14 },
+        { header: 'Lương OT', key: 'otPay', width: 12 },
+        { header: 'Thưởng combo', key: 'comboBonus', width: 14 },
+        { header: 'Tổng lương', key: 'totalSalary', width: 14 },
+        { header: 'Số lần chấm công có ảnh', key: 'selfieChecks', width: 18 },
+      ];
+      payrollSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
+      employeeRecords.forEach((r) => payrollSheet.addRow(r));
+
+      // Sheet 2 — Lịch Sử Check In/Out (theo đúng kỳ + chi nhánh đang chọn ở Bảng Lương)
+      const checkinSheet = workbook.addWorksheet('Lịch Sử Check In-Out');
+      checkinSheet.columns = [
+        { header: 'Mã NV', key: 'employeeId', width: 12 },
+        { header: 'Tên NV', key: 'employeeName', width: 24 },
+        { header: 'Ngày', key: 'date', width: 12 },
+        { header: 'Giờ vào', key: 'checkInTime', width: 10 },
+        { header: 'Giờ ra', key: 'checkOutTime', width: 10 },
+        { header: 'Chi nhánh', key: 'location', width: 12 },
+        { header: 'Trạng thái', key: 'statusLabel', width: 12 },
+      ];
+      checkinSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
+      const statusLabels: Record<string, string> = { 'on-time': 'Đúng giờ', late: 'Trễ', 'early-leave': 'Về sớm' };
+      checkinRecords
+        .filter((r) => r.date >= start && r.date <= end && (!byBranch || r.location === payrollBranchFilter))
+        .forEach((r) => checkinSheet.addRow({ ...r, statusLabel: statusLabels[r.status] || r.status }));
+
+      // Sheet 3 — Lịch Làm Việc (cùng kỳ + chi nhánh)
+      const scheduleSheet = workbook.addWorksheet('Lịch Làm Việc');
+      scheduleSheet.columns = [
+        { header: 'Ngày', key: 'date', width: 12 },
+        { header: 'Thứ', key: 'weekday', width: 12 },
+        { header: 'Chi nhánh', key: 'branch', width: 12 },
+        { header: 'Tên NV', key: 'employeeName', width: 24 },
+        { header: 'Giờ ca', key: 'time', width: 14 },
+        { header: 'Ghi chú thay ca', key: 'substituteNote', width: 20 },
+      ];
+      scheduleSheet.getRow(1).eachCell((cell) => Object.assign(cell, headerStyle));
+      shifts
+        .filter((s) => s.date >= start && s.date <= end && (!byBranch || s.branch === payrollBranchFilter))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+        .forEach((s) => {
+          scheduleSheet.addRow({
+            date: s.date,
+            weekday: parseLocalDateStr(s.date).toLocaleDateString('vi-VN', { weekday: 'long' }),
+            branch: s.branch,
+            employeeName: s.employeeName,
+            time: s.shiftType === 'off' ? shiftTypeLabel('off') : `${s.startTime}–${s.endTime}`,
+            substituteNote: s.isSubstitute && s.originalEmployeeName ? `Thay: ${s.originalEmployeeName}` : '',
+          });
+        });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NhanSu_${start}_den_${end}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const allTabs = [
     { id: 'payroll' as PayrollTab, label: 'Bảng Lương', icon: DollarSign },
@@ -485,6 +595,15 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                   <option key={b.id} value={b.id}>{b.id} — {b.name}</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={exporting}
+                className="flex items-center gap-2 px-3 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold text-sm disabled:opacity-60"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                Xuất Excel
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-4 gap-4 mb-6">

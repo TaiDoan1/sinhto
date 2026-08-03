@@ -17,32 +17,14 @@ function fmtDate(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-// "YYYY-Www" (chuẩn input type="week") — tuần ISO bắt đầu Thứ 2.
-function currentWeekStr(): string {
-  const d = new Date();
-  const target = new Date(d.valueOf());
-  const dayNr = (d.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  }
-  const week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
-  return `${d.getFullYear()}-W${pad2(week)}`;
-}
-
-// Đổi "YYYY-Www" thành khoảng ngày Thứ 2 - Chủ Nhật thật (chuỗi "YYYY-MM-DD" so sánh được trực tiếp).
-function weekRange(weekStr: string): { start: string; end: string } {
-  const [yearStr, weekPart] = weekStr.split('-W');
-  const year = Number(yearStr);
-  const week = Number(weekPart) || 1;
-  const jan4 = new Date(year, 0, 4);
-  const jan4Day = (jan4.getDay() + 6) % 7; // 0 = Thứ 2
-  const week1Monday = new Date(jan4);
-  week1Monday.setDate(jan4.getDate() - jan4Day);
-  const monday = new Date(week1Monday);
-  monday.setDate(week1Monday.getDate() + (week - 1) * 7);
+// Nhận 1 ngày bất kỳ (chuỗi "YYYY-MM-DD") và trả về khoảng Thứ 2 - Chủ Nhật thật của tuần chứa
+// ngày đó. Dùng input type="date" (chọn 1 ngày trong tuần) thay vì type="week" vì Safari/iOS
+// không hỗ trợ input type="week" (không hiện lịch chọn được, chỉ ra ô nhập chữ trống trơn).
+function weekRange(dateStr: string): { start: string; end: string } {
+  const d = parseLocalDateStr(dateStr);
+  const dayNr = (d.getDay() + 6) % 7; // 0 = Thứ 2
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - dayNr);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return { start: fmtDate(monday), end: fmtDate(sunday) };
@@ -112,7 +94,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
   const [payrollBranchFilter, setPayrollBranchFilter] = useState<string>('ALL');
   const [payrollPeriodType, setPayrollPeriodType] = useState<'month' | 'week' | 'custom'>('month');
   const [payrollMonth, setPayrollMonth] = useState<string>(currentMonthStr());
-  const [payrollWeek, setPayrollWeek] = useState<string>(currentWeekStr());
+  const [payrollWeek, setPayrollWeek] = useState<string>(localDateStr());
   const [payrollCustomStart, setPayrollCustomStart] = useState<string>(localDateStr());
   const [payrollCustomEnd, setPayrollCustomEnd] = useState<string>(localDateStr());
   const { activeBranches } = useBranches();
@@ -552,19 +534,25 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
                   Theo ngày
                 </button>
               </div>
+              {/* Dùng input type="date" (chọn 1 ngày bất kỳ trong tháng/tuần muốn xem) thay vì
+                  type="month"/type="week" — Safari (iPhone/Mac) không hỗ trợ 2 loại input đó,
+                  chỉ hiện ô chữ trống chứ không ra lịch để bấm chọn. type="date" thì mọi trình
+                  duyệt đều hiện lịch bình thường. */}
               {payrollPeriodType === 'month' && (
                 <input
-                  type="month"
-                  value={payrollMonth}
-                  onChange={(e) => setPayrollMonth(e.target.value || currentMonthStr())}
+                  type="date"
+                  title="Chọn 1 ngày bất kỳ trong tháng muốn xem"
+                  value={`${payrollMonth}-01`}
+                  onChange={(e) => setPayrollMonth(e.target.value ? e.target.value.slice(0, 7) : currentMonthStr())}
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
                 />
               )}
               {payrollPeriodType === 'week' && (
                 <input
-                  type="week"
+                  type="date"
+                  title="Chọn 1 ngày bất kỳ trong tuần muốn xem"
                   value={payrollWeek}
-                  onChange={(e) => setPayrollWeek(e.target.value || currentWeekStr())}
+                  onChange={(e) => setPayrollWeek(e.target.value || localDateStr())}
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-sm"
                 />
               )}

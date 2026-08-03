@@ -1,4 +1,4 @@
-import { LogOut, Users } from 'lucide-react';
+import { LogOut, Users, UserCog } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { AdminLogin } from './AdminLogin';
 import { HRManagement } from './HRManagement';
@@ -18,7 +18,16 @@ export function HrApp() {
     );
   }
 
-  if (!isLoggedIn) return <AdminLogin />;
+  if (!isLoggedIn) {
+    return (
+      <AdminLogin
+        title="FitBlend Nhân Sự"
+        subtitle="Đăng nhập tài khoản Nhân Sự / Quản lý chi nhánh"
+        submitLabel="Đăng nhập Nhân Sự"
+        icon={UserCog}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

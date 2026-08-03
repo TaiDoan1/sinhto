@@ -2,7 +2,19 @@ import { useState } from 'react';
 import { LogIn, Shield, Loader2, AlertCircle } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 
-export function AdminLogin() {
+interface AdminLoginProps {
+  title?: string;
+  subtitle?: string;
+  submitLabel?: string;
+  icon?: typeof Shield;
+}
+
+export function AdminLogin({
+  title = 'FitBlend Admin',
+  subtitle = 'Đăng nhập tài khoản Quản lý chi nhánh',
+  submitLabel = 'Đăng nhập Admin',
+  icon: Icon = Shield,
+}: AdminLoginProps = {}) {
   const { login } = useAdmin();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -27,10 +39,10 @@ export function AdminLogin() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-8 h-8 text-emerald-700" />
+            <Icon className="w-8 h-8 text-emerald-700" />
           </div>
-          <h1 className="text-2xl font-black text-gray-900">FitBlend Admin</h1>
-          <p className="text-sm text-gray-500 mt-2">Đăng nhập tài khoản Quản lý chi nhánh</p>
+          <h1 className="text-2xl font-black text-gray-900">{title}</h1>
+          <p className="text-sm text-gray-500 mt-2">{subtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,7 +76,7 @@ export function AdminLogin() {
             className="w-full py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-            Đăng nhập Admin
+            {submitLabel}
           </button>
         </form>
       </div>

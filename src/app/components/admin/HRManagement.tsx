@@ -19,9 +19,11 @@ interface HRManagementProps {
    * (giống EmployeeBottomNav bên app Nhân Viên) thay vì dải tab cuộn ngang phía trên — dùng cho
    * màn hình Nhân Sự thu gọn để bấm chuyển mục dễ hơn bằng ngón cái. */
   useBottomNavOnMobile?: boolean;
+  /** Ẩn tab Cấu Hình NV — dùng cho màn hình Nhân Sự thu gọn. */
+  hideConfigTab?: boolean;
 }
 
-export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = false, useBottomNavOnMobile = false }: HRManagementProps = {}) {
+export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = false, useBottomNavOnMobile = false, hideConfigTab = false }: HRManagementProps = {}) {
   const { adminUser } = useAdmin();
   const isStoreManager = adminUser?.position === 'store_manager';
 
@@ -38,7 +40,7 @@ export function HRManagement({ hidePayrollSettings = false, readOnlySchedule = f
     { id: 'list' as HRTab, label: 'Danh Sách NV', icon: List },
     { id: 'config' as HRTab, label: 'Cấu Hình NV', icon: Settings },
     { id: 'payroll' as HRTab, label: 'Bảng Lương', icon: Users },
-  ];
+  ].filter(t => !(hideConfigTab && t.id === 'config'));
 
   const tabs = isStoreManager ? storeManagerTabs : adminTabs;
   const [activeTab, setActiveTab] = useState<HRTab>(isStoreManager ? 'inventory' : 'schedule');

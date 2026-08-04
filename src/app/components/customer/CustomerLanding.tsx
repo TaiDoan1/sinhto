@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+// @ts-ignore - react-pageflip không có type sẵn
+import HTMLFlipBook from 'react-pageflip';
 import {
   ArrowRight,
   CheckCircle2,
@@ -391,7 +393,7 @@ function Logo({ className = '', light = false }: { className?: string; light?: b
       <img
         src={LANDING_IMAGES.logo}
         alt="FitBlend — Healthy Protein Smoothie"
-        className={`h-9 sm:h-11 w-auto object-contain ${className}`}
+        className={`h-16 sm:h-20 w-auto object-contain ${className}`}
         style={light ? { filter: 'brightness(0) invert(1)' } : undefined}
         onError={() => setImgFailed(true)}
       />
@@ -779,6 +781,32 @@ export function CustomerLanding({
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMenuImage, setShowMenuImage] = useState(false);
+  const flipRef = useRef<any>(null);
+  const [flipDims, setFlipDims] = useState({ w: 442, h: 640 });
+
+  // Tính kích thước 1 trang menu vừa khung nhìn (giữ tỉ lệ ảnh 1768:2560) khi mở menu.
+  // Mobile: dùng gần trọn bề rộng (không có mũi tên 2 bên) → to & đầy màn hình.
+  // Desktop: chừa chỗ 2 bên cho mũi tên lật.
+  useEffect(() => {
+    if (!showMenuImage) return;
+    const ratio = 1768 / 2560; // rộng / cao
+    const compute = () => {
+      const isMobile = window.innerWidth < 640;
+      const maxH = window.innerHeight * (isMobile ? 0.82 : 0.88);
+      const maxW = window.innerWidth * (isMobile ? 0.88 : 0.8);
+      let h = maxH;
+      let w = h * ratio;
+      if (w > maxW) { w = maxW; h = w / ratio; }
+      setFlipDims({ w: Math.round(w), h: Math.round(h) });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('orientationchange', compute);
+    };
+  }, [showMenuImage]);
   const [activeMenuPage, setActiveMenuPage] = useState<1 | 2>(1);
   const [showRegChoice, setShowRegChoice] = useState(false);
   const [showPurchaseTypeChoice, setShowPurchaseTypeChoice] = useState(false);
@@ -790,6 +818,28 @@ export function CustomerLanding({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Hiệu ứng hiện dần khi cuộn: [data-reveal] hiện cả khối; các con của [data-reveal-group]
+  // hiện so le nhau. Tôn trọng "giảm chuyển động". Dùng kiểm theo scroll (thay vì
+  // IntersectionObserver) để KHÔNG bao giờ kẹt ẩn khi người dùng lướt nhanh: hễ phần tử đã vào
+  // ~90% khung nhìn (hoặc đã cuộn qua) thì hiện. Chạy lại khi đổi tab combo cho thẻ mới.
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const targets = Array.from(document.querySelectorAll('[data-reveal], [data-reveal-group]'));
+    const check = () => {
+      for (const t of targets) {
+        if (t.classList.contains('reveal-in')) continue;
+        if (t.getBoundingClientRect().top < window.innerHeight * 0.9) t.classList.add('reveal-in');
+      }
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [landingPlanDuration]);
 
   const goComboDuration = (duration: ComboDuration) => {
     if (onSelectDuration) {
@@ -1132,7 +1182,7 @@ export function CustomerLanding({
           </div>
 
           {/* 4 thẻ highlight — icon tròn xanh đặc, số đen */}
-          <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-4 md:mb-8">
+          <div data-reveal-group className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-4 md:mb-8">
             {INGREDIENT_FEATURE_CARDS.map((card) => {
               const Icon = card.icon;
               return (
@@ -1235,7 +1285,7 @@ export function CustomerLanding({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6 items-stretch">
+          <div data-reveal-group className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6 items-stretch">
             {activePlanCombos.map((combo) => (
               <div 
                 key={combo.id}
@@ -1355,7 +1405,7 @@ export function CustomerLanding({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 mb-6 sm:mb-12">
+          <div data-reveal-group className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 mb-6 sm:mb-12">
             {[
               { value: '366+', label: 'khách/tháng' },
               { value: '1.560+', label: 'ly giao/tháng' },
@@ -1373,7 +1423,7 @@ export function CustomerLanding({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5 mb-6 sm:mb-10">
+          <div data-reveal-group className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5 mb-6 sm:mb-10">
             {TESTIMONIALS.map((t, idx) => (
               <div
                 key={t.name}
@@ -1737,61 +1787,43 @@ export function CustomerLanding({
       )}
 
       {showMenuImage && (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4">
-          <button 
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-2 sm:p-4">
+          <button
             type="button"
             onClick={() => setShowMenuImage(false)}
-            className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
+            aria-label="Đóng menu"
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 z-10 p-2.5 sm:p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
           >
             <X className="w-6 h-6" />
           </button>
-          <div className="flex gap-2 mb-4">
-            {([1, 2] as const).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setActiveMenuPage(page)}
-                className="px-4 py-2 rounded-full text-sm font-bold"
-                style={{
-                  background: activeMenuPage === page ? BRAND.orange : 'rgba(255,255,255,0.1)',
-                  color: 'white',
-                }}
-              >
-                Trang {page}
-              </button>
-            ))}
-            </div>
-          <div className="relative flex items-center max-w-4xl w-full">
-              <button
-              type="button"
-              disabled={activeMenuPage === 1}
-                onClick={() => setActiveMenuPage(1)}
-              className="hidden md:flex absolute -left-12 p-3 rounded-full bg-white/10 text-white disabled:opacity-30"
-              >
-              <ChevronLeft className="w-5 h-5" />
-              </button>
-                <img 
-                  src={LANDING_IMAGES.menuPage(activeMenuPage)} 
-              alt={`Menu trang ${activeMenuPage}`}
-              className="max-h-[70vh] w-full object-contain rounded-xl"
-                />
-              <button
-              type="button"
-              disabled={activeMenuPage === 2}
-                onClick={() => setActiveMenuPage(2)}
-              className="hidden md:flex absolute -right-12 p-3 rounded-full bg-white/10 text-white disabled:opacity-30"
-              >
-              <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-              <a
-                href={LANDING_IMAGES.menuPage(activeMenuPage)}
-            download
-            className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold text-white"
-            style={{ background: BRAND.orange }}
-              >
-            <Download className="w-4 h-4" /> Tải menu
-              </a>
+
+          <p className="text-white/60 text-[11px] sm:text-sm mb-2 sm:mb-3 select-none text-center px-10">
+            Chạm hoặc kéo mép trang để lật như sách
+          </p>
+
+          <div className="menu-book" style={{ width: flipDims.w, height: flipDims.h }}>
+            <HTMLFlipBook
+              ref={flipRef}
+              width={flipDims.w}
+              height={flipDims.h}
+              size="fixed"
+              maxShadowOpacity={0.5}
+              drawShadow
+              showPageCorners
+              flippingTime={700}
+              usePortrait
+              mobileScrollSupport
+              showCover={false}
+              className="menu-flipbook"
+            >
+              <div className="menu-page">
+                <img src={LANDING_IMAGES.menuPage(1)} alt="Menu trang 1" />
+              </div>
+              <div className="menu-page">
+                <img src={LANDING_IMAGES.menuPage(2)} alt="Menu trang 2" />
+              </div>
+            </HTMLFlipBook>
+          </div>
         </div>
       )}
 
@@ -1801,6 +1833,46 @@ export function CustomerLanding({
           50% { transform: translateY(-16px); }
         }
         .animate-float { animation: float 5s ease-in-out infinite; }
+
+        /* Menu lật sách */
+        .menu-book { position: relative; }
+        /* Độ dày các trang bên phải — tạo cảm giác cuốn sách thật */
+        .menu-book::before {
+          content: ""; position: absolute; z-index: 0;
+          top: 4px; bottom: 8px; right: -9px; width: 11px;
+          border-radius: 0 3px 3px 0;
+          background: repeating-linear-gradient(to right, #f3ede1 0 2px, #d9d2c2 2px 3px);
+          box-shadow: 5px 9px 22px rgba(0,0,0,.5);
+        }
+        /* Bóng đổ dưới sách cho nổi khối */
+        .menu-book::after {
+          content: ""; position: absolute; z-index: 0;
+          left: 4%; right: -2%; bottom: -20px; height: 34px;
+          background: radial-gradient(closest-side, rgba(0,0,0,.55), transparent 80%);
+          filter: blur(3px);
+        }
+        .menu-flipbook { position: relative; z-index: 1; margin: 0 auto; }
+        .menu-page { background: #fff; overflow: hidden; border-radius: 2px 5px 5px 2px; }
+        .menu-page img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        @media (prefers-reduced-motion: no-preference) {
+          [data-reveal] {
+            opacity: 0; transform: translateY(26px);
+            transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);
+          }
+          [data-reveal].reveal-in { opacity: 1; transform: none; }
+
+          [data-reveal-group] > * {
+            opacity: 0; transform: translateY(26px);
+            transition: opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1);
+          }
+          [data-reveal-group].reveal-in > * { opacity: 1; transform: none; }
+          [data-reveal-group].reveal-in > *:nth-child(2) { transition-delay: .08s; }
+          [data-reveal-group].reveal-in > *:nth-child(3) { transition-delay: .16s; }
+          [data-reveal-group].reveal-in > *:nth-child(4) { transition-delay: .24s; }
+          [data-reveal-group].reveal-in > *:nth-child(5) { transition-delay: .32s; }
+          [data-reveal-group].reveal-in > *:nth-child(6) { transition-delay: .40s; }
+        }
       `}</style>
     </div>
   );

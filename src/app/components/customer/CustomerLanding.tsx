@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   Star,
   Truck,
-  UserCheck,
   Users,
   UtensilsCrossed,
   Wheat,
@@ -917,6 +916,11 @@ export function CustomerLanding({
     onSelectCombo(planId);
   };
 
+  // Đăng ký combo -> mở Facebook để được tư vấn trực tiếp
+  const openConsult = () => {
+    window.open(BRAND.facebook, '_blank', 'noopener,noreferrer');
+  };
+
   const activePlanCombos = PLAN_COMBOS_DATA[landingPlanDuration];
 
   const scrollTo = (href: string) => {
@@ -1422,11 +1426,11 @@ export function CustomerLanding({
 
                 <button
                   type="button"
-                  onClick={() => goSelectPlan(combo.id)}
+                  onClick={openConsult}
                   className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-black text-white text-sm transition-transform active:scale-[0.98] mt-auto"
                   style={{ background: combo.btnBg }}
                 >
-                  Đăng Ký Ngay
+                  Nhận Tư Vấn
                 </button>
               </div>
             ))}
@@ -1772,40 +1776,29 @@ export function CustomerLanding({
                 <h3 className="text-2xl font-black" style={{ color: BRAND.green }}>
                   Bắt đầu lộ trình
                 </h3>
-                <p className="text-sm opacity-70 mt-1">Bạn muốn tự đăng ký hay cần tư vấn?</p>
+                <p className="text-sm opacity-70 mt-1">Nhắn tin để được tư vấn combo phù hợp với bạn</p>
               </div>
               <div className="space-y-3">
-                <button 
+                <button
                   type="button"
                   onClick={() => {
-                    goComboDuration('monthly');
+                    openConsult();
                     setShowRegChoice(false);
                   }}
                   className="w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-2"
                   style={{ background: BRAND.orange }}
                 >
-                  <UserCheck className="w-5 h-5" /> Tự đăng ký Combo Tháng
+                  <Facebook className="w-5 h-5" /> Nhận tư vấn qua Facebook
                 </button>
-                  <div className="flex gap-3">
-                    <a 
+                  <a
                     href={BRAND.zalo}
-                      target="_blank" 
+                    target="_blank"
                     rel="noreferrer"
-                    className="flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2"
                     style={{ background: '#0068FF' }}
-                    >
-                    <MessageCircle className="w-4 h-4" /> Zalo
-                    </a>
-                    <a 
-                    href={BRAND.facebook}
-                      target="_blank" 
-                    rel="noreferrer"
-                    className="flex-1 py-3 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2"
-                    style={{ background: '#1877F2' }}
-                    >
-                    <Facebook className="w-4 h-4" /> Facebook
-                    </a>
-                  </div>
+                  >
+                    <MessageCircle className="w-4 h-4" /> Hoặc nhắn Zalo
+                  </a>
                 </div>
               <button type="button" onClick={() => setShowRegChoice(false)} className="text-sm opacity-50 hover:opacity-80">
                 Để sau
@@ -1821,19 +1814,19 @@ export function CustomerLanding({
             <h3 className="text-2xl font-black text-center mb-2" style={{ color: BRAND.green }}>
               Chọn hình thức mua hàng
             </h3>
-            <p className="text-center text-sm opacity-70 mb-6">Đăng ký combo dài hạn hay mua lẻ giao ngay?</p>
+            <p className="text-center text-sm opacity-70 mb-6">Nhận tư vấn combo dài hạn hay mua lẻ giao ngay?</p>
               <div className="grid gap-4">
                 <button
                 type="button"
                   onClick={() => {
                     setShowPurchaseTypeChoice(false);
-                    onGetStarted();
+                    openConsult();
                   }}
                 className="text-left p-5 rounded-2xl border-2 hover:shadow-md transition-shadow"
                 style={{ borderColor: `${BRAND.orange}40`, background: `${BRAND.orange}08` }}
                 >
                 <div className="font-black text-lg" style={{ color: BRAND.green }}>
-                  📦 Đăng ký Combo dài hạn
+                  📦 Nhận tư vấn Combo dài hạn
                   </div>
                 <p className="text-xs opacity-70 mt-1">Tuần / Tháng / Quý — tiết kiệm & freeship mỗi sáng</p>
                 </button>

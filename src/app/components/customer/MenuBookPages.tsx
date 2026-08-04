@@ -278,9 +278,9 @@ export function MenuBookPage2({ data }: { data: MenuBookData }) {
             <div style={{ fontSize: 8.5, fontWeight: 700, marginTop: 2 }}>{s.desc}</div>
             <div style={{ fontSize: 7.5, fontStyle: 'italic', color: '#aaa', marginBottom: 4 }}>{s.descEn}</div>
             {s.rows.map((r) => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, borderTop: '1px dotted #ddd', paddingTop: 2 }}>
-                <span style={{ color: '#666' }}>{r.label}</span>
-                <b style={{ color: s.color }}>{r.price}</b>
+              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4, fontSize: 9, borderTop: '1px dotted #ddd', paddingTop: 2 }}>
+                <span style={{ color: '#666', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+                <b style={{ color: s.color, whiteSpace: 'nowrap', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.price}</b>
               </div>
             ))}
           </div>
@@ -300,9 +300,9 @@ export function MenuBookPage2({ data }: { data: MenuBookData }) {
             </div>
             <div style={{ fontSize: 7.5, fontStyle: 'italic', color: '#999', marginBottom: 4 }}>/ {s.titleEn}</div>
             {s.rows.map((r) => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, padding: '1px 0' }}>
-                <span style={{ color: '#555' }}>{r.label}</span>
-                <b>{r.price}</b>
+              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4, fontSize: 9.5, padding: '1px 0' }}>
+                <span style={{ color: '#555', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+                <b style={{ whiteSpace: 'nowrap', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.price}</b>
               </div>
             ))}
             <div style={{ fontSize: 8, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.gift}</div>

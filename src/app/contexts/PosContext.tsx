@@ -54,7 +54,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
+    if (saved && !api.getAuthToken()) {
+      localStorage.removeItem(SESSION_KEY); // phiên cũ (trước khi có token) → buộc đăng nhập lại
+    } else if (saved) {
       try {
         setSession(JSON.parse(saved) as PosSession);
       } catch {
@@ -156,6 +158,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem('pos_branch');
     setPendingStartCashShiftId(null);
+    api.clearAuthToken();
   };
 
   const markStartCashDone = (shiftId: string) => {

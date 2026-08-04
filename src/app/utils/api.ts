@@ -5,6 +5,46 @@ import { normalizeImageUrl } from '../config/images';
 const BASE_URL = '/api';
 const DEFAULT_TIMEOUT_MS = 15000;
 
+// ─── Xác thực: lưu token & tự đính kèm vào mọi request ──────────────────────────
+const TOKEN_KEY = 'auth_token';
+
+export function setAuthToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearAuthToken() {
+  setAuthToken(null);
+}
+
+export function isAuthed(): boolean {
+  return !!getAuthToken();
+}
+
+// "Che" hàm fetch toàn cục trong phạm vi module này: mọi lời gọi fetch(...) bên dưới sẽ tự động
+// đính kèm header Authorization nếu đã có token — không cần sửa từng chỗ gọi.
+const nativeFetch = globalThis.fetch.bind(globalThis);
+function fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return nativeFetch(input, { ...init, headers });
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -255,6 +295,57 @@ export async function employeeLogin(username: string, password: string, branchId
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Đăng nhập thất bại');
   }
+  const data = await res.json();
+  if (data && data.token) setAuthToken(data.token);
+  return data;
+}
+
+// Tra cứu đơn/combo theo SĐT (công khai) — cho khách xem lịch sử của chính mình.
+export async function fetchOrdersByPhone(phone: string) {
+  const res = await fetch(`${BASE_URL}/orders/by-phone/${encodeURIComponent(phone)}`);
+  if (!res.ok) throw new Error('Failed to fetch orders by phone');
+  return res.json();
+}
+
+export async function fetchCombosByPhone(phone: string) {
+  const res = await fetch(`${BASE_URL}/combo-subscriptions/by-phone/${encodeURIComponent(phone)}`);
+  if (!res.ok) throw new Error('Failed to fetch combos by phone');
+  return res.json();
+}
+
+// Khách tự tạm dừng/tiếp tục combo của chính mình (xác minh bằng SĐT, không cần đăng nhập).
+export async function pauseComboByPhone(
+  id: string,
+  phone: string,
+  pauseStartDate?: string,
+  pauseEndDate?: string,
+) {
+  const res = await fetch(`${BASE_URL}/combo-subscriptions/${encodeURIComponent(id)}/customer-pause`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, pauseStartDate, pauseEndDate }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Không cập nhật được combo');
+  }
+  return res.json();
+}
+
+// Ghi giới thiệu theo mã (công khai) — server tự giải mã mã giới thiệu.
+export async function createReferralByCode(payload: {
+  code: string;
+  orderId: string;
+  customerName: string;
+  comboName: string;
+  price: number;
+}) {
+  const res = await fetch(`${BASE_URL}/affiliates/referral-by-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
   return res.json();
 }
 

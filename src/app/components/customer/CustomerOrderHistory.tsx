@@ -1,9 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, AlertTriangle, ChevronRight, Pause, Play, Calendar } from 'lucide-react';
-import { useOrders } from '../../contexts/OrderContext';
 import { getWholesaleAccounts, type WholesaleAccount } from './CustomerApp';
-import { useCombos } from '../../contexts/ComboContext';
+import * as api from '../../utils/api';
 
 interface Props {
   isOpen: boolean;
@@ -270,8 +269,6 @@ function CustomerComboCard({ combo, updateCombo }: { combo: any; updateCombo: an
 }
 
 export function CustomerOrderHistory({ isOpen, onClose }: Props) {
-  const { orders, history } = useOrders();
-  const { combos, updateCombo } = useCombos();
   const [tab, setTab] = useState<'orders' | 'wholesale' | 'combos'>('orders');
   const [phone, setPhone] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -285,10 +282,14 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
   const [comboResults, setComboResults] = useState<any[]>([]);
   const [comboSearched, setComboSearched] = useState(false);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!phone) return;
-    const all = [...orders, ...history];
-    setResults(all.filter(o => o.customerPhone === phone));
+    try {
+      const data = await api.fetchOrdersByPhone(phone);
+      setResults(data);
+    } catch {
+      setResults([]);
+    }
     setSearched(true);
   };
 
@@ -299,10 +300,29 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
     setWsSearched(true);
   };
 
-  const handleComboSearch = () => {
+  const handleComboSearch = async () => {
     if (!comboPhone) return;
-    setComboResults(combos.filter(c => c.customerPhone === comboPhone));
+    try {
+      const data = await api.fetchCombosByPhone(comboPhone);
+      setComboResults(data);
+    } catch {
+      setComboResults([]);
+    }
     setComboSearched(true);
+  };
+
+  // Khách tự tạm dừng/tiếp tục combo của mình (xác minh theo SĐT đã tra), rồi tải lại danh sách.
+  const pauseCombo = async (
+    id: string,
+    fields: { pauseStartDate?: string; pauseEndDate?: string },
+  ) => {
+    try {
+      await api.pauseComboByPhone(id, comboPhone, fields.pauseStartDate, fields.pauseEndDate);
+      const data = await api.fetchCombosByPhone(comboPhone);
+      setComboResults(data);
+    } catch (err) {
+      console.error('Không cập nhật được combo:', err);
+    }
   };
 
   if (!isOpen) return null;
@@ -583,7 +603,7 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                     Tìm thấy {comboResults.length} gói Combo đăng ký
                   </p>
                   {comboResults.map(combo => (
-                    <CustomerComboCard key={combo.id} combo={combo} updateCombo={updateCombo} />
+                    <CustomerComboCard key={combo.id} combo={combo} updateCombo={pauseCombo} />
                   ))}
                 </>
               )}

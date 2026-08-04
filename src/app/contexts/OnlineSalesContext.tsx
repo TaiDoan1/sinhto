@@ -21,7 +21,9 @@ export function OnlineSalesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
+    if (saved && !api.getAuthToken()) {
+      localStorage.removeItem(SESSION_KEY); // phiên cũ (trước khi có token) → buộc đăng nhập lại
+    } else if (saved) {
       try {
         const emp = JSON.parse(saved) as Employee;
         if (isOnlineSalesPosition(emp.position)) {
@@ -51,6 +53,7 @@ export function OnlineSalesProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setActiveEmployee(null);
     localStorage.removeItem(SESSION_KEY);
+    api.clearAuthToken();
   };
 
   return (

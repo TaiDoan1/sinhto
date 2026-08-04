@@ -51,7 +51,9 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
 
     const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
+    if (saved && !api.getAuthToken()) {
+      localStorage.removeItem(SESSION_KEY); // phiên cũ (trước khi có token) → buộc đăng nhập lại
+    } else if (saved) {
       try {
         const emp = JSON.parse(saved);
         setActiveEmployee(emp);
@@ -100,6 +102,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
     setActiveEmployee(null);
     setMyShifts([]);
     localStorage.removeItem(SESSION_KEY);
+    api.clearAuthToken();
   };
 
   const updateProfile = async (updates: Partial<Employee>) => {

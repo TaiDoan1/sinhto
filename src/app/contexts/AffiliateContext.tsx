@@ -57,6 +57,8 @@ export function AffiliateProvider({ children }: { children: ReactNode }) {
   // Load from backend on mount
   useEffect(() => {
     const loadData = () => {
+      if (!api.isAuthed()) return; // khách không tải danh sách đối tác/giao dịch giới thiệu
+
       api.fetchPartners()
         .then(data => setPartners(data))
         .catch(err => console.error("Error fetching partners:", err));
@@ -120,7 +122,12 @@ export function AffiliateProvider({ children }: { children: ReactNode }) {
   const addReferral = (code: string, orderId: string, customerName: string, comboName: string, price: number) => {
     const uppercaseCode = code.trim().toUpperCase();
     const partner = partners.find(p => p.code === uppercaseCode);
-    if (!partner) return false;
+    if (!partner) {
+      // Chế độ khách không có sẵn danh sách đối tác → nhờ server giải mã mã & ghi nhận giới thiệu.
+      api.createReferralByCode({ code: uppercaseCode, orderId, customerName, comboName, price })
+        .catch(err => console.error('Failed to record referral by code:', err));
+      return true;
+    }
 
     const newTransaction: ReferralTransaction = {
       id: `REF-${Date.now()}`,

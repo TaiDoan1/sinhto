@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { removeDiacritics, deepConvert } = require('./vietnamese');
 const { hashPassword, verifyPassword, isHashed } = require('./password');
+const { signToken, verifyToken, getTokenFromReq } = require('./auth');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
 const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
@@ -52,6 +53,60 @@ if (!fs.existsSync(backupsDir)) {
   fs.mkdirSync(backupsDir, { recursive: true });
 }
 app.use('/backups/excel', express.static(backupsDir));
+
+// --- CỔNG XÁC THỰC ---
+// Mặc định MỌI /api/* đều cần token hợp lệ. Chỉ các route trong danh sách trắng dưới đây là
+// công khai (khách hàng chưa đăng nhập vẫn gọi được: xem menu, đặt hàng, tra cứu theo SĐT...).
+const PUBLIC_API = [
+  { method: 'POST', re: /^\/api\/auth\/employee-login\/?$/ },
+  { method: 'GET', re: /^\/api\/health\/?$/ },
+  { method: 'GET', re: /^\/api\/events\/?$/ },
+  { method: 'GET', re: /^\/api\/products\/?$/ },
+  { method: 'GET', re: /^\/api\/branches(\/[^/]+)?\/?$/ },
+  { method: 'GET', re: /^\/api\/settings\/[^/]+\/?$/ },
+  { method: 'POST', re: /^\/api\/orders\/?$/ },
+  { method: 'GET', re: /^\/api\/orders\/by-phone\/[^/]+\/?$/ },
+  { method: 'POST', re: /^\/api\/combo-subscriptions\/?$/ },
+  { method: 'GET', re: /^\/api\/combo-subscriptions\/by-phone\/[^/]+\/?$/ },
+  { method: 'POST', re: /^\/api\/customers\/?$/ },
+  { method: 'GET', re: /^\/api\/customers\/[^/]+\/?$/ }, // tra theo SĐT — KHÁC với GET /api/customers (đã bị chặn)
+  { method: 'POST', re: /^\/api\/customers\/[^/]+\/earn\/?$/ },
+  { method: 'GET', re: /^\/api\/loyalty-vouchers\/lookup\/[^/]+\/?$/ },
+  { method: 'POST', re: /^\/api\/affiliates\/referral-by-code\/?$/ },
+  { method: 'POST', re: /^\/api\/wholesale\/?$/ }, // khách mua gói sỉ (TODO phase 2: siết theo SĐT)
+  { method: 'PATCH', re: /^\/api\/wholesale\/[^/]+\/?$/ }, // khách đổi ly (TODO phase 2: siết theo SĐT)
+  { method: 'PATCH', re: /^\/api\/combo-subscriptions\/[^/]+\/customer-pause\/?$/ }, // khách tạm dừng combo của chính mình
+];
+
+function isPublicApi(method, urlPath) {
+  return PUBLIC_API.some((r) => r.method === method && r.re.test(urlPath));
+}
+
+// AUTH_ENFORCE=false → GIAI ĐOẠN CHUYỂN TIẾP (grace): cổng KHÔNG chặn request thiếu token, chỉ
+// ghi log. Dùng khi deploy lần đầu để máy POS đang mở bản CŨ (chưa gửi token) không bị 401 —
+// các máy sẽ có token dần khi tải lại + đăng nhập lại. Sau khi mọi máy đã đăng nhập lại, đặt
+// AUTH_ENFORCE=true (hoặc bỏ biến) để bật chặn nghiêm ngặt. Mặc định (không set) = chặn.
+const AUTH_ENFORCE = process.env.AUTH_ENFORCE !== 'false' && process.env.AUTH_ENFORCE !== '0';
+if (!AUTH_ENFORCE) {
+  console.warn('[AUTH] AUTH_ENFORCE=false — cổng đang ở chế độ chuyển tiếp (chỉ ghi log, CHƯA chặn). Nhớ bật lại sau khi mọi máy đã đăng nhập lại.');
+}
+
+app.use((req, res, next) => {
+  const p = req.path;
+  if (p !== '/api' && !p.startsWith('/api/')) return next(); // không phải API → bỏ qua (ảnh tĩnh, frontend)
+  if (isPublicApi(req.method, p)) return next();
+  const user = verifyToken(getTokenFromReq(req));
+  if (user) {
+    req.user = user;
+    return next();
+  }
+  if (!AUTH_ENFORCE) {
+    // Chuyển tiếp: chưa chặn — ghi log để biết máy nào còn dùng bản cũ (chưa gửi token).
+    console.warn(`[AUTH grace] ${req.method} ${p} — thiếu token (bỏ qua vì AUTH_ENFORCE=false)`);
+    return next();
+  }
+  return res.status(401).json({ error: 'Chưa đăng nhập hoặc phiên đã hết hạn' });
+});
 
 // Multer storage configuration
 const multer = require('multer');
@@ -221,6 +276,27 @@ app.get('/api/orders', (req, res) => {
       completedAt: r.completedAt ? new Date(r.completedAt) : undefined
     }));
     res.json(orders);
+  });
+});
+
+// Tra cứu đơn theo SĐT (CÔNG KHAI) — dùng cho khách xem lịch sử đơn của chính mình, chỉ trả
+// về đơn khớp SĐT thay vì toàn bộ đơn của hệ thống.
+app.get('/api/orders/by-phone/:phone', (req, res) => {
+  const phone = decodeURIComponent(req.params.phone);
+  db.all('SELECT * FROM orders ORDER BY time DESC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const matched = (rows || [])
+      .filter((r) => phonesMatch(phone, r.customerPhone))
+      .map((r) => ({
+        ...r,
+        items: JSON.parse(r.items),
+        stockDeducted: !!r.stockDeducted,
+        time: new Date(r.time),
+        paidAt: r.paidAt ? new Date(r.paidAt) : undefined,
+        readyAt: r.readyAt ? new Date(r.readyAt) : undefined,
+        completedAt: r.completedAt ? new Date(r.completedAt) : undefined,
+      }));
+    res.json(matched);
   });
 });
 
@@ -618,6 +694,37 @@ app.post('/api/affiliates/referrals', (req, res) => {
   );
 });
 
+// Ghi giao dịch giới thiệu theo MÃ (CÔNG KHAI) — giải mã mã giới thiệu ở SERVER thay vì cần
+// client tải toàn bộ danh sách đối tác PT (vốn đã bị chặn). Dùng cho khách web đặt đơn qua ref.
+app.post('/api/affiliates/referral-by-code', (req, res) => {
+  const { code, orderId, customerName, comboName, price } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'Thiếu mã giới thiệu' });
+  const upper = String(code).trim().toUpperCase();
+  db.get('SELECT * FROM partners_pt WHERE code = ?', [upper], (err, partner) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!partner) return res.status(404).json({ error: 'Mã giới thiệu không tồn tại' });
+    const r = {
+      id: `REF-${Date.now()}`,
+      ptId: partner.id,
+      ptCode: partner.code,
+      orderId: orderId || '',
+      customerName: normStr(customerName || ''),
+      comboName: normStr(comboName || ''),
+      price: Number(price) || 0,
+      timestamp: new Date().toISOString(),
+    };
+    db.run(
+      `INSERT INTO referral_transactions VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, r.ptId, r.ptCode, r.orderId, r.customerName, r.comboName, r.price, r.timestamp],
+      function (insErr) {
+        if (insErr) return res.status(500).json({ error: insErr.message });
+        broadcast('REFERRAL_CREATED', r);
+        res.status(201).json(r);
+      }
+    );
+  });
+});
+
 // --- PRODUCTS API ---
 app.get('/api/products', (req, res) => {
   db.all("SELECT * FROM products", (err, rows) => {
@@ -682,7 +789,13 @@ app.post('/api/auth/employee-login', (req, res) => {
       return res.status(403).json({ error: 'Tài khoản không thuộc chi nhánh này. Máy POS này chỉ đăng nhập được tài khoản của chi nhánh đã gán hoặc chi nhánh hỗ trợ thêm.' });
     }
     const employee = parseEmployeeRow(row);
-    res.json(employee);
+    const token = signToken({
+      id: employee.id,
+      position: employee.position,
+      branch: employee.branch,
+      username: employee.username,
+    });
+    res.json({ ...employee, token });
   });
 });
 
@@ -1968,6 +2081,18 @@ app.get('/api/combo-subscriptions', (req, res) => {
   });
 });
 
+// Tra cứu combo theo SĐT (CÔNG KHAI) — khách xem gói combo của chính mình.
+app.get('/api/combo-subscriptions/by-phone/:phone', (req, res) => {
+  const phone = decodeURIComponent(req.params.phone);
+  db.all('SELECT * FROM combo_subscriptions ORDER BY createdAt DESC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const matched = (rows || [])
+      .filter((r) => phonesMatch(phone, r.customerPhone))
+      .map(parseComboRow);
+    res.json(matched);
+  });
+});
+
 app.post('/api/combo-subscriptions', (req, res) => {
   const body = req.body;
   const id = body.id || `COMBO-${Date.now()}`;
@@ -2169,6 +2294,34 @@ app.patch('/api/combo-subscriptions/:id/branch', (req, res) => {
   });
 });
 
+// Khách tự tạm dừng/tiếp tục combo CỦA CHÍNH MÌNH (CÔNG KHAI, xác minh bằng SĐT) — chỉ đổi
+// field tạm dừng, không cho sửa các trường khác như PATCH đầy đủ (vốn cần đăng nhập).
+app.patch('/api/combo-subscriptions/:id/customer-pause', (req, res) => {
+  const { id } = req.params;
+  const { phone, pauseStartDate, pauseEndDate } = req.body || {};
+  db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Combo not found' });
+    if (!phonesMatch(phone, row.customerPhone)) {
+      return res.status(403).json({ error: 'SĐT không khớp combo này' });
+    }
+    const now = new Date().toISOString();
+    db.run(
+      'UPDATE combo_subscriptions SET pauseStartDate = ?, pauseEndDate = ?, updatedAt = ? WHERE id = ?',
+      [pauseStartDate || null, pauseEndDate || null, now, id],
+      (uErr) => {
+        if (uErr) return res.status(500).json({ error: uErr.message });
+        db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e, updated) => {
+          if (e || !updated) return res.status(500).json({ error: 'Failed to fetch updated combo' });
+          const parsed = parseComboRow(updated);
+          broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+          res.json(parsed);
+        });
+      }
+    );
+  });
+});
+
 app.post('/api/combo-subscriptions/:id/claim', (req, res) => {
   const { id } = req.params;
   const { employeeId, employeeName } = req.body;
@@ -2323,20 +2476,40 @@ async function start() {
     // — gộp web + API vào 1 service Railway duy nhất, không cần Vercel nữa.
     const distDir = path.join(__dirname, '../dist');
     if (fs.existsSync(distDir)) {
-      app.use(express.static(distDir));
+      // index:false để "/" KHÔNG bị static tự trả index.html — nhường cho catch-all định tuyến
+      // theo hostname (landing domain phải trả landing.html, không phải index.html quản lý).
+      app.use(express.static(distDir, { index: false }));
+
+      // LANDING_HOSTS = danh sách domain của trang khách (phân tách bởi dấu phẩy), VD
+      // "fitblend.vn,www.fitblend.vn". Khi khớp → phục vụ landing.html cho MỌI path (kể cả
+      // /admin, /pos) nên hệ quản lý KHÔNG truy cập được qua domain landing. Không set = giữ
+      // nguyên hành vi cũ (1 domain phục vụ hệ quản lý).
+      const LANDING_HOSTS = (process.env.LANDING_HOSTS || '')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const landingHtmlPath = path.join(distDir, 'landing.html');
+      const hasLandingBuild = fs.existsSync(landingHtmlPath);
+      const isLandingHost = (req) =>
+        LANDING_HOSTS.length > 0 &&
+        hasLandingBuild &&
+        LANDING_HOSTS.includes(String(req.hostname || '').toLowerCase());
+
       // "Thêm vào Màn hình chính" đọc title/icon từ HTML TĨNH ban đầu server trả về, không đợi
       // JS chạy xong — nên cổng /staff cần 1 file HTML riêng (staff.html, sinh ra lúc build bởi
       // scripts/generate-mode-html.js) thay vì dùng chung index.html của POS.
       app.get(/^\/staff(\/.*)?$/, (req, res, next) => {
+        if (isLandingHost(req)) return res.sendFile(landingHtmlPath);
         const staffHtmlPath = path.join(distDir, 'staff.html');
         if (fs.existsSync(staffHtmlPath)) return res.sendFile(staffHtmlPath);
         res.sendFile(path.join(distDir, 'index.html'));
       });
       app.get(/.*/, (req, res, next) => {
         if (req.path.startsWith('/api')) return next();
+        if (isLandingHost(req)) return res.sendFile(landingHtmlPath);
         res.sendFile(path.join(distDir, 'index.html'));
       });
-      console.log('Da phuc vu frontend tinh tu', distDir);
+      console.log('Da phuc vu frontend tinh tu', distDir, LANDING_HOSTS.length ? `(landing hosts: ${LANDING_HOSTS.join(', ')})` : '');
     } else {
       console.warn('Khong tim thay dist/ — chay `npm run build` o thu muc goc truoc khi start de phuc vu frontend.');
     }

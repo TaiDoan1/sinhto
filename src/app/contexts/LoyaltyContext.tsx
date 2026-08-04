@@ -107,6 +107,7 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshCustomers = async () => {
+    if (!api.isAuthed()) { setLoading(false); return; } // khách không tải toàn bộ danh sách khách hàng
     try {
       const data = await api.fetchCustomers();
       setCustomers(data);

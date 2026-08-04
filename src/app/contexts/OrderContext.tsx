@@ -77,6 +77,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 1. Fetch from server
     const loadOrders = () => {
+      if (!api.isAuthed()) return; // chế độ khách (chưa đăng nhập) không tải danh sách đơn toàn hệ thống
       api.fetchOrders()
         .then((data: any[]) => {
           const normalized = data.map(normalizeOrder);

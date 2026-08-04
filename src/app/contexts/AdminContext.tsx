@@ -21,7 +21,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
+    if (saved && !api.getAuthToken()) {
+      localStorage.removeItem(SESSION_KEY); // phiên cũ (trước khi có token) → buộc đăng nhập lại
+    } else if (saved) {
       try {
         const user = JSON.parse(saved) as Employee;
         if (ALLOWED_POSITIONS.has(user.position)) {
@@ -48,6 +50,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setAdminUser(null);
     localStorage.removeItem(SESSION_KEY);
+    api.clearAuthToken();
   };
 
   return (

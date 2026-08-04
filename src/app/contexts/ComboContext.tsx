@@ -136,6 +136,7 @@ export function ComboProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<ComboNotification[]>([]);
 
   const refreshCombos = useCallback(async () => {
+    if (!api.isAuthed()) { setIsLoading(false); return; } // khách không tải toàn bộ combo hệ thống
     try {
       const data = await api.fetchComboSubscriptions();
       setCombos(data.map(normalizeCombo));

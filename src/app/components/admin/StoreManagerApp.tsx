@@ -48,13 +48,13 @@ export function StoreManagerApp() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
             <Store className="w-5 h-5 text-emerald-700" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-black text-slate-900 leading-tight">Cửa Hàng Trưởng</h1>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight truncate">Cửa Hàng Trưởng</h1>
             <p className="text-xs text-slate-500 truncate">
               {adminUser?.fullName}{adminUser?.branch ? ` · ${branchLabel(adminUser.branch)}` : ''}
             </p>
@@ -63,9 +63,9 @@ export function StoreManagerApp() {
         <button
           type="button"
           onClick={logout}
-          className="flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50 shrink-0"
+          className="flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700 px-2.5 sm:px-3 py-2 rounded-lg hover:bg-red-50 shrink-0"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 shrink-0" />
           Đăng xuất
         </button>
       </header>

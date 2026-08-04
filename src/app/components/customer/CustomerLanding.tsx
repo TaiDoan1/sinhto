@@ -798,6 +798,17 @@ export function CustomerLanding({
       .catch(() => {});
   }, []);
 
+  // Trên điện thoại, vuốt lật sách dễ chạm cạnh màn hình → trình duyệt hiểu là "vuốt lùi" và
+  // thoát trang. Đẩy 1 mục lịch sử khi mở menu để thao tác "lùi" (nút back / vuốt cạnh) chỉ
+  // ĐÓNG menu — ở lại landing, không rời trang.
+  useEffect(() => {
+    if (!showMenuImage) return;
+    window.history.pushState({ fbMenu: true }, '');
+    const onPop = () => setShowMenuImage(false);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [showMenuImage]);
+
   // Tính kích thước 1 trang menu vừa khung nhìn (giữ tỉ lệ ảnh 1768:2560) khi mở menu.
   // Mobile: dùng gần trọn bề rộng (không có mũi tên 2 bên) → to & đầy màn hình.
   // Desktop: chừa chỗ 2 bên cho mũi tên lật.
@@ -1807,10 +1818,13 @@ export function CustomerLanding({
       )}
 
       {showMenuImage && (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-0 sm:p-4">
+        <div
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-0 sm:p-4"
+          style={{ overscrollBehavior: 'none', touchAction: 'none' }}
+        >
           <button
             type="button"
-            onClick={() => setShowMenuImage(false)}
+            onClick={() => window.history.back()}
             aria-label="Đóng menu"
             className="absolute top-3 right-3 sm:top-5 sm:right-5 z-20 p-2.5 sm:p-3 rounded-full bg-black/55 text-white hover:bg-black/75"
           >

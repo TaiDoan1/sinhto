@@ -415,7 +415,7 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const getShiftColor = (template: typeof shiftTemplates[0]) => template.color;
 
   const availableEmployees = selectedBranch === 'ALL'
-    ? [...employees].sort((a, b) => a.branch.localeCompare(b.branch) || a.fullName.localeCompare(b.fullName))
+    ? [...employees].sort((a, b) => (a.branch || '').localeCompare(b.branch || '') || (a.fullName || '').localeCompare(b.fullName || ''))
     : employees
         .filter(e => e.branch === selectedBranch || (e.secondaryBranches || []).includes(selectedBranch))
         .sort((a, b) => (a.branch === selectedBranch ? 0 : 1) - (b.branch === selectedBranch ? 0 : 1));

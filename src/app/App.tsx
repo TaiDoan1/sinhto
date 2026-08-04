@@ -18,6 +18,7 @@ import { CustomerApp } from "./components/customer/CustomerApp";
 import { ComboShipBoard } from "./components/combo-ship/ComboShipBoard";
 import { ShipperApp } from "./components/shipper/ShipperApp";
 import { ProductManagement } from "./components/admin/ProductManagement";
+import { MenuBookEditor } from "./components/admin/MenuBookEditor";
 import { ComboManagement } from "./components/admin/ComboManagement";
 import { ComboPackageTemplates } from "./components/admin/ComboPackageTemplates";
 import { GiftCampaigns } from "./components/admin/GiftCampaigns";
@@ -117,6 +118,8 @@ function AdminShell() {
         return <ShiftClosingBillSettings />;
       case "products":
         return <ProductManagement />;
+      case "menu-book":
+        return <MenuBookEditor />;
       case "combos":
         return <ComboManagement />;
       case "combo-packages":

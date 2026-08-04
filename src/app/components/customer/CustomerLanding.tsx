@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 // @ts-ignore - react-pageflip không có type sẵn
 import HTMLFlipBook from 'react-pageflip';
+import { MenuBookCover, MenuBookPage1, MenuBookPage2, MENU_PAGE_W, MENU_PAGE_H } from './MenuBookPages';
+import { DEFAULT_MENU_BOOK, MENU_BOOK_SETTING_KEY, type MenuBookData } from '../../config/menuBook';
+import * as api from '../../utils/api';
 import {
   ArrowRight,
   CheckCircle2,
@@ -783,6 +786,17 @@ export function CustomerLanding({
   const [showMenuImage, setShowMenuImage] = useState(false);
   const flipRef = useRef<any>(null);
   const [flipDims, setFlipDims] = useState({ w: 442, h: 640 });
+  const [menuBook, setMenuBook] = useState<MenuBookData | null>(DEFAULT_MENU_BOOK);
+
+  // Lấy nội dung "Sách menu" admin đã lưu trên server (nếu có); không có thì dùng nội dung
+  // mặc định. Nếu dữ liệu hỏng/thiếu → giữ mặc định để không vỡ trang.
+  useEffect(() => {
+    api.fetchSetting(MENU_BOOK_SETTING_KEY)
+      .then((d: any) => {
+        if (d && Array.isArray(d.comboToppings) && Array.isArray(d.flavours)) setMenuBook(d);
+      })
+      .catch(() => {});
+  }, []);
 
   // Tính kích thước 1 trang menu vừa khung nhìn (giữ tỉ lệ ảnh 1768:2560) khi mở menu.
   // Mobile: dùng gần trọn bề rộng (không có mũi tên 2 bên) → to & đầy màn hình.
@@ -792,8 +806,14 @@ export function CustomerLanding({
     const ratio = 1768 / 2560; // rộng / cao
     const compute = () => {
       const isMobile = window.innerWidth < 640;
-      const maxH = window.innerHeight * (isMobile ? 0.82 : 0.88);
-      const maxW = window.innerWidth * (isMobile ? 0.88 : 0.8);
+      if (isMobile) {
+        // Mobile: trang sách phủ TRỌN màn hình (nền giấy kem), nội dung căn giữa — hết khoảng đen.
+        setFlipDims({ w: Math.round(window.innerWidth), h: Math.round(window.innerHeight) });
+        return;
+      }
+      // Desktop: trang cỡ nội dung (giữ tỉ lệ), chừa chỗ 2 bên cho hiệu ứng sách.
+      const maxH = window.innerHeight * 0.88;
+      const maxW = window.innerWidth * 0.8;
       let h = maxH;
       let w = h * ratio;
       if (w > maxW) { w = maxW; h = w / ratio; }
@@ -1787,17 +1807,17 @@ export function CustomerLanding({
       )}
 
       {showMenuImage && (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-2 sm:p-4">
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-0 sm:p-4">
           <button
             type="button"
             onClick={() => setShowMenuImage(false)}
             aria-label="Đóng menu"
-            className="absolute top-3 right-3 sm:top-5 sm:right-5 z-10 p-2.5 sm:p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
+            className="absolute top-3 right-3 sm:top-5 sm:right-5 z-20 p-2.5 sm:p-3 rounded-full bg-black/55 text-white hover:bg-black/75"
           >
             <X className="w-6 h-6" />
           </button>
 
-          <p className="text-white/60 text-[11px] sm:text-sm mb-2 sm:mb-3 select-none text-center px-10">
+          <p className="hidden sm:block text-white/60 text-sm mb-3 select-none text-center px-10">
             Chạm hoặc kéo mép trang để lật như sách
           </p>
 
@@ -1816,12 +1836,34 @@ export function CustomerLanding({
               showCover={false}
               className="menu-flipbook"
             >
-              <div className="menu-page">
-                <img src={LANDING_IMAGES.menuPage(1)} alt="Menu trang 1" />
-              </div>
-              <div className="menu-page">
-                <img src={LANDING_IMAGES.menuPage(2)} alt="Menu trang 2" />
-              </div>
+              {menuBook
+                ? [
+                    <div key="cover" className="menu-page">
+                      <MenuBookCover data={menuBook} />
+                    </div>,
+                    <div key="p1" className="menu-page">
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
+                        <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
+                          <MenuBookPage1 data={menuBook} />
+                        </div>
+                      </div>
+                    </div>,
+                    <div key="p2" className="menu-page">
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
+                        <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
+                          <MenuBookPage2 data={menuBook} />
+                        </div>
+                      </div>
+                    </div>,
+                  ]
+                : [
+                    <div key="i1" className="menu-page">
+                      <img src={LANDING_IMAGES.menuPage(1)} alt="Menu trang 1" />
+                    </div>,
+                    <div key="i2" className="menu-page">
+                      <img src={LANDING_IMAGES.menuPage(2)} alt="Menu trang 2" />
+                    </div>,
+                  ]}
             </HTMLFlipBook>
           </div>
         </div>
@@ -1852,7 +1894,7 @@ export function CustomerLanding({
           filter: blur(3px);
         }
         .menu-flipbook { position: relative; z-index: 1; margin: 0 auto; }
-        .menu-page { background: #fff; overflow: hidden; border-radius: 2px 5px 5px 2px; }
+        .menu-page { background: #fffdf7; overflow: hidden; border-radius: 2px 5px 5px 2px; }
         .menu-page img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
         @media (prefers-reduced-motion: no-preference) {

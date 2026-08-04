@@ -6,7 +6,7 @@ import { BRAND } from './landing/brand';
 import { LANDING_IMAGES } from '../../config/images';
 
 export const MENU_PAGE_W = 560;
-export const MENU_PAGE_H = 1090;
+export const MENU_PAGE_H = 1160;
 
 // Bìa sách — lấp đầy trang (không dùng khung 560×898 cố định như trang menu) để phủ trọn màn
 // hình trên điện thoại. Logo lớn ở giữa + tagline + hướng dẫn vuốt lật.

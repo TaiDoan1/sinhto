@@ -380,16 +380,33 @@ const FAQ_VIDEOS: FaqVideo[] = [
   },
 ];
 
-function Logo({ className = '' }: { className?: string }) {
+function Logo({ className = '', light = false }: { className?: string; light?: boolean }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Ưu tiên logo ảnh (public/images/fitblend-logo.png). Nếu chưa có file → tự fallback về
+  // logo chữ như cũ nên không bao giờ bị vỡ ảnh. light=true: dùng ở nền tối (footer) — biến
+  // logo thành trắng bằng CSS filter để không bị chìm.
+  if (!imgFailed) {
+    return (
+      <img
+        src={LANDING_IMAGES.logo}
+        alt="FitBlend — Healthy Protein Smoothie"
+        className={`h-9 sm:h-11 w-auto object-contain ${className}`}
+        style={light ? { filter: 'brightness(0) invert(1)' } : undefined}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
   return (
     <div className={`flex items-center gap-2 sm:gap-2.5 ${className}`}>
       <div
         className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-base sm:text-lg text-white shadow-md"
-        style={{ background: BRAND.green }}
+        style={{ background: light ? '#ffffff' : BRAND.green, color: light ? BRAND.green : '#ffffff' }}
       >
         F
       </div>
-      <span className="text-lg sm:text-xl font-black tracking-tight" style={{ color: BRAND.green }}>
+      <span className="text-lg sm:text-xl font-black tracking-tight" style={{ color: light ? '#ffffff' : BRAND.green }}>
         FitBlend
       </span>
     </div>

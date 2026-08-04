@@ -17,6 +17,7 @@ export const LANDING_IMAGES = {
   heroSmoothie: PRODUCT_IMAGES.hero,
   comboBottles: PRODUCT_IMAGES.combo,
   menuPage: (page: number) => `${IMAGES_ROOT}/menu${page}.jpg`,
+  logo: `${IMAGES_ROOT}/fitblend-logo.png`,
 } as const;
 
 export const PRODUCT_EMOJI_OPTIONS = [

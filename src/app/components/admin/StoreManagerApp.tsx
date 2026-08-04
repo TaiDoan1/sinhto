@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import { LogOut, Store, Calendar, UserPlus, List, Warehouse, Package } from 'lucide-react';
+import { LogOut, Store, Calendar, List, Warehouse, Package } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { AdminLogin } from './AdminLogin';
 import { ShiftSchedule } from './ShiftSchedule';
-import { EmployeeRegistration } from './EmployeeRegistration';
-import { EmployeeList } from './EmployeeList';
+import { StoreManagerEmployeeList } from './StoreManagerEmployeeList';
 import { CrossBranchInventory } from './CrossBranchInventory';
 import { InventoryDashboard } from './InventoryDashboard';
 
-type StoreManagerTab = 'schedule' | 'register' | 'list' | 'stock' | 'materials';
+type StoreManagerTab = 'schedule' | 'list' | 'stock' | 'materials';
 
 const tabs: { id: StoreManagerTab; label: string; icon: typeof Calendar }[] = [
   { id: 'schedule', label: 'Sắp Lịch', icon: Calendar },
-  { id: 'register', label: 'Đăng Ký NV', icon: UserPlus },
   { id: 'list', label: 'Danh Sách NV', icon: List },
   { id: 'stock', label: 'Quản Lý Kho', icon: Warehouse },
   { id: 'materials', label: 'Nguyên Liệu', icon: Package },
@@ -97,8 +95,7 @@ export function StoreManagerApp() {
 
         <div className="pb-24 sm:pb-0">
           {activeTab === 'schedule' && <ShiftSchedule />}
-          {activeTab === 'register' && <EmployeeRegistration />}
-          {activeTab === 'list' && <EmployeeList />}
+          {activeTab === 'list' && <StoreManagerEmployeeList />}
           {activeTab === 'stock' && <CrossBranchInventory />}
           {activeTab === 'materials' && <InventoryDashboard />}
         </div>

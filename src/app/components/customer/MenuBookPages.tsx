@@ -243,11 +243,15 @@ export function MenuBookPage2({ data }: { data: MenuBookData }) {
           <div key={f.no} style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
             <span style={{ fontSize: 8, color: '#bbb', fontWeight: 700, width: 12, flex: 'none' }}>{f.no}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: f.tag ? TAG_STYLE[f.tag].bg : BRAND.ink }}>{f.name}</span>
-                {f.tag && <span style={{ fontSize: 6.5, fontWeight: 800, color: '#fff', background: TAG_STYLE[f.tag].bg, borderRadius: 4, padding: '1px 3px' }}>{TAG_STYLE[f.tag].label}</span>}
+              <div style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1.25, color: f.tag ? TAG_STYLE[f.tag].bg : BRAND.ink }}>
+                {f.name}
+                {f.tag && (
+                  <span style={{ fontSize: 7, fontWeight: 800, color: TAG_STYLE[f.tag].bg, marginLeft: 3, whiteSpace: 'nowrap' }}>
+                    · {TAG_STYLE[f.tag].label}
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: 8, fontStyle: 'italic', color: '#aaa' }}>{f.nameEn}</div>
+              <div style={{ fontSize: 8, fontStyle: 'italic', color: '#aaa', lineHeight: 1.2 }}>{f.nameEn}</div>
             </div>
           </div>
         ))}
@@ -256,7 +260,7 @@ export function MenuBookPage2({ data }: { data: MenuBookData }) {
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', margin: '8px 0', fontSize: 8, color: '#777' }}>
         {(['hot', 'try', 'new'] as FlavourTag[]).map((t) => (
           <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 6.5, fontWeight: 800, color: '#fff', background: TAG_STYLE[t].bg, borderRadius: 4, padding: '1px 3px' }}>{TAG_STYLE[t].label}</span>
+            <span style={{ fontSize: 8, fontWeight: 800, color: TAG_STYLE[t].bg }}>{TAG_STYLE[t].label}</span>
             {t === 'hot' ? 'Bestseller' : t === 'try' ? 'Must try' : 'New'}
           </span>
         ))}

@@ -785,7 +785,7 @@ export function CustomerLanding({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMenuImage, setShowMenuImage] = useState(false);
   const flipRef = useRef<any>(null);
-  const [flipDims, setFlipDims] = useState({ w: 442, h: 640 });
+  const [flipDims, setFlipDims] = useState({ w: 320, h: 640, scale: 0.5 });
   const [menuBook, setMenuBook] = useState<MenuBookData | null>(DEFAULT_MENU_BOOK);
   const [menuImages, setMenuImages] = useState<string[] | null>(null); // ảnh chụp trang 1&2 (lật mượt)
   const [menuCapturing, setMenuCapturing] = useState(false);
@@ -843,26 +843,24 @@ export function CustomerLanding({
     return () => { cancelled = true; };
   }, [showMenuImage, menuBook, menuImages]);
 
-  // Tính kích thước 1 trang menu vừa khung nhìn (giữ tỉ lệ ảnh 1768:2560) khi mở menu.
-  // Mobile: dùng gần trọn bề rộng (không có mũi tên 2 bên) → to & đầy màn hình.
-  // Desktop: chừa chỗ 2 bên cho mũi tên lật.
+  // Tính kích thước trang menu khi mở. Dùng scale "contain" để TRỌN trang (kể cả chân trang địa
+  // chỉ) luôn vừa trong khung nhìn — không bị cắt. Mobile chừa ~10% chiều cao cho thanh trình
+  // duyệt (Safari/Chrome) khỏi che chân trang.
   useEffect(() => {
     if (!showMenuImage) return;
-    const ratio = 1768 / 2560; // rộng / cao
     const compute = () => {
       const isMobile = window.innerWidth < 640;
       if (isMobile) {
-        // Mobile: trang sách phủ TRỌN màn hình (nền giấy kem), nội dung căn giữa — hết khoảng đen.
-        setFlipDims({ w: Math.round(window.innerWidth), h: Math.round(window.innerHeight) });
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const scale = Math.min(w / MENU_PAGE_W, (h * 0.9) / MENU_PAGE_H);
+        setFlipDims({ w, h, scale });
         return;
       }
-      // Desktop: trang cỡ nội dung (giữ tỉ lệ), chừa chỗ 2 bên cho hiệu ứng sách.
-      const maxH = window.innerHeight * 0.88;
-      const maxW = window.innerWidth * 0.8;
-      let h = maxH;
-      let w = h * ratio;
-      if (w > maxW) { w = maxW; h = w / ratio; }
-      setFlipDims({ w: Math.round(w), h: Math.round(h) });
+      const maxH = window.innerHeight * 0.9;
+      const maxW = window.innerWidth * 0.62;
+      const scale = Math.min(maxW / MENU_PAGE_W, maxH / MENU_PAGE_H);
+      setFlipDims({ w: Math.round(MENU_PAGE_W * scale), h: Math.round(MENU_PAGE_H * scale), scale });
     };
     compute();
     window.addEventListener('resize', compute);
@@ -1916,15 +1914,15 @@ export function CustomerLanding({
                       ...(menuImages
                         ? menuImages.map((src, i) => (
                             <div key={`mi${i}`} className="menu-page">
-                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W) }}>
+                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: MENU_PAGE_W * flipDims.scale, height: MENU_PAGE_H * flipDims.scale }}>
                                 <img src={src} alt={`Menu trang ${i + 1}`} style={{ width: '100%', height: '100%', display: 'block' }} />
                               </div>
                             </div>
                           ))
                         : [1, 2].map((p) => (
                             <div key={`lp${p}`} className="menu-page">
-                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
-                                <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
+                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: MENU_PAGE_W * flipDims.scale, height: MENU_PAGE_H * flipDims.scale, overflow: 'hidden' }}>
+                                <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.scale})`, transformOrigin: 'top left' }}>
                                   {p === 1 ? <MenuBookPage1 data={menuBook} /> : <MenuBookPage2 data={menuBook} />}
                                 </div>
                               </div>

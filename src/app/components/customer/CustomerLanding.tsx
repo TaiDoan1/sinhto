@@ -1018,10 +1018,10 @@ export function CustomerLanding({
               <button 
                   type="button"
                 onClick={() => setShowMenuImage(true)}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-full font-bold border-2 flex items-center justify-center gap-2 bg-white active:scale-[0.98] transition-transform text-sm"
-                  style={{ borderColor: `${BRAND.green}30`, color: BRAND.green }}
+                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 rounded-full font-black text-white flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform text-sm md:text-base"
+                  style={{ background: BRAND.green }}
               >
-                  <ImageIcon className="w-4 h-4" /> Xem Menu
+                  <ImageIcon className="w-5 h-5" /> Xem Menu
               </button>
               </div>
             </div>
@@ -1705,14 +1705,24 @@ export function CustomerLanding({
         className="sm:hidden fixed bottom-0 left-0 right-0 z-[100] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t backdrop-blur-md"
         style={{ background: 'rgba(255,253,246,0.95)', borderColor: `${BRAND.green}15` }}
       >
-        <button
-          type="button"
-          onClick={() => scrollTo('#combos')}
-          className="w-full py-3.5 rounded-2xl font-black text-white text-sm shadow-lg active:scale-[0.98] transition-transform"
-          style={{ background: BRAND.orange }}
-        >
-          Đặt Combo FitBlend Ngay
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMenuImage(true)}
+            className="shrink-0 px-4 py-3.5 rounded-2xl font-black text-sm flex items-center gap-1.5 active:scale-[0.98] transition-transform border-2"
+            style={{ borderColor: BRAND.green, color: BRAND.green, background: '#fff' }}
+          >
+            <ImageIcon className="w-4 h-4" /> Menu
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollTo('#combos')}
+            className="flex-1 py-3.5 rounded-2xl font-black text-white text-sm shadow-lg active:scale-[0.98] transition-transform"
+            style={{ background: BRAND.orange }}
+          >
+            Đặt Combo Ngay
+          </button>
+        </div>
       </div>
 
       {/* ── Modals (giữ logic cũ) ── */}
@@ -1841,10 +1851,10 @@ export function CustomerLanding({
               width={flipDims.w}
               height={flipDims.h}
               size="fixed"
-              maxShadowOpacity={0.5}
-              drawShadow
+              maxShadowOpacity={0.2}
+              drawShadow={false}
               showPageCorners
-              flippingTime={700}
+              flippingTime={480}
               usePortrait
               mobileScrollSupport
               showCover={false}

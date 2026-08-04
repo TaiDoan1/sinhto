@@ -33,6 +33,17 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  build: {
+    rollupOptions: {
+      input: {
+        // 2 entry tách biệt: 'main' = hệ quản lý (admin/pos/staff...), 'landing' = trang khách.
+        // Bundle landing KHÔNG import App.tsx nên không chứa code quản lý (an toàn với F12).
+        main: path.resolve(__dirname, 'index.html'),
+        landing: path.resolve(__dirname, 'landing.html'),
+      },
+    },
+  },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : 5173,
     strictPort: false,

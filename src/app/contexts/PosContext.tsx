@@ -27,6 +27,7 @@ interface PosContextType {
   clearDeviceBranch: () => void;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  checkActiveShift: () => void;
   pendingStartCashShiftId: string | null;
   clearPendingStartCash: () => void;
   markStartCashDone: (shiftId: string) => void;
@@ -77,6 +78,61 @@ export function PosProvider({ children }: { children: ReactNode }) {
     setDeviceBranchIdState(null);
   };
 
+  // Tự động check-in ca hiện hành + hỏi tiền mặt đầu ca (nếu ca đó chưa nhập trên máy này).
+  // Tách riêng để dùng lại: gọi lúc đăng nhập VÀ mỗi khi mở/quay lại màn POS (checkActiveShift)
+  // — nhờ vậy MỖI CA (sáng/trưa/tối) đều được hỏi quỹ đầu ca riêng, kể cả khi không đăng nhập lại
+  // (máy để nguyên phiên từ ca trước).
+  const syncShiftAndStartCash = async (employeeId: string, position: string, branchId: string) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const todayShifts = (await api.fetchShifts({ employeeId, date: today })) as any[];
+      // Ca nghỉ ("off") là 1 dòng giả chiếm trọn ngày (00:00-23:59) đánh dấu lịch nghỉ, không
+      // phải ca làm thật — loại ra để nhân viên nghỉ không bị check-in nhầm.
+      const notDone = (todayShifts || []).filter(
+        (s) => s.status !== 'completed' && s.status !== 'rejected' && s.shiftType !== 'off'
+      );
+      // Store manager check-in được ca ở mọi chi nhánh
+      const forBranch = position === 'store_manager'
+        ? notDone
+        : notDone.filter((s) => s.branch === branchId);
+
+      const currentHour = new Date().getHours();
+      const matchesNow = (s: any) => {
+        const startHour = parseInt(s.startTime.split(':')[0], 10);
+        const endHour = parseInt(s.endTime.split(':')[0], 10);
+        if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua đêm
+        return currentHour >= startHour && currentHour < endHour;
+      };
+
+      // Ưu tiên ca KHỚP GIỜ HIỆN TẠI (để mỗi ca mới bắt đầu đều được hỏi quỹ riêng), rồi tới ca
+      // đang mở dở (đăng nhập lại giữa ca), cuối cùng là ca sớm nhất chưa xong.
+      const shiftToCheckIn =
+        forBranch.find(matchesNow) ||
+        forBranch.find((s) => s.status === 'in_progress') ||
+        [...forBranch]
+          .filter((s) => s.status !== 'in_progress')
+          .sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+
+      if (!shiftToCheckIn) return;
+
+      // Chỉ tự check-in nếu CHƯA có ca nào đang mở (tránh tạo 2 ca in_progress chồng nhau khi
+      // ca trước chưa kết ca).
+      if (
+        shiftToCheckIn.status !== 'in_progress' &&
+        !forBranch.some((s) => s.status === 'in_progress')
+      ) {
+        await api.shiftCheckIn(shiftToCheckIn.id, 'in');
+      }
+      // Chỉ hỏi tiền mặt đầu ca nếu ca này CHƯA từng được xác nhận/bỏ qua trên chính máy này —
+      // tránh hỏi lặp mỗi lần tải lại trang.
+      if (!localStorage.getItem(startCashDoneKey(shiftToCheckIn.id))) {
+        setPendingStartCashShiftId((prev) => prev || shiftToCheckIn.id);
+      }
+    } catch (err) {
+      console.error('syncShiftAndStartCash failed:', err);
+    }
+  };
+
   const login = async (username: string, password: string) => {
     const employee = await api.employeeLogin(username.trim(), password, deviceBranchId || undefined);
     if (isOnlineSalesPosition(employee.position)) {
@@ -100,56 +156,13 @@ export function PosProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
     localStorage.setItem('pos_branch', sess.branchId);
 
-    // Tu dong check-in vao ca hom nay (neu co) de khi dang xuat POS
-    // luon tim duoc ca dang mo va hien man hinh ket ca.
-    // Nhan vien co the co nhieu ca/ngay (VD ca sang + ca toi) nen phai
-    // chon dung ca khop voi gio hien tai, khong chi lay ca dau tien tim thay.
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const todayShifts = (await api.fetchShifts({ employeeId: employee.id, date: today })) as any[];
-      // Ca nghỉ ("off") là 1 dòng giả chiếm trọn ngày (00:00-23:59) để đánh dấu lịch nghỉ, không
-      // phải ca làm thật — nếu không loại ra, nhân viên nghỉ vẫn bị tự động check-in nhầm vào đó.
-      const notDone = (todayShifts || []).filter(
-        (s) => s.status !== 'completed' && s.status !== 'rejected' && s.shiftType !== 'off'
-      );
+    await syncShiftAndStartCash(employee.id, employee.position, sessionBranch);
+  };
 
-      // Store manager can check in shifts from any branch
-      const forBranch = employee.position === 'store_manager'
-        ? notDone
-        : notDone.filter((s) => s.branch === sessionBranch);
-
-      // Ca đang mở sẵn (in_progress) được ưu tiên — đây chính là ca của phiên đăng nhập lần
-      // trước, có thể đăng nhập lại (tải lại trang, đóng app giữa chừng) TRƯỚC KHI kịp nhập
-      // tiền mặt đầu ca. Nếu chỉ tìm ca "chưa bắt đầu" như trước, ca in_progress bị bỏ qua
-      // hoàn toàn — nhân viên không bao giờ được hỏi lại tiền mặt đầu ca cho ca đó nữa.
-      const alreadyOpen = forBranch.find((s) => s.status === 'in_progress');
-
-      let shiftToCheckIn = alreadyOpen;
-      if (!shiftToCheckIn) {
-        const eligibleForBranch = forBranch.filter((s) => s.status !== 'in_progress');
-        const currentHour = new Date().getHours();
-        const matchingNow = eligibleForBranch.find((s) => {
-          const startHour = parseInt(s.startTime.split(':')[0], 10);
-          const endHour = parseInt(s.endTime.split(':')[0], 10);
-          if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua dem
-          return currentHour >= startHour && currentHour < endHour;
-        });
-        shiftToCheckIn =
-          matchingNow || [...eligibleForBranch].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
-      }
-
-      if (shiftToCheckIn) {
-        if (shiftToCheckIn.status !== 'in_progress') {
-          await api.shiftCheckIn(shiftToCheckIn.id, 'in');
-        }
-        // Chỉ hỏi lại tiền mặt đầu ca nếu ca này CHƯA từng được xác nhận (nộp hoặc bấm "Bỏ
-        // qua") trên chính máy này — tránh hỏi lặp lại mỗi lần tải lại trang.
-        if (!localStorage.getItem(startCashDoneKey(shiftToCheckIn.id))) {
-          setPendingStartCashShiftId(shiftToCheckIn.id);
-        }
-      }
-    } catch (err) {
-      console.error('Auto check-in failed:', err);
+  // Gọi lại khi mở/quay lại màn POS để bắt ca mới bắt đầu (không cần đăng nhập lại).
+  const checkActiveShift = () => {
+    if (session) {
+      void syncShiftAndStartCash(session.employeeId, session.position, session.branchId);
     }
   };
 
@@ -166,7 +179,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone }}>
+    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone }}>
       {children}
     </PosContext.Provider>
   );

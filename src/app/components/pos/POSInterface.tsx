@@ -74,7 +74,7 @@ const POS_TABS: {
 ];
 
 function POSInterfaceInner() {
-  const { session, isLoggedIn, isLoading, logout, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
+  const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
   const { orders, history } = useBranchOrders(branchId);
@@ -86,6 +86,21 @@ function POSInterfaceInner() {
   const orderNotificationAudioUrl = usePosOrderNotificationAudioUrl();
   const orderNotificationMode = usePosOrderNotificationMode();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
+
+  // Kiểm tra ca hiện hành mỗi khi mở/quay lại màn POS (không chỉ lúc đăng nhập) — để MỖI CA khi
+  // bắt đầu đều được hỏi tiền mặt đầu ca riêng, kể cả khi máy để nguyên phiên từ ca trước.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    checkActiveShift();
+    const onActive = () => { if (!document.hidden) checkActiveShift(); };
+    window.addEventListener('focus', onActive);
+    document.addEventListener('visibilitychange', onActive);
+    return () => {
+      window.removeEventListener('focus', onActive);
+      document.removeEventListener('visibilitychange', onActive);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [cart, setCart] = useState<CartItem[]>([]);

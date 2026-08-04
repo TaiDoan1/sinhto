@@ -787,6 +787,10 @@ export function CustomerLanding({
   const flipRef = useRef<any>(null);
   const [flipDims, setFlipDims] = useState({ w: 442, h: 640 });
   const [menuBook, setMenuBook] = useState<MenuBookData | null>(DEFAULT_MENU_BOOK);
+  const [menuImages, setMenuImages] = useState<string[] | null>(null); // ảnh chụp trang 1&2 (lật mượt)
+  const [menuCapturing, setMenuCapturing] = useState(false);
+  const menuP1Ref = useRef<HTMLDivElement>(null);
+  const menuP2Ref = useRef<HTMLDivElement>(null);
 
   // Lấy nội dung "Sách menu" admin đã lưu trên server (nếu có); không có thì dùng nội dung
   // mặc định. Nếu dữ liệu hỏng/thiếu → giữ mặc định để không vỡ trang.
@@ -808,6 +812,36 @@ export function CustomerLanding({
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [showMenuImage]);
+
+  // Dữ liệu menu đổi → bỏ ảnh cũ để chụp lại.
+  useEffect(() => { setMenuImages(null); }, [menuBook]);
+
+  // HYBRID: khi mở menu, chụp trang 1&2 (HTML nặng) thành ẢNH để lật cho mượt. Vẫn giữ HTML làm
+  // nguồn (sửa trong Admin được). Nếu chụp lỗi → tự dùng HTML sống (fallback).
+  useEffect(() => {
+    if (!showMenuImage || !menuBook || menuImages) return;
+    let cancelled = false;
+    setMenuCapturing(true);
+    (async () => {
+      try {
+        const html2canvas = (await import('html2canvas')).default;
+        await new Promise((r) => setTimeout(r, 150)); // đợi DOM/logo vẽ xong
+        const nodes = [menuP1Ref.current, menuP2Ref.current];
+        const out: string[] = [];
+        for (const n of nodes) {
+          if (!n) throw new Error('missing node');
+          const canvas = await html2canvas(n, { scale: 2, backgroundColor: '#fffdf7', useCORS: true, logging: false });
+          out.push(canvas.toDataURL('image/jpeg', 0.92));
+        }
+        if (!cancelled) setMenuImages(out);
+      } catch {
+        /* lỗi chụp → giữ menuImages null → render HTML sống */
+      } finally {
+        if (!cancelled) setMenuCapturing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showMenuImage, menuBook, menuImages]);
 
   // Tính kích thước 1 trang menu vừa khung nhìn (giữ tỉ lệ ảnh 1768:2560) khi mở menu.
   // Mobile: dùng gần trọn bề rộng (không có mũi tên 2 bên) → to & đầy màn hình.
@@ -1845,51 +1879,69 @@ export function CustomerLanding({
             Chạm hoặc kéo mép trang để lật như sách
           </p>
 
-          <div className="menu-book" style={{ width: flipDims.w, height: flipDims.h }}>
-            <HTMLFlipBook
-              ref={flipRef}
-              width={flipDims.w}
-              height={flipDims.h}
-              size="fixed"
-              maxShadowOpacity={0.2}
-              drawShadow={false}
-              showPageCorners
-              flippingTime={480}
-              usePortrait
-              mobileScrollSupport
-              showCover={false}
-              className="menu-flipbook"
-            >
-              {menuBook
-                ? [
-                    <div key="cover" className="menu-page">
-                      <MenuBookCover data={menuBook} />
-                    </div>,
-                    <div key="p1" className="menu-page">
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
-                        <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
-                          <MenuBookPage1 data={menuBook} />
-                        </div>
-                      </div>
-                    </div>,
-                    <div key="p2" className="menu-page">
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
-                        <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
-                          <MenuBookPage2 data={menuBook} />
-                        </div>
-                      </div>
-                    </div>,
-                  ]
-                : [
-                    <div key="i1" className="menu-page">
-                      <img src={LANDING_IMAGES.menuPage(1)} alt="Menu trang 1" />
-                    </div>,
-                    <div key="i2" className="menu-page">
-                      <img src={LANDING_IMAGES.menuPage(2)} alt="Menu trang 2" />
-                    </div>,
-                  ]}
-            </HTMLFlipBook>
-          </div>
+          {/* Nguồn chụp ảnh (ẩn ngoài màn hình) — dựng trang 1&2 ở kích thước thiết kế để html2canvas chụp */}
+          {menuBook && !menuImages && (
+            <div aria-hidden style={{ position: 'fixed', left: '-100000px', top: 0, zIndex: -1 }}>
+              <div ref={menuP1Ref}><MenuBookPage1 data={menuBook} /></div>
+              <div ref={menuP2Ref}><MenuBookPage2 data={menuBook} /></div>
+            </div>
+          )}
+
+          {menuBook && menuCapturing ? (
+            <div className="flex items-center gap-3 text-white/80 text-sm">
+              <span className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              Đang tải menu…
+            </div>
+          ) : (
+            <div className="menu-book" style={{ width: flipDims.w, height: flipDims.h }}>
+              <HTMLFlipBook
+                ref={flipRef}
+                width={flipDims.w}
+                height={flipDims.h}
+                size="fixed"
+                maxShadowOpacity={0.2}
+                drawShadow={false}
+                showPageCorners
+                flippingTime={480}
+                usePortrait
+                mobileScrollSupport
+                showCover={false}
+                className="menu-flipbook"
+              >
+                {menuBook
+                  ? [
+                      <div key="cover" className="menu-page">
+                        <MenuBookCover data={menuBook} />
+                      </div>,
+                      ...(menuImages
+                        ? menuImages.map((src, i) => (
+                            <div key={`mi${i}`} className="menu-page">
+                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W) }}>
+                                <img src={src} alt={`Menu trang ${i + 1}`} style={{ width: '100%', height: '100%', display: 'block' }} />
+                              </div>
+                            </div>
+                          ))
+                        : [1, 2].map((p) => (
+                            <div key={`lp${p}`} className="menu-page">
+                              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: flipDims.w, height: MENU_PAGE_H * (flipDims.w / MENU_PAGE_W), overflow: 'hidden' }}>
+                                <div style={{ width: MENU_PAGE_W, height: MENU_PAGE_H, transform: `scale(${flipDims.w / MENU_PAGE_W})`, transformOrigin: 'top left' }}>
+                                  {p === 1 ? <MenuBookPage1 data={menuBook} /> : <MenuBookPage2 data={menuBook} />}
+                                </div>
+                              </div>
+                            </div>
+                          ))),
+                    ]
+                  : [
+                      <div key="i1" className="menu-page">
+                        <img src={LANDING_IMAGES.menuPage(1)} alt="Menu trang 1" />
+                      </div>,
+                      <div key="i2" className="menu-page">
+                        <img src={LANDING_IMAGES.menuPage(2)} alt="Menu trang 2" />
+                      </div>,
+                    ]}
+              </HTMLFlipBook>
+            </div>
+          )}
         </div>
       )}
 

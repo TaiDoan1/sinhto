@@ -38,6 +38,7 @@ import { EmployeeProvider } from "./contexts/EmployeeContext";
 import { BranchProvider } from "./contexts/BranchContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { SplashScreen } from "./components/SplashScreen";
+import { SystemHub } from "./components/SystemHub";
 import { captureSalesRefFromUrl } from "./utils/salesRef";
 import {
   type AppMode,
@@ -54,6 +55,7 @@ function DevModeNavigation({
   onModeChange: (m: AppMode) => void;
 }) {
   const items: { id: AppMode; label: string }[] = [
+    { id: "menu", label: "🗂️ Menu" },
     { id: "customer", label: "🛒 Khách" },
     { id: "online-sales", label: "🛍️ CSKH" },
     { id: "staff", label: "👤 NV" },
@@ -334,6 +336,17 @@ function AppContent() {
         {devNav}
         <div className={devPad}>
           <ComboShipBoard />
+        </div>
+      </>
+    );
+  }
+
+  if (mode === "menu") {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <SystemHub />
         </div>
       </>
     );

@@ -8,9 +8,12 @@ export type AppMode =
   | "store-manager"
   | "hr"
   | "shipper"
-  | "combo-ship";
+  | "combo-ship"
+  | "menu";
 
 const PATH_MODE: { prefix: string; mode: AppMode }[] = [
+  { prefix: "/menu", mode: "menu" },
+  { prefix: "/he-thong", mode: "menu" },
   { prefix: "/admin", mode: "admin" },
   { prefix: "/store-manager", mode: "store-manager" },
   { prefix: "/hr", mode: "hr" },
@@ -37,6 +40,8 @@ export function getModeFromPath(pathname = window.location.pathname): AppMode {
 
 export function pathForMode(mode: AppMode): string {
   switch (mode) {
+    case "menu":
+      return "/menu";
     case "admin":
       return "/admin";
     case "store-manager":

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -113,6 +113,8 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const [customStart, setCustomStart] = useState('08:00');
   const [customEnd, setCustomEnd] = useState('17:00');
   const [substituteModal, setSubstituteModal] = useState<{shift: Shift} | null>(null);
+  // Ngày đang chọn ở bản chỉnh sửa trên điện thoại (0=Thứ 2 … 6=CN). Mặc định hôm nay.
+  const [mobileDay, setMobileDay] = useState<number>(() => (new Date().getDay() + 6) % 7);
 
   const { subscribe } = useSSE();
 
@@ -434,20 +436,20 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Lịch Làm Việc</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Lịch Làm Việc</h1>
           <p className="text-sm text-gray-500 mt-1">
             {selectedBranch === 'ALL'
               ? `Hiển thị ${availableEmployees.length}/${employees.length} nhân viên (tất cả chi nhánh)`
               : `Hiển thị ${availableEmployees.length} nhân viên · ${branches.find(b => b.id === selectedBranch)?.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={selectedBranch}
             onChange={(e) => setSelectedBranch(e.target.value)}
-            className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold"
+            className="flex-1 sm:flex-none min-w-[140px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold"
           >
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
@@ -524,6 +526,141 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
         </button>
       </div>
 
+      {/* Bản CHỈNH SỬA trên điện thoại (không readOnly) — chọn 1 ngày rồi thêm/xóa ca cho từng
+          nhân viên theo chiều dọc, khỏi cuộn ngang bảng lưới. Dùng lại toàn bộ handler & modal. */}
+      {!readOnly && (
+        <div className="sm:hidden pb-4">
+          {/* Chọn ngày trong tuần */}
+          <div className="flex gap-1.5 mb-3">
+            {weekDays.map((day, i) => {
+              const isToday = day.toDateString() === new Date().toDateString();
+              const active = i === mobileDay;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setMobileDay(i)}
+                  className={`flex-1 rounded-xl py-2 px-0.5 text-center transition-colors ${
+                    active
+                      ? 'bg-emerald-600 text-white shadow'
+                      : isToday
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-white text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-[10px] font-bold uppercase leading-none">
+                    {day.toLocaleDateString('vi-VN', { weekday: 'short' })}
+                  </div>
+                  <div className="text-[15px] font-black mt-0.5 leading-none">{day.getDate()}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {(() => {
+            const day = weekDays[mobileDay];
+            const dateStr = localDateStr(day);
+            if (availableEmployees.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center text-gray-400 text-sm">
+                  Chưa có nhân viên tại chi nhánh này
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {availableEmployees.map((emp) => {
+                  const dayShifts = getShiftsForCell(emp.id, dateStr);
+                  const otherShifts = getOtherBranchShiftsForCell(emp.id, dateStr);
+                  return (
+                    <div key={emp.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 overflow-hidden">
+                          {emp.photo ? (
+                            <img src={emp.photo} alt="" className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            emp.fullName.charAt(0)
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-sm text-gray-800 truncate">{emp.fullName}</div>
+                          {selectedBranch === 'ALL' && (
+                            <div className="text-[11px] text-gray-500">{branchLabel(emp.branch)}</div>
+                          )}
+                          {selectedBranch !== 'ALL' && emp.branch !== selectedBranch && (
+                            <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                              Hỗ trợ từ {emp.branch ? branchLabel(emp.branch) : 'chưa gán chi nhánh'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {dayShifts.map((shift) => (
+                          <div
+                            key={shift.id}
+                            className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-gradient-to-r ${shiftTemplateFor(shift.shiftType).color} text-white`}
+                          >
+                            <div className="min-w-0">
+                              <span className="text-sm font-semibold">
+                                {shift.shiftType === 'off' ? 'Nghỉ cả ngày' : `${shift.startTime} – ${shift.endTime}`}
+                              </span>
+                              {shift.isSubstitute && shift.originalEmployeeName && (
+                                <span className="block text-[11px] opacity-90">Thay: {shift.originalEmployeeName}</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => handleTogglePin(shift.id)}
+                                className={`p-1.5 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
+                                title={shift.isPinned ? 'Bỏ ghim' : 'Ghim'}
+                              >
+                                <Pin className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setSubstituteModal({ shift })}
+                                className="p-1.5 bg-white/20 hover:bg-white/30 rounded"
+                                title="Thay ca"
+                              >
+                                <Repeat className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteShift(shift.id)}
+                                className="p-1.5 bg-red-500 rounded hover:bg-red-600"
+                                title="Xóa"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {otherShifts.map((s) => (
+                          <div
+                            key={s.id}
+                            className="text-[11px] bg-gray-100 text-gray-500 border border-dashed border-gray-300 rounded-lg px-2 py-1"
+                            title={`${emp.fullName} đã có lịch tại ${branchLabel(s.branch)}`}
+                          >
+                            <span className="font-bold">{branchLabel(s.branch)}</span>{' '}
+                            {s.shiftType === 'off' ? 'Nghỉ' : `${s.startTime}-${s.endTime}`}
+                          </div>
+                        ))}
+
+                        <button
+                          onClick={() => { setSelectedCell({ employeeId: emp.id, date: dateStr }); setCustomStart('08:00'); setCustomEnd('17:00'); }}
+                          className="w-full flex items-center justify-center gap-1 text-emerald-600 border-2 border-dashed border-emerald-200 rounded-lg py-2 text-sm font-semibold hover:bg-emerald-50 active:scale-[0.99] transition-all"
+                        >
+                          <Plus className="w-4 h-4" /> Thêm ca
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Bản xem thẻ theo ngày trên điện thoại (chỉ chế độ readOnly) — cùng kiểu "Lịch cả chi
           nhánh" bên app Nhân Viên, đỡ phải cuộn ngang như bảng lưới. */}
       {readOnly && (
@@ -584,8 +721,8 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
         </div>
       )}
 
-      {/* Table */}
-      <div className={`flex-1 bg-white rounded-xl shadow-lg overflow-auto ${readOnly ? 'hidden sm:block' : ''}`}>
+      {/* Table — chỉ hiện từ tablet trở lên; điện thoại dùng bản thẻ ở trên */}
+      <div className="flex-1 bg-white rounded-xl shadow-lg overflow-auto hidden sm:block">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-gray-50 z-10">
             <tr>

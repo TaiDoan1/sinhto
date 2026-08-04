@@ -149,7 +149,63 @@ export function StoreManagerEmployeeList() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <>
+        {/* Mobile: danh sách thẻ, khỏi cuộn ngang */}
+        <div className="sm:hidden space-y-2.5">
+          {filteredEmployees.map((emp) => {
+            const att = attendanceByEmp.get(emp.employeeId);
+            const checkIn = formatTime(att?.checkIn);
+            const checkOut = formatTime(att?.checkOut);
+            return (
+              <div key={emp.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {emp.photo ? (
+                      <img src={emp.photo} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-bold text-emerald-700">{emp.fullName.charAt(0)}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-gray-800 truncate">{emp.fullName}</div>
+                    <div className="text-xs text-gray-500">
+                      <span className="font-mono font-semibold text-emerald-700">{emp.employeeId}</span>
+                      {' · '}{getPositionName(emp.position)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {emp.branch ? (
+                    <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-semibold text-gray-700">{branchLabel(emp.branch)}</span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-amber-100 rounded text-xs font-semibold text-amber-700">Chờ phân bổ</span>
+                  )}
+                  {(emp.secondaryBranches || []).map((b) => (
+                    <span key={b} className="px-2 py-0.5 bg-sky-100 rounded text-xs font-semibold text-sky-700">+{branchLabel(b)}</span>
+                  ))}
+                  {emp.phone && (
+                    <a href={`tel:${emp.phone}`} className="px-2 py-0.5 bg-gray-50 rounded text-xs font-medium text-gray-600 ml-auto">{emp.phone}</a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-2.5">
+                  <div className="rounded-lg bg-emerald-50 px-2.5 py-1.5">
+                    <div className="text-[10px] font-bold uppercase text-emerald-600/80 flex items-center gap-1"><LogIn className="w-3 h-3" /> Check-in</div>
+                    <div className={`text-sm font-bold ${checkIn ? 'text-emerald-700' : 'text-gray-300'}`}>{checkIn || '—'}</div>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 px-2.5 py-1.5">
+                    <div className="text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1"><LogOutIcon className="w-3 h-3" /> Check-out</div>
+                    <div className={`text-sm font-bold ${checkOut ? 'text-gray-700' : 'text-gray-300'}`}>{checkOut || '—'}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop: bảng */}
+        <div className="hidden sm:block bg-white rounded-xl shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -226,6 +282,7 @@ export function StoreManagerEmployeeList() {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

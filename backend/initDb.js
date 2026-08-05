@@ -421,6 +421,24 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE gift_redemptions ADD COLUMN IF NOT EXISTS code TEXT`).catch(() => {});
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_redemptions_campaign_code ON gift_redemptions("campaignId", code)`).catch(() => {});
 
+  // Index tăng tốc truy vấn (tránh quét toàn bảng khi dữ liệu lớn dần)
+  const perfIndexes = [
+    `CREATE INDEX IF NOT EXISTS idx_orders_branch_time ON orders("branchId", "time")`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_shift ON orders("shiftId")`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_status_time ON orders(status, "time")`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_salesstaff ON orders("salesStaffId")`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders("customerPhone")`,
+    `CREATE INDEX IF NOT EXISTS idx_shifts_emp_status ON shifts("employeeId", status)`,
+    `CREATE INDEX IF NOT EXISTS idx_shifts_branch_date ON shifts(branch, date)`,
+    `CREATE INDEX IF NOT EXISTS idx_combosub_phone ON combo_subscriptions("customerPhone")`,
+    `CREATE INDEX IF NOT EXISTS idx_combosub_branch ON combo_subscriptions("branchId")`,
+    `CREATE INDEX IF NOT EXISTS idx_salesact_phone ON sales_activities("customerPhone")`,
+    `CREATE INDEX IF NOT EXISTS idx_invmov_branch ON inventory_movements("branchId")`,
+  ];
+  for (const idx of perfIndexes) {
+    await pool.query(idx).catch(() => {});
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS saved_replies (
       id TEXT PRIMARY KEY,

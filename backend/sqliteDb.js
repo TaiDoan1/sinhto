@@ -339,6 +339,18 @@ async function init() {
       approvedAt TEXT,
       approvedBy TEXT
     )`,
+    // Index tăng tốc truy vấn (tránh quét toàn bảng khi dữ liệu lớn dần)
+    "CREATE INDEX IF NOT EXISTS idx_orders_branch_time ON orders(branchId, time)",
+    "CREATE INDEX IF NOT EXISTS idx_orders_shift ON orders(shiftId)",
+    "CREATE INDEX IF NOT EXISTS idx_orders_status_time ON orders(status, time)",
+    "CREATE INDEX IF NOT EXISTS idx_orders_salesstaff ON orders(salesStaffId)",
+    "CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders(customerPhone)",
+    "CREATE INDEX IF NOT EXISTS idx_shifts_emp_status ON shifts(employeeId, status)",
+    "CREATE INDEX IF NOT EXISTS idx_shifts_branch_date ON shifts(branch, date)",
+    "CREATE INDEX IF NOT EXISTS idx_combosub_phone ON combo_subscriptions(customerPhone)",
+    "CREATE INDEX IF NOT EXISTS idx_combosub_branch ON combo_subscriptions(branchId)",
+    "CREATE INDEX IF NOT EXISTS idx_salesact_phone ON sales_activities(customerPhone)",
+    "CREATE INDEX IF NOT EXISTS idx_invmov_branch ON inventory_movements(branchId)",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

@@ -248,7 +248,7 @@ app.post('/api/pos/customer-display', (req, res) => {
 
 // Get all orders (active & completed history)
 app.get('/api/orders', (req, res) => {
-  const { branchId, salesStaffId, shiftId } = req.query;
+  const { branchId, salesStaffId, shiftId, recentDays } = req.query;
   let sql = 'SELECT * FROM orders WHERE 1=1';
   const params = [];
   if (branchId) {
@@ -262,6 +262,14 @@ app.get('/api/orders', (req, res) => {
   if (shiftId) {
     sql += ' AND shiftId = ?';
     params.push(shiftId);
+  }
+  // Giới hạn tải lúc mở app cho nhẹ: chỉ lấy đơn ĐANG HOẠT ĐỘNG (mọi thời điểm) + đơn ĐÃ HOÀN
+  // TẤT trong N ngày gần nhất. Trang báo cáo cần toàn bộ thì gọi không kèm recentDays.
+  const days = parseInt(recentDays, 10);
+  if (days > 0) {
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    sql += " AND (status != 'completed' OR time >= ?)";
+    params.push(since);
   }
   sql += ' ORDER BY time DESC';
   db.all(sql, params, (err, rows) => {

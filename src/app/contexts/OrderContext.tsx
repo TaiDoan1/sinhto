@@ -78,7 +78,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // 1. Fetch from server
     const loadOrders = () => {
       if (!api.isAuthed()) return; // chế độ khách (chưa đăng nhập) không tải danh sách đơn toàn hệ thống
-      api.fetchOrders()
+      // Chỉ tải đơn đang hoạt động + đơn hoàn tất trong 30 ngày gần nhất cho nhẹ & nhanh khi mở
+      // app. Lịch sử cũ hơn tra qua trang riêng (báo cáo, chi tiết ca theo shiftId) khi cần.
+      api.fetchOrders({ recentDays: 30 })
         .then((data: any[]) => {
           const normalized = data.map(normalizeOrder);
           const active = normalized.filter(o => o.status !== 'completed');

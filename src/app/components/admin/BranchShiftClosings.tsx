@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, Printer, X } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, Printer, X, Wrench } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
+import { useToast } from '../../contexts/ToastContext';
 import { buildShiftClosingReceiptData, printShiftClosingReceipt, DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE } from '../../utils/posPrint';
 
 function formatItemLine(item: any) {
@@ -53,7 +54,12 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [detailShift, setDetailShift] = useState<ShiftRow | null>(null);
   const [detailShiftOrders, setDetailShiftOrders] = useState<any[] | null>(null);
+  const [fixShift, setFixShift] = useState<ShiftRow | null>(null);
+  const [fixCheckIn, setFixCheckIn] = useState('');
+  const [fixCheckOut, setFixCheckOut] = useState('');
+  const [fixing, setFixing] = useState(false);
   const { subscribe } = useSSE();
+  const { showSuccess, showError } = useToast();
   const { orders, history } = useOrders();
   const allOrders = useMemo(() => [...orders, ...history], [orders, history]);
 
@@ -114,6 +120,49 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   };
 
   const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => o.shiftId === shift.id);
+
+  // ISO (UTC) -> giá trị input datetime-local theo giờ máy (VN)
+  const isoToLocalInput = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openFix = (shift: ShiftRow) => {
+    // Mặc định điền theo GIỜ CA ĐÃ XẾP (startTime–endTime) trong ngày của ca — đây là khoảng giờ
+    // đúng để gom đơn; nếu ca có giờ check-in/out cũ hợp lý thì ưu tiên dùng lại.
+    const base = shift.date; // yyyy-mm-dd
+    const startDefault = `${base}T${(shift.startTime || '00:00').slice(0, 5)}`;
+    // Ca qua đêm (kết thúc < bắt đầu) -> giờ kết ca sang ngày hôm sau
+    const overnight = (shift.endTime || '') < (shift.startTime || '');
+    const endBase = overnight
+      ? new Date(new Date(base + 'T00:00').getTime() + 86400000).toISOString().split('T')[0]
+      : base;
+    const endDefault = `${endBase}T${(shift.endTime || '23:59').slice(0, 5)}`;
+    setFixCheckIn(isoToLocalInput(shift.checkIn) || startDefault);
+    setFixCheckOut(isoToLocalInput(shift.checkOut) || endDefault);
+    // Nếu giờ cũ nằm quá xa giờ ca (lỗi tự check-in nhầm) thì bỏ, dùng giờ ca xếp
+    setFixShift(shift);
+  };
+
+  const handleReconcile = async () => {
+    if (!fixShift || !fixCheckIn || !fixCheckOut) return;
+    setFixing(true);
+    try {
+      const checkInIso = new Date(fixCheckIn).toISOString();
+      const checkOutIso = new Date(fixCheckOut).toISOString();
+      const { reassigned } = await api.reconcileShift(fixShift.id, { checkIn: checkInIso, checkOut: checkOutIso });
+      showSuccess(`Đã gán ${reassigned} đơn vào ca & cập nhật giờ. Đang tải lại…`);
+      setFixShift(null);
+      load();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Gán lại đơn thất bại');
+    } finally {
+      setFixing(false);
+    }
+  };
 
   const handlePrintShift = async (shift: ShiftRow) => {
     // Lấy trực tiếp từ server theo shiftId thay vì lọc cache orders/history (OrderContext chỉ đồng
@@ -228,9 +277,18 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                   </button>
                   <button
                     type="button"
+                    onClick={() => openFix(shift)}
+                    className="flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 ml-auto"
+                    title="Sửa giờ vào/kết ca bị ghi sai & gán lại đơn vào ca"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    Sửa giờ / gán đơn
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handlePrintShift(shift)}
                     disabled={stat.count === 0}
-                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     In bill
@@ -286,6 +344,65 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
               {(detailShiftOrders ?? []).length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-6">Không có đơn hàng nào</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fixShift && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Sửa giờ ca & gán lại đơn</h3>
+                <p className="text-sm text-gray-500">
+                  {fixShift.employeeName} · ca {fixShift.startTime}–{fixShift.endTime}
+                </p>
+              </div>
+              <button type="button" onClick={() => setFixShift(null)}>
+                <X className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
+                Nhập đúng khoảng giờ ca làm thật. Hệ thống sẽ gán mọi đơn của chi nhánh này bán trong
+                khoảng giờ đó <b>mà chưa thuộc ca nào</b> vào ca này, rồi tính lại số đơn & doanh thu.
+              </p>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500">Giờ vào ca</span>
+                <input
+                  type="datetime-local"
+                  value={fixCheckIn}
+                  onChange={(e) => setFixCheckIn(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500">Giờ kết ca</span>
+                <input
+                  type="datetime-local"
+                  value={fixCheckOut}
+                  onChange={(e) => setFixCheckOut(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2 px-6 py-4 border-t">
+              <button
+                type="button"
+                onClick={handleReconcile}
+                disabled={fixing || !fixCheckIn || !fixCheckOut}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fixing ? 'Đang xử lý…' : 'Gán lại đơn & tính lại'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFixShift(null)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200"
+              >
+                Hủy
+              </button>
             </div>
           </div>
         </div>

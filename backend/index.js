@@ -1172,6 +1172,58 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
   });
 });
 
+// Sửa lại ca bị ghi sai giờ (lỗi tự check-in nhầm ca) + gán lại các đơn "mồ côi" (chưa thuộc
+// ca nào) bán trong khoảng giờ của ca này tại đúng chi nhánh, rồi tính lại snapshot doanh thu.
+// Chỉ gán đơn có shiftId rỗng để KHÔNG cướp đơn của ca khác.
+app.post('/api/shifts/:id/reconcile', (req, res) => {
+  const { id } = req.params;
+  const { checkIn, checkOut } = req.body || {};
+  db.get('SELECT * FROM shifts WHERE id = ?', [id], (err, shift) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!shift) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
+
+    const newCheckIn = checkIn || shift.checkIn || '';
+    const newCheckOut = checkOut || shift.checkOut || '';
+    if (!newCheckIn || !newCheckOut) {
+      return res.status(400).json({ error: 'Cần giờ vào ca và giờ kết ca để gán đơn theo khoảng giờ' });
+    }
+
+    // 1) Gán đơn mồ côi trong khoảng [checkIn, checkOut] tại đúng chi nhánh vào ca này
+    db.run(
+      `UPDATE orders SET shiftId = ?
+       WHERE branchId = ? AND (shiftId IS NULL OR shiftId = '') AND time >= ? AND time <= ?`,
+      [id, shift.branch || '', newCheckIn, newCheckOut],
+      function (updErr) {
+        if (updErr) return res.status(500).json({ error: updErr.message });
+        const reassigned = this.changes || 0;
+
+        // 2) Tính lại snapshot từ toàn bộ đơn thuộc ca
+        db.get(
+          'SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?',
+          [id],
+          (snapErr, snapRow) => {
+            if (snapErr) return res.status(500).json({ error: snapErr.message });
+            const closingOrderCount = snapRow?.cnt || 0;
+            const closingRevenue = snapRow?.rev || 0;
+
+            // 3) Cập nhật lại giờ + trạng thái completed + snapshot
+            db.run(
+              `UPDATE shifts SET checkIn = ?, checkOut = ?, status = 'completed', closingOrderCount = ?, closingRevenue = ? WHERE id = ?`,
+              [newCheckIn, newCheckOut, closingOrderCount, closingRevenue, id],
+              function (shiftErr) {
+                if (shiftErr) return res.status(500).json({ error: shiftErr.message });
+                const updated = { ...shift, checkIn: newCheckIn, checkOut: newCheckOut, status: 'completed', closingOrderCount, closingRevenue };
+                broadcast('SHIFT_UPDATED', updated);
+                res.json({ shift: updated, reassigned });
+              }
+            );
+          }
+        );
+      }
+    );
+  });
+});
+
 app.post('/api/shifts/:id/cash-movements', (req, res) => {
   const { id } = req.params;
   const { type, amount, note, createdBy } = req.body || {};

@@ -464,6 +464,23 @@ export async function shiftCheckIn(
   return res.json();
 }
 
+/** Sửa ca ghi sai giờ + gán lại đơn mồ côi trong khoảng giờ vào ca này, tính lại doanh thu ca. */
+export async function reconcileShift(
+  shiftId: string,
+  body: { checkIn?: string; checkOut?: string }
+): Promise<{ shift: any; reassigned: number }> {
+  const res = await fetch(`${BASE_URL}/shifts/${shiftId}/reconcile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Gán lại đơn cho ca thất bại');
+  }
+  return res.json();
+}
+
 export interface ShiftCashMovement {
   id: string;
   shiftId: string;

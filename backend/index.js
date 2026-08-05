@@ -1177,7 +1177,7 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
 // Chỉ gán đơn có shiftId rỗng để KHÔNG cướp đơn của ca khác.
 app.post('/api/shifts/:id/reconcile', (req, res) => {
   const { id } = req.params;
-  const { checkIn, checkOut } = req.body || {};
+  const { checkIn, checkOut, includeOtherShifts } = req.body || {};
   db.get('SELECT * FROM shifts WHERE id = ?', [id], (err, shift) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!shift) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
@@ -1187,38 +1187,52 @@ app.post('/api/shifts/:id/reconcile', (req, res) => {
     if (!newCheckIn || !newCheckOut) {
       return res.status(400).json({ error: 'Cần giờ vào ca và giờ kết ca để gán đơn theo khoảng giờ' });
     }
+    const branch = shift.branch || '';
 
-    // 1) Gán đơn mồ côi trong khoảng [checkIn, checkOut] tại đúng chi nhánh vào ca này
-    db.run(
-      `UPDATE orders SET shiftId = ?
-       WHERE branchId = ? AND (shiftId IS NULL OR shiftId = '') AND time >= ? AND time <= ?`,
-      [id, shift.branch || '', newCheckIn, newCheckOut],
-      function (updErr) {
-        if (updErr) return res.status(500).json({ error: updErr.message });
-        const reassigned = this.changes || 0;
+    // Đếm tổng đơn trong khoảng giờ tại chi nhánh (để báo cho admin biết bối cảnh)
+    db.get(
+      'SELECT COUNT(*) as cnt FROM orders WHERE branchId = ? AND time >= ? AND time <= ?',
+      [branch, newCheckIn, newCheckOut],
+      (winErr, winRow) => {
+        const windowTotal = winErr ? null : (winRow?.cnt || 0);
 
-        // 2) Tính lại snapshot từ toàn bộ đơn thuộc ca
-        db.get(
-          'SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?',
-          [id],
-          (snapErr, snapRow) => {
-            if (snapErr) return res.status(500).json({ error: snapErr.message });
-            const closingOrderCount = snapRow?.cnt || 0;
-            const closingRevenue = snapRow?.rev || 0;
+        // 1) Gán đơn trong khoảng [checkIn, checkOut] tại đúng chi nhánh vào ca này.
+        //    Mặc định: chỉ đơn "mồ côi" (chưa thuộc ca nào). Nếu includeOtherShifts=true thì gộp
+        //    cả đơn đang thuộc ca KHÁC trong khoảng giờ này (dùng khi đơn bị gán nhầm ca).
+        const sql = includeOtherShifts
+          ? `UPDATE orders SET shiftId = ? WHERE branchId = ? AND shiftId != ? AND time >= ? AND time <= ?`
+          : `UPDATE orders SET shiftId = ? WHERE branchId = ? AND (shiftId IS NULL OR shiftId = '') AND time >= ? AND time <= ?`;
+        const params = includeOtherShifts
+          ? [id, branch, id, newCheckIn, newCheckOut]
+          : [id, branch, newCheckIn, newCheckOut];
 
-            // 3) Cập nhật lại giờ + trạng thái completed + snapshot
-            db.run(
-              `UPDATE shifts SET checkIn = ?, checkOut = ?, status = 'completed', closingOrderCount = ?, closingRevenue = ? WHERE id = ?`,
-              [newCheckIn, newCheckOut, closingOrderCount, closingRevenue, id],
-              function (shiftErr) {
-                if (shiftErr) return res.status(500).json({ error: shiftErr.message });
-                const updated = { ...shift, checkIn: newCheckIn, checkOut: newCheckOut, status: 'completed', closingOrderCount, closingRevenue };
-                broadcast('SHIFT_UPDATED', updated);
-                res.json({ shift: updated, reassigned });
-              }
-            );
-          }
-        );
+        db.run(sql, params, function (updErr) {
+          if (updErr) return res.status(500).json({ error: updErr.message });
+          const reassigned = this.changes || 0;
+
+          // 2) Tính lại snapshot từ toàn bộ đơn thuộc ca
+          db.get(
+            'SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?',
+            [id],
+            (snapErr, snapRow) => {
+              if (snapErr) return res.status(500).json({ error: snapErr.message });
+              const closingOrderCount = snapRow?.cnt || 0;
+              const closingRevenue = snapRow?.rev || 0;
+
+              // 3) Cập nhật lại giờ + trạng thái completed + snapshot
+              db.run(
+                `UPDATE shifts SET checkIn = ?, checkOut = ?, status = 'completed', closingOrderCount = ?, closingRevenue = ? WHERE id = ?`,
+                [newCheckIn, newCheckOut, closingOrderCount, closingRevenue, id],
+                function (shiftErr) {
+                  if (shiftErr) return res.status(500).json({ error: shiftErr.message });
+                  const updated = { ...shift, checkIn: newCheckIn, checkOut: newCheckOut, status: 'completed', closingOrderCount, closingRevenue };
+                  broadcast('SHIFT_UPDATED', updated);
+                  res.json({ shift: updated, reassigned, windowTotal });
+                }
+              );
+            }
+          );
+        });
       }
     );
   });

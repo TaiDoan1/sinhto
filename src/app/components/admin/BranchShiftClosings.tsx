@@ -57,6 +57,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const [fixShift, setFixShift] = useState<ShiftRow | null>(null);
   const [fixCheckIn, setFixCheckIn] = useState('');
   const [fixCheckOut, setFixCheckOut] = useState('');
+  const [fixIncludeOthers, setFixIncludeOthers] = useState(false);
   const [fixing, setFixing] = useState(false);
   const { subscribe } = useSSE();
   const { showSuccess, showError } = useToast();
@@ -141,9 +142,10 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       ? new Date(new Date(base + 'T00:00').getTime() + 86400000).toISOString().split('T')[0]
       : base;
     const endDefault = `${endBase}T${(shift.endTime || '23:59').slice(0, 5)}`;
-    setFixCheckIn(isoToLocalInput(shift.checkIn) || startDefault);
-    setFixCheckOut(isoToLocalInput(shift.checkOut) || endDefault);
-    // Nếu giờ cũ nằm quá xa giờ ca (lỗi tự check-in nhầm) thì bỏ, dùng giờ ca xếp
+    // Ưu tiên dùng giờ ca đã xếp làm mặc định (giờ check-in/out cũ thường bị ghi sai)
+    setFixCheckIn(startDefault || isoToLocalInput(shift.checkIn));
+    setFixCheckOut(endDefault || isoToLocalInput(shift.checkOut));
+    setFixIncludeOthers(false);
     setFixShift(shift);
   };
 
@@ -153,9 +155,17 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
     try {
       const checkInIso = new Date(fixCheckIn).toISOString();
       const checkOutIso = new Date(fixCheckOut).toISOString();
-      const { reassigned } = await api.reconcileShift(fixShift.id, { checkIn: checkInIso, checkOut: checkOutIso });
-      showSuccess(`Đã gán ${reassigned} đơn vào ca & cập nhật giờ. Đang tải lại…`);
-      setFixShift(null);
+      const { reassigned, windowTotal } = await api.reconcileShift(fixShift.id, {
+        checkIn: checkInIso,
+        checkOut: checkOutIso,
+        includeOtherShifts: fixIncludeOthers,
+      });
+      if (reassigned === 0 && !fixIncludeOthers && (windowTotal ?? 0) > 0) {
+        showError(`Khoảng giờ này có ${windowTotal} đơn nhưng đều đã thuộc ca khác. Tích "Gộp cả đơn đang thuộc ca khác" rồi thử lại.`);
+      } else {
+        showSuccess(`Đã gán ${reassigned} đơn vào ca (khoảng giờ có ${windowTotal ?? '?'} đơn). Đang tải lại…`);
+        setFixShift(null);
+      }
       load();
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Gán lại đơn thất bại');
@@ -385,6 +395,18 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                   onChange={(e) => setFixCheckOut(e.target.value)}
                   className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                 />
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={fixIncludeOthers}
+                  onChange={(e) => setFixIncludeOthers(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-xs text-gray-600">
+                  <b>Gộp cả đơn đang thuộc ca khác</b> trong khoảng giờ này (dùng khi đơn bị gán nhầm
+                  sang ca khác). Sẽ chuyển các đơn đó sang ca này.
+                </span>
               </label>
             </div>
             <div className="flex gap-2 px-6 py-4 border-t">

@@ -467,8 +467,8 @@ export async function shiftCheckIn(
 /** Sửa ca ghi sai giờ + gán lại đơn mồ côi trong khoảng giờ vào ca này, tính lại doanh thu ca. */
 export async function reconcileShift(
   shiftId: string,
-  body: { checkIn?: string; checkOut?: string }
-): Promise<{ shift: any; reassigned: number }> {
+  body: { checkIn?: string; checkOut?: string; includeOtherShifts?: boolean }
+): Promise<{ shift: any; reassigned: number; windowTotal: number | null }> {
   const res = await fetch(`${BASE_URL}/shifts/${shiftId}/reconcile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

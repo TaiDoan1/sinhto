@@ -96,22 +96,35 @@ export function PosProvider({ children }: { children: ReactNode }) {
         ? notDone
         : notDone.filter((s) => s.branch === branchId);
 
-      const currentHour = new Date().getHours();
+      const nowT = new Date();
+      const currentHour = nowT.getHours();
+      const nowMinutes = currentHour * 60 + nowT.getMinutes();
+      const toMinutes = (t: string) => {
+        const [h, m] = (t || '').split(':').map((x) => parseInt(x, 10));
+        return (h || 0) * 60 + (m || 0);
+      };
       const matchesNow = (s: any) => {
         const startHour = parseInt(s.startTime.split(':')[0], 10);
         const endHour = parseInt(s.endTime.split(':')[0], 10);
         if (endHour < startHour) return currentHour >= startHour || currentHour < endHour; // ca qua đêm
         return currentHour >= startHour && currentHour < endHour;
       };
+      // Cho phép tự check-in SỚM tối đa 60' trước giờ vào ca (nhân viên tới sớm). TUYỆT ĐỐI không
+      // tự check-in ca còn cách xa nhiều giờ — lỗi cũ (fallback "ca sớm nhất bất kể giờ") khiến
+      // mở POS lúc 7h sáng lại check-in nhầm ca chiều 18h: giờ vào ca bị ghi 7h, ca tối bị kết
+      // sớm nên mọi đơn bán 18–23h rớt khỏi ca (0 đơn).
+      const CHECKIN_GRACE_MIN = 60;
+      const startingSoon = (s: any) => {
+        const diff = toMinutes(s.startTime) - nowMinutes;
+        return diff >= 0 && diff <= CHECKIN_GRACE_MIN;
+      };
 
       // Ưu tiên ca KHỚP GIỜ HIỆN TẠI (để mỗi ca mới bắt đầu đều được hỏi quỹ riêng), rồi tới ca
-      // đang mở dở (đăng nhập lại giữa ca), cuối cùng là ca sớm nhất chưa xong.
+      // đang mở dở (đăng nhập lại giữa ca), cuối cùng là ca SẮP tới trong vòng 60'.
       const shiftToCheckIn =
         forBranch.find(matchesNow) ||
         forBranch.find((s) => s.status === 'in_progress') ||
-        [...forBranch]
-          .filter((s) => s.status !== 'in_progress')
-          .sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
+        forBranch.find(startingSoon);
 
       if (!shiftToCheckIn) return;
 

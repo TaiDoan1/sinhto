@@ -33,6 +33,13 @@ export interface Order {
   note?: string;
   /** Giờ hẹn giao cho đơn online (ISO). Đơn CSKH luôn có giờ giao; sửa được khi khách đổi giờ. */
   deliveryTime?: string;
+  /** Giao hàng: 'pickup' (khách tự lấy tại quầy) | 'delivery' (giao tận nơi). */
+  deliveryType?: 'pickup' | 'delivery';
+  /** Khi giao: 'own' (shipper của mình) | 'external' (bookship đơn vị ngoài). */
+  shipMethod?: 'own' | 'external' | '';
+  /** Bookship ngoài: tên đơn vị ship (Grab/Ahamove...) + mã vận đơn. */
+  shipProvider?: string;
+  shipTrackingCode?: string;
 }
 
 interface OrderContextType {

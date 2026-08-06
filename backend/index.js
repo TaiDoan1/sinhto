@@ -468,8 +468,9 @@ app.post('/api/orders', (req, res) => {
   const finishInsert = (salesStaffId, salesStaffName, shiftId) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
-      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note, deliveryTime
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note, deliveryTime,
+      deliveryType, shipMethod, shipProvider, shipTrackingCode
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -498,6 +499,10 @@ app.post('/api/orders', (req, res) => {
       Number(order.shipFee) || 0,
       normStr(order.note) || '',
       order.deliveryTime || '',
+      order.deliveryType || 'delivery',
+      order.shipMethod || '',
+      normStr(order.shipProvider) || '',
+      order.shipTrackingCode || '',
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -619,10 +624,14 @@ app.patch('/api/orders/:id', (req, res) => {
     const newPaymentMethod = pick(updates.paymentMethod, row.paymentMethod);
     const newShipFee = updates.shipFee !== undefined ? (Number(updates.shipFee) || 0) : row.shipFee;
     const newTotal = updates.total !== undefined ? (Number(updates.total) || 0) : row.total;
+    const newDeliveryType = pick(updates.deliveryType, row.deliveryType);
+    const newShipMethod = pick(updates.shipMethod, row.shipMethod);
+    const newShipProvider = pick(updates.shipProvider, row.shipProvider);
+    const newShipTrackingCode = pick(updates.shipTrackingCode, row.shipTrackingCode);
 
     db.run(
-      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ? WHERE id = ?`,
-      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, id],
+      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ? WHERE id = ?`,
+      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         

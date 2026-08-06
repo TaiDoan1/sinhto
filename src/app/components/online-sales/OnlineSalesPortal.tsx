@@ -76,7 +76,11 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
   const [deliveryTime, setDeliveryTime] = useState(isoToLocalInput(order.deliveryTime));
   const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress || '');
   const [note, setNote] = useState(order.note || '');
+  const [shipProvider, setShipProvider] = useState(order.shipProvider || '');
+  const [shipTrackingCode, setShipTrackingCode] = useState(order.shipTrackingCode || '');
+  const [shipFee, setShipFee] = useState(String(order.shipFee || ''));
   const [saving, setSaving] = useState(false);
+  const isDelivery = (order.deliveryType || 'delivery') === 'delivery';
 
   const handleSave = async () => {
     setSaving(true);
@@ -85,6 +89,9 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
         deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : '',
         deliveryAddress: deliveryAddress.trim(),
         note: note.trim(),
+        shipProvider: shipProvider.trim(),
+        shipTrackingCode: shipTrackingCode.trim(),
+        shipFee: Number(shipFee) || 0,
       });
       onSaved?.();
       onClose();
@@ -139,6 +146,13 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
               <label className="text-xs font-semibold text-gray-500 mb-1 block">Ghi chú / đổi vị theo yêu cầu khách</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="VD: đổi vị dâu → xoài, ít đá..." className="w-full px-3 py-2 rounded-lg border text-sm h-16 resize-none" />
             </div>
+            {isDelivery && (
+              <div className="grid grid-cols-2 gap-2">
+                <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)} placeholder="Đơn vị ship (bookship)" className="px-3 py-2 rounded-lg border text-sm" />
+                <input value={shipTrackingCode} onChange={(e) => setShipTrackingCode(e.target.value)} placeholder="Mã vận đơn" className="px-3 py-2 rounded-lg border text-sm" />
+                <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder="Phí ship (VNĐ)" className="col-span-2 px-3 py-2 rounded-lg border text-sm" />
+              </div>
+            )}
             <button type="button" onClick={handleSave} disabled={saving} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Lưu thay đổi
             </button>

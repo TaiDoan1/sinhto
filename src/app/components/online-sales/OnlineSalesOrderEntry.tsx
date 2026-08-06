@@ -43,6 +43,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
   const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local)
+  const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('delivery'); // tại quầy / giao
+  const [shipMethod, setShipMethod] = useState<'own' | 'external'>('own'); // shipper mình / bookship ngoài
+  const [shipProvider, setShipProvider] = useState(''); // đơn vị ship ngoài
+  const [shipTrackingCode, setShipTrackingCode] = useState(''); // mã vận đơn
   const [shipFee, setShipFee] = useState('');
   const [renewFromComboId, setRenewFromComboId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
@@ -186,6 +190,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
           paidAt: markPaid ? now : undefined,
           deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : undefined,
+          deliveryType,
+          shipMethod: deliveryType === 'delivery' ? shipMethod : '',
+          shipProvider: deliveryType === 'delivery' && shipMethod === 'external' ? shipProvider.trim() : '',
+          shipTrackingCode: deliveryType === 'delivery' && shipMethod === 'external' ? shipTrackingCode.trim() : '',
           ...staffPayload(),
         },
         { skipStockCheck: true }
@@ -209,6 +217,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setCart([]);
       setShipFee('');
       setDeliveryTime('');
+      setShipProvider('');
+      setShipTrackingCode('');
       setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -370,17 +380,46 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               </select>
             </div>
             {mode === 'retail' && (
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={deliveryTime}
-                  onChange={(e) => setDeliveryTime(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                  />
+                </div>
+
+                {/* Hình thức nhận */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Hình thức nhận</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setDeliveryType('pickup')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'pickup' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🏪 Khách tự lấy</button>
+                    <button type="button" onClick={() => setDeliveryType('delivery')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'delivery' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🚚 Giao hàng</button>
+                  </div>
+                </div>
+
+                {/* Cách giao (chỉ khi giao hàng) */}
+                {deliveryType === 'delivery' && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 block">Cách giao</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setShipMethod('own')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${shipMethod === 'own' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600'}`}>Shipper của mình</button>
+                      <button type="button" onClick={() => setShipMethod('external')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${shipMethod === 'external' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600'}`}>Bookship ngoài</button>
+                    </div>
+                    {shipMethod === 'external' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)} placeholder="Đơn vị ship (Grab/Ahamove...)" className="px-3 py-2 rounded-xl border text-sm" />
+                        <input value={shipTrackingCode} onChange={(e) => setShipTrackingCode(e.target.value)} placeholder="Mã vận đơn" className="px-3 py-2 rounded-xl border text-sm" />
+                      </div>
+                    )}
+                    <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder="Phí ship (VNĐ)" className="w-full px-3 py-2 rounded-xl border text-sm" />
+                  </div>
+                )}
+              </>
             )}
             <textarea
               placeholder={

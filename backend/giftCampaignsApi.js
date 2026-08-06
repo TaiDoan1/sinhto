@@ -14,13 +14,29 @@ function generateGiftCode() {
 
 function parseCampaignRow(row) {
   if (!row) return null;
+  let branchIds = [];
+  try { branchIds = JSON.parse(row.branchIds || '[]'); } catch { branchIds = []; }
+  if (!Array.isArray(branchIds)) branchIds = [];
+  // Tương thích dữ liệu cũ (chỉ có branchId đơn)
+  if (branchIds.length === 0 && row.branchId) branchIds = [row.branchId];
   return {
     ...row,
+    rewardType: row.rewardType || 'gift', // 'gift' | 'percent' | 'amount'
+    applyMode: row.applyMode || 'phone', // 'phone' (giới hạn theo SĐT) | 'all' (áp mọi đơn)
+    branchIds,
+    discountPercent: Number(row.discountPercent) || 0,
+    discountAmount: Number(row.discountAmount) || 0,
     giftProtein: Number(row.giftProtein) || 0,
     totalLimit: Number(row.totalLimit) || 0,
     redeemedCount: Number(row.redeemedCount) || 0,
     active: !!row.active,
   };
+}
+
+// Chương trình áp cho 1 chi nhánh nếu chọn "Tất cả" (ALL) hoặc chứa đúng chi nhánh đó
+function campaignAppliesToBranch(c, branchId) {
+  if (!branchId) return true;
+  return (c.branchIds || []).includes('ALL') || (c.branchIds || []).includes(branchId);
 }
 
 function registerGiftCampaignRoutes(app, db, { broadcast }) {
@@ -29,10 +45,6 @@ function registerGiftCampaignRoutes(app, db, { broadcast }) {
     const { branchId, active } = req.query;
     let sql = 'SELECT * FROM gift_campaigns WHERE 1=1';
     const params = [];
-    if (branchId) {
-      sql += ' AND branchId = ?';
-      params.push(branchId);
-    }
     if (active !== undefined) {
       sql += ' AND active = ?';
       params.push(active === 'true' || active === '1' ? 1 : 0);
@@ -40,33 +52,56 @@ function registerGiftCampaignRoutes(app, db, { broadcast }) {
     sql += ' ORDER BY createdAt DESC';
     db.all(sql, params, (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json((rows || []).map(parseCampaignRow));
+      let list = (rows || []).map(parseCampaignRow);
+      // Lọc theo chi nhánh trong JS (branchIds là JSON, có thể chứa 'ALL')
+      if (branchId) list = list.filter((c) => campaignAppliesToBranch(c, branchId));
+      res.json(list);
     });
   });
 
   // --- Tạo chương trình mới (Admin) ---
   app.post('/api/gift-campaigns', (req, res) => {
-    const { name, branchId, giftSize, giftProtein, totalLimit } = req.body;
-    if (!name || !branchId || !totalLimit) {
-      return res.status(400).json({ error: 'name, branchId, totalLimit là bắt buộc' });
+    const { name, branchIds, rewardType, giftSize, giftProtein, discountPercent, discountAmount, totalLimit, applyMode } = req.body;
+    const branches = Array.isArray(branchIds) ? branchIds.filter(Boolean) : [];
+    const type = ['gift', 'percent', 'amount'].includes(rewardType) ? rewardType : 'gift';
+    const mode = applyMode === 'all' ? 'all' : 'phone';
+    if (!name || branches.length === 0) {
+      return res.status(400).json({ error: 'Cần tên chương trình và ít nhất 1 chi nhánh' });
+    }
+    if (type === 'percent' && !(Number(discountPercent) > 0)) {
+      return res.status(400).json({ error: 'Nhập % giảm hợp lệ' });
+    }
+    if (type === 'amount' && !(Number(discountAmount) > 0)) {
+      return res.status(400).json({ error: 'Nhập số tiền giảm hợp lệ' });
+    }
+    const limit = Number(totalLimit) || 0;
+    if (mode === 'phone' && limit <= 0) {
+      return res.status(400).json({ error: 'Chế độ theo SĐT cần nhập giới hạn số lượt' });
     }
     const id = `GIFT-${Date.now()}`;
     const now = new Date().toISOString();
     const campaign = {
-      id, name, branchId,
+      id, name,
+      branchId: branches[0] || '', // giữ cột cũ cho tương thích
+      branchIds: JSON.stringify(branches),
+      rewardType: type,
       giftSize: giftSize || '360ml',
       giftProtein: giftProtein || 20,
-      totalLimit,
+      discountPercent: type === 'percent' ? Number(discountPercent) : 0,
+      discountAmount: type === 'amount' ? Number(discountAmount) : 0,
+      totalLimit: limit,
       redeemedCount: 0,
       active: 1,
+      applyMode: mode,
       createdAt: now,
       updatedAt: now,
     };
     db.run(
-      `INSERT INTO gift_campaigns (id, name, branchId, giftSize, giftProtein, totalLimit, redeemedCount, active, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [campaign.id, campaign.name, campaign.branchId, campaign.giftSize, campaign.giftProtein,
-       campaign.totalLimit, campaign.redeemedCount, campaign.active, campaign.createdAt, campaign.updatedAt],
+      `INSERT INTO gift_campaigns (id, name, branchId, branchIds, rewardType, giftSize, giftProtein, discountPercent, discountAmount, totalLimit, redeemedCount, active, applyMode, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [campaign.id, campaign.name, campaign.branchId, campaign.branchIds, campaign.rewardType, campaign.giftSize,
+       campaign.giftProtein, campaign.discountPercent, campaign.discountAmount, campaign.totalLimit,
+       campaign.redeemedCount, campaign.active, campaign.applyMode, campaign.createdAt, campaign.updatedAt],
       (err) => {
         if (err) return res.status(500).json({ error: err.message });
         broadcast('GIFT_CAMPAIGN_UPDATED', parseCampaignRow(campaign));
@@ -81,18 +116,24 @@ function registerGiftCampaignRoutes(app, db, { broadcast }) {
       if (err) return res.status(500).json({ error: err.message });
       if (!existing) return res.status(404).json({ error: 'campaign not found' });
 
+      const branches = Array.isArray(req.body.branchIds) ? req.body.branchIds.filter(Boolean) : undefined;
       const next = {
         name: req.body.name !== undefined ? req.body.name : existing.name,
-        branchId: req.body.branchId !== undefined ? req.body.branchId : existing.branchId,
+        branchIds: branches !== undefined ? JSON.stringify(branches) : (existing.branchIds || '[]'),
+        branchId: branches !== undefined ? (branches[0] || '') : existing.branchId,
+        rewardType: req.body.rewardType !== undefined ? req.body.rewardType : (existing.rewardType || 'gift'),
         giftSize: req.body.giftSize !== undefined ? req.body.giftSize : existing.giftSize,
         giftProtein: req.body.giftProtein !== undefined ? req.body.giftProtein : existing.giftProtein,
+        discountPercent: req.body.discountPercent !== undefined ? Number(req.body.discountPercent) : (existing.discountPercent || 0),
+        discountAmount: req.body.discountAmount !== undefined ? Number(req.body.discountAmount) : (existing.discountAmount || 0),
         totalLimit: req.body.totalLimit !== undefined ? req.body.totalLimit : existing.totalLimit,
+        applyMode: req.body.applyMode !== undefined ? (req.body.applyMode === 'all' ? 'all' : 'phone') : (existing.applyMode || 'phone'),
         active: req.body.active !== undefined ? (req.body.active ? 1 : 0) : existing.active,
         updatedAt: new Date().toISOString(),
       };
       db.run(
-        `UPDATE gift_campaigns SET name=?, branchId=?, giftSize=?, giftProtein=?, totalLimit=?, active=?, updatedAt=? WHERE id=?`,
-        [next.name, next.branchId, next.giftSize, next.giftProtein, next.totalLimit, next.active, next.updatedAt, req.params.id],
+        `UPDATE gift_campaigns SET name=?, branchId=?, branchIds=?, rewardType=?, giftSize=?, giftProtein=?, discountPercent=?, discountAmount=?, totalLimit=?, applyMode=?, active=?, updatedAt=? WHERE id=?`,
+        [next.name, next.branchId, next.branchIds, next.rewardType, next.giftSize, next.giftProtein, next.discountPercent, next.discountAmount, next.totalLimit, next.applyMode, next.active, next.updatedAt, req.params.id],
         (e2) => {
           if (e2) return res.status(500).json({ error: e2.message });
           const updated = parseCampaignRow({ ...existing, ...next });

@@ -403,6 +403,12 @@ async function initSchemaAndSeeds(pool) {
       "updatedAt" TEXT
     )
   `).catch(() => {});
+  // Mở rộng: nhiều chi nhánh + kiểu thưởng (tặng/giảm %/giảm tiền) + chế độ áp dụng
+  await pool.query(`ALTER TABLE gift_campaigns ADD COLUMN IF NOT EXISTS "rewardType" TEXT DEFAULT 'gift'`).catch(() => {});
+  await pool.query(`ALTER TABLE gift_campaigns ADD COLUMN IF NOT EXISTS "discountPercent" INTEGER DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE gift_campaigns ADD COLUMN IF NOT EXISTS "discountAmount" INTEGER DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE gift_campaigns ADD COLUMN IF NOT EXISTS "branchIds" TEXT DEFAULT '[]'`).catch(() => {});
+  await pool.query(`ALTER TABLE gift_campaigns ADD COLUMN IF NOT EXISTS "applyMode" TEXT DEFAULT 'phone'`).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS gift_redemptions (

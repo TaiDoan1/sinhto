@@ -302,6 +302,12 @@ async function init() {
       giftProtein INTEGER DEFAULT 20, totalLimit INTEGER DEFAULT 0, redeemedCount INTEGER DEFAULT 0,
       active INTEGER DEFAULT 1, createdAt TEXT, updatedAt TEXT
     )`,
+    // Mở rộng: nhiều chi nhánh + kiểu thưởng (tặng ly / giảm % / giảm tiền) + chế độ áp dụng
+    "ALTER TABLE gift_campaigns ADD COLUMN rewardType TEXT DEFAULT 'gift'",
+    "ALTER TABLE gift_campaigns ADD COLUMN discountPercent INTEGER DEFAULT 0",
+    "ALTER TABLE gift_campaigns ADD COLUMN discountAmount INTEGER DEFAULT 0",
+    "ALTER TABLE gift_campaigns ADD COLUMN branchIds TEXT DEFAULT '[]'",
+    "ALTER TABLE gift_campaigns ADD COLUMN applyMode TEXT DEFAULT 'phone'",
     `CREATE TABLE IF NOT EXISTS gift_redemptions (
       id TEXT PRIMARY KEY, campaignId TEXT, branchId TEXT, customerPhone TEXT,
       productName TEXT, orderId TEXT, staffId TEXT, staffName TEXT, createdAt TEXT

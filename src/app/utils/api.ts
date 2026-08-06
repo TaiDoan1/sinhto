@@ -1235,12 +1235,20 @@ export async function useSavedReply(id: string): Promise<void> {
 }
 
 // --- Khuyến mãi tặng quà (gift campaigns) ---
+export type GiftRewardType = 'gift' | 'percent' | 'amount';
+export type GiftApplyMode = 'phone' | 'all';
+
 export interface GiftCampaign {
   id: string;
   name: string;
   branchId: string;
+  branchIds: string[];
+  rewardType: GiftRewardType;
   giftSize: string;
   giftProtein: number;
+  discountPercent: number;
+  discountAmount: number;
+  applyMode: GiftApplyMode;
   totalLimit: number;
   redeemedCount: number;
   active: boolean;
@@ -1260,7 +1268,15 @@ export async function fetchGiftCampaigns(params?: { branchId?: string; active?: 
 }
 
 export async function createGiftCampaign(data: {
-  name: string; branchId: string; giftSize?: string; giftProtein?: number; totalLimit: number;
+  name: string;
+  branchIds: string[];
+  rewardType: GiftRewardType;
+  giftSize?: string;
+  giftProtein?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  applyMode: GiftApplyMode;
+  totalLimit: number;
 }): Promise<GiftCampaign> {
   const res = await fetch(`${BASE_URL}/gift-campaigns`, {
     method: 'POST',

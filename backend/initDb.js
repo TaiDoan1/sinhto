@@ -349,6 +349,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shiftId" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipFee" INTEGER DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS note TEXT DEFAULT ''`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryTime" TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingOrderCount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingRevenue" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''`).catch(() => {});

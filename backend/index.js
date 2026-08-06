@@ -468,8 +468,8 @@ app.post('/api/orders', (req, res) => {
   const finishInsert = (salesStaffId, salesStaffName, shiftId) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
-      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note, deliveryTime
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -497,6 +497,7 @@ app.post('/api/orders', (req, res) => {
       shiftId || '',
       Number(order.shipFee) || 0,
       normStr(order.note) || '',
+      order.deliveryTime || '',
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -605,9 +606,23 @@ app.patch('/api/orders/:id', (req, res) => {
     const salesStaffId = updates.salesStaffId !== undefined ? updates.salesStaffId : row.salesStaffId;
     const salesStaffName = updates.salesStaffName !== undefined ? updates.salesStaffName : row.salesStaffName;
 
+    // CSKH sửa đơn: cho phép cập nhật giờ giao, vị (items), ghi chú, địa chỉ, SĐT, tên khách,
+    // phí ship, chi nhánh nhận, hình thức TT, tổng tiền (dùng ?? để giữ nguyên nếu không gửi).
+    const pick = (v, cur) => (v !== undefined ? v : cur);
+    const newItems = updates.items !== undefined ? JSON.stringify(updates.items) : row.items;
+    const newDeliveryTime = pick(updates.deliveryTime, row.deliveryTime);
+    const newNote = pick(updates.note, row.note);
+    const newCustomerName = pick(updates.customerName, row.customerName);
+    const newCustomerPhone = pick(updates.customerPhone, row.customerPhone);
+    const newDeliveryAddress = pick(updates.deliveryAddress, row.deliveryAddress);
+    const newBranchId = pick(updates.branchId, row.branchId);
+    const newPaymentMethod = pick(updates.paymentMethod, row.paymentMethod);
+    const newShipFee = updates.shipFee !== undefined ? (Number(updates.shipFee) || 0) : row.shipFee;
+    const newTotal = updates.total !== undefined ? (Number(updates.total) || 0) : row.total;
+
     db.run(
-      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ? WHERE id = ?`,
-      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', id],
+      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ? WHERE id = ?`,
+      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         

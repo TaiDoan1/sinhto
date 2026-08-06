@@ -7,6 +7,7 @@ import {
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
 import { useInventory } from '../../contexts/InventoryContext';
+import { useOrders } from '../../contexts/OrderContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
 import type { OnlineSalesDashboard, SalesTask, SalesLead, PipelineStage } from '../../types/onlineSales';
@@ -61,8 +62,39 @@ function CustomerRow({
   );
 }
 
-function RetailOrderDetailDrawer({ order, onClose }: { order: Order; onClose: () => void }) {
+function isoToLocalInput(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; onClose: () => void; onSaved?: () => void }) {
   const items = Array.isArray(order.items) ? order.items : [];
+  const { updateOrder } = useOrders();
+  const [deliveryTime, setDeliveryTime] = useState(isoToLocalInput(order.deliveryTime));
+  const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress || '');
+  const [note, setNote] = useState(order.note || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateOrder(order.id, {
+        deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : '',
+        deliveryAddress: deliveryAddress.trim(),
+        note: note.trim(),
+      });
+      onSaved?.();
+      onClose();
+    } catch {
+      alert('Lưu thay đổi thất bại. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -90,10 +122,26 @@ function RetailOrderDetailDrawer({ order, onClose }: { order: Order; onClose: ()
               <p className="text-xs font-bold text-gray-400 uppercase">Chi nhánh nhận đơn</p>
               <p className="font-semibold text-gray-900">{order.branchId || '—'}</p>
             </div>
-            <div className="col-span-2">
-              <p className="text-xs font-bold text-gray-400 uppercase">Địa chỉ</p>
-              <p className="font-semibold text-gray-900">{order.deliveryAddress || '—'}</p>
+          </div>
+
+          {/* Sửa được: giờ giao (khách đổi giờ), địa chỉ, ghi chú/vị */}
+          <div className="space-y-3 bg-indigo-50/50 border border-indigo-100 rounded-xl p-3">
+            <p className="text-xs font-bold text-indigo-700 uppercase">Sửa đơn (khách đổi giờ / vị / ghi chú)</p>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Giờ hẹn giao</label>
+              <input type="datetime-local" value={deliveryTime} onChange={(e) => setDeliveryTime(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm bg-white" />
             </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-1 block">Địa chỉ giao</label>
+              <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Địa chỉ giao hàng" className="w-full px-3 py-2 rounded-lg border text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-1 block">Ghi chú / đổi vị theo yêu cầu khách</label>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="VD: đổi vị dâu → xoài, ít đá..." className="w-full px-3 py-2 rounded-lg border text-sm h-16 resize-none" />
+            </div>
+            <button type="button" onClick={handleSave} disabled={saving} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Lưu thay đổi
+            </button>
           </div>
 
           <div>
@@ -666,7 +714,7 @@ export function OnlineSalesPortal() {
       )}
 
       {selectedOrder && (
-        <RetailOrderDetailDrawer order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <RetailOrderDetailDrawer order={selectedOrder} onClose={() => setSelectedOrder(null)} onSaved={refreshData} />
       )}
     </div>
   );

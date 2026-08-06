@@ -269,6 +269,7 @@ async function init() {
     "ALTER TABLE orders ADD COLUMN shiftId TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN shipFee INTEGER DEFAULT 0",
     "ALTER TABLE orders ADD COLUMN note TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN deliveryTime TEXT DEFAULT ''",
     "ALTER TABLE shifts ADD COLUMN closingOrderCount INTEGER",
     "ALTER TABLE shifts ADD COLUMN closingRevenue INTEGER",
     "ALTER TABLE shifts ADD COLUMN reason TEXT DEFAULT ''",

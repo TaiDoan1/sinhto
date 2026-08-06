@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
-  Loader2, CheckCircle2, CreditCard, Banknote, X, Store,
+  Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -42,6 +42,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     address: prefill?.address || '',
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
+  const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local)
   const [shipFee, setShipFee] = useState('');
   const [renewFromComboId, setRenewFromComboId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
@@ -184,6 +185,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           deliveryAddress: customer.address.trim(),
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
           paidAt: markPaid ? now : undefined,
+          deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : undefined,
           ...staffPayload(),
         },
         { skipStockCheck: true }
@@ -206,6 +208,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
       setCart([]);
       setShipFee('');
+      setDeliveryTime('');
       setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -366,6 +369,19 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 ))}
               </select>
             </div>
+            {mode === 'retail' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                />
+              </div>
+            )}
             <textarea
               placeholder={
                 mode === 'combo'

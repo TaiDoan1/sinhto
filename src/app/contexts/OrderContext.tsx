@@ -31,6 +31,8 @@ export interface Order {
   shiftId?: string;
   shipFee?: number;
   note?: string;
+  /** Giờ hẹn giao cho đơn online (ISO). Đơn CSKH luôn có giờ giao; sửa được khi khách đổi giờ. */
+  deliveryTime?: string;
 }
 
 interface OrderContextType {

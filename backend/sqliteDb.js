@@ -358,6 +358,12 @@ async function init() {
     "CREATE INDEX IF NOT EXISTS idx_combosub_branch ON combo_subscriptions(branchId)",
     "CREATE INDEX IF NOT EXISTS idx_salesact_phone ON sales_activities(customerPhone)",
     "CREATE INDEX IF NOT EXISTS idx_invmov_branch ON inventory_movements(branchId)",
+    "CREATE INDEX IF NOT EXISTS idx_invmov_time ON inventory_movements(timestamp)",
+    "CREATE INDEX IF NOT EXISTS idx_combosub_care ON combo_subscriptions(careStaffId)",
+    "CREATE INDEX IF NOT EXISTS idx_leads_care ON sales_leads(careStaffId)",
+    "CREATE INDEX IF NOT EXISTS idx_care_staff ON customer_care_assignments(careStaffId)",
+    "CREATE INDEX IF NOT EXISTS idx_salesact_care ON sales_activities(careStaffId)",
+    "CREATE INDEX IF NOT EXISTS idx_fbmsg_conv ON fb_messages(conversationId, createdAt)",
   ];
   for (const sql of migrations) {
     await run(db, sql).catch(() => {});

@@ -164,6 +164,10 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveryTime TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
+    // Index tăng tốc (delivery_logs trước đây không có index nào ngoài PK)
+    'CREATE INDEX IF NOT EXISTS idx_dellog_combo ON delivery_logs(combo_order_id)',
+    'CREATE INDEX IF NOT EXISTS idx_dellog_branch_date ON delivery_logs(branch_id, delivery_date)',
+    'CREATE INDEX IF NOT EXISTS idx_dellog_status_alert ON delivery_logs(status, alert_sent)',
   ];
 }
 

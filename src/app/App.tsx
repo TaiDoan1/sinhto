@@ -1,33 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Menu, X } from "lucide-react";
 import { Sidebar } from "./components/admin/Sidebar";
 import { AdminLogin } from "./components/admin/AdminLogin";
-import { BranchOverview } from "./components/admin/BranchOverview";
-import { RevenueAnalytics } from "./components/admin/RevenueAnalytics";
-import { HRManagement } from "./components/admin/HRManagement";
-import { InventoryDashboard } from "./components/admin/InventoryDashboard";
-import { CrossBranchInventory } from "./components/admin/CrossBranchInventory";
-import { ShiftClosingBillSettings } from "./components/admin/ShiftClosingBillSettings";
-import { POSInterface } from "./components/pos/POSInterface";
-import { PosCustomerDisplay } from "./components/pos/PosCustomerDisplay";
-import { StaffApp } from "./components/staff/StaffApp";
-import { OnlineSalesApp } from "./components/online-sales/OnlineSalesApp";
 import { OnlineSalesProvider } from "./contexts/OnlineSalesContext";
 import { AdminProvider, useAdmin } from "./contexts/AdminContext";
-import { CustomerApp } from "./components/customer/CustomerApp";
-import { ComboShipBoard } from "./components/combo-ship/ComboShipBoard";
-import { ShipperApp } from "./components/shipper/ShipperApp";
-import { ProductManagement } from "./components/admin/ProductManagement";
-import { MenuBookEditor } from "./components/admin/MenuBookEditor";
-import { ComboManagement } from "./components/admin/ComboManagement";
-import { ComboPackageTemplates } from "./components/admin/ComboPackageTemplates";
-import { GiftCampaigns } from "./components/admin/GiftCampaigns";
-import { OrderNotificationSettings } from "./components/admin/OrderNotificationSettings";
-import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
-import { StoreManagerApp } from "./components/admin/StoreManagerApp";
-import { HrApp } from "./components/admin/HrApp";
-import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
-import { BackupData } from "./components/admin/BackupData";
+
+// Tách bundle theo màn: mỗi màn là 1 chunk riêng, chỉ tải khi thực sự mở (React.lazy).
+// Giúp mở /pos, /staff, /... nhẹ hơn nhiều vì không kéo theo code của các màn khác.
+function lazyNamed<M extends Record<string, unknown>>(loader: () => Promise<M>, name: keyof M) {
+  return lazy(async () => ({ default: (await loader())[name] as React.ComponentType<Record<string, never>> }));
+}
+const BranchOverview = lazyNamed(() => import("./components/admin/BranchOverview"), "BranchOverview");
+const RevenueAnalytics = lazyNamed(() => import("./components/admin/RevenueAnalytics"), "RevenueAnalytics");
+const HRManagement = lazyNamed(() => import("./components/admin/HRManagement"), "HRManagement");
+const InventoryDashboard = lazyNamed(() => import("./components/admin/InventoryDashboard"), "InventoryDashboard");
+const CrossBranchInventory = lazyNamed(() => import("./components/admin/CrossBranchInventory"), "CrossBranchInventory");
+const ShiftClosingBillSettings = lazyNamed(() => import("./components/admin/ShiftClosingBillSettings"), "ShiftClosingBillSettings");
+const POSInterface = lazyNamed(() => import("./components/pos/POSInterface"), "POSInterface");
+const PosCustomerDisplay = lazyNamed(() => import("./components/pos/PosCustomerDisplay"), "PosCustomerDisplay");
+const StaffApp = lazyNamed(() => import("./components/staff/StaffApp"), "StaffApp");
+const OnlineSalesApp = lazyNamed(() => import("./components/online-sales/OnlineSalesApp"), "OnlineSalesApp");
+const CustomerApp = lazyNamed(() => import("./components/customer/CustomerApp"), "CustomerApp");
+const ComboShipBoard = lazyNamed(() => import("./components/combo-ship/ComboShipBoard"), "ComboShipBoard");
+const ShipperApp = lazyNamed(() => import("./components/shipper/ShipperApp"), "ShipperApp");
+const ProductManagement = lazyNamed(() => import("./components/admin/ProductManagement"), "ProductManagement");
+const MenuBookEditor = lazyNamed(() => import("./components/admin/MenuBookEditor"), "MenuBookEditor");
+const ComboManagement = lazyNamed(() => import("./components/admin/ComboManagement"), "ComboManagement");
+const ComboPackageTemplates = lazyNamed(() => import("./components/admin/ComboPackageTemplates"), "ComboPackageTemplates");
+const GiftCampaigns = lazyNamed(() => import("./components/admin/GiftCampaigns"), "GiftCampaigns");
+const OrderNotificationSettings = lazyNamed(() => import("./components/admin/OrderNotificationSettings"), "OrderNotificationSettings");
+const LoyaltyManagement = lazyNamed(() => import("./components/admin/LoyaltyManagement"), "LoyaltyManagement");
+const StoreManagerApp = lazyNamed(() => import("./components/admin/StoreManagerApp"), "StoreManagerApp");
+const HrApp = lazyNamed(() => import("./components/admin/HrApp"), "HrApp");
+const CustomerCareManagement = lazyNamed(() => import("./components/admin/CustomerCareManagement"), "CustomerCareManagement");
+const BackupData = lazyNamed(() => import("./components/admin/BackupData"), "BackupData");
 import { OrderProvider } from "./contexts/OrderContext";
 import { ComboProvider } from "./contexts/ComboContext";
 import { InventoryProvider } from "./contexts/InventoryContext";
@@ -39,7 +45,7 @@ import { EmployeeProvider } from "./contexts/EmployeeContext";
 import { BranchProvider } from "./contexts/BranchContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { SplashScreen } from "./components/SplashScreen";
-import { SystemHub } from "./components/SystemHub";
+const SystemHub = lazyNamed(() => import("./components/SystemHub"), "SystemHub");
 import { captureSalesRefFromUrl } from "./utils/salesRef";
 import {
   type AppMode,
@@ -47,6 +53,14 @@ import {
   navigateToMode,
   isDevEnvironment,
 } from "./utils/appMode";
+
+function ScreenFallback() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function DevModeNavigation({
   mode,
@@ -178,7 +192,9 @@ function AdminShell() {
       )}
 
       {/* Main content */}
-      <div className="sm:ml-64 p-4 sm:p-8 pt-16 sm:pt-8">{renderContent()}</div>
+      <div className="sm:ml-64 p-4 sm:p-8 pt-16 sm:pt-8">
+        <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
+      </div>
     </div>
   );
 }
@@ -411,7 +427,9 @@ export default function App() {
                     <LoyaltyProvider>
                       <EmployeeProvider>
                         <BranchProvider>
-                          <AppContent />
+                          <Suspense fallback={<ScreenFallback />}>
+                            <AppContent />
+                          </Suspense>
                         </BranchProvider>
                       </EmployeeProvider>
                     </LoyaltyProvider>

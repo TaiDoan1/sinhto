@@ -42,6 +42,15 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         landing: path.resolve(__dirname, 'landing.html'),
       },
+      output: {
+        // Tách vendor thành chunk riêng để cache tốt (mỗi lần deploy không phải tải lại toàn bộ)
+        // và để biểu đồ (recharts/d3) KHÔNG nằm trong đường tải của POS/nhân viên.
+        manualChunks: {
+          // Biểu đồ (recharts/d3) tách riêng → không nằm trong đường tải POS/nhân viên,
+          // chỉ tải khi mở màn Doanh Thu / phân tích CSKH.
+          charts: ['recharts'],
+        },
+      },
     },
   },
   server: {

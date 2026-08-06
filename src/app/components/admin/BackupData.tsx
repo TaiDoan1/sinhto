@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Download, Archive, RotateCcw, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { useRef } from 'react';
+import { Download, Archive, RotateCcw, ShieldCheck, AlertTriangle, Loader2, Database, Upload } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -33,8 +34,46 @@ export function BackupData() {
 
   const [summary, setSummary] = useState<Summary | null>(null);
 
+  const [fullBackingUp, setFullBackingUp] = useState(false);
+  const [fullRestoring, setFullRestoring] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
+
   const loadSummary = () => api.fetchArchiveSummary().then(setSummary).catch(() => {});
   useEffect(() => { loadSummary(); }, []);
+
+  const handleFullBackup = async () => {
+    setFullBackingUp(true);
+    try {
+      const dump = await api.fullBackup();
+      const today = new Date().toISOString().slice(0, 10);
+      downloadBlob(new Blob([JSON.stringify(dump)], { type: 'application/json' }), `FitBlend_FullBackup_${today}.json`);
+      const rows = Object.values(dump.data || {}).reduce((s: number, r: any) => s + (Array.isArray(r) ? r.length : 0), 0);
+      showSuccess(`Đã tải bản sao lưu TOÀN BỘ (${dump._meta?.tableCount || 0} bảng, ${rows} dòng). Cất file này ở nơi ngoài Railway (Google Drive…).`);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Sao lưu toàn bộ thất bại');
+    } finally {
+      setFullBackingUp(false);
+    }
+  };
+
+  const handleFullRestoreFile = async (file: File) => {
+    if (!confirm('KHÔI PHỤC TOÀN BỘ sẽ XOÁ dữ liệu hiện tại và thay bằng file này. Chỉ làm khi thật sự cần. Tiếp tục?')) return;
+    const text = await file.text();
+    let dump: any;
+    try { dump = JSON.parse(text); } catch { return showError('File không phải JSON hợp lệ'); }
+    if (!dump?.data) return showError('File backup không hợp lệ (thiếu "data")');
+    setFullRestoring(true);
+    try {
+      const r = await api.fullRestore(dump);
+      showSuccess(`Đã khôi phục toàn bộ: ${r.tables} bảng, ${r.rows} dòng. Tải lại trang để thấy dữ liệu mới.`);
+      loadSummary();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Khôi phục toàn bộ thất bại');
+    } finally {
+      setFullRestoring(false);
+      if (restoreInputRef.current) restoreInputRef.current.value = '';
+    }
+  };
 
   // Khoảng ngày muốn lưu trữ đã được sao lưu phủ trọn chưa?
   const rangeBackedUp = !!summary?.backups?.some((b) => b.fromDate <= arFrom && b.toDate >= arTo);
@@ -133,6 +172,45 @@ export function BackupData() {
           ) : <div>Kho lưu trữ đang trống.</div>
         ) : <div>Đang tải…</div>}
       </div>
+
+      {/* Lớp 2 — Full backup/restore toàn hệ thống (off-site) */}
+      <section className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 font-bold text-emerald-800 mb-1">
+          <Database className="w-5 h-5" /> Sao lưu TOÀN BỘ hệ thống (khuyên dùng hàng tháng)
+        </div>
+        <p className="text-sm text-emerald-700/80 mb-3">
+          Tải 1 file chứa <b>toàn bộ dữ liệu</b> (đơn, khách, nhân viên, ca, combo, tồn kho, cài đặt…) để cất
+          <b> ngoài Railway</b>. Cầm file này là khôi phục được cả hệ thống, độc lập với nền tảng.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleFullBackup}
+            disabled={fullBackingUp}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50"
+          >
+            {fullBackingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+            Tải full backup
+          </button>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFullRestoreFile(f); }}
+          />
+          <button
+            type="button"
+            onClick={() => restoreInputRef.current?.click()}
+            disabled={fullRestoring}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold border-2 border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            {fullRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Khôi phục toàn bộ từ file
+          </button>
+        </div>
+        <p className="text-xs text-red-600/80 mt-2">⚠️ "Khôi phục toàn bộ" sẽ thay thế dữ liệu hiện tại bằng file — chỉ dùng khi thật sự cần.</p>
+      </section>
 
       {/* 1. Sao lưu */}
       <section className="mb-6 bg-white rounded-xl shadow-md p-5">

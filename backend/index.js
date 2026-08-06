@@ -376,6 +376,67 @@ app.post('/api/orders/restore', (req, res) => {
   });
 });
 
+// ── Full backup / restore TOÀN BỘ hệ thống (độc lập với Railway) ──────────────────────────
+// Xuất mọi bảng ra 1 JSON để tải về cất off-site; Nhập lại để khôi phục toàn bộ.
+app.get('/api/full-backup', (req, res) => {
+  const listSql = isPostgres()
+    ? "SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'"
+    : "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'";
+  db.all(listSql, [], (err, tbls) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const names = (tbls || []).map((t) => t.name).filter(Boolean);
+    const dump = { _meta: { app: 'FitBlend', createdAt: new Date().toISOString(), tableCount: names.length }, data: {} };
+    let i = 0;
+    const next = () => {
+      if (i >= names.length) return res.json(dump);
+      const tn = names[i++];
+      db.all(`SELECT * FROM ${tn}`, [], (e, rows) => {
+        if (e) return res.status(500).json({ error: `Bảng ${tn}: ${e.message}` });
+        dump.data[tn] = rows || [];
+        next();
+      });
+    };
+    next();
+  });
+});
+
+// Khôi phục TOÀN BỘ từ file backup: mỗi bảng xoá sạch rồi nạp lại. RẤT nguy hiểm — FE bắt gõ xác nhận.
+app.post('/api/full-restore', (req, res) => {
+  const dump = req.body;
+  if (!dump || !dump.data || typeof dump.data !== 'object') {
+    return res.status(400).json({ error: 'File backup không hợp lệ (thiếu data)' });
+  }
+  const tables = Object.keys(dump.data);
+  const result = { tables: 0, rows: 0, skipped: [] };
+  let ti = 0;
+  const nextTable = () => {
+    if (ti >= tables.length) {
+      broadcast('FULL_RESTORE_DONE', { tables: result.tables, rows: result.rows });
+      return res.json(result);
+    }
+    const tn = tables[ti++];
+    const rows = Array.isArray(dump.data[tn]) ? dump.data[tn] : [];
+    db.run(`DELETE FROM ${tn}`, [], (delErr) => {
+      if (delErr) { result.skipped.push(tn); return nextTable(); } // bảng không tồn tại → bỏ qua
+      result.tables += 1;
+      let ri = 0;
+      const nextRow = () => {
+        if (ri >= rows.length) return nextTable();
+        const row = rows[ri++];
+        const cols = Object.keys(row || {});
+        if (cols.length === 0) return nextRow();
+        const sql = `INSERT INTO ${tn} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+        db.run(sql, cols.map((c) => row[c]), (insErr) => {
+          if (!insErr) result.rows += 1;
+          nextRow();
+        });
+      };
+      nextRow();
+    });
+  };
+  nextTable();
+});
+
 // Tra cứu đơn theo SĐT (CÔNG KHAI) — dùng cho khách xem lịch sử đơn của chính mình, chỉ trả
 // về đơn khớp SĐT thay vì toàn bộ đơn của hệ thống.
 app.get('/api/orders/by-phone/:phone', (req, res) => {

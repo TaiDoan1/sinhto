@@ -515,6 +515,23 @@ export async function restoreOrders(from: string, to: string): Promise<{ restore
   return res.json();
 }
 
+// Sao lưu TOÀN BỘ hệ thống ra 1 JSON (off-site) + khôi phục toàn bộ
+export async function fullBackup(): Promise<any> {
+  const res = await fetch(`${BASE_URL}/full-backup`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Sao lưu toàn bộ thất bại');
+  return res.json();
+}
+
+export async function fullRestore(dump: any): Promise<{ tables: number; rows: number; skipped: string[] }> {
+  const res = await fetch(`${BASE_URL}/full-restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dump),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Khôi phục toàn bộ thất bại');
+  return res.json();
+}
+
 export interface ShiftCashMovement {
   id: string;
   shiftId: string;

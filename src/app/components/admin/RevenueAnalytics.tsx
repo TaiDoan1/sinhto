@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Download } from 'lucide-react';
 import * as api from '../../utils/api';
+import { useBranches } from '../../contexts/BranchContext';
+import { useToast } from '../../contexts/ToastContext';
 
 type OrderRow = {
   id: string;
@@ -10,6 +12,13 @@ type OrderRow = {
   status?: string;
   time?: string;
   items?: unknown[];
+  branchId?: string;
+  orderNumber?: number;
+  customerName?: string;
+  customerPhone?: string;
+  staff?: string;
+  salesStaffName?: string;
+  paymentMethod?: string;
 };
 
 function channelLabel(source?: string) {
@@ -31,6 +40,10 @@ function isSmoothieItem(item: unknown): boolean {
 export function RevenueAnalytics() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { activeBranches, branchLabel } = useBranches();
+  const { showError } = useToast();
+  const [exportMonth, setExportMonth] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     api.fetchOrders()
@@ -38,6 +51,117 @@ export function RevenueAnalytics() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const channelName = (source?: string) => channelLabel(source);
+
+  const handleExportMonth = async () => {
+    setExporting(true);
+    try {
+      // Lọc TẤT CẢ đơn trong tháng (mọi chi nhánh) theo thời gian bán
+      const monthOrders = orders
+        .filter((o) => (o.time || '').slice(0, 7) === exportMonth)
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+      if (monthOrders.length === 0) {
+        showError('Không có đơn nào trong tháng đã chọn');
+        setExporting(false);
+        return;
+      }
+
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'FitBlend';
+      wb.created = new Date();
+      const headerStyle = { font: { bold: true } } as const;
+      const fmtTime = (t?: string) => (t ? new Date(t).toLocaleString('vi-VN') : '');
+      const itemCount = (o: OrderRow) => (Array.isArray(o.items) ? o.items.length : 0);
+
+      // Sheet 1 — Danh sách đơn (mọi chi nhánh)
+      const s1 = wb.addWorksheet('Đơn hàng');
+      s1.columns = [
+        { header: 'Mã đơn', key: 'id', width: 22 },
+        { header: 'Số HĐ', key: 'orderNumber', width: 8 },
+        { header: 'Thời gian', key: 'time', width: 20 },
+        { header: 'Chi nhánh', key: 'branch', width: 22 },
+        { header: 'Kênh', key: 'channel', width: 16 },
+        { header: 'Nhân viên', key: 'staff', width: 18 },
+        { header: 'Khách', key: 'customerName', width: 18 },
+        { header: 'SĐT', key: 'customerPhone', width: 14 },
+        { header: 'Số món', key: 'items', width: 8 },
+        { header: 'Thanh toán', key: 'paymentMethod', width: 12 },
+        { header: 'Tổng tiền', key: 'total', width: 14 },
+        { header: 'Trạng thái', key: 'status', width: 12 },
+      ];
+      s1.getRow(1).eachCell((c) => Object.assign(c, headerStyle));
+      const statusLabel = (st?: string) => (st === 'completed' ? 'Hoàn tất' : st === 'cancelled' ? 'Đã hủy' : st || '');
+      monthOrders.forEach((o) => {
+        s1.addRow({
+          id: o.id,
+          orderNumber: o.orderNumber ?? '',
+          time: fmtTime(o.time),
+          branch: branchLabel(o.branchId || '') || o.branchId || '(chưa gán)',
+          channel: channelName(o.source),
+          staff: o.salesStaffName || o.staff || '',
+          customerName: o.customerName || '',
+          customerPhone: o.customerPhone || '',
+          items: itemCount(o),
+          paymentMethod: o.paymentMethod || '',
+          total: Number(o.total) || 0,
+          status: statusLabel(o.status),
+        });
+      });
+      s1.getColumn('total').numFmt = '#,##0';
+
+      // Sheet 2 — Tổng hợp theo chi nhánh (chỉ tính đơn hoàn tất là doanh thu thật)
+      const s2 = wb.addWorksheet('Tổng hợp');
+      s2.columns = [
+        { header: 'Chi nhánh', key: 'branch', width: 24 },
+        { header: 'Số đơn hoàn tất', key: 'count', width: 16 },
+        { header: 'Doanh thu', key: 'revenue', width: 16 },
+      ];
+      s2.getRow(1).eachCell((c) => Object.assign(c, headerStyle));
+      const completedMonth = monthOrders.filter((o) => o.status === 'completed');
+      const byBranch = new Map<string, { count: number; revenue: number }>();
+      for (const o of completedMonth) {
+        const key = o.branchId || '(chưa gán)';
+        const cur = byBranch.get(key) || { count: 0, revenue: 0 };
+        cur.count += 1;
+        cur.revenue += Number(o.total) || 0;
+        byBranch.set(key, cur);
+      }
+      // Liệt kê đủ các chi nhánh đang hoạt động (kể cả 0 đơn) + nhóm chưa gán
+      const branchKeys = [
+        ...activeBranches.map((b) => b.id),
+        ...[...byBranch.keys()].filter((k) => !activeBranches.some((b) => b.id === k)),
+      ];
+      let totalCount = 0;
+      let totalRev = 0;
+      branchKeys.forEach((k) => {
+        const v = byBranch.get(k) || { count: 0, revenue: 0 };
+        totalCount += v.count;
+        totalRev += v.revenue;
+        s2.addRow({ branch: branchLabel(k) || k, count: v.count, revenue: v.revenue });
+      });
+      const totalRow = s2.addRow({ branch: 'TỔNG CỘNG', count: totalCount, revenue: totalRev });
+      totalRow.eachCell((c) => Object.assign(c, headerStyle));
+      s2.getColumn('revenue').numFmt = '#,##0';
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `DoanhThu_${exportMonth}_ToanChiNhanh.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Xuất Excel thất bại');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const completed = useMemo(
     () => orders.filter((o) => o.status === 'completed'),
@@ -119,7 +243,28 @@ export function RevenueAnalytics() {
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Phân Tích Doanh Thu</h1>
-      <p className="text-sm text-gray-500 mb-6">Dữ liệu thật từ đơn hàng đã hoàn thành · Hôm nay: {totalRevenue.toLocaleString('vi-VN')}đ</p>
+      <p className="text-sm text-gray-500 mb-4">Dữ liệu thật từ đơn hàng đã hoàn thành · Hôm nay: {totalRevenue.toLocaleString('vi-VN')}đ</p>
+
+      <div className="mb-6 bg-white rounded-xl shadow-md p-3 sm:p-4 flex flex-col sm:flex-row sm:items-end gap-3">
+        <label className="flex-1">
+          <span className="text-xs font-semibold text-gray-500 block mb-1">Xuất Excel theo tháng (toàn bộ chi nhánh)</span>
+          <input
+            type="month"
+            value={exportMonth}
+            onChange={(e) => setExportMonth(e.target.value)}
+            className="w-full sm:w-56 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-emerald-500"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={handleExportMonth}
+          disabled={exporting}
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {exporting ? 'Đang xuất…' : 'Xuất Excel'}
+        </button>
+      </div>
 
       {channelStats.length === 0 ? (
         <p className="text-gray-400 bg-white rounded-xl p-8 text-center">Chưa có đơn hoàn thành hôm nay</p>

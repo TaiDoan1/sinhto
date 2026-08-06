@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import * as api from '../utils/api';
 import { useSSE } from './SSEContext';
 import { normalizePhoneVN } from '../utils/phone';
+import { getModeFromPath } from '../utils/appMode';
 import {
   DEFAULT_LOYALTY_TIERS,
   DEFAULT_REDEEM_PROGRAMS,
@@ -108,6 +109,10 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
 
   const refreshCustomers = async () => {
     if (!api.isAuthed()) { setLoading(false); return; } // khách không tải toàn bộ danh sách khách hàng
+    // Toàn bộ danh sách khách chỉ cần ở Admin & CSKH. POS/nhân viên tra theo SĐT (lookupByPhone)
+    // nên khỏi kéo cả bảng khách lúc mở máy → mở POS nhẹ & nhanh hơn.
+    const mode = getModeFromPath();
+    if (mode !== 'admin' && mode !== 'online-sales') { setLoading(false); return; }
     try {
       const data = await api.fetchCustomers();
       setCustomers(data);

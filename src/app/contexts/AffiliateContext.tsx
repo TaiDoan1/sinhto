@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as api from '../utils/api';
 import { useSSE } from './SSEContext';
+import { getModeFromPath } from '../utils/appMode';
 
 export interface PartnerPT {
   id: string;
@@ -58,6 +59,10 @@ export function AffiliateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadData = () => {
       if (!api.isAuthed()) return; // khách không tải danh sách đối tác/giao dịch giới thiệu
+      // Danh sách đối tác/giao dịch giới thiệu chỉ dùng ở màn Admin và trang Đối tác (customer).
+      // POS/nhân viên/CSKH... không cần → khỏi tải để mở nhanh (checkout vẫn chạy nhờ referral-by-code phía server).
+      const mode = getModeFromPath();
+      if (mode !== 'admin' && mode !== 'customer') return;
 
       api.fetchPartners()
         .then(data => setPartners(data))

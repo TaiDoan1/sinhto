@@ -238,7 +238,7 @@ export async function printCustomerReceipt(data: CustomerReceiptData) {
     <div class="center bold">HÓA ĐƠN THANH TOÁN</div>
     <div style="font-size:11px;margin-top:8px">
       Mã: ${data.orderNumber}<br/>
-      ${data.time.toLocaleString('vi-VN')}<br/>
+      ${data.time.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}<br/>
       NV: ${data.staff || 'POS'}<br/>
       TT: ${payLabel}
     </div>
@@ -280,8 +280,8 @@ export async function printCupLabels(
 ) {
   const stickers: string[] = [];
   const totalCups = lines.reduce((sum, item) => sum + Math.max(1, item.quantity), 0);
-  const dateStr = meta.time.toLocaleDateString('vi-VN');
-  const timeStr = meta.time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = meta.time.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const timeStr = meta.time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
   let cupIndex = 0;
 
   lines.forEach((item) => {
@@ -509,13 +509,13 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
     <div class="line"></div>
     <div class="bold">Đầu ca</div>
     <div style="font-size:11px">
-      Giờ: ${data.checkIn ? data.checkIn.toLocaleString('vi-VN') : '—'}<br/>
+      Giờ: ${data.checkIn ? data.checkIn.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—'}<br/>
       NV: ${data.employeeName}<br/>
       Tiền mặt đầu ca: ${data.startCash.toLocaleString('vi-VN')}đ
     </div>
     <div class="bold" style="margin-top:8px">Cuối ca</div>
     <div style="font-size:11px">
-      Giờ: ${data.checkOut ? data.checkOut.toLocaleString('vi-VN') : '—'}<br/>
+      Giờ: ${data.checkOut ? data.checkOut.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—'}<br/>
       NV: ${data.employeeName}<br/>
       Tiền mặt thực tế: ${data.endCashActual.toLocaleString('vi-VN')}đ
     </div>

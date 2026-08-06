@@ -192,7 +192,7 @@ export function AttendanceCamera({ label, onCapture, onCancel }: AttendanceCamer
           {preview && previewFile && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-gray-700">
               <p className="mb-1"><span className="font-semibold">Kích thước ảnh:</span> {(previewFile.size / 1024).toFixed(1)} KB</p>
-              <p><span className="font-semibold">Thời gian:</span> {new Date().toLocaleTimeString('vi-VN')}</p>
+              <p><span className="font-semibold">Thời gian:</span> {new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
             </div>
           )}
 

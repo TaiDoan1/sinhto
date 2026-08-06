@@ -37,7 +37,7 @@ function todayStr() {
 
 function formatDateTime(iso?: string) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
 const statusMeta: Record<string, { label: string; className: string; icon: typeof PlayCircle }> = {
@@ -297,8 +297,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                   <button
                     type="button"
                     onClick={() => handlePrintShift(shift)}
-                    disabled={stat.count === 0}
-                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     In bill

@@ -339,6 +339,13 @@ async function init() {
       approvedAt TEXT,
       approvedBy TEXT
     )`,
+    // Kho lưu trữ đơn cũ (cùng cột với orders) + nhật ký sao lưu
+    "CREATE TABLE IF NOT EXISTS orders_archive AS SELECT * FROM orders WHERE 0",
+    `CREATE TABLE IF NOT EXISTS backup_log (
+      id TEXT PRIMARY KEY, fromDate TEXT, toDate TEXT, orderCount INTEGER,
+      createdAt TEXT, createdBy TEXT DEFAULT ''
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_ordersarch_time ON orders_archive(time)",
     // Index tăng tốc truy vấn (tránh quét toàn bảng khi dữ liệu lớn dần)
     "CREATE INDEX IF NOT EXISTS idx_orders_branch_time ON orders(branchId, time)",
     "CREATE INDEX IF NOT EXISTS idx_orders_shift ON orders(shiftId)",

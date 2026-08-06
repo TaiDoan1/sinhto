@@ -27,6 +27,7 @@ import { LoyaltyManagement } from "./components/admin/LoyaltyManagement";
 import { StoreManagerApp } from "./components/admin/StoreManagerApp";
 import { HrApp } from "./components/admin/HrApp";
 import { CustomerCareManagement } from "./components/admin/CustomerCareManagement";
+import { BackupData } from "./components/admin/BackupData";
 import { OrderProvider } from "./contexts/OrderContext";
 import { ComboProvider } from "./contexts/ComboContext";
 import { InventoryProvider } from "./contexts/InventoryContext";
@@ -136,6 +137,8 @@ function AdminShell() {
         return <OrderNotificationSettings />;
       case "online-sales":
         return <CustomerCareManagement />;
+      case "backup":
+        return <BackupData />;
       default:
         return <BranchOverview />;
     }

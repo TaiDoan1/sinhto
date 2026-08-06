@@ -1,4 +1,4 @@
-import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe, Truck, Warehouse, Receipt, Layers, Gift, Volume2, BookOpen } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe, Truck, Warehouse, Receipt, Layers, Gift, Volume2, BookOpen, DatabaseBackup } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 
 interface SidebarProps {
@@ -32,6 +32,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
     { id: 'gift-campaigns', label: 'Khuyến Mãi Tặng Quà', icon: Gift },
     { id: 'order-notification', label: 'Thông Báo Đơn CSKH', icon: Volume2 },
+    { id: 'backup', label: 'Sao Lưu & Dữ Liệu', icon: DatabaseBackup },
   ];
 
   const menuItems = isStoreManager ? storeManagerMenu : allMenuItems;

@@ -439,6 +439,20 @@ async function initSchemaAndSeeds(pool) {
     await pool.query(idx).catch(() => {});
   }
 
+  // Kho lưu trữ đơn cũ (cùng cột với orders) + nhật ký sao lưu
+  await pool.query(`CREATE TABLE IF NOT EXISTS orders_archive (LIKE orders INCLUDING DEFAULTS)`).catch(() => {});
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_ordersarch_time ON orders_archive("time")`).catch(() => {});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS backup_log (
+      id TEXT PRIMARY KEY,
+      "fromDate" TEXT,
+      "toDate" TEXT,
+      "orderCount" INTEGER,
+      "createdAt" TEXT,
+      "createdBy" TEXT DEFAULT ''
+    )
+  `).catch(() => {});
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS saved_replies (
       id TEXT PRIMARY KEY,

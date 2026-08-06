@@ -287,6 +287,95 @@ app.get('/api/orders', (req, res) => {
   });
 });
 
+// ── Sao lưu / Lưu trữ / Khôi phục đơn hàng theo khoảng ngày ──────────────────────────────
+const rangeBounds = (from, to) => ({ lo: `${from}T00:00:00.000Z`, hi: `${to}T23:59:59.999Z` });
+
+// Sao lưu: trả về toàn bộ đơn trong khoảng ngày + ghi nhật ký sao lưu (để nút Lưu trữ kiểm tra)
+app.get('/api/orders/backup', (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: 'Cần from và to (YYYY-MM-DD)' });
+  const { lo, hi } = rangeBounds(from, to);
+  db.all('SELECT * FROM orders WHERE time >= ? AND time <= ? ORDER BY time ASC', [lo, hi], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const orders = rows || [];
+    const logId = `BK-${Date.now()}`;
+    db.run(
+      'INSERT INTO backup_log (id, fromDate, toDate, orderCount, createdAt, createdBy) VALUES (?, ?, ?, ?, ?, ?)',
+      [logId, from, to, orders.length, new Date().toISOString(), (req.query.by || '')],
+      () => res.json({ from, to, orderCount: orders.length, backupId: logId, orders })
+    );
+  });
+});
+
+// Tổng quan kho lưu trữ + lịch sử sao lưu (cho trang backup hiển thị trạng thái)
+app.get('/api/orders/archive-summary', (req, res) => {
+  db.get('SELECT COUNT(*) as cnt, MIN(time) as minT, MAX(time) as maxT FROM orders_archive', [], (e1, arch) => {
+    if (e1) return res.status(500).json({ error: e1.message });
+    db.all('SELECT * FROM backup_log ORDER BY createdAt DESC LIMIT 50', [], (e2, logs) => {
+      if (e2) return res.status(500).json({ error: e2.message });
+      res.json({
+        archivedCount: arch?.cnt || 0,
+        archivedFrom: arch?.minT || null,
+        archivedTo: arch?.maxT || null,
+        backups: logs || [],
+      });
+    });
+  });
+});
+
+// Chuyển đơn cũ sang kho lưu trữ (CÓ THỂ HOÀN TÁC bằng Khôi phục). Điều kiện: đã có bản sao lưu
+// phủ trọn khoảng ngày + không đụng dữ liệu của hôm nay. INSERT trước, DELETE sau → không mất dữ liệu.
+app.post('/api/orders/archive', (req, res) => {
+  const { from, to } = req.body || {};
+  if (!from || !to) return res.status(400).json({ error: 'Cần from và to (YYYY-MM-DD)' });
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (to >= todayStr) return res.status(400).json({ error: 'Chỉ lưu trữ dữ liệu trước hôm nay (không đụng dữ liệu đang phát sinh)' });
+
+  db.get(
+    'SELECT id FROM backup_log WHERE fromDate <= ? AND toDate >= ? ORDER BY createdAt DESC LIMIT 1',
+    [from, to],
+    (bkErr, bk) => {
+      if (bkErr) return res.status(500).json({ error: bkErr.message });
+      if (!bk) return res.status(400).json({ error: 'Chưa có bản sao lưu phủ khoảng ngày này. Hãy Tải sao lưu trước.' });
+
+      const { lo, hi } = rangeBounds(from, to);
+      db.get('SELECT COUNT(*) as cnt FROM orders WHERE time >= ? AND time <= ?', [lo, hi], (cErr, cRow) => {
+        if (cErr) return res.status(500).json({ error: cErr.message });
+        const count = cRow?.cnt || 0;
+        if (count === 0) return res.json({ archived: 0 });
+        db.run('INSERT INTO orders_archive SELECT * FROM orders WHERE time >= ? AND time <= ?', [lo, hi], (insErr) => {
+          if (insErr) return res.status(500).json({ error: insErr.message });
+          db.run('DELETE FROM orders WHERE time >= ? AND time <= ?', [lo, hi], (delErr) => {
+            if (delErr) return res.status(500).json({ error: delErr.message });
+            broadcast('ORDERS_ARCHIVED', { from, to, count });
+            res.json({ archived: count });
+          });
+        });
+      });
+    }
+  );
+});
+
+// Khôi phục: chuyển đơn từ kho lưu trữ trở lại bảng chính theo khoảng ngày
+app.post('/api/orders/restore', (req, res) => {
+  const { from, to } = req.body || {};
+  if (!from || !to) return res.status(400).json({ error: 'Cần from và to (YYYY-MM-DD)' });
+  const { lo, hi } = rangeBounds(from, to);
+  db.get('SELECT COUNT(*) as cnt FROM orders_archive WHERE time >= ? AND time <= ?', [lo, hi], (cErr, cRow) => {
+    if (cErr) return res.status(500).json({ error: cErr.message });
+    const count = cRow?.cnt || 0;
+    if (count === 0) return res.json({ restored: 0 });
+    db.run('INSERT INTO orders SELECT * FROM orders_archive WHERE time >= ? AND time <= ?', [lo, hi], (insErr) => {
+      if (insErr) return res.status(500).json({ error: insErr.message });
+      db.run('DELETE FROM orders_archive WHERE time >= ? AND time <= ?', [lo, hi], (delErr) => {
+        if (delErr) return res.status(500).json({ error: delErr.message });
+        broadcast('ORDERS_RESTORED', { from, to, count });
+        res.json({ restored: count });
+      });
+    });
+  });
+});
+
 // Tra cứu đơn theo SĐT (CÔNG KHAI) — dùng cho khách xem lịch sử đơn của chính mình, chỉ trả
 // về đơn khớp SĐT thay vì toàn bộ đơn của hệ thống.
 app.get('/api/orders/by-phone/:phone', (req, res) => {

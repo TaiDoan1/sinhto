@@ -482,6 +482,39 @@ export async function reconcileShift(
   return res.json();
 }
 
+// ── Sao lưu / Lưu trữ / Khôi phục đơn hàng ──
+export async function backupOrders(from: string, to: string): Promise<{ from: string; to: string; orderCount: number; backupId: string; orders: any[] }> {
+  const res = await fetch(`${BASE_URL}/orders/backup?from=${from}&to=${to}`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Sao lưu thất bại');
+  return res.json();
+}
+
+export async function fetchArchiveSummary(): Promise<{ archivedCount: number; archivedFrom: string | null; archivedTo: string | null; backups: any[] }> {
+  const res = await fetch(`${BASE_URL}/orders/archive-summary`);
+  if (!res.ok) throw new Error('Không tải được tổng quan kho lưu trữ');
+  return res.json();
+}
+
+export async function archiveOrders(from: string, to: string): Promise<{ archived: number }> {
+  const res = await fetch(`${BASE_URL}/orders/archive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Lưu trữ thất bại');
+  return res.json();
+}
+
+export async function restoreOrders(from: string, to: string): Promise<{ restored: number }> {
+  const res = await fetch(`${BASE_URL}/orders/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Khôi phục thất bại');
+  return res.json();
+}
+
 export interface ShiftCashMovement {
   id: string;
   shiftId: string;

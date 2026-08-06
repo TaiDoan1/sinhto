@@ -4,7 +4,9 @@ const crypto = require('crypto');
 
 // ĐỔI JWT_SECRET trên production (biến môi trường). Fallback chỉ dùng cho môi trường dev.
 const SECRET = process.env.JWT_SECRET || 'fitblend-dev-secret-doi-tren-production';
-const DEFAULT_TTL_SECONDS = 60 * 60 * 12; // 12 giờ
+// 30 ngày — app POS/nhân viên để đăng nhập trên máy/điện thoại dùng cả ngày, nhiều ngày liền;
+// hạn 12h cũ khiến qua đêm là token hết hạn -> mọi thao tác (check-in/out...) bị 401.
+const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 ngày
 
 function b64url(input) {
   return Buffer.from(input)

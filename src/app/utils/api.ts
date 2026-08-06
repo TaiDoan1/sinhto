@@ -36,13 +36,40 @@ export function isAuthed(): boolean {
 // "Che" hàm fetch toàn cục trong phạm vi module này: mọi lời gọi fetch(...) bên dưới sẽ tự động
 // đính kèm header Authorization nếu đã có token — không cần sửa từng chỗ gọi.
 const nativeFetch = globalThis.fetch.bind(globalThis);
-function fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+let handling401 = false; // tránh reload lặp khi nhiều request 401 cùng lúc
+
+function handleExpiredSession() {
+  if (handling401) return;
+  handling401 = true;
+  clearAuthToken();
+  try {
+    localStorage.removeItem('admin_session');
+    localStorage.removeItem('pos_session');
+    localStorage.removeItem('online_sales_session');
+  } catch { /* ignore */ }
+  // Tải lại → app thấy không còn token → hiện lại màn đăng nhập (thay vì lỗi âm thầm mà UI vẫn tưởng đã đăng nhập)
+  if (typeof window !== 'undefined') {
+    alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    window.location.reload();
+  }
+}
+
+async function fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();
   const headers = new Headers(init.headers || {});
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  return nativeFetch(input, { ...init, headers });
+  const res = await nativeFetch(input, { ...init, headers });
+  // Token hết hạn/không hợp lệ: chỉ xử lý khi ĐANG có token và KHÔNG phải request đăng nhập
+  // (để lỗi sai mật khẩu lúc đăng nhập vẫn hiển thị bình thường).
+  if (res.status === 401 && token) {
+    const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : (input as Request).url);
+    if (!/\/auth\/employee-login/.test(url || '')) {
+      handleExpiredSession();
+    }
+  }
+  return res;
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS) {

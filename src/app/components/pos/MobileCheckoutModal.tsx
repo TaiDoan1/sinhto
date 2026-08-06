@@ -75,13 +75,22 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
 
   // Ghi chú ý khách (VD: ít đá, không đường, giao gấp...) — nhân viên ghi lại lúc thanh toán.
   const [orderNote, setOrderNote] = useState('');
+  const [appliedCampaign, setAppliedCampaign] = useState<{
+    campaignId: string; label: string; rewardType: 'percent' | 'amount'; discountPercent: number; discountAmount: number;
+  } | null>(null);
   useEffect(() => {
-    if (cart.length === 0) setOrderNote('');
+    if (cart.length === 0) { setOrderNote(''); setAppliedCampaign(null); }
   }, [cart.length]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const pointsDiscount = calcProgramDiscount(subtotal, selectedRedeemProgramId);
-  const total = Math.max(0, subtotal - pointsDiscount);
+  const campaignDiscount = !appliedCampaign
+    ? 0
+    : appliedCampaign.rewardType === 'percent'
+      ? Math.round(subtotal * (appliedCampaign.discountPercent || 0) / 100)
+      : Math.min(appliedCampaign.discountAmount || 0, subtotal);
+  const totalDiscount = pointsDiscount + campaignDiscount;
+  const total = Math.max(0, subtotal - totalDiscount);
   const estimatedPointsEarned = calcEarnedPoints(total);
 
   // Đồng bộ màn hình khách (monitor thứ 2) — bị tạm ngưng vài giây sau khi thanh toán xong
@@ -101,7 +110,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
         toppings: item.toppings,
       })),
       subtotal,
-      discount: pointsDiscount,
+      discount: totalDiscount,
       total,
       paymentMethod: selectedPayment,
       qrImageUrl,
@@ -133,7 +142,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
     paymentMethod: paymentMethod || undefined,
     lines: cartToPrintLines(),
     subtotal,
-    discount: pointsDiscount,
+    discount: totalDiscount,
     total,
     customerName: activeCustomer?.name,
     customerPhone: activeCustomer?.phone,
@@ -257,7 +266,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       branchId,
       items: [],
       subtotal,
-      discount: pointsDiscount,
+      discount: totalDiscount,
       total,
       paymentMethod: selectedPayment,
       qrImageUrl,
@@ -290,16 +299,25 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
 
   const renderTotals = (showLoyaltyLines: boolean) => (
     <div className="space-y-2 text-sm">
-      {showLoyaltyLines && pointsDiscount > 0 && (
+      {totalDiscount > 0 && (
         <div className="flex justify-between">
           <span className="text-gray-600">Tạm tính:</span>
           <span className="font-semibold">{subtotal.toLocaleString('vi-VN')}đ</span>
         </div>
       )}
-      {showLoyaltyLines && pointsDiscount > 0 && (
+      {pointsDiscount > 0 && (
         <div className="flex justify-between text-pink-600 font-semibold">
           <span>{activeVoucher ? `Mã ${activeVoucher.code}:` : 'Giảm điểm loyalty:'}</span>
           <span>-{pointsDiscount.toLocaleString('vi-VN')}đ</span>
+        </div>
+      )}
+      {campaignDiscount > 0 && appliedCampaign && (
+        <div className="flex justify-between items-center text-emerald-600 font-semibold gap-2">
+          <span className="min-w-0 truncate">🎁 {appliedCampaign.label}:</span>
+          <span className="flex items-center gap-2 shrink-0">
+            -{campaignDiscount.toLocaleString('vi-VN')}đ
+            <button type="button" onClick={() => setAppliedCampaign(null)} className="text-xs text-gray-400 underline font-normal">bỏ</button>
+          </span>
         </div>
       )}
       {showLoyaltyLines && activeCustomer && estimatedPointsEarned > 0 && (
@@ -311,7 +329,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       <div className="flex justify-between text-lg border-t pt-2">
         <span className="font-bold">TỔNG CỘNG:</span>
         <span className="font-bold text-emerald-700">
-          {(showLoyaltyLines ? total : subtotal).toLocaleString('vi-VN')}đ
+          {total.toLocaleString('vi-VN')}đ
         </span>
       </div>
     </div>
@@ -368,6 +386,8 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
                 staffName: effectiveStaffName,
                 alreadyGifted: cart.some((i) => i.isGift),
                 onGiftAdded: onAddItem,
+                discountApplied: !!appliedCampaign,
+                onDiscountApplied: (d) => setAppliedCampaign(d),
               }}
             />
           </div>
@@ -383,6 +403,8 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
                 staffName={effectiveStaffName}
                 alreadyGifted={cart.some((i) => i.isGift)}
                 onGiftAdded={onAddItem}
+                discountApplied={!!appliedCampaign}
+                onDiscountApplied={(d) => setAppliedCampaign(d)}
               />
             )}
             {cart.length === 0 ? (

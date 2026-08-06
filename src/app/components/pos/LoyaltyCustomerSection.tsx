@@ -27,6 +27,8 @@ export function LoyaltyCustomerSection({
     staffName?: string;
     alreadyGifted: boolean;
     onGiftAdded: (item: CartItem) => void;
+    discountApplied?: boolean;
+    onDiscountApplied?: React.ComponentProps<typeof PosGiftCampaignBanner>['onDiscountApplied'];
   };
 }) {
   const {
@@ -101,6 +103,8 @@ export function LoyaltyCustomerSection({
           staffName={giftCampaign.staffName}
           alreadyGifted={giftCampaign.alreadyGifted}
           onGiftAdded={giftCampaign.onGiftAdded}
+          discountApplied={giftCampaign.discountApplied}
+          onDiscountApplied={giftCampaign.onDiscountApplied}
         />
       )}
 

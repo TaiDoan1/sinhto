@@ -16,12 +16,23 @@ interface Props {
   /** true nếu giỏ hàng đã có 1 ly quà tặng — ẩn gợi ý để tránh tặng trùng trong cùng đơn. */
   alreadyGifted: boolean;
   onGiftAdded: (item: CartItem) => void;
+  /** true nếu đơn đã áp 1 khuyến mãi giảm giá — ẩn banner giảm giá để không áp trùng. */
+  discountApplied?: boolean;
+  /** Gọi khi áp chương trình giảm % / giảm tiền vào đơn. */
+  onDiscountApplied?: (d: {
+    campaignId: string;
+    label: string;
+    rewardType: 'percent' | 'amount';
+    discountPercent: number;
+    discountAmount: number;
+    phone?: string;
+  }) => void;
 }
 
 /** Gợi ý tặng quà theo chương trình khuyến mãi đang chạy tại đúng chi nhánh — luôn hiện thẻ
  * quảng cáo cho mọi khách, chỉ hỏi SĐT khi bấm vào (không cần đã tìm khách hàng thành viên
  * trước). Chỉ ẩn khi chương trình hết hạn mức hoặc đã tặng trong đơn hiện tại. */
-export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffName, alreadyGifted, onGiftAdded }: Props) {
+export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffName, alreadyGifted, onGiftAdded, discountApplied, onDiscountApplied }: Props) {
   const { products } = useMenu();
   const { comboToppings: comboListFromApi } = useMenuPricing();
   const [campaign, setCampaign] = useState<GiftCampaign | null>(null);
@@ -54,13 +65,17 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
     api
       .fetchGiftCampaigns({ branchId, active: true })
       .then((list) => {
-        const eligible = list.find((c) => c.redeemedCount < c.totalLimit);
+        // Còn hạn mức (chế độ SĐT) hoặc áp-mọi-đơn (không giới hạn)
+        const eligible = list.find((c) => c.applyMode === 'all' || c.redeemedCount < c.totalLimit);
         setCampaign(eligible || null);
       })
       .catch(() => setCampaign(null));
   }, [branchId]);
 
-  if (!campaign || alreadyGifted) return null;
+  const isDiscount = !!campaign && campaign.rewardType !== 'gift';
+  if (!campaign) return null;
+  if (!isDiscount && alreadyGifted) return null; // quà tặng đã có trong đơn
+  if (isDiscount && discountApplied) return null; // đã áp giảm giá cho đơn này
 
   const remaining = Math.max(0, campaign.totalLimit - campaign.redeemedCount);
   const smoothieProducts = products.filter((p) => p.category === 'smoothies');
@@ -132,6 +147,88 @@ export function PosGiftCampaignBanner({ branchId, initialPhone, staffId, staffNa
       setRedeeming(false);
     }
   };
+
+  // ── Chương trình GIẢM GIÁ (%/tiền) — áp vào tổng đơn, không thêm ly ──
+  const discountLabel = campaign.rewardType === 'percent'
+    ? `Giảm ${campaign.discountPercent}%`
+    : `Giảm ${campaign.discountAmount.toLocaleString('vi-VN')}đ`;
+
+  const applyDiscount = async (phoneArg?: string) => {
+    if (!onDiscountApplied) return;
+    if (campaign.applyMode === 'phone') {
+      if (!phoneArg || !phoneArg.trim()) { alert('Vui lòng nhập số điện thoại khách hàng.'); return; }
+      setRedeeming(true);
+      try {
+        await api.redeemGiftCampaign(campaign.id, { customerPhone: phoneArg.trim(), productName: discountLabel, staffId, staffName });
+      } catch (e: any) {
+        alert(e.message || 'Không áp dụng được khuyến mãi — có thể vừa hết hạn mức.');
+        setRedeeming(false); setStep('closed'); return;
+      }
+      setRedeeming(false);
+    }
+    onDiscountApplied({
+      campaignId: campaign.id,
+      label: `${campaign.name} · ${discountLabel}`,
+      rewardType: campaign.rewardType as 'percent' | 'amount',
+      discountPercent: campaign.discountPercent,
+      discountAmount: campaign.discountAmount,
+      phone: phoneArg?.trim(),
+    });
+    setStep('closed');
+  };
+
+  if (isDiscount) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => (campaign.applyMode === 'all' ? applyDiscount() : (setPhone(initialPhone?.trim() || ''), setStep('phone')))}
+          className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl p-3.5 shadow-lg flex items-center gap-3 text-left"
+        >
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+            <Gift className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-sm">{campaign.name}</p>
+            <p className="text-xs text-white/80">
+              {discountLabel} {campaign.applyMode === 'phone' ? `— còn ${remaining.toLocaleString('vi-VN')} lượt` : '— áp cho đơn này'}
+            </p>
+          </div>
+          <ArrowRight className="w-4 h-4 shrink-0" />
+        </button>
+
+        {step === 'phone' && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-emerald-600 text-white">
+                <div className="font-bold flex items-center gap-2"><Gift className="w-4 h-4" /> Nhập SĐT để áp {discountLabel}</div>
+                <button type="button" onClick={() => setStep('closed')} disabled={redeeming}><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-4 space-y-3">
+                <input
+                  type="tel"
+                  autoFocus
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applyDiscount(phone)}
+                  placeholder="Số điện thoại khách hàng..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={redeeming}
+                  onClick={() => applyDiscount(phone)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Áp dụng {discountLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>

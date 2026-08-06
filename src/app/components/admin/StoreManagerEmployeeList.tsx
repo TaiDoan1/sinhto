@@ -14,6 +14,7 @@ const positions = [
   { id: 'bartender', name: 'Pha Chế' },
   { id: 'server', name: 'Phục Vụ' },
   { id: 'cleaner', name: 'Vệ Sinh' },
+  { id: 'shipper', name: 'Shipper' },
 ];
 
 const todayStr = () => new Date().toISOString().split('T')[0];

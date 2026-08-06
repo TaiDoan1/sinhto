@@ -1,307 +1,174 @@
-import { useState } from 'react';
-import { Package, MapPin, Phone, User, Navigation, CheckCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, MapPin, Phone, Navigation, CheckCircle, Clock, LogOut, Loader2, Bike, User } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import type { Order } from '../../contexts/OrderContext';
+import { useBranches } from '../../contexts/BranchContext';
+import * as api from '../../utils/api';
 
-export function ShipperApp() {
-  const { orders, history, updateOrderStatus } = useOrders();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [shipperName] = useState('Nguyễn Văn Shipper');
-  const [filter, setFilter] = useState<'available' | 'my-orders' | 'completed'>('available');
+const SESSION_KEY = 'shipper_session';
 
-  const acceptOrder = (order: Order) => {
-    updateOrderStatus(order.id, 'delivering', { shipperName });
-    setSelectedOrder({ ...order, status: 'delivering', shipperName });
-  };
+type ShipperSession = { id: string; fullName: string; branch: string; employeeId?: string };
 
-  const handleUpdateStatus = (orderId: string, status: Order['status']) => {
-    updateOrderStatus(orderId, status);
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status });
-    }
-  };
+function fmtTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+}
 
-  const availableOrders = orders.filter(o =>
-    o.status === 'ready' && o.source === 'mobile'
-  );
+function ShipperLogin({ onLoggedIn }: { onLoggedIn: (s: ShipperSession) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const myOrders = orders.filter(o =>
-    o.shipperName === shipperName && o.status === 'delivering'
-  );
-
-  const completedOrders = history.filter(o =>
-    o.shipperName === shipperName && o.status === 'completed'
-  );
-
-  const getFilteredOrders = () => {
-    switch (filter) {
-      case 'available': return availableOrders;
-      case 'my-orders': return myOrders;
-      case 'completed': return completedOrders;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'preparing': return 'bg-emerald-100 text-emerald-700 border-purple-300';
-      case 'ready': return 'bg-emerald-100 text-emerald-800 border-blue-300';
-      case 'delivering': return 'bg-emerald-100 text-emerald-700 border-orange-300';
-      case 'completed': return 'bg-green-100 text-green-700 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-300';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Chờ Quán Xác Nhận';
-      case 'preparing': return 'Quán Đang Làm';
-      case 'ready': return 'Chờ Lấy Hàng';
-      case 'delivering': return 'Đang Giao';
-      case 'completed': return 'Đã Giao';
-      default: return status;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <AlertCircle className="w-5 h-5" />;
-      case 'preparing': return <Clock className="w-5 h-5" />;
-      case 'ready': return <Package className="w-5 h-5" />;
-      case 'delivering': return <Navigation className="w-5 h-5" />;
-      case 'completed': return <CheckCircle className="w-5 h-5" />;
-      default: return <AlertCircle className="w-5 h-5" />;
+  const submit = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const emp = await api.employeeLogin(username.trim(), password);
+      if (emp.position !== 'shipper') {
+        setError('Tài khoản này không phải Shipper. Dùng đúng cổng của bạn.');
+        setLoading(false);
+        return;
+      }
+      onLoggedIn({ id: emp.id, fullName: emp.fullName, branch: emp.branch, employeeId: emp.employeeId });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Đăng nhập thất bại');
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sub Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 sticky top-0 z-40 shadow-lg">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-2xl font-bold">🏍️ Shipper Dashboard</h1>
-              <p className="text-sm opacity-90">Xin chào, {shipperName}</p>
-            </div>
-            <Package className="w-10 h-10" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6">
+        <div className="flex flex-col items-center mb-5">
+          <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center mb-2">
+            <Bike className="w-7 h-7 text-rose-600" />
           </div>
-
-          <div className="flex gap-2 overflow-x-auto whitespace-nowrap hide-scrollbar pb-1">
-            <button
-              onClick={() => { setFilter('available'); setSelectedOrder(null); }}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                filter === 'available' ? 'bg-white text-green-600' : 'bg-green-500 text-white'
-              }`}
-            >
-              Đơn Mới ({availableOrders.length})
-            </button>
-            <button
-              onClick={() => { setFilter('my-orders'); setSelectedOrder(null); }}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                filter === 'my-orders' ? 'bg-white text-green-600' : 'bg-green-500 text-white'
-              }`}
-            >
-              Đang Giao ({myOrders.length})
-            </button>
-            <button
-              onClick={() => { setFilter('completed'); setSelectedOrder(null); }}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                filter === 'completed' ? 'bg-white text-green-600' : 'bg-green-500 text-white'
-              }`}
-            >
-              Hoàn Thành ({completedOrders.length})
-            </button>
-          </div>
+          <h1 className="text-xl font-black text-gray-900">FitBlend Shipper</h1>
+          <p className="text-sm text-gray-500">Đăng nhập tài khoản shipper</p>
+        </div>
+        <div className="space-y-3">
+          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Tên đăng nhập" className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="Mật khẩu" className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button onClick={submit} disabled={loading} className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4 rotate-180" />} Đăng nhập
+          </button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="max-w-6xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Orders List */}
-          <div className={`space-y-4 ${selectedOrder ? 'hidden lg:block' : 'block'}`}>
-            <h2 className="text-xl font-bold text-gray-800">
-              {filter === 'available' && 'Đơn Hàng Sẵn Sàng (Quán Đã Làm Xong)'}
-              {filter === 'my-orders' && 'Đơn Đang Giao'}
-              {filter === 'completed' && 'Đơn Đã Hoàn Thành'}
-            </h2>
+export function ShipperApp() {
+  const { orders, history, updateOrderStatus } = useOrders();
+  const { branchLabel } = useBranches();
+  const [shipper, setShipper] = useState<ShipperSession | null>(() => {
+    if (!api.getAuthToken()) return null;
+    try { const s = localStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [tab, setTab] = useState<'available' | 'mine' | 'done'>('available');
+  const [busyId, setBusyId] = useState('');
 
-            {getFilteredOrders().length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-lg shadow">
-                <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Không có đơn hàng nào</p>
-              </div>
-            ) : (
-              getFilteredOrders().map(order => (
-                <div
-                  key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-lg ${
-                    selectedOrder?.id === order.id ? 'ring-2 ring-green-500' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-bold text-gray-800">#{order.id}</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(order.status)}`}>
-                          {getStatusText(order.status)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                        <User className="w-4 h-4" />
-                        <span>{order.customerName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-4 h-4" />
-                        <span className="line-clamp-1">{order.deliveryAddress}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-green-600">
-                        {order.total.toLocaleString('vi-VN')}đ
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(order.time).toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </div>
-                    </div>
-                  </div>
+  const handleLoggedIn = (s: ShipperSession) => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    // Tải lại để OrderProvider (chỉ fetch khi đã đăng nhập) nạp đơn của chi nhánh
+    window.location.reload();
+  };
+  const logout = () => {
+    localStorage.removeItem(SESSION_KEY);
+    api.clearAuthToken();
+    setShipper(null);
+    window.location.reload();
+  };
 
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <div className="text-sm text-gray-600">
-                      {order.items.length} món
-                    </div>
-                    {filter === 'available' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          acceptOrder(order);
-                        }}
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
-                      >
-                        Nhận Đi Giao
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+  if (!shipper) return <ShipperLogin onLoggedIn={handleLoggedIn} />;
 
-          {/* Order Detail */}
-          <div className={`lg:sticky lg:top-24 lg:h-fit ${selectedOrder ? 'block' : 'hidden lg:block'}`}>
-            {selectedOrder ? (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <button onClick={() => setSelectedOrder(null)} className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full">
-                    <ArrowLeft className="w-6 h-6" />
-                  </button>
-                  <div className={`p-3 rounded-lg ${getStatusColor(selectedOrder.status)}`}>
-                    {getStatusIcon(selectedOrder.status)}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800">#{selectedOrder.id}</h2>
-                    <p className="text-sm text-gray-600">
-                      {new Date(selectedOrder.time).toLocaleString('vi-VN')}
-                    </p>
-                  </div>
-                </div>
+  const branch = shipper.branch;
+  // Đơn giao thuộc chi nhánh shipper, giao bằng shipper của mình (không phải bookship ngoài)
+  const isOwnDelivery = (o: Order) =>
+    (o.deliveryType || 'delivery') === 'delivery' && o.branchId === branch && (o.shipMethod || 'own') !== 'external';
 
-                {/* Customer Info */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-bold text-gray-800 mb-3">Thông Tin Khách Hàng</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-600" />
-                      <span className="text-gray-900">{selectedOrder.customerName}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-600" />
-                      <a href={`tel:${selectedOrder.customerPhone}`} className="text-emerald-700 hover:underline">
-                        {selectedOrder.customerPhone}
-                      </a>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-600 mt-1" />
-                      <span className="text-gray-900">{selectedOrder.deliveryAddress}</span>
-                    </div>
-                  </div>
-                </div>
+  const available = orders.filter((o) => isOwnDelivery(o) && !o.shipperId && o.status !== 'completed');
+  const mine = orders.filter((o) => o.shipperId === shipper.id && o.status !== 'completed');
+  const done = history.filter((o) => o.shipperId === shipper.id);
+  const list = tab === 'available' ? available : tab === 'mine' ? mine : done;
 
-                {/* Items */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3">Chi Tiết Đơn Hàng</h3>
-                  <div className="space-y-3">
-                    {selectedOrder.items.map((item: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="text-2xl">{item.image}</div>
-                          <div>
-                            <div className="font-semibold text-gray-800">{item.name}</div>
-                            <div className="text-sm text-gray-600">x{item.quantity}</div>
-                          </div>
-                        </div>
-                        <div className="font-semibold text-gray-900">
-                          {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+  const claim = async (o: Order) => {
+    setBusyId(o.id);
+    try {
+      await updateOrderStatus(o.id, 'delivering', { shipperId: shipper.id, shipperName: shipper.fullName });
+      setTab('mine');
+    } finally { setBusyId(''); }
+  };
+  const markDelivered = async (o: Order) => {
+    setBusyId(o.id);
+    try { await updateOrderStatus(o.id, 'completed'); } finally { setBusyId(''); }
+  };
 
-                {/* Total */}
-                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-gray-800">Tổng Tiền:</span>
-                    <span className="text-2xl font-bold text-green-600">
-                      {selectedOrder.total.toLocaleString('vi-VN')}đ
-                    </span>
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-green-200 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-gray-700">Hình thức:</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${selectedOrder.paymentMethod === 'transfer' ? 'bg-emerald-100 text-emerald-800 border border-blue-200' : 'bg-emerald-100 text-emerald-700 border border-orange-200'}`}>
-                      {selectedOrder.paymentMethod === 'transfer' ? '📱 Đã Chuyển Khoản' : '💵 Thu Tiền Mặt (COD)'}
-                    </span>
-                  </div>
-                </div>
+  const itemsText = (o: Order) =>
+    (Array.isArray(o.items) ? o.items : [])
+      .map((it: any) => (typeof it === 'string' ? it : `${it.quantity && it.quantity > 1 ? it.quantity + '× ' : ''}${it.productName || it.name}${it.size ? ` (${it.size})` : ''}`))
+      .join(', ');
 
-                {/* Actions */}
-                {selectedOrder.shipperName === shipperName && (
-                  <div className="space-y-3">
-                    {selectedOrder.status === 'delivering' && (
-                      <div className="space-y-3">
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedOrder.deliveryAddress || '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                        >
-                          <MapPin className="w-5 h-5" />
-                          Mở Google Maps
-                        </a>
-                        <button
-                          onClick={() => handleUpdateStatus(selectedOrder.id, 'completed')}
-                          className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                        >
-                          <CheckCircle className="w-5 h-5" />
-                          Đã Giao Hàng Thành Công
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-                <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Chọn đơn hàng để xem chi tiết</p>
-              </div>
-            )}
+  return (
+    <div className="min-h-screen bg-slate-50 pb-6">
+      <header className="bg-rose-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2 min-w-0">
+          <Bike className="w-5 h-5 shrink-0" />
+          <div className="min-w-0">
+            <div className="font-black leading-tight truncate">{shipper.fullName}</div>
+            <div className="text-xs text-white/80 truncate">{branchLabel(branch) || branch || 'Chưa gán chi nhánh'}</div>
           </div>
         </div>
+        <button onClick={logout} className="flex items-center gap-1 text-sm font-semibold bg-white/15 px-3 py-1.5 rounded-lg shrink-0">
+          <LogOut className="w-4 h-4" /> Thoát
+        </button>
+      </header>
+
+      <div className="flex gap-1 p-2 bg-white border-b sticky top-[52px] z-10">
+        {([['available', `Cần giao (${available.length})`], ['mine', `Đang giao (${mine.length})`], ['done', 'Đã giao']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} className={`flex-1 py-2 rounded-lg text-sm font-bold ${tab === id ? 'bg-rose-600 text-white' : 'text-gray-600 bg-gray-100'}`}>{label}</button>
+        ))}
+      </div>
+
+      <div className="p-3 space-y-3">
+        {list.length === 0 ? (
+          <div className="text-center text-gray-400 py-16">
+            <Package className="w-12 h-12 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">{tab === 'available' ? 'Chưa có đơn cần giao' : tab === 'mine' ? 'Bạn chưa nhận đơn nào' : 'Chưa có đơn đã giao'}</p>
+          </div>
+        ) : (
+          list.map((o) => (
+            <div key={o.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-gray-900">{o.customerName || 'Khách'}</span>
+                <span className="font-black text-rose-700">{((o.total || 0) + (o.shipFee || 0)).toLocaleString('vi-VN')}đ</span>
+              </div>
+              <p className="text-sm text-gray-600 mb-1">{itemsText(o) || '—'}</p>
+              {o.customerPhone && <p className="text-sm text-gray-500 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> <a href={`tel:${o.customerPhone}`} className="underline">{o.customerPhone}</a></p>}
+              {o.deliveryAddress && <p className="text-sm text-gray-500 flex items-start gap-1.5 mt-0.5"><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {o.deliveryAddress}</p>}
+              {o.deliveryTime && <p className="text-sm text-amber-700 flex items-center gap-1.5 mt-0.5 font-semibold"><Clock className="w-3.5 h-3.5" /> Hẹn giao: {fmtTime(o.deliveryTime)}</p>}
+              {o.note && <p className="text-xs text-gray-500 mt-1 italic">Ghi chú: {o.note}</p>}
+
+              {tab === 'available' && (
+                <button onClick={() => claim(o)} disabled={busyId === o.id} className="w-full mt-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                  {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />} Nhận giao đơn này
+                </button>
+              )}
+              {tab === 'mine' && (
+                <button onClick={() => markDelivered(o)} disabled={busyId === o.id} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                  {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Đã giao xong
+                </button>
+              )}
+              {tab === 'done' && (
+                <p className="mt-2 text-xs text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Đã giao {o.completedAt ? `· ${fmtTime(String(o.completedAt))}` : ''}</p>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

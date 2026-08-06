@@ -79,8 +79,18 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
   const [shipProvider, setShipProvider] = useState(order.shipProvider || '');
   const [shipTrackingCode, setShipTrackingCode] = useState(order.shipTrackingCode || '');
   const [shipFee, setShipFee] = useState(String(order.shipFee || ''));
+  const [shipperId, setShipperId] = useState(order.shipperId || '');
+  const [shippers, setShippers] = useState<{ id: string; fullName: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const isDelivery = (order.deliveryType || 'delivery') === 'delivery';
+  const isOwnShip = (order.shipMethod || 'own') !== 'external';
+
+  useEffect(() => {
+    if (!isDelivery || !isOwnShip) return;
+    api.fetchEmployees()
+      .then((list: any[]) => setShippers((list || []).filter((e) => e.position === 'shipper' && (!order.branchId || e.branch === order.branchId)).map((e) => ({ id: e.id, fullName: e.fullName }))))
+      .catch(() => {});
+  }, [isDelivery, isOwnShip, order.branchId]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -92,6 +102,8 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
         shipProvider: shipProvider.trim(),
         shipTrackingCode: shipTrackingCode.trim(),
         shipFee: Number(shipFee) || 0,
+        shipperId,
+        shipperName: shippers.find((s) => s.id === shipperId)?.fullName || (shipperId ? order.shipperName : ''),
       });
       onSaved?.();
       onClose();
@@ -146,6 +158,15 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
               <label className="text-xs font-semibold text-gray-500 mb-1 block">Ghi chú / đổi vị theo yêu cầu khách</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="VD: đổi vị dâu → xoài, ít đá..." className="w-full px-3 py-2 rounded-lg border text-sm h-16 resize-none" />
             </div>
+            {isDelivery && isOwnShip && (
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Gán shipper của mình (để trống → shipper chi nhánh tự nhận)</label>
+                <select value={shipperId} onChange={(e) => setShipperId(e.target.value)} className="w-full px-3 py-2 rounded-lg border text-sm bg-white">
+                  <option value="">— Chưa gán (shipper tự nhận) —</option>
+                  {shippers.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                </select>
+              </div>
+            )}
             {isDelivery && (
               <div className="grid grid-cols-2 gap-2">
                 <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)} placeholder="Đơn vị ship (bookship)" className="px-3 py-2 rounded-lg border text-sm" />

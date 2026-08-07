@@ -918,7 +918,7 @@ export async function changeDeliveryLogBranch(id: string, branchId: string) {
 
 export async function rescheduleDeliveryLog(
   id: string,
-  body: { deliveryDate?: string; deliveryTime?: string; deliveryAddress?: string; branchId?: string; note?: string }
+  body: { deliveryDate?: string; deliveryTime?: string; deliveryAddress?: string; branchId?: string; note?: string; productName?: string; productId?: string; size?: string; protein?: number }
 ) {
   const res = await fetch(`${BASE_URL}/delivery-logs/${id}/reschedule`, {
     method: 'PATCH',

@@ -18,6 +18,7 @@ import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
+import { lookupMacroFull } from '../../utils/macroData';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
@@ -73,6 +74,13 @@ function isoToLocalInput(iso?: string) {
 
 function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; onClose: () => void; onSaved?: () => void }) {
   const items = Array.isArray(order.items) ? order.items : [];
+  const orderMacro = items.reduce((acc: any, it: any) => {
+    const m = lookupMacroFull(it.productName || it.name, it.size, Array.isArray(it.toppings) ? it.toppings : []);
+    const q = it.quantity || 1;
+    if (m) { acc.cal += m.cal * q; acc.protein += m.protein * q; acc.carb += m.carb * q; acc.fat += m.fat * q; acc.matched += q; }
+    else acc.unknown += q;
+    return acc;
+  }, { cal: 0, protein: 0, carb: 0, fat: 0, matched: 0, unknown: 0 });
   const { updateOrder } = useOrders();
   const [deliveryTime, setDeliveryTime] = useState(isoToLocalInput(order.deliveryTime));
   const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress || '');
@@ -208,6 +216,14 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
               ))}
             </div>
           </div>
+
+          {orderMacro.matched > 0 && (
+            <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm">
+              <div className="text-xs font-bold text-sky-800 uppercase mb-1">📊 Dinh dưỡng (Macro)</div>
+              <div className="font-bold text-sky-900">{orderMacro.cal} kcal · {orderMacro.protein}g đạm · {orderMacro.carb}g carb · {orderMacro.fat}g béo</div>
+              {orderMacro.unknown > 0 && <div className="text-[11px] text-amber-600 mt-0.5">{orderMacro.unknown} món chưa có số liệu macro.</div>}
+            </div>
+          )}
 
           <div className="border-t pt-3 space-y-1.5 text-sm">
             <div className="flex items-center justify-between text-gray-600">

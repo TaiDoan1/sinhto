@@ -29,8 +29,8 @@ export function ComboShipBoard() {
   const [shipNotes, setShipNotes] = useState<Record<string, string>>({});
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [postponingId, setPostponingId] = useState<string | null>(null);
-  // Địa chỉ giao RIÊNG của buổi hôm nay (nếu CSKH đặt khác địa chỉ chung) — theo comboId
-  const [slotAddr, setSlotAddr] = useState<Record<string, string>>({});
+  // Buổi giao HÔM NAY của từng combo (địa chỉ + vị/size/protein riêng nếu CSKH đã sửa) — theo comboId
+  const [todayLogs, setTodayLogs] = useState<Record<string, any>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,12 +48,21 @@ export function ComboShipBoard() {
     api
       .fetchDeliveryLogs({ branchId, date: today, status: 'pending' })
       .then((rows: any[]) => {
-        const m: Record<string, string> = {};
-        rows.forEach((r) => { if (r.deliveryAddress && r.comboOrderId) m[r.comboOrderId] = r.deliveryAddress; });
-        setSlotAddr(m);
+        const m: Record<string, any> = {};
+        rows.forEach((r) => { if (r.comboOrderId) m[r.comboOrderId] = r; });
+        setTodayLogs(m);
       })
-      .catch(() => setSlotAddr({}));
+      .catch(() => setTodayLogs({}));
   }, [branchId, combos]);
+
+  // Vị hôm nay: ưu tiên buổi CSKH đã sửa (delivery_log), không thì lấy theo lịch mặc định của combo
+  const todayItemFor = (combo: ComboSubscription) => {
+    const log = todayLogs[combo.id];
+    if (log && log.productName) {
+      return { productId: log.productId, productName: log.productName, size: log.size || '360ml', protein: log.protein ?? 40, toppings: log.toppings || [] };
+    }
+    return getComboItemForToday(combo);
+  };
 
   const activeCombos = useMemo(
     () => combos.filter((c) => c.status === 'active' && (!branchId || c.branchId === branchId)),
@@ -88,7 +97,7 @@ export function ComboShipBoard() {
 
   const handleDeliver = async (combo: ComboSubscription) => {
     if (!branchId) return;
-    const todayItem = getComboItemForToday(combo);
+    const todayItem = todayItemFor(combo);
     const line = {
       productId: todayItem?.productId,
       productName: todayItem?.productName || combo.planName,
@@ -221,7 +230,7 @@ export function ComboShipBoard() {
         )}
 
         {displayed.map((combo) => {
-          const todayItem = getComboItemForToday(combo);
+          const todayItem = todayItemFor(combo);
           const progress = getComboProgress(combo);
           const isDone = wasDeliveredToday(combo);
           const ingredients = getRecipeIngredientsForComboItem(todayItem);
@@ -293,12 +302,12 @@ export function ComboShipBoard() {
                     <Package className="w-4 h-4 shrink-0" /> 🏪 Khách tự lấy tại quầy
                   </div>
                 ) : (
-                  (slotAddr[combo.id] || combo.deliveryAddress) && (
+                  (todayLogs[combo.id]?.deliveryAddress || combo.deliveryAddress) && (
                     <div className="mt-2 flex items-start gap-2 text-sm text-gray-700">
                       <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                       <span>
-                        {slotAddr[combo.id] || combo.deliveryAddress}
-                        {slotAddr[combo.id] && slotAddr[combo.id] !== combo.deliveryAddress && (
+                        {todayLogs[combo.id]?.deliveryAddress || combo.deliveryAddress}
+                        {todayLogs[combo.id]?.deliveryAddress && todayLogs[combo.id].deliveryAddress !== combo.deliveryAddress && (
                           <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">địa chỉ buổi này</span>
                         )}
                         {combo.shipMethod === 'external' && (

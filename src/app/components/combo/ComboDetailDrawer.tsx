@@ -4,6 +4,7 @@ import * as api from '../../utils/api';
 import { ComboSubscription } from '../../contexts/ComboContext';
 import type { SalesActivity } from '../../types/onlineSales';
 import { normalizeComboItems, parseDeliveryLog, getRenewalBadge } from '../../utils/comboUtils';
+import { lookupMacroFull } from '../../utils/macroData';
 import type { CustomerComboHubVariant } from './CustomerComboHub';
 import { ComboCardDetails } from './ComboCardDetails';
 import { DeliveryDayToggle } from './DeliveryDayToggle';
@@ -16,8 +17,14 @@ interface DeliveryLogDetail {
   deliveryAddress: string;
   status: string;
   productName: string;
+  productId: string;
+  size: string;
+  protein: number;
   branchId: string;
 }
+
+const SIZE_OPTIONS = ['250ml', '360ml', '500ml', '700ml'];
+const PROTEIN_OPTIONS = [20, 40];
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Chờ chốt',
@@ -102,12 +109,38 @@ export function ComboDetailDrawer({
   const [slotTime, setSlotTime] = useState('');
   const [slotAddr, setSlotAddr] = useState('');
   const [slotBranch, setSlotBranch] = useState('');
+  const [slotFlavor, setSlotFlavor] = useState('');
+  const [slotSize, setSlotSize] = useState('360ml');
+  const [slotProtein, setSlotProtein] = useState(40);
   const [slotBusy, setSlotBusy] = useState(false);
+  const [smoothies, setSmoothies] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    api.fetchProducts()
+      .then((rows: any[]) => setSmoothies((rows || []).filter((p) => p.category === 'smoothies').map((p) => ({ id: p.id, name: p.name }))))
+      .catch(() => {});
+  }, []);
 
   const items = normalizeComboItems(combo.items);
   const renewalBadge = getRenewalBadge(combo);
   const canEditSchedule = (variant === 'cskh' || variant === 'admin') && combo.status !== 'completed';
   const branchName = (id?: string) => (branchOptions || []).find((b) => b.id === id)?.name || id || '';
+
+  // Macro (cal/đạm/carb/fat) theo từng buổi + tổng combo
+  const macroPerDay = deliveryLogs.map((l) => ({ date: l.deliveryDate, flavor: l.productName, size: l.size, macro: lookupMacroFull(l.productName, l.size) }));
+  const macroMatched = macroPerDay.filter((x) => x.macro);
+  const macroTotal = macroMatched.reduce(
+    (a, x) => ({ cal: a.cal + x.macro!.cal, protein: a.protein + x.macro!.protein, carb: a.carb + x.macro!.carb, fat: a.fat + x.macro!.fat }),
+    { cal: 0, protein: 0, carb: 0, fat: 0 }
+  );
+  const macroUnknown = macroPerDay.length - macroMatched.length;
+  const copyMacro = async () => {
+    const lines = macroPerDay.map((x) => x.macro
+      ? `${new Date(x.date).toLocaleDateString('vi-VN')} · ${x.flavor} (${x.size}): ${x.macro.cal} kcal · ${x.macro.protein}g đạm · ${x.macro.carb}g carb · ${x.macro.fat}g béo`
+      : `${new Date(x.date).toLocaleDateString('vi-VN')} · ${x.flavor}: (chưa có số liệu macro)`);
+    const text = `📊 Macro combo — ${combo.customerName}\n${lines.join('\n')}\n\nTổng ${macroMatched.length} ly: ${macroTotal.cal} kcal · ${macroTotal.protein}g đạm · ${macroTotal.carb}g carb · ${macroTotal.fat}g béo`;
+    try { await navigator.clipboard.writeText(text); alert('Đã copy macro để gửi khách'); } catch { alert(text); }
+  };
 
   const loadLogs = () => {
     setLogsLoading(true);
@@ -124,6 +157,9 @@ export function ComboDetailDrawer({
               deliveryAddress: r.deliveryAddress || '',
               status: r.status,
               productName: r.productName,
+              productId: r.productId || '',
+              size: r.size || '360ml',
+              protein: r.protein ?? 40,
               branchId: r.branchId,
             }))
         );
@@ -138,12 +174,19 @@ export function ComboDetailDrawer({
     setSlotTime(log.deliveryTime || '08:00');
     setSlotAddr(log.deliveryAddress || combo.deliveryAddress || '');
     setSlotBranch(log.branchId || combo.branchId || '');
+    setSlotFlavor(log.productName || '');
+    setSlotSize(log.size || '360ml');
+    setSlotProtein(log.protein ?? 40);
   };
 
   const saveSlot = async (log: DeliveryLogDetail) => {
     setSlotBusy(true);
     try {
-      await api.rescheduleDeliveryLog(log.id, { deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr, branchId: slotBranch });
+      const picked = smoothies.find((s) => s.name === slotFlavor);
+      await api.rescheduleDeliveryLog(log.id, {
+        deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr, branchId: slotBranch,
+        productName: slotFlavor, productId: picked?.id || '', size: slotSize, protein: slotProtein,
+      });
       setEditingSlotId('');
       await loadLogs();
     } catch (e) {
@@ -379,6 +422,24 @@ export function ComboDetailDrawer({
                               className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
                           </div>
                         )}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase">Vị buổi này</label>
+                          <div className="grid grid-cols-12 gap-1.5">
+                            <select value={slotFlavor} onChange={(e) => setSlotFlavor(e.target.value)}
+                              className="col-span-6 border rounded-lg px-2 py-1.5 text-xs bg-white">
+                              <option value="">-- Chọn vị --</option>
+                              {smoothies.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                            </select>
+                            <select value={slotSize} onChange={(e) => setSlotSize(e.target.value)}
+                              className="col-span-3 border rounded-lg px-1 py-1.5 text-xs bg-white">
+                              {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <select value={slotProtein} onChange={(e) => setSlotProtein(Number(e.target.value))}
+                              className="col-span-3 border rounded-lg px-1 py-1.5 text-xs bg-white">
+                              {PROTEIN_OPTIONS.map((p) => <option key={p} value={p}>{p}g</option>)}
+                            </select>
+                          </div>
+                        </div>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => saveSlot(log)} disabled={slotBusy}
                             className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:opacity-60">
@@ -400,7 +461,7 @@ export function ComboDetailDrawer({
                           {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
                           <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
                           {log.deliveryTime}
-                          <span className="text-gray-500">· {log.productName}</span>
+                          <span className="text-gray-500">· {log.productName}{log.size ? ` (${log.size}${log.protein ? `·${log.protein}g` : ''})` : ''}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
@@ -434,6 +495,26 @@ export function ComboDetailDrawer({
               </div>
             )}
           </div>
+
+          {macroPerDay.length > 0 && (
+            <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-xs font-bold text-sky-800 uppercase">📊 Dinh dưỡng (Macro)</div>
+                <button type="button" onClick={copyMacro} className="text-[11px] font-bold text-sky-700 hover:text-sky-900">Copy gửi khách</button>
+              </div>
+              {macroMatched.length > 0 ? (
+                <div className="text-sm text-gray-700">
+                  <div className="font-bold text-sky-900">Tổng {macroMatched.length} ly: {macroTotal.cal} kcal · {macroTotal.protein}g đạm · {macroTotal.carb}g carb · {macroTotal.fat}g béo</div>
+                  <div className="text-xs text-gray-500 mt-0.5">TB/ly: {Math.round(macroTotal.cal / macroMatched.length)} kcal · {Math.round(macroTotal.protein / macroMatched.length)}g đạm</div>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500">Chưa có số liệu macro cho các vị/size này.</div>
+              )}
+              {macroUnknown > 0 && macroMatched.length > 0 && (
+                <div className="text-[11px] text-amber-600 mt-1">{macroUnknown} ly chưa có số liệu macro (vị/size chưa khai báo trong bảng Macro).</div>
+              )}
+            </div>
+          )}
 
           {(variant === 'admin' || variant === 'cskh') && onChangeBranch && (
             <div className="space-y-1.5">

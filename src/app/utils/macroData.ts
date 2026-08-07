@@ -170,3 +170,33 @@ export function lookupMacro(
 
   return { cal, fat };
 }
+
+export interface MacroFull { cal: number; protein: number; carb: number; fat: number }
+
+/** Như lookupMacro nhưng trả đủ 4 chỉ số (cal/đạm/carb/fat). Null nếu không khớp vị/size. */
+export function lookupMacroFull(
+  productName: string,
+  size: string | undefined,
+  toppings?: string[]
+): MacroFull | null {
+  if (!size) return null;
+  const sizes = loadMacroSizes();
+  const sizeBracket = sizes.find((s) => normalize(s.ml) === normalize(size));
+  if (!sizeBracket) return null;
+  const entry = sizeBracket.data.find((d) => normalize(d.flavor) === normalize(productName));
+  if (!entry) return null;
+  const m: MacroFull = { cal: entry.cal, protein: entry.protein, carb: entry.carb, fat: entry.fat };
+  if (toppings && toppings.length) {
+    const tt = loadMacroToppings();
+    for (const t of toppings) {
+      const match = tt.find((row) => normalize(row.name) === normalize(t));
+      if (match) {
+        m.cal += parseDelta(match.cal);
+        m.protein += parseDelta(match.protein);
+        m.carb += parseDelta(match.carb);
+        m.fat += parseDelta(match.fat);
+      }
+    }
+  }
+  return m;
+}

@@ -99,6 +99,9 @@ function parseDeliveryLogRow(row) {
     branchId: row.branch_id,
     deliveryDate: row.delivery_date,
     deliveryTime: row.delivery_time || '08:00',
+    // Địa chỉ riêng của buổi giao này; nếu chưa đặt riêng thì rơi về địa chỉ chung của combo (join).
+    deliveryAddress: row.delivery_address || row.deliveryAddress || '',
+    comboAddress: row.deliveryAddress || '',
     alertSent: !!row.alert_sent,
     scheduledDayIndex: row.scheduled_day_index,
     productId: row.product_id,
@@ -117,7 +120,6 @@ function parseDeliveryLogRow(row) {
     customerName: row.customerName,
     customerPhone: row.customerPhone,
     planName: row.planName,
-    deliveryAddress: row.deliveryAddress,
     careStaffId: row.careStaffId,
     totalCups: row.totalCups,
     deliveredCups: row.deliveredCups,
@@ -168,6 +170,7 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveryTime TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
+    'ALTER TABLE delivery_logs ADD COLUMN delivery_address TEXT',
     // Index tăng tốc (delivery_logs trước đây không có index nào ngoài PK)
     'CREATE INDEX IF NOT EXISTS idx_dellog_combo ON delivery_logs(combo_order_id)',
     'CREATE INDEX IF NOT EXISTS idx_dellog_branch_date ON delivery_logs(branch_id, delivery_date)',
@@ -241,16 +244,17 @@ async function insertDeliveryLog(db, payload) {
   await dbRun(
     db,
     `INSERT INTO delivery_logs (
-      id, combo_order_id, branch_id, delivery_date, delivery_time, scheduled_day_index,
+      id, combo_order_id, branch_id, delivery_date, delivery_time, delivery_address, scheduled_day_index,
       product_id, product_name, size, protein, toppings, flavor_note, status,
       performed_by, performed_at, postponed_from_id, inventory_deducted, alert_sent, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
       payload.comboOrderId,
       payload.branchId,
       payload.deliveryDate,
       payload.deliveryTime || '08:00',
+      payload.deliveryAddress || '',
       payload.scheduledDayIndex ?? null,
       payload.productId || '',
       payload.productName || '',
@@ -295,6 +299,7 @@ async function generateDeliveryLogsForCombo(db, comboRow) {
       branchId: comboRow.branchId || 'CN1',
       deliveryDate: date,
       deliveryTime: comboRow.deliveryTime || '08:00',
+      deliveryAddress: comboRow.deliveryAddress || '',
       scheduledDayIndex: new Date(date).getDay(),
       productId: item?.productId,
       productName: item?.productName || comboRow.planName || 'FitBlend',
@@ -501,9 +506,9 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
   app.patch('/api/delivery-logs/:id/reschedule', async (req, res) => {
     try {
       const { id } = req.params;
-      const { deliveryDate, deliveryTime, note } = req.body || {};
-      if (!deliveryDate && !deliveryTime) {
-        return res.status(400).json({ error: 'deliveryDate hoac deliveryTime required' });
+      const { deliveryDate, deliveryTime, deliveryAddress, note } = req.body || {};
+      if (!deliveryDate && !deliveryTime && deliveryAddress === undefined) {
+        return res.status(400).json({ error: 'deliveryDate hoac deliveryTime hoac deliveryAddress required' });
       }
       const log = await dbGet(db, 'SELECT * FROM delivery_logs WHERE id = ?', [id]);
       if (!log) return res.status(404).json({ error: 'Delivery log not found' });
@@ -515,11 +520,12 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       const newDate = deliveryDate || log.delivery_date;
       await dbRun(
         db,
-        `UPDATE delivery_logs SET delivery_date = ?, delivery_time = ?, scheduled_day_index = ?,
+        `UPDATE delivery_logs SET delivery_date = ?, delivery_time = ?, delivery_address = ?, scheduled_day_index = ?,
          flavor_note = COALESCE(?, flavor_note), alert_sent = 0, updated_at = ? WHERE id = ?`,
         [
           newDate,
           deliveryTime || log.delivery_time || '08:00',
+          deliveryAddress !== undefined ? deliveryAddress : (log.delivery_address || ''),
           new Date(newDate).getDay(),
           note || null,
           now,
@@ -534,6 +540,67 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       const updatedParsed = parseDeliveryLogRow(updated);
       broadcast('DELIVERY_LOG_RESCHEDULED', updatedParsed);
       res.json({ log: updatedParsed, combo: parsed });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // CSKH thêm 1 buổi giao mới vào lịch combo (linh hoạt ngày/giờ/địa chỉ)
+  app.post('/api/delivery-logs', async (req, res) => {
+    try {
+      const { comboOrderId, deliveryDate, deliveryTime, deliveryAddress, productName, size, protein, toppings, branchId, flavorNote } = req.body || {};
+      if (!comboOrderId || !deliveryDate) {
+        return res.status(400).json({ error: 'comboOrderId va deliveryDate required' });
+      }
+      const combo = await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [comboOrderId]);
+      if (!combo) return res.status(404).json({ error: 'Combo not found' });
+      const items = normalizeItems(combo.items);
+      const item = itemForDate(items, deliveryDate);
+      const newId = await insertDeliveryLog(db, {
+        comboOrderId,
+        branchId: branchId || combo.branchId || 'CN1',
+        deliveryDate,
+        deliveryTime: deliveryTime || combo.deliveryTime || '08:00',
+        deliveryAddress: deliveryAddress !== undefined ? deliveryAddress : (combo.deliveryAddress || ''),
+        scheduledDayIndex: new Date(deliveryDate).getDay(),
+        productId: item?.productId,
+        productName: productName || item?.productName || combo.planName,
+        size: size || item?.size,
+        protein: protein ?? item?.protein,
+        toppings: toppings || item?.toppings,
+        status: 'pending',
+        flavorNote: flavorNote || '',
+      });
+      // Cộng thêm 1 buổi vào tổng số ly của combo cho khớp lịch mới
+      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status != 'cancelled'`, [comboOrderId]);
+      await dbRun(db, 'UPDATE combo_subscriptions SET totalCups = ?, updatedAt = ? WHERE id = ?', [Number(activeCount.c), new Date().toISOString(), comboOrderId]);
+      await syncComboFromLogs(db, comboOrderId);
+      const parsed = parseComboRow(await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [comboOrderId]));
+      broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+      const newLog = await dbGet(db, 'SELECT * FROM delivery_logs WHERE id = ?', [newId]);
+      res.status(201).json({ log: parseDeliveryLogRow(newLog), combo: parsed });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // CSKH huỷ 1 buổi giao (chỉ khi còn pending) — giảm tổng số ly tương ứng
+  app.patch('/api/delivery-logs/:id/cancel', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const log = await dbGet(db, 'SELECT * FROM delivery_logs WHERE id = ?', [id]);
+      if (!log) return res.status(404).json({ error: 'Delivery log not found' });
+      if (log.status !== 'pending') {
+        return res.status(400).json({ error: 'Chi huy duoc buoi con pending' });
+      }
+      const now = new Date().toISOString();
+      await dbRun(db, `UPDATE delivery_logs SET status = 'cancelled', updated_at = ? WHERE id = ?`, [now, id]);
+      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status != 'cancelled'`, [log.combo_order_id]);
+      await dbRun(db, 'UPDATE combo_subscriptions SET totalCups = ?, updatedAt = ? WHERE id = ?', [Number(activeCount.c), now, log.combo_order_id]);
+      await syncComboFromLogs(db, log.combo_order_id);
+      const parsed = parseComboRow(await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [log.combo_order_id]));
+      broadcast('COMBO_SUBSCRIPTION_UPDATED', parsed);
+      res.json({ cancelled: id, combo: parsed });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

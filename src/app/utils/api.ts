@@ -900,7 +900,7 @@ export async function changeDeliveryLogBranch(id: string, branchId: string) {
 
 export async function rescheduleDeliveryLog(
   id: string,
-  body: { deliveryDate?: string; deliveryTime?: string; note?: string }
+  body: { deliveryDate?: string; deliveryTime?: string; deliveryAddress?: string; note?: string }
 ) {
   const res = await fetch(`${BASE_URL}/delivery-logs/${id}/reschedule`, {
     method: 'PATCH',
@@ -910,6 +910,44 @@ export async function rescheduleDeliveryLog(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to reschedule delivery');
+  }
+  return res.json();
+}
+
+// CSKH thêm 1 buổi giao mới vào lịch combo (ngày/giờ/địa chỉ linh hoạt)
+export async function addDeliveryLog(body: {
+  comboOrderId: string;
+  deliveryDate: string;
+  deliveryTime?: string;
+  deliveryAddress?: string;
+  productName?: string;
+  size?: string;
+  protein?: number;
+  branchId?: string;
+  flavorNote?: string;
+}) {
+  const res = await fetch(`${BASE_URL}/delivery-logs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to add delivery');
+  }
+  return res.json();
+}
+
+// CSKH huỷ 1 buổi giao (chỉ khi còn pending)
+export async function cancelDeliveryLog(id: string) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/cancel`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to cancel delivery');
   }
   return res.json();
 }

@@ -13,6 +13,7 @@ interface DeliveryLogDetail {
   id: string;
   deliveryDate: string;
   deliveryTime: string;
+  deliveryAddress: string;
   status: string;
   productName: string;
   branchId: string;
@@ -94,9 +95,94 @@ export function ComboDetailDrawer({
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [noteInput, setNoteInput] = useState('');
   const [loggingNote, setLoggingNote] = useState(false);
+  // Sửa lịch giao từng buổi (CSKH/Admin): đổi ngày/giờ/địa chỉ, huỷ buổi, thêm buổi mới
+  const [editingSlotId, setEditingSlotId] = useState('');
+  const [slotDate, setSlotDate] = useState('');
+  const [slotTime, setSlotTime] = useState('');
+  const [slotAddr, setSlotAddr] = useState('');
+  const [slotBusy, setSlotBusy] = useState(false);
 
   const items = normalizeComboItems(combo.items);
   const renewalBadge = getRenewalBadge(combo);
+  const canEditSchedule = (variant === 'cskh' || variant === 'admin') && combo.status !== 'completed';
+
+  const loadLogs = () => {
+    setLogsLoading(true);
+    return api
+      .fetchDeliveryLogs({ comboOrderId: combo.id })
+      .then((rows: any[]) => {
+        setDeliveryLogs(
+          rows
+            .filter((r) => r.status !== 'cancelled')
+            .map((r) => ({
+              id: r.id,
+              deliveryDate: r.deliveryDate,
+              deliveryTime: r.deliveryTime || '08:00',
+              deliveryAddress: r.deliveryAddress || '',
+              status: r.status,
+              productName: r.productName,
+              branchId: r.branchId,
+            }))
+        );
+      })
+      .catch(() => setDeliveryLogs([]))
+      .finally(() => setLogsLoading(false));
+  };
+
+  const startEditSlot = (log: DeliveryLogDetail) => {
+    setEditingSlotId(log.id);
+    setSlotDate((log.deliveryDate || '').split('T')[0]);
+    setSlotTime(log.deliveryTime || '08:00');
+    setSlotAddr(log.deliveryAddress || combo.deliveryAddress || '');
+  };
+
+  const saveSlot = async (log: DeliveryLogDetail) => {
+    setSlotBusy(true);
+    try {
+      await api.rescheduleDeliveryLog(log.id, { deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr });
+      setEditingSlotId('');
+      await loadLogs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không đổi được lịch buổi này');
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+
+  const cancelSlot = async (log: DeliveryLogDetail) => {
+    if (!confirm(`Huỷ buổi giao ngày ${new Date(log.deliveryDate).toLocaleDateString('vi-VN')}?`)) return;
+    setSlotBusy(true);
+    try {
+      await api.cancelDeliveryLog(log.id);
+      await loadLogs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không huỷ được buổi này');
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+
+  const addSlot = async () => {
+    const lastDate = deliveryLogs.length ? deliveryLogs[deliveryLogs.length - 1].deliveryDate : new Date().toISOString();
+    const next = new Date(lastDate);
+    next.setDate(next.getDate() + 1);
+    const defDate = next.toISOString().split('T')[0];
+    setSlotBusy(true);
+    try {
+      await api.addDeliveryLog({
+        comboOrderId: combo.id,
+        deliveryDate: defDate,
+        deliveryTime: combo.deliveryTime || '08:00',
+        deliveryAddress: combo.deliveryAddress || '',
+        branchId: combo.branchId,
+      });
+      await loadLogs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không thêm được buổi giao');
+    } finally {
+      setSlotBusy(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -134,30 +220,8 @@ export function ComboDetailDrawer({
   };
 
   useEffect(() => {
-    let cancelled = false;
-    setLogsLoading(true);
-    api
-      .fetchDeliveryLogs({ comboOrderId: combo.id })
-      .then((rows: any[]) => {
-        if (cancelled) return;
-        setDeliveryLogs(
-          rows.map((r) => ({
-            id: r.id,
-            deliveryDate: r.deliveryDate,
-            deliveryTime: r.deliveryTime || '08:00',
-            status: r.status,
-            productName: r.productName,
-            branchId: r.branchId,
-          }))
-        );
-      })
-      .catch(() => setDeliveryLogs([]))
-      .finally(() => {
-        if (!cancelled) setLogsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combo.id]);
 
   const handleSave = async () => {
@@ -239,7 +303,15 @@ export function ComboDetailDrawer({
           )}
 
           <div>
-            <div className="text-xs font-bold text-gray-400 uppercase mb-2">Lịch giao chi tiết</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold text-gray-400 uppercase">Lịch giao chi tiết</div>
+              {canEditSchedule && deliveryLogs.length > 0 && (
+                <button type="button" onClick={addSlot} disabled={slotBusy}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 disabled:opacity-50">
+                  + Thêm buổi
+                </button>
+              )}
+            </div>
             {logsLoading ? (
               <p className="text-xs text-gray-400">Đang tải...</p>
             ) : deliveryLogs.length === 0 ? (
@@ -252,25 +324,75 @@ export function ComboDetailDrawer({
                 ))}
               </div>
             ) : (
-              <div className="space-y-1">
-                {deliveryLogs.map((log) => (
-                  <div key={log.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                      {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
-                      <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
-                      {log.deliveryTime}
-                      <span className="text-gray-500">· {log.productName}</span>
+              <div className="space-y-1.5">
+                {deliveryLogs.map((log) => {
+                  const editable = canEditSchedule && log.status === 'pending';
+                  if (editingSlotId === log.id) {
+                    return (
+                      <div key={log.id} className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Ngày giao</label>
+                            <input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)}
+                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Giờ giao</label>
+                            <input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)}
+                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase">Địa chỉ giao buổi này</label>
+                          <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}
+                            placeholder="Để trống = dùng địa chỉ chung của combo"
+                            className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => saveSlot(log)} disabled={slotBusy}
+                            className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:opacity-60">
+                            {slotBusy ? 'Đang lưu...' : 'Lưu buổi'}
+                          </button>
+                          <button type="button" onClick={() => setEditingSlotId('')} disabled={slotBusy}
+                            className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">Huỷ sửa</button>
+                          <button type="button" onClick={() => cancelSlot(log)} disabled={slotBusy}
+                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold">Xoá buổi</button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={log.id} className="text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-gray-700 flex-wrap">
+                          <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                          {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
+                          <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
+                          {log.deliveryTime}
+                          <span className="text-gray-500">· {log.productName}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
+                            log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
+                            'bg-gray-200 text-gray-600'
+                          }`}>
+                            {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
+                          </span>
+                          {editable && (
+                            <button type="button" onClick={() => startEditSlot(log)}
+                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800">Sửa</button>
+                          )}
+                        </div>
+                      </div>
+                      {(log.deliveryAddress && log.deliveryAddress !== combo.deliveryAddress) && (
+                        <div className="flex items-start gap-1 text-[11px] text-emerald-700 mt-0.5">
+                          <MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {log.deliveryAddress}
+                        </div>
+                      )}
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
-                      log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
-                      'bg-gray-200 text-gray-600'
-                    }`}>
-                      {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

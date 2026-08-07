@@ -15,6 +15,7 @@ import {
   ChevronRight, Package, AlertCircle,
 } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
+import * as api from '../../utils/api';
 
 type Tab = 'today' | 'done' | 'all';
 
@@ -28,6 +29,8 @@ export function ComboShipBoard() {
   const [shipNotes, setShipNotes] = useState<Record<string, string>>({});
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [postponingId, setPostponingId] = useState<string | null>(null);
+  // Địa chỉ giao RIÊNG của buổi hôm nay (nếu CSKH đặt khác địa chỉ chung) — theo comboId
+  const [slotAddr, setSlotAddr] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +41,19 @@ export function ComboShipBoard() {
   useEffect(() => {
     if (branchId) loadForBranch(branchId);
   }, [branchId, loadForBranch]);
+
+  useEffect(() => {
+    if (!branchId) return;
+    const today = new Date().toISOString().split('T')[0];
+    api
+      .fetchDeliveryLogs({ branchId, date: today, status: 'pending' })
+      .then((rows: any[]) => {
+        const m: Record<string, string> = {};
+        rows.forEach((r) => { if (r.deliveryAddress && r.comboOrderId) m[r.comboOrderId] = r.deliveryAddress; });
+        setSlotAddr(m);
+      })
+      .catch(() => setSlotAddr({}));
+  }, [branchId, combos]);
 
   const activeCombos = useMemo(
     () => combos.filter((c) => c.status === 'active' && (!branchId || c.branchId === branchId)),
@@ -269,10 +285,15 @@ export function ComboShipBoard() {
                   )}
                 </div>
 
-                {combo.deliveryAddress && (
+                {(slotAddr[combo.id] || combo.deliveryAddress) && (
                   <div className="mt-2 flex items-start gap-2 text-sm text-gray-700">
                     <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                    <span>{combo.deliveryAddress}</span>
+                    <span>
+                      {slotAddr[combo.id] || combo.deliveryAddress}
+                      {slotAddr[combo.id] && slotAddr[combo.id] !== combo.deliveryAddress && (
+                        <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">địa chỉ buổi này</span>
+                      )}
+                    </span>
                   </div>
                 )}
 

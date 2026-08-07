@@ -90,11 +90,19 @@ export function ShipperApp() {
   // Đơn giao thuộc chi nhánh shipper, giao bằng shipper của mình (không phải bookship ngoài)
   const isOwnDelivery = (o: Order) =>
     (o.deliveryType || 'delivery') === 'delivery' && o.branchId === branch && (o.shipMethod || 'own') !== 'external';
+  // Chỉ hiện cho shipper SAU KHI chi nhánh đã nhận đơn (đang làm / chờ lấy) — chưa nhận (pending) thì ẩn.
+  const branchAccepted = (o: Order) => o.status === 'preparing' || o.status === 'ready';
 
-  const available = orders.filter((o) => isOwnDelivery(o) && !o.shipperId && o.status !== 'completed');
-  const mine = orders.filter((o) => o.shipperId === shipper.id && o.status !== 'completed');
+  const available = orders.filter((o) => isOwnDelivery(o) && !o.shipperId && branchAccepted(o));
+  const mine = orders.filter((o) => o.shipperId === shipper.id && ['preparing', 'ready', 'delivering'].includes(o.status));
   const done = history.filter((o) => o.shipperId === shipper.id);
   const list = tab === 'available' ? available : tab === 'mine' ? mine : done;
+
+  const statusLabel = (s: Order['status']) =>
+    s === 'preparing' ? '🔥 Chi nhánh đang làm'
+      : s === 'ready' ? '📦 Sẵn sàng lấy'
+        : s === 'delivering' ? '🏍️ Đang giao'
+          : '';
 
   const claim = async (o: Order) => {
     setBusyId(o.id);
@@ -143,10 +151,15 @@ export function ShipperApp() {
         ) : (
           list.map((o) => (
             <div key={o.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-gray-900">{o.customerName || 'Khách'}</span>
                 <span className="font-black text-rose-700">{((o.total || 0) + (o.shipFee || 0)).toLocaleString('vi-VN')}đ</span>
               </div>
+              {statusLabel(o.status) && tab !== 'done' && (
+                <span className={`inline-block mb-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${o.status === 'ready' ? 'bg-emerald-100 text-emerald-700' : o.status === 'delivering' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {statusLabel(o.status)}
+                </span>
+              )}
               <p className="text-sm text-gray-600 mb-1">{itemsText(o) || '—'}</p>
               {o.customerPhone && <p className="text-sm text-gray-500 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> <a href={`tel:${o.customerPhone}`} className="underline">{o.customerPhone}</a></p>}
               {o.deliveryAddress && <p className="text-sm text-gray-500 flex items-start gap-1.5 mt-0.5"><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {o.deliveryAddress}</p>}
@@ -154,9 +167,15 @@ export function ShipperApp() {
               {o.note && <p className="text-xs text-gray-500 mt-1 italic">Ghi chú: {o.note}</p>}
 
               {tab === 'available' && (
-                <button onClick={() => claim(o)} disabled={busyId === o.id} className="w-full mt-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                  {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />} Nhận giao đơn này
-                </button>
+                o.status === 'ready' ? (
+                  <button onClick={() => claim(o)} disabled={busyId === o.id} className="w-full mt-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                    {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />} Nhận giao đơn này
+                  </button>
+                ) : (
+                  <div className="w-full mt-3 bg-amber-50 text-amber-700 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border border-amber-200">
+                    <Clock className="w-4 h-4" /> Chi nhánh đang làm — chờ lấy
+                  </div>
+                )
               )}
               {tab === 'mine' && (
                 <button onClick={() => markDelivered(o)} disabled={busyId === o.id} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">

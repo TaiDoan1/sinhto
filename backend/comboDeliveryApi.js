@@ -120,7 +120,11 @@ function parseDeliveryLogRow(row) {
     customerName: row.customerName,
     customerPhone: row.customerPhone,
     planName: row.planName,
+    deliveryType: row.deliveryType || 'delivery',
+    shipMethod: row.shipMethod || 'own',
+    shipProvider: row.shipProvider || '',
     careStaffId: row.careStaffId,
+    careStaffName: row.careStaffName,
     totalCups: row.totalCups,
     deliveredCups: row.deliveredCups,
     comboStatus: row.comboStatus,
@@ -394,20 +398,23 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
 
   app.get('/api/delivery-logs', async (req, res) => {
     try {
-      const { branchId, date, comboOrderId, status, careStaffId } = req.query;
+      const { branchId, date, from, to, comboOrderId, status, careStaffId } = req.query;
       let sql = `
         SELECT dl.*, cs.customerName, cs.customerPhone, cs.planName, cs.deliveryAddress,
-               cs.careStaffId, cs.totalCups, cs.deliveredCups, cs.status AS comboStatus
+               cs.careStaffId, cs.careStaffName, cs.deliveryType, cs.shipMethod, cs.shipProvider,
+               cs.totalCups, cs.deliveredCups, cs.status AS comboStatus
         FROM delivery_logs dl
         JOIN combo_subscriptions cs ON cs.id = dl.combo_order_id
         WHERE 1=1`;
       const params = [];
       if (branchId) { sql += ' AND dl.branch_id = ?'; params.push(branchId); }
       if (date) { sql += ' AND dl.delivery_date = ?'; params.push(date); }
+      if (from) { sql += ' AND dl.delivery_date >= ?'; params.push(from); }
+      if (to) { sql += ' AND dl.delivery_date <= ?'; params.push(to); }
       if (comboOrderId) { sql += ' AND dl.combo_order_id = ?'; params.push(comboOrderId); }
       if (status) { sql += ' AND dl.status = ?'; params.push(status); }
       if (careStaffId) { sql += ' AND cs.careStaffId = ?'; params.push(careStaffId); }
-      sql += ' ORDER BY dl.delivery_date ASC, dl.created_at ASC';
+      sql += ' ORDER BY dl.delivery_date ASC, dl.delivery_time ASC, dl.created_at ASC';
       const rows = await dbAll(db, sql, params);
       res.json(rows.map(parseDeliveryLogRow));
     } catch (err) {

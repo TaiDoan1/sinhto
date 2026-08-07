@@ -4,6 +4,7 @@ import { useOrders } from '../../contexts/OrderContext';
 import type { Order } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
 import * as api from '../../utils/api';
+import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 
 const SESSION_KEY = 'shipper_session';
 
@@ -69,7 +70,7 @@ export function ShipperApp() {
     if (!api.getAuthToken()) return null;
     try { const s = localStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
   });
-  const [tab, setTab] = useState<'available' | 'mine' | 'done'>('available');
+  const [tab, setTab] = useState<'available' | 'mine' | 'done' | 'week'>('available');
   const [busyId, setBusyId] = useState('');
 
   const handleLoggedIn = (s: ShipperSession) => {
@@ -137,13 +138,15 @@ export function ShipperApp() {
       </header>
 
       <div className="flex gap-1 p-2 bg-white border-b sticky top-[52px] z-10">
-        {([['available', `Cần giao (${available.length})`], ['mine', `Đang giao (${mine.length})`], ['done', 'Đã giao']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={`flex-1 py-2 rounded-lg text-sm font-bold ${tab === id ? 'bg-rose-600 text-white' : 'text-gray-600 bg-gray-100'}`}>{label}</button>
+        {([['available', `Cần giao (${available.length})`], ['mine', `Đang giao (${mine.length})`], ['done', 'Đã giao'], ['week', '📅 Lịch tuần']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} className={`flex-1 py-2 rounded-lg text-xs font-bold ${tab === id ? 'bg-rose-600 text-white' : 'text-gray-600 bg-gray-100'}`}>{label}</button>
         ))}
       </div>
 
       <div className="p-3 space-y-3">
-        {list.length === 0 ? (
+        {tab === 'week' ? (
+          <WeeklyComboSchedule branchId={branch} variant="shipper" branchLabel={branchLabel} />
+        ) : list.length === 0 ? (
           <div className="text-center text-gray-400 py-16">
             <Package className="w-12 h-12 mx-auto mb-2 opacity-40" />
             <p className="text-sm">{tab === 'available' ? 'Chưa có đơn cần giao' : tab === 'mine' ? 'Bạn chưa nhận đơn nào' : 'Chưa có đơn đã giao'}</p>

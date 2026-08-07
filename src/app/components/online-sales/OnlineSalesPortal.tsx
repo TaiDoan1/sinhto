@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, X, MessageCircle,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, X, MessageCircle, CalendarDays,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -17,6 +17,7 @@ import { PIPELINE_STAGES, buildWebLink } from './constants';
 import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
+import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
@@ -25,7 +26,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'alerts' | 'fbMessages';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'schedule' | 'alerts' | 'fbMessages';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -468,6 +469,7 @@ export function OnlineSalesPortal() {
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
+    { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
@@ -729,6 +731,13 @@ export function OnlineSalesPortal() {
 
             {view === 'combo' && (
               <CustomerComboHub {...comboHubProps} />
+            )}
+
+            {view === 'schedule' && (
+              <div className="max-w-2xl mx-auto">
+                <div className="mb-3 text-sm text-gray-500">Lịch giao combo trong tuần của bạn. Sửa lịch tại tab <span className="font-semibold text-gray-700">Khách combo → Chi tiết</span>.</div>
+                <WeeklyComboSchedule careStaffId={activeEmployee.id} variant="cskh" branchLabel={branchLabel} />
+              </div>
             )}
 
             {view === 'fbMessages' && (

@@ -840,6 +840,8 @@ export async function claimComboSubscription(id: string, employeeId: string, emp
 export async function fetchDeliveryLogs(params?: {
   branchId?: string;
   date?: string;
+  from?: string;
+  to?: string;
   comboOrderId?: string;
   status?: string;
   careStaffId?: string;
@@ -847,6 +849,8 @@ export async function fetchDeliveryLogs(params?: {
   const qs = new URLSearchParams();
   if (params?.branchId) qs.set('branchId', params.branchId);
   if (params?.date) qs.set('date', params.date);
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
   if (params?.comboOrderId) qs.set('comboOrderId', params.comboOrderId);
   if (params?.status) qs.set('status', params.status);
   if (params?.careStaffId) qs.set('careStaffId', params.careStaffId);

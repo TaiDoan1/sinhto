@@ -2,6 +2,8 @@
 import { Calendar, User, Phone, Package, Bell, Play, Pause, CheckCircle, ChevronDown, ChevronUp, Edit3, Trash2, X, Crown, Search, DropletIcon, MinusCircle, PlusCircle, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCombos } from '../../contexts/ComboContext';
+import { useBranches } from '../../contexts/BranchContext';
+import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { getWholesaleAccounts, saveWholesaleAccounts, type WholesaleAccount } from '../customer/CustomerApp';
 import { PROTEIN_LEVELS_BY_SIZE } from '../../config/menuPricing';
@@ -652,7 +654,9 @@ export function ComboManagement() {
   const { combos, updateComboStatus, getTodayDeliveries, notifications, markNotificationAsRead, updateCombo } = useCombos();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [editingCombo, setEditingCombo] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'subscriptions' | 'wholesale'>('subscriptions');
+  const [activeTab, setActiveTab] = useState<'subscriptions' | 'wholesale' | 'schedule'>('subscriptions');
+  const { branchLabel } = useBranches();
+  const posBranch = (typeof localStorage !== 'undefined' && (localStorage.getItem('pos_branch') || localStorage.getItem('pos_device_branch'))) || undefined;
 
   useEffect(() => {
     const timer = setInterval(() => { setCurrentTime(new Date()); }, 60000);
@@ -693,6 +697,16 @@ export function ComboManagement() {
           }`}
         >
           👑 Quản Lý Mua Sỉ
+        </button>
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`flex-1 py-3 text-xs font-black uppercase tracking-wider transition-colors ${
+            activeTab === 'schedule'
+              ? 'text-emerald-700 border-b-2 border-emerald-500 bg-emerald-50'
+              : 'text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          📅 Lịch Tuần
         </button>
       </div>
 
@@ -824,6 +838,10 @@ export function ComboManagement() {
 
         {/* ── WHOLESALE TAB ── */}
         {activeTab === 'wholesale' && <WholesalePanel />}
+
+        {activeTab === 'schedule' && (
+          <WeeklyComboSchedule branchId={posBranch} variant="pos" branchLabel={branchLabel} />
+        )}
       </div>
 
       {/* MODAL EDIT COMBO */}

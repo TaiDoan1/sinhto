@@ -27,6 +27,7 @@ const ProductManagement = lazyNamed(() => import("./components/admin/ProductMana
 const MenuBookEditor = lazyNamed(() => import("./components/admin/MenuBookEditor"), "MenuBookEditor");
 const ComboManagement = lazyNamed(() => import("./components/admin/ComboManagement"), "ComboManagement");
 const ComboPackageTemplates = lazyNamed(() => import("./components/admin/ComboPackageTemplates"), "ComboPackageTemplates");
+const ComboCommissionReport = lazyNamed(() => import("./components/admin/ComboCommissionReport"), "ComboCommissionReport");
 const GiftCampaigns = lazyNamed(() => import("./components/admin/GiftCampaigns"), "GiftCampaigns");
 const OrderNotificationSettings = lazyNamed(() => import("./components/admin/OrderNotificationSettings"), "OrderNotificationSettings");
 const LoyaltyManagement = lazyNamed(() => import("./components/admin/LoyaltyManagement"), "LoyaltyManagement");
@@ -141,6 +142,8 @@ function AdminShell() {
         return <ComboManagement />;
       case "combo-packages":
         return <ComboPackageTemplates />;
+      case "combo-commission":
+        return <ComboCommissionReport />;
       case "combo-ship":
         return <ComboShipBoard />;
       case "loyalty":

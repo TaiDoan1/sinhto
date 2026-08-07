@@ -14,6 +14,7 @@ import {
   Banknote,
   MonitorSmartphone,
   RefreshCw,
+  CalendarDays,
 } from 'lucide-react';
 import { ProductGrid } from './ProductGrid';
 import { ModifierModal } from './ModifierModal';
@@ -25,6 +26,7 @@ import { InventoryManagement } from './InventoryManagement';
 import { MenuManagement } from './MenuManagement';
 import { MacroTable } from './MacroTable';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
+import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { PosProvider, usePos } from '../../contexts/PosContext';
 import { PosLogin } from './PosLogin';
@@ -56,7 +58,7 @@ import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
 import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode } from '../../hooks/usePosOrderNotificationText';
 
-type PosTab = 'products' | 'orders' | 'combos' | 'warehouse' | 'history' | 'admin' | 'macro';
+type PosTab = 'products' | 'orders' | 'combos' | 'schedule' | 'warehouse' | 'history' | 'admin' | 'macro';
 
 const POS_TABS: {
   id: PosTab;
@@ -67,6 +69,7 @@ const POS_TABS: {
   { id: 'products', label: 'Bán hàng', icon: ShoppingBag },
   { id: 'orders', label: 'Hàng đợi', icon: ClipboardList, badge: 'orders' },
   { id: 'combos', label: 'Combo', icon: Package, badge: 'combos' },
+  { id: 'schedule', label: 'Lịch giao', icon: CalendarDays },
   { id: 'history', label: 'Lịch sử', icon: History },
   { id: 'warehouse', label: 'Kho', icon: Store },
   { id: 'admin', label: 'Thực đơn', icon: ClipboardList },
@@ -764,6 +767,10 @@ function POSInterfaceInner() {
               <OrderQueue branchId={branchId} />
             ) : activeTab === 'combos' ? (
               <CustomerComboHub variant="pos" branchId={branchId} className="p-2 h-full min-h-0 overflow-hidden" />
+            ) : activeTab === 'schedule' ? (
+              <div className="p-2 h-full min-h-0 overflow-y-auto">
+                <WeeklyComboSchedule branchId={branchId} variant="pos" branchLabel={branchLabel} defaultMode="today" />
+              </div>
             ) : activeTab === 'warehouse' ? (
               <InventoryManagement branchId={branchId} />
             ) : activeTab === 'admin' ? (

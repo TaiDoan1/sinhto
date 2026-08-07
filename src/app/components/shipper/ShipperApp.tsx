@@ -138,14 +138,14 @@ export function ShipperApp() {
       </header>
 
       <div className="flex gap-1 p-2 bg-white border-b sticky top-[52px] z-10">
-        {([['available', `Cần giao (${available.length})`], ['mine', `Đang giao (${mine.length})`], ['done', 'Đã giao'], ['week', '📅 Lịch tuần']] as const).map(([id, label]) => (
+        {([['available', `Cần giao (${available.length})`], ['mine', `Đang giao (${mine.length})`], ['done', 'Đã giao'], ['week', '📅 Lịch giao']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} className={`flex-1 py-2 rounded-lg text-xs font-bold ${tab === id ? 'bg-rose-600 text-white' : 'text-gray-600 bg-gray-100'}`}>{label}</button>
         ))}
       </div>
 
       <div className="p-3 space-y-3">
         {tab === 'week' ? (
-          <WeeklyComboSchedule branchId={branch} variant="shipper" branchLabel={branchLabel} />
+          <WeeklyComboSchedule branchId={branch} variant="shipper" branchLabel={branchLabel} defaultMode="today" />
         ) : list.length === 0 ? (
           <div className="text-center text-gray-400 py-16">
             <Package className="w-12 h-12 mx-auto mb-2 opacity-40" />

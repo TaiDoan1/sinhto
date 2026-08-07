@@ -343,6 +343,10 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "renewedFromPlanName" TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "refundAmount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "refundedAt" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionStaffId" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionStaffName" TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "commissionType" TEXT DEFAULT 'percent'`).catch(() => {});
+  await pool.query(`ALTER TABLE combo_subscriptions ADD COLUMN IF NOT EXISTS "isRenewal" INTEGER DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE fb_messages ADD COLUMN IF NOT EXISTS attachments TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE fb_conversations ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '[]'`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "staffId" TEXT`).catch(() => {});

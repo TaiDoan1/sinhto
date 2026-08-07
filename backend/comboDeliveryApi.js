@@ -161,6 +161,10 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveredCups INTEGER DEFAULT 0',
     'ALTER TABLE combo_subscriptions ADD COLUMN commissionAmount INTEGER DEFAULT 0',
     'ALTER TABLE combo_subscriptions ADD COLUMN commissionStatus TEXT DEFAULT \'pending\'',
+    'ALTER TABLE combo_subscriptions ADD COLUMN commissionStaffId TEXT',
+    'ALTER TABLE combo_subscriptions ADD COLUMN commissionStaffName TEXT',
+    'ALTER TABLE combo_subscriptions ADD COLUMN commissionType TEXT DEFAULT \'percent\'',
+    'ALTER TABLE combo_subscriptions ADD COLUMN isRenewal INTEGER DEFAULT 0',
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveryTime TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
@@ -321,13 +325,60 @@ async function migrateAllComboDeliveryLogs(db) {
   }
 }
 
+async function getSetting(db, key) {
+  try {
+    const row = await dbGet(db, 'SELECT value FROM settings WHERE key = ?', [key]);
+    if (!row || row.value == null) return null;
+    return typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+  } catch {
+    return null;
+  }
+}
+
+// Tính hoa hồng CSKH theo cấu hình của GÓI combo (Admin đặt % hoặc số tiền cố định cho từng gói).
+// Gia hạn (renewedFromComboId có giá trị) dùng mức riêng nếu gói có cấu hình, không thì rơi về
+// mức bán mới. Gói chưa cấu hình hoa hồng → mặc định 5% (giữ hành vi cũ, không phá dữ liệu cũ).
+async function computeComboCommission(db, comboRow) {
+  const isRenewal = !!comboRow.renewedFromComboId;
+  const total = Number(comboRow.totalPrice) || 0;
+  const templates = (await getSetting(db, 'comboPackageTemplates')) || [];
+  const tpl = Array.isArray(templates)
+    ? templates.find((t) => t && t.name && t.name === comboRow.planName)
+    : null;
+
+  let type = tpl?.commissionType || 'percent';
+  let value = tpl?.commissionValue;
+  if (isRenewal && tpl && (tpl.renewCommissionValue != null || tpl.renewCommissionType)) {
+    type = tpl.renewCommissionType || type;
+    value = tpl.renewCommissionValue;
+  }
+  if (value == null || Number.isNaN(Number(value))) {
+    type = 'percent';
+    value = 5;
+  }
+  value = Number(value);
+  const amount = type === 'amount' ? Math.round(value) : Math.round((total * value) / 100);
+  return { amount, type, isRenewal };
+}
+
 async function afterComboClaimed(db, comboRow) {
   await generateDeliveryLogsForCombo(db, comboRow);
-  const commissionAmount = Math.round((comboRow.totalPrice || 0) * 0.05);
+  const { amount, type, isRenewal } = await computeComboCommission(db, comboRow);
+  // commissionStaffId gắn CỐ ĐỊNH cho người chốt combo — không đổi kể cả khi chuyển chăm sóc.
   await dbRun(
     db,
-    `UPDATE combo_subscriptions SET commissionAmount = ?, commissionStatus = 'approved', updatedAt = ? WHERE id = ?`,
-    [commissionAmount, new Date().toISOString(), comboRow.id]
+    `UPDATE combo_subscriptions SET commissionAmount = ?, commissionType = ?, isRenewal = ?,
+     commissionStaffId = ?, commissionStaffName = ?, commissionStatus = 'approved', updatedAt = ?
+     WHERE id = ?`,
+    [
+      amount,
+      type,
+      isRenewal ? 1 : 0,
+      comboRow.careStaffId || comboRow.closedByStaffId || '',
+      comboRow.careStaffName || comboRow.closedByStaffName || '',
+      new Date().toISOString(),
+      comboRow.id,
+    ]
   );
 }
 

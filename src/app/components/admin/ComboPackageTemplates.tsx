@@ -10,6 +10,18 @@ const DAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0]; // khớp quy ước deliveryDays s�
 const SIZE_OPTIONS = ['250ml', '360ml', '500ml', '700ml'];
 const PROTEIN_OPTIONS = [20, 40];
 
+function commissionAmount(type: 'percent' | 'amount' | undefined, value: number | undefined, price: number) {
+  if (value == null || Number.isNaN(value)) return null;
+  return type === 'amount' ? Math.round(value) : Math.round((price * value) / 100);
+}
+
+function commissionLabel(type: 'percent' | 'amount' | undefined, value: number | undefined, price: number) {
+  const amt = commissionAmount(type, value, price);
+  if (amt == null) return '—';
+  const unit = type === 'amount' ? `${value?.toLocaleString('vi-VN')}đ` : `${value}%`;
+  return `${unit} → ${amt.toLocaleString('vi-VN')}đ`;
+}
+
 function emptyItems(): ComboPackageDayItem[] {
   return DAY_NUMBERS.map((day, idx) => ({
     assignedDay: day,
@@ -147,6 +159,12 @@ export function ComboPackageTemplates() {
                 ))}
                 {t.items.length > 3 && <div>...</div>}
               </div>
+              <div className="text-[11px] text-emerald-700 font-semibold mb-2 flex items-center gap-1">
+                💰 HH: {commissionLabel(t.commissionType, t.commissionValue, t.price)}
+                {t.renewCommissionValue != null && (
+                  <span className="text-gray-400 font-normal">· gia hạn {commissionLabel(t.renewCommissionType, t.renewCommissionValue, t.price)}</span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setEditing(t)} className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-emerald-700">
                   <Pencil className="w-3.5 h-3.5" /> Sửa
@@ -201,6 +219,60 @@ export function ComboPackageTemplates() {
                   className="w-full mt-0.5 border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 />
               </div>
+            </div>
+
+            <div className="border border-emerald-100 bg-emerald-50/60 rounded-xl p-3 mb-4">
+              <p className="text-xs font-bold text-emerald-800 mb-2">💰 Hoa hồng CSKH (khi chốt bán gói này)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold">Bán mới</label>
+                  <div className="flex gap-1 mt-0.5">
+                    <select
+                      value={editing.commissionType || 'percent'}
+                      onChange={(e) => setEditing({ ...editing, commissionType: e.target.value as 'percent' | 'amount' })}
+                      className="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white w-16"
+                    >
+                      <option value="percent">%</option>
+                      <option value="amount">đ</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={editing.commissionValue ?? ''}
+                      onChange={(e) => setEditing({ ...editing, commissionValue: e.target.value === '' ? undefined : Number(e.target.value) })}
+                      placeholder="0"
+                      className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold">Gia hạn <span className="font-normal text-gray-400">(trống = như bán mới)</span></label>
+                  <div className="flex gap-1 mt-0.5">
+                    <select
+                      value={editing.renewCommissionType || 'percent'}
+                      onChange={(e) => setEditing({ ...editing, renewCommissionType: e.target.value as 'percent' | 'amount' })}
+                      className="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white w-16"
+                    >
+                      <option value="percent">%</option>
+                      <option value="amount">đ</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={editing.renewCommissionValue ?? ''}
+                      onChange={(e) => setEditing({ ...editing, renewCommissionValue: e.target.value === '' ? undefined : Number(e.target.value) })}
+                      placeholder="—"
+                      className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-2">
+                Bán mới: <span className="font-semibold text-emerald-700">{commissionLabel(editing.commissionType, editing.commissionValue, editing.price)}</span>
+                {' · '}Gia hạn: <span className="font-semibold text-emerald-700">{
+                  editing.renewCommissionValue != null
+                    ? commissionLabel(editing.renewCommissionType, editing.renewCommissionValue, editing.price)
+                    : commissionLabel(editing.commissionType, editing.commissionValue, editing.price)
+                }</span>
+              </p>
             </div>
 
             <p className="text-xs font-semibold text-gray-500 mb-2">Thực đơn theo ngày</p>

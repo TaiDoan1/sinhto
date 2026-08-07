@@ -270,7 +270,16 @@ export function ComboDetailDrawer({
             <div className="flex items-center gap-1.5 text-gray-700">
               <User className="w-3.5 h-3.5 text-gray-400" /> {combo.customerName} ({combo.customerPhone})
             </div>
-            {combo.deliveryAddress && (
+            <div className="flex items-center gap-1.5 text-gray-700 font-semibold">
+              {combo.deliveryType === 'pickup' ? (
+                <span className="text-indigo-700">🏪 Khách tự lấy tại quầy</span>
+              ) : (
+                <span className="text-emerald-700">
+                  🚚 Giao tận nơi — {combo.shipMethod === 'external' ? `Bookship${combo.shipProvider ? ` (${combo.shipProvider})` : ''}` : 'Shipper của mình'}
+                </span>
+              )}
+            </div>
+            {combo.deliveryType !== 'pickup' && combo.deliveryAddress && (
               <div className="flex items-start gap-1.5 text-gray-700">
                 <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" /> {combo.deliveryAddress}
               </div>

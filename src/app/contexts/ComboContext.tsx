@@ -49,6 +49,9 @@ export interface ComboSubscription {
   renewedFromPlanName?: string;
   refundAmount?: number;
   refundedAt?: string;
+  deliveryType?: 'pickup' | 'delivery';
+  shipMethod?: 'own' | 'external' | '';
+  shipProvider?: string;
 }
 
 export interface ComboNotification {

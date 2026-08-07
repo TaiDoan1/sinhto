@@ -2241,6 +2241,9 @@ function parseComboRow(row) {
     commissionStaffName: row.commissionStaffName || null,
     commissionType: row.commissionType || 'percent',
     isRenewal: row.isRenewal != null ? !!Number(row.isRenewal) : !!row.renewedFromComboId,
+    deliveryType: row.deliveryType || 'delivery',
+    shipMethod: row.shipMethod || 'own',
+    shipProvider: row.shipProvider || '',
     shipFee: row.shipFee != null ? Number(row.shipFee) : 0,
     endDate: row.endDate || null,
     renewedFromComboId: row.renewedFromComboId || null,
@@ -2373,8 +2376,9 @@ app.post('/api/combo-subscriptions', (req, res) => {
     deliveryAddress, careStaffId, careStaffName, closedByStaffId, closedByStaffName,
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
     lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate,
-    renewedFromComboId, renewedFromDuration, renewedFromPlanName, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    renewedFromComboId, renewedFromDuration, renewedFromPlanName,
+    deliveryType, shipMethod, shipProvider, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -2388,6 +2392,7 @@ app.post('/api/combo-subscriptions', (req, res) => {
     normStr(body.staff) || '', null, '[]', body.totalCups || 7, body.deliveryTime || '08:00',
     Number(body.shipFee) || 0, endDate,
     body.renewedFromComboId || null, body.renewedFromDuration || null, body.renewedFromPlanName || null,
+    body.deliveryType || 'delivery', body.shipMethod || 'own', normStr(body.shipProvider) || '',
     now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -2459,6 +2464,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
         pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?,
         renewedFromComboId = ?, renewedFromDuration = ?, renewedFromPlanName = ?,
+        deliveryType = ?, shipMethod = ?, shipProvider = ?,
         refundAmount = ?, refundedAt = ?, updatedAt = ?
       WHERE id = ?`,
       [
@@ -2494,6 +2500,9 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.renewedFromComboId ?? row.renewedFromComboId ?? null,
         merged.renewedFromDuration ?? row.renewedFromDuration ?? null,
         merged.renewedFromPlanName ?? row.renewedFromPlanName ?? null,
+        merged.deliveryType ?? row.deliveryType ?? 'delivery',
+        merged.shipMethod ?? row.shipMethod ?? 'own',
+        normStr(merged.shipProvider ?? row.shipProvider) ?? null,
         merged.refundAmount ?? row.refundAmount ?? null,
         merged.refundedAt ?? row.refundedAt ?? null,
         now,

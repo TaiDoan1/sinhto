@@ -285,16 +285,27 @@ export function ComboShipBoard() {
                   )}
                 </div>
 
-                {(slotAddr[combo.id] || combo.deliveryAddress) && (
-                  <div className="mt-2 flex items-start gap-2 text-sm text-gray-700">
-                    <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                    <span>
-                      {slotAddr[combo.id] || combo.deliveryAddress}
-                      {slotAddr[combo.id] && slotAddr[combo.id] !== combo.deliveryAddress && (
-                        <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">địa chỉ buổi này</span>
-                      )}
-                    </span>
+                {combo.deliveryType === 'pickup' ? (
+                  <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-indigo-700">
+                    <Package className="w-4 h-4 shrink-0" /> 🏪 Khách tự lấy tại quầy
                   </div>
+                ) : (
+                  (slotAddr[combo.id] || combo.deliveryAddress) && (
+                    <div className="mt-2 flex items-start gap-2 text-sm text-gray-700">
+                      <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <span>
+                        {slotAddr[combo.id] || combo.deliveryAddress}
+                        {slotAddr[combo.id] && slotAddr[combo.id] !== combo.deliveryAddress && (
+                          <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">địa chỉ buổi này</span>
+                        )}
+                        {combo.shipMethod === 'external' && (
+                          <span className="ml-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                            Bookship{combo.shipProvider ? ` · ${combo.shipProvider}` : ''}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
                 )}
 
                 {ingredients.length > 0 && !isDone && (

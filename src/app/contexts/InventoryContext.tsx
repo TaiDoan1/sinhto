@@ -231,7 +231,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         ],
       };
     }
-    return checkProductStock(lines);
+    // Cho phép kho chi nhánh ÂM: đã chọn chi nhánh thì LUÔN cho bán/giao dù thiếu hàng.
+    // Vẫn trả shortages để nơi nào cần có thể hiển thị cảnh báo, nhưng ok=true để không chặn.
+    const res = checkProductStock(lines);
+    return { ok: true, shortages: res.shortages };
   };
 
   const formatShortageMessage = (shortages: StockShortage[]) => {
@@ -393,12 +396,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   const deductStockForOrder = (orderId: string, lines: CartStockLine[], staff: string): boolean => {
-    // Kho theo dung tich (checkProductStock, via checkCartStock) la nguon su that
-    // de chan ban hang. Tru kho nguyen lieu ben duoi la ghi nhan song song,
-    // khong lam that bai don hang neu nguyen lieu thieu/chua nhap.
-    const check = checkCartStock(lines);
-    if (!check.ok) return false;
-
+    // Cho phép kho chi nhánh ÂM: KHÔNG chặn bán/giao khi thiếu hoặc chưa nhập kho.
+    // Thiếu bao nhiêu trừ âm bấy nhiêu — nhập kho tổng rồi bù vào sau.
     const needed = aggregateIngredients(lines);
     if (needed.length > 0) {
       const newInventory = applyInventoryPatch(inventory, needed, -1);
@@ -432,25 +431,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const bagSize = rawLine.bagSize || 'S';
         const variantKey = `${rawLine.size}-${bagSize}`;
         nextProductInventory.smoothies[rawLine.productId] = nextProductInventory.smoothies[rawLine.productId] || {};
-        nextProductInventory.smoothies[rawLine.productId][variantKey] = Math.max(
-          0,
-          (nextProductInventory.smoothies[rawLine.productId][variantKey] || 0) - quantity
-        );
+        nextProductInventory.smoothies[rawLine.productId][variantKey] =
+          (nextProductInventory.smoothies[rawLine.productId][variantKey] || 0) - quantity;
         for (const toppingName of rawLine.toppings || []) {
           if (String(toppingName).startsWith('Combo Topping:')) continue;
           const toppingId = toppingMap.get(toppingName);
           if (!toppingId) continue;
-          nextProductInventory.toppings[toppingId] = Math.max(
-            0,
-            (nextProductInventory.toppings[toppingId] || 0) - quantity
-          );
+          nextProductInventory.toppings[toppingId] =
+            (nextProductInventory.toppings[toppingId] || 0) - quantity;
         }
       }
       if (rawLine.productCategory === 'toppings') {
-        nextProductInventory.toppings[rawLine.productId] = Math.max(
-          0,
-          (nextProductInventory.toppings[rawLine.productId] || 0) - quantity
-        );
+        nextProductInventory.toppings[rawLine.productId] =
+          (nextProductInventory.toppings[rawLine.productId] || 0) - quantity;
       }
     }
     setProductInventory(nextProductInventory);

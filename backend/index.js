@@ -738,6 +738,43 @@ app.post('/api/inventory/update', async (req, res) => {
   }
 });
 
+// Reset TOÀN BỘ kho về 0 — cả kho nguyên liệu (inventory + branch_inventory) và kho thành phẩm
+// bán POS (centralProductInventory + branchProductInventory_*). Dùng khi muốn làm sạch rồi nhập
+// kho tổng lại từ đầu. Chỉ Admin/Quản lý. Kho chi nhánh vẫn bán âm được sau khi reset.
+app.post('/api/inventory/reset-all', (req, res) => {
+  const pos = req.user?.position;
+  if (req.user && !['admin', 'manager'].includes(pos)) {
+    return res.status(403).json({ error: 'Chỉ Admin/Quản lý được reset kho' });
+  }
+  const empty = JSON.stringify({ smoothies: {}, toppings: {} });
+  db.run('UPDATE inventory SET currentStock = 0', [], (e1) => {
+    if (e1) return res.status(500).json({ error: e1.message });
+    db.run('UPDATE branch_inventory SET currentStock = 0', [], (e2) => {
+      if (e2) return res.status(500).json({ error: e2.message });
+      db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['centralProductInventory', empty], (e3) => {
+        if (e3) return res.status(500).json({ error: e3.message });
+        db.all("SELECT key FROM settings WHERE key LIKE 'branchProductInventory_%'", [], (e4, rows) => {
+          if (e4) return res.status(500).json({ error: e4.message });
+          const keys = (rows || []).map((r) => r.key);
+          const finish = () => {
+            broadcast('SETTING_UPDATED', { key: 'centralProductInventory', value: { smoothies: {}, toppings: {} } });
+            keys.forEach((k) => broadcast('SETTING_UPDATED', { key: k, value: { smoothies: {}, toppings: {} } }));
+            broadcast('INVENTORY_RESET', { at: new Date().toISOString() });
+            res.json({ success: true, branchProductKeysReset: keys.length });
+          };
+          if (!keys.length) return finish();
+          let pending = keys.length;
+          keys.forEach((k) => {
+            db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [k, empty], () => {
+              if (--pending === 0) finish();
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
 // --- WHOLESALE ACCOUNTS API ---
 
 // Get wholesale accounts
@@ -938,6 +975,21 @@ app.put('/api/products/:id', (req, res) => {
     [p.name, p.category, p.basePrice, p.image, p.description || '', id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      // UPSERT: nếu id chưa tồn tại (UPDATE khớp 0 dòng) thì INSERT — sửa lỗi "thêm sản phẩm mới"
+      // không lưu (frontend gửi PUT cho cả sản phẩm mới). this.changes = số dòng bị sửa.
+      if (this.changes === 0) {
+        db.run(
+          `INSERT INTO products (id, name, category, basePrice, image, description) VALUES (?, ?, ?, ?, ?, ?)`,
+          [id, p.name, p.category, p.basePrice, p.image, p.description || ''],
+          function(insErr) {
+            if (insErr) return res.status(500).json({ error: insErr.message });
+            const created = { ...p, id };
+            broadcast('PRODUCT_CREATED', created);
+            res.status(201).json(created);
+          }
+        );
+        return;
+      }
       const updated = { ...p, id };
       broadcast('PRODUCT_UPDATED', updated);
       res.json(updated);

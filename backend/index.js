@@ -2322,7 +2322,16 @@ app.get('/api/combo-subscriptions', (req, res) => {
   const { careStaffId, status, customerPhone, branchId } = req.query;
   let sql = 'SELECT * FROM combo_subscriptions WHERE 1=1';
   const params = [];
-  if (careStaffId) { sql += ' AND careStaffId = ?'; params.push(careStaffId); }
+  // Phân quyền: CSKH chỉ thấy combo CỦA MÌNH (mình chốt hoặc đang phụ trách) + combo pending
+  // chưa ai nhận (để còn chốt được → tính hoa hồng). Admin/quản lý/chi nhánh không bị giới hạn.
+  const u = req.user;
+  const isCskh = u && ['online_sales', 'customer_care'].includes(u.position);
+  if (isCskh) {
+    sql += ` AND (commissionStaffId = ? OR careStaffId = ? OR (status = 'pending' AND (careStaffId IS NULL OR careStaffId = '')))`;
+    params.push(u.id, u.id);
+  } else if (careStaffId) {
+    sql += ' AND careStaffId = ?'; params.push(careStaffId);
+  }
   if (status) { sql += ' AND status = ?'; params.push(status); }
   if (customerPhone) { sql += ' AND customerPhone = ?'; params.push(customerPhone); }
   if (branchId) { sql += ' AND branchId = ?'; params.push(branchId); }

@@ -2839,6 +2839,18 @@ async function start() {
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
+
+    // Tự dọn lịch sử xuất/nhập kho cũ hơn 7 ngày (tránh phình DB, nặng máy).
+    // timestamp lưu dạng ISO string nên so sánh chuỗi trực tiếp là đúng thứ tự thời gian.
+    const cleanupOldMovements = () => {
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      db.run('DELETE FROM inventory_movements WHERE timestamp < ?', [cutoff], (err) => {
+        if (err) console.error('cleanupOldMovements:', err.message);
+        else console.log(`[cleanup] Da don inventory_movements cu hon 7 ngay (< ${cutoff})`);
+      });
+    };
+    setTimeout(cleanupOldMovements, 10000); // sau khi khởi động 10s
+    setInterval(cleanupOldMovements, 24 * 60 * 60 * 1000); // mỗi 24h
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);

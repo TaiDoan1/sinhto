@@ -117,6 +117,11 @@ export function CrossBranchInventory() {
   const [branchProductStats, setBranchProductStats] = useState<Record<string, { bags: number; portions: number }>>({});
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(true);
+  // Bộ lọc + phân trang cho "Xuất bán / điều chỉnh / hủy hàng"
+  const [histType, setHistType] = useState<'all' | Movement['type']>('all');
+  const [histBranch, setHistBranch] = useState('all');
+  const [histSearch, setHistSearch] = useState('');
+  const [histPage, setHistPage] = useState(0);
   const [moveModal, setMoveModal] = useState<{
     fromBranch: string;
     toBranch: string;
@@ -436,6 +441,20 @@ export function CrossBranchInventory() {
     : items.filter((i) => i.category === selectedCategory);
 
   const otherMovements = movements.filter((m) => !(m.type === 'purchase' && m.receiptId));
+
+  const HIST_PER_PAGE = 20;
+  const filteredMovements = useMemo(() => {
+    const q = histSearch.trim().toLowerCase();
+    return otherMovements.filter((m) =>
+      (histType === 'all' || m.type === histType) &&
+      (histBranch === 'all' || (m.branchId || '') === histBranch) &&
+      (!q || (m.itemName || '').toLowerCase().includes(q) || (m.reason || '').toLowerCase().includes(q))
+    );
+  }, [otherMovements, histType, histBranch, histSearch]);
+  const histTotalPages = Math.max(1, Math.ceil(filteredMovements.length / HIST_PER_PAGE));
+  const histPageSafe = Math.min(histPage, histTotalPages - 1);
+  const pagedMovements = filteredMovements.slice(histPageSafe * HIST_PER_PAGE, histPageSafe * HIST_PER_PAGE + HIST_PER_PAGE);
+  useEffect(() => { setHistPage(0); }, [histType, histBranch, histSearch]);
 
   const tabs = [
     { id: 'central' as const, label: 'Kho Tổng', icon: Warehouse },
@@ -980,6 +999,36 @@ export function CrossBranchInventory() {
             <div className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
               <History className="w-5 h-5 text-gray-500" />
               <h3 className="font-bold text-gray-800">Xuất bán / điều chỉnh / hủy hàng</h3>
+              <span className="ml-auto text-xs text-gray-400">Tự xoá sau 7 ngày</span>
+            </div>
+            {/* Bộ lọc */}
+            <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-gray-100 bg-gray-50/60">
+              <div className="relative flex-1 min-w-[160px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  value={histSearch}
+                  onChange={(e) => setHistSearch(e.target.value)}
+                  placeholder="Tìm nguyên liệu / ghi chú..."
+                  className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white"
+                />
+              </div>
+              <select value={histType} onChange={(e) => setHistType(e.target.value as any)} className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white">
+                <option value="all">Tất cả loại</option>
+                <option value="sale">Xuất bán</option>
+                <option value="adjustment">Điều chỉnh</option>
+                <option value="waste">Hủy hàng</option>
+                <option value="void_return">Trả hàng</option>
+                <option value="refund">Hoàn trả</option>
+              </select>
+              <select value={histBranch} onChange={(e) => setHistBranch(e.target.value)} className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs sm:text-sm bg-white">
+                <option value="all">Tất cả chi nhánh</option>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              {(histType !== 'all' || histBranch !== 'all' || histSearch) && (
+                <button onClick={() => { setHistType('all'); setHistBranch('all'); setHistSearch(''); }} className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2">Xoá lọc</button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs sm:text-sm">
@@ -998,12 +1047,12 @@ export function CrossBranchInventory() {
                     <tr>
                       <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Đang tải lịch sử...</td>
                     </tr>
-                  ) : otherMovements.length === 0 ? (
+                  ) : filteredMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-6 text-center text-gray-400">Chưa có lịch sử.</td>
+                      <td colSpan={6} className="px-6 py-6 text-center text-gray-400">{otherMovements.length === 0 ? 'Chưa có lịch sử.' : 'Không có dòng nào khớp bộ lọc.'}</td>
                     </tr>
                   ) : (
-                    otherMovements.map((m) => {
+                    pagedMovements.map((m) => {
                       const meta = MOVEMENT_LABELS[m.type] || { label: m.type, className: 'text-gray-700 bg-gray-100' };
                       const isOutbound = m.quantity < 0;
                       return (
@@ -1029,6 +1078,20 @@ export function CrossBranchInventory() {
                 </tbody>
               </table>
             </div>
+            {filteredMovements.length > 0 && (
+              <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-gray-100 text-xs sm:text-sm">
+                <span className="text-gray-500">
+                  {histPageSafe * HIST_PER_PAGE + 1}–{Math.min((histPageSafe + 1) * HIST_PER_PAGE, filteredMovements.length)} / {filteredMovements.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setHistPage((p) => Math.max(0, p - 1))} disabled={histPageSafe === 0}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 font-semibold disabled:opacity-40 hover:bg-gray-50">‹ Trước</button>
+                  <span className="px-2 text-gray-600">Trang {histPageSafe + 1}/{histTotalPages}</span>
+                  <button onClick={() => setHistPage((p) => Math.min(histTotalPages - 1, p + 1))} disabled={histPageSafe >= histTotalPages - 1}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 font-semibold disabled:opacity-40 hover:bg-gray-50">Sau ›</button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

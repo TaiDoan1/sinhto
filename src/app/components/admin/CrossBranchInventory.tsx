@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowRight, AlertTriangle, History, Truck, Warehouse, Coffee, Layers3, Save, Search, X,
-  ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, Clock, FileText, CheckCircle2, XCircle,
+  ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, Clock, FileText, CheckCircle2, XCircle, Trash2,
 } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
 import { useSSE } from '../../contexts/SSEContext';
@@ -135,6 +135,7 @@ export function CrossBranchInventory() {
   // --- Phiếu nhập kho ---
   const [receipts, setReceipts] = useState<StockReceipt[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   const [subReceiptDetail, setSubReceiptDetail] = useState<{ receipt: StockReceipt; kind: 'out' | 'in' } | null>(null);
@@ -443,6 +444,20 @@ export function CrossBranchInventory() {
     { id: 'history' as const, label: 'Lịch Sử Xuất Nhập', icon: History },
   ];
 
+  const handleResetAll = async () => {
+    if (!confirm('⚠️ Reset TOÀN BỘ kho về 0?\n\nĐưa kho TỔNG và kho MỌI CHI NHÁNH (nguyên liệu + thành phẩm) về 0. KHÔNG hoàn tác được.\n\nBán hàng vẫn chạy bình thường (kho chi nhánh cho phép âm). Sau đó nhập kho tổng lại rồi bù về chi nhánh.\n\nBấm OK để reset.')) return;
+    setResetting(true);
+    try {
+      const r = await api.resetAllInventory();
+      alert(`✅ Đã reset kho về 0 (kho thành phẩm ${r.branchProductKeysReset ?? 0} chi nhánh). Bấm OK để tải lại.`);
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Reset thất bại');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (isLoading && receiptsLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -453,11 +468,21 @@ export function CrossBranchInventory() {
 
   return (
     <div className="space-y-6 px-3 sm:px-0">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Quản Lý Kho</h1>
-        <p className="text-sm sm:text-base text-gray-600">
-          Kho tổng → phiếu nhập kho chi nhánh → duyệt → lịch sử xuất nhập
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Quản Lý Kho</h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Kho tổng → phiếu nhập kho chi nhánh → duyệt → lịch sử xuất nhập
+          </p>
+        </div>
+        <button
+          onClick={handleResetAll}
+          disabled={resetting}
+          className="shrink-0 flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
+          title="Đưa toàn bộ kho tổng + kho chi nhánh về 0"
+        >
+          <Trash2 className="w-4 h-4" /> {resetting ? 'Đang reset...' : 'Reset kho về 0'}
+        </button>
       </div>
 
       {/* Tabs */}

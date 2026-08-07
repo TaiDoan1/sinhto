@@ -306,6 +306,20 @@ export async function saveProduct(product: any) {
   return res.json();
 }
 
+// Reset toàn bộ kho về 0 (nguyên liệu + thành phẩm POS, kho tổng + mọi chi nhánh)
+export async function resetAllInventory() {
+  const res = await fetch(`${BASE_URL}/inventory/reset-all`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error || 'Reset kho thất bại');
+  }
+  return res.json();
+}
+
 export async function deleteProduct(id: string) {
   const res = await fetch(`${BASE_URL}/products/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete product');

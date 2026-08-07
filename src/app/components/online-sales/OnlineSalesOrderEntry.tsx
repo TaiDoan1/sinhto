@@ -54,6 +54,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [markPaid, setMarkPaid] = useState(true);
   const [claimComboNow, setClaimComboNow] = useState(true);
   const [notes, setNotes] = useState('');
+  const [allergyNote, setAllergyNote] = useState(''); // kỵ vị & dị ứng
 
   const [showProductGrid, setShowProductGrid] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -195,6 +196,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           shipMethod: deliveryType === 'delivery' ? shipMethod : '',
           shipProvider: deliveryType === 'delivery' && shipMethod === 'external' ? shipProvider.trim() : '',
           shipTrackingCode: deliveryType === 'delivery' && shipMethod === 'external' ? shipTrackingCode.trim() : '',
+          allergyNote: allergyNote.trim(),
           ...staffPayload(),
         },
         { skipStockCheck: true }
@@ -220,6 +222,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setDeliveryTime('');
       setShipProvider('');
       setShipTrackingCode('');
+      setAllergyNote('');
       setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -265,6 +268,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         branchId: deliveryBranch,
         deliveryTime: comboDeliveryTime || '08:00',
         staff: `CSKH - ${employee.fullName}`,
+        allergyNote: allergyNote.trim(),
         notes: [notes.trim(), (raw.customerNote as string || '').trim()].filter(Boolean).join(' · '),
         salesRefCode: employee.id,
         renewedFromComboId: renewFrom?.id,
@@ -290,6 +294,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setPendingCombo(null);
       setShipFee('');
       setRenewFromComboId('');
+      setAllergyNote('');
       setSuccessMsg(`Đã tạo combo ${pendingCombo.name} cho ${customer.name}`);
       onComplete?.();
     } catch (err) {
@@ -447,6 +452,15 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 <p className="text-[11px] text-gray-400 mt-1">Áp dụng cho tất cả buổi; có thể sửa riêng từng buổi sau ở chi tiết combo.</p>
               </div>
             )}
+            <div>
+              <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
+              <textarea
+                placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
+                value={allergyNote}
+                onChange={(e) => setAllergyNote(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50/40 text-sm h-14 resize-none"
+              />
+            </div>
             <textarea
               placeholder={
                 mode === 'combo'

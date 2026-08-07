@@ -123,6 +123,7 @@ function parseDeliveryLogRow(row) {
     deliveryType: row.deliveryType || 'delivery',
     shipMethod: row.shipMethod || 'own',
     shipProvider: row.shipProvider || '',
+    allergyNote: row.allergyNote || '',
     careStaffId: row.careStaffId,
     careStaffName: row.careStaffName,
     totalCups: row.totalCups,
@@ -171,6 +172,7 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE combo_subscriptions ADD COLUMN commissionStaffName TEXT',
     'ALTER TABLE combo_subscriptions ADD COLUMN commissionType TEXT DEFAULT \'percent\'',
     'ALTER TABLE combo_subscriptions ADD COLUMN isRenewal INTEGER DEFAULT 0',
+    'ALTER TABLE combo_subscriptions ADD COLUMN allergyNote TEXT',
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveryTime TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
@@ -401,7 +403,7 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       const { branchId, date, from, to, comboOrderId, status, careStaffId } = req.query;
       let sql = `
         SELECT dl.*, cs.customerName, cs.customerPhone, cs.planName, cs.deliveryAddress,
-               cs.careStaffId, cs.careStaffName, cs.deliveryType, cs.shipMethod, cs.shipProvider,
+               cs.careStaffId, cs.careStaffName, cs.deliveryType, cs.shipMethod, cs.shipProvider, cs.allergyNote,
                cs.totalCups, cs.deliveredCups, cs.status AS comboStatus
         FROM delivery_logs dl
         JOIN combo_subscriptions cs ON cs.id = dl.combo_order_id

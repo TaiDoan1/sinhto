@@ -280,6 +280,9 @@ export function ComboShipBoard() {
                       + {todayItem.toppings.join(' · ')}
                     </div>
                   )}
+                  {combo.allergyNote && (
+                    <div className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1 mt-1">🚫 Kỵ vị/Dị ứng: {combo.allergyNote}</div>
+                  )}
                   {combo.notes && (
                     <div className="text-xs text-amber-700 mt-1">📝 {combo.notes}</div>
                   )}

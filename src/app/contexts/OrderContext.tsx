@@ -40,6 +40,8 @@ export interface Order {
   /** Bookship ngoài: tên đơn vị ship (Grab/Ahamove...) + mã vận đơn. */
   shipProvider?: string;
   shipTrackingCode?: string;
+  /** Kỵ vị & dị ứng của khách (cảnh báo pha chế). */
+  allergyNote?: string;
 }
 
 interface OrderContextType {

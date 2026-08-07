@@ -469,8 +469,8 @@ app.post('/api/orders', (req, res) => {
     const query = `INSERT INTO orders (
       id, branchId, source, items, time, status, total, staff, paidAt, readyAt, completedAt, orderNumber, customerName, customerPhone,
       deliveryAddress, shipperName, shipperId, paymentMethod, stockDeducted, salesStaffId, salesStaffName, staffId, shiftId, shipFee, note, deliveryTime,
-      deliveryType, shipMethod, shipProvider, shipTrackingCode
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      deliveryType, shipMethod, shipProvider, shipTrackingCode, allergyNote
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     db.run(query, [
       id,
@@ -503,6 +503,7 @@ app.post('/api/orders', (req, res) => {
       order.shipMethod || '',
       normStr(order.shipProvider) || '',
       order.shipTrackingCode || '',
+      (order.allergyNote || '').trim(),
     ], function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -628,10 +629,11 @@ app.patch('/api/orders/:id', (req, res) => {
     const newShipMethod = pick(updates.shipMethod, row.shipMethod);
     const newShipProvider = pick(updates.shipProvider, row.shipProvider);
     const newShipTrackingCode = pick(updates.shipTrackingCode, row.shipTrackingCode);
+    const newAllergyNote = pick(updates.allergyNote, row.allergyNote);
 
     db.run(
-      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ? WHERE id = ?`,
-      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, id],
+      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ?, allergyNote = ? WHERE id = ?`,
+      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, newAllergyNote, id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -2296,6 +2298,7 @@ function parseComboRow(row) {
     deliveryType: row.deliveryType || 'delivery',
     shipMethod: row.shipMethod || 'own',
     shipProvider: row.shipProvider || '',
+    allergyNote: row.allergyNote || '',
     shipFee: row.shipFee != null ? Number(row.shipFee) : 0,
     endDate: row.endDate || null,
     renewedFromComboId: row.renewedFromComboId || null,
@@ -2429,8 +2432,8 @@ app.post('/api/combo-subscriptions', (req, res) => {
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
     lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate,
     renewedFromComboId, renewedFromDuration, renewedFromPlanName,
-    deliveryType, shipMethod, shipProvider, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    deliveryType, shipMethod, shipProvider, allergyNote, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -2445,6 +2448,7 @@ app.post('/api/combo-subscriptions', (req, res) => {
     Number(body.shipFee) || 0, endDate,
     body.renewedFromComboId || null, body.renewedFromDuration || null, body.renewedFromPlanName || null,
     body.deliveryType || 'delivery', body.shipMethod || 'own', normStr(body.shipProvider) || '',
+    (body.allergyNote || '').trim(),
     now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -2516,7 +2520,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         closedByStaffId = ?, closedByStaffName = ?, closedAt = ?, assignedAt = ?,
         pauseStartDate = ?, pauseEndDate = ?, notes = ?, staff = ?, lastDeliveredAt = ?, deliveryLog = ?, totalCups = ?, deliveryTime = ?, shipFee = ?, endDate = ?,
         renewedFromComboId = ?, renewedFromDuration = ?, renewedFromPlanName = ?,
-        deliveryType = ?, shipMethod = ?, shipProvider = ?,
+        deliveryType = ?, shipMethod = ?, shipProvider = ?, allergyNote = ?,
         refundAmount = ?, refundedAt = ?, updatedAt = ?
       WHERE id = ?`,
       [
@@ -2555,6 +2559,7 @@ app.patch('/api/combo-subscriptions/:id', (req, res) => {
         merged.deliveryType ?? row.deliveryType ?? 'delivery',
         merged.shipMethod ?? row.shipMethod ?? 'own',
         normStr(merged.shipProvider ?? row.shipProvider) ?? null,
+        (merged.allergyNote ?? row.allergyNote ?? null),
         merged.refundAmount ?? row.refundAmount ?? null,
         merged.refundedAt ?? row.refundedAt ?? null,
         now,

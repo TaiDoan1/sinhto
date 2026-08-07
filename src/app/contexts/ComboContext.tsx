@@ -52,6 +52,7 @@ export interface ComboSubscription {
   deliveryType?: 'pickup' | 'delivery';
   shipMethod?: 'own' | 'external' | '';
   shipProvider?: string;
+  allergyNote?: string;
 }
 
 export interface ComboNotification {

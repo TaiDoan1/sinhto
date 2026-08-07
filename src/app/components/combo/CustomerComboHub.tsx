@@ -453,7 +453,7 @@ export function CustomerComboHub({
             onClose={() => setDetailComboId(null)}
             onSaveEdit={
               variant !== 'pos'
-                ? (address, notes, deliveryDays, shipFee, endDate) => updateCombo(detailCombo.id, { deliveryAddress: address, notes, deliveryDays, shipFee, endDate: endDate || undefined })
+                ? (address, notes, deliveryDays, shipFee, endDate, allergyNote) => updateCombo(detailCombo.id, { deliveryAddress: address, notes, deliveryDays, shipFee, endDate: endDate || undefined, allergyNote })
                 : undefined
             }
             onChangeBranch={

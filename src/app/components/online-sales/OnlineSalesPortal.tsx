@@ -77,6 +77,7 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
   const [deliveryTime, setDeliveryTime] = useState(isoToLocalInput(order.deliveryTime));
   const [deliveryAddress, setDeliveryAddress] = useState(order.deliveryAddress || '');
   const [note, setNote] = useState(order.note || '');
+  const [allergyNote, setAllergyNote] = useState(order.allergyNote || '');
   const [shipProvider, setShipProvider] = useState(order.shipProvider || '');
   const [shipTrackingCode, setShipTrackingCode] = useState(order.shipTrackingCode || '');
   const [shipFee, setShipFee] = useState(String(order.shipFee || ''));
@@ -100,6 +101,7 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
         deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : '',
         deliveryAddress: deliveryAddress.trim(),
         note: note.trim(),
+        allergyNote: allergyNote.trim(),
         shipProvider: shipProvider.trim(),
         shipTrackingCode: shipTrackingCode.trim(),
         shipFee: Number(shipFee) || 0,
@@ -158,6 +160,10 @@ function RetailOrderDetailDrawer({ order, onClose, onSaved }: { order: Order; on
             <div>
               <label className="text-xs font-semibold text-gray-500 mb-1 block">Ghi chú / đổi vị theo yêu cầu khách</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="VD: đổi vị dâu → xoài, ít đá..." className="w-full px-3 py-2 rounded-lg border text-sm h-16 resize-none" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
+              <textarea value={allergyNote} onChange={(e) => setAllergyNote(e.target.value)} placeholder="VD: dị ứng đậu phộng; không topping hạt..." className="w-full px-3 py-2 rounded-lg border border-red-200 bg-red-50/40 text-sm h-14 resize-none" />
             </div>
             {isDelivery && isOwnShip && (
               <div>

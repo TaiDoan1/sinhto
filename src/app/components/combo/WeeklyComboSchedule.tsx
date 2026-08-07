@@ -27,6 +27,7 @@ interface SchedItem {
   status: string;
   kind: 'combo' | 'retail';
   careStaffName?: string;
+  allergyNote?: string;
 }
 
 const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -123,6 +124,7 @@ export function WeeklyComboSchedule({ branchId, careStaffId, variant, branchLabe
             status: l.status,
             kind: 'combo',
             careStaffName: l.careStaffName,
+            allergyNote: l.allergyNote || '',
           }));
         if (variant === 'shipper') {
           comboItems = comboItems.filter((c) => c.deliveryType === 'delivery' && c.shipMethod !== 'external');
@@ -149,6 +151,7 @@ export function WeeklyComboSchedule({ branchId, careStaffId, variant, branchLabe
               status: o.status,
               kind: 'retail' as const,
               careStaffName: o.salesStaffName,
+              allergyNote: o.allergyNote || '',
             } as SchedItem;
           })
           .filter((x): x is SchedItem => !!x && x.date >= from && x.date <= to);
@@ -202,6 +205,9 @@ export function WeeklyComboSchedule({ branchId, careStaffId, variant, branchLabe
               {variant !== 'shipper' && branchLabel && l.branchId && <span className="ml-1 text-gray-400">· {branchLabel(l.branchId)}</span>}
             </span>
           </div>
+        )}
+        {l.allergyNote && (
+          <div className="text-[11px] font-bold text-red-700 mt-0.5">🚫 Kỵ vị/Dị ứng: {l.allergyNote}</div>
         )}
         {variant === 'pos' && l.careStaffName && (
           <div className="text-[10px] text-gray-400 mt-0.5">CSKH: {l.careStaffName}</div>

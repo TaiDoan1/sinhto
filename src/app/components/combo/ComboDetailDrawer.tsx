@@ -38,7 +38,7 @@ interface Props {
   variant: CustomerComboHubVariant;
   actor?: { id: string; name: string };
   onClose: () => void;
-  onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number, endDate: string) => void;
+  onSaveEdit?: (address: string, notes: string, deliveryDays: number[], shipFee: number, endDate: string, allergyNote: string) => void;
   onChangeBranch?: (branchId: string) => void;
   changingBranch?: boolean;
   branchOptions?: { id: string; name: string }[];
@@ -86,6 +86,7 @@ export function ComboDetailDrawer({
   const [logsLoading, setLogsLoading] = useState(true);
   const [editAddress, setEditAddress] = useState(combo.deliveryAddress || '');
   const [editNotes, setEditNotes] = useState(combo.notes || '');
+  const [editAllergy, setEditAllergy] = useState(combo.allergyNote || '');
   const [editDeliveryDays, setEditDeliveryDays] = useState<number[]>(combo.deliveryDays || [1, 2, 3, 4, 5, 6, 0]);
   const [editShipFee, setEditShipFee] = useState(String(combo.shipFee || ''));
   const [editEndDate, setEditEndDate] = useState(combo.endDate ? combo.endDate.split('T')[0] : '');
@@ -231,7 +232,7 @@ export function ComboDetailDrawer({
     if (!onSaveEdit) return;
     setSaving(true);
     try {
-      await onSaveEdit(editAddress, editNotes, editDeliveryDays, Number(editShipFee) || 0, editEndDate);
+      await onSaveEdit(editAddress, editNotes, editDeliveryDays, Number(editShipFee) || 0, editEndDate, editAllergy);
     } finally {
       setSaving(false);
     }
@@ -308,6 +309,11 @@ export function ComboDetailDrawer({
             )}
           </div>
 
+          {combo.allergyNote && (
+            <div className="text-sm text-red-800 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold">
+              🚫 Kỵ vị & Dị ứng: {combo.allergyNote}
+            </div>
+          )}
           {combo.notes && (
             <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-semibold">
               ⚠️ {combo.notes}
@@ -471,6 +477,14 @@ export function ComboDetailDrawer({
                 placeholder="Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)"
                 rows={2}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+              <label className="text-xs font-bold text-red-600 block">⚠️ Kỵ vị & Dị ứng</label>
+              <textarea
+                value={editAllergy}
+                onChange={(e) => setEditAllergy(e.target.value)}
+                placeholder="VD: dị ứng đậu phộng; không thích sầu riêng; không topping hạt..."
+                rows={2}
+                className="w-full border border-red-200 bg-red-50/40 rounded-lg px-3 py-2 text-sm"
               />
               <div className="space-y-1.5">
                 <div className="text-xs font-bold text-gray-400 uppercase">Giao vào các ngày</div>

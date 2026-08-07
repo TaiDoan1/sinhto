@@ -42,7 +42,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     address: prefill?.address || '',
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
-  const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local)
+  const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local) — đơn lẻ
+  const [comboDeliveryTime, setComboDeliveryTime] = useState('08:00'); // giờ giao/lấy mặc định — combo
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('delivery'); // tại quầy / giao
   const [shipMethod, setShipMethod] = useState<'own' | 'external'>('own'); // shipper mình / bookship ngoài
   const [shipProvider, setShipProvider] = useState(''); // đơn vị ship ngoài
@@ -246,7 +247,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       const created = await api.createComboSubscription({
         customerName: customer.name.trim(),
         customerPhone: customer.phone.trim(),
-        deliveryAddress: customer.address.trim(),
+        deliveryAddress: deliveryType === 'pickup' ? '' : customer.address.trim(),
         planName: pendingCombo.name,
         comboType: duration === 'weekly' ? 'weekly' : 'monthly',
         comboDuration: duration,
@@ -262,7 +263,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         shipProvider: deliveryType === 'delivery' && shipMethod === 'external' ? shipProvider.trim() : '',
         status: 'pending',
         branchId: deliveryBranch,
-        deliveryTime: raw.deliveryTime || '08:00',
+        deliveryTime: comboDeliveryTime || '08:00',
         staff: `CSKH - ${employee.fullName}`,
         notes: [notes.trim(), (raw.customerNote as string || '').trim()].filter(Boolean).join(' · '),
         salesRefCode: employee.id,
@@ -359,18 +360,20 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm"
               />
             </div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-              <textarea
-                placeholder="Địa chỉ giao hàng"
-                value={customer.address}
-                onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm h-20 resize-none"
-              />
-            </div>
+            {deliveryType !== 'pickup' && (
+              <div className="relative">
+                <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <textarea
+                  placeholder="Địa chỉ giao hàng"
+                  value={customer.address}
+                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm h-20 resize-none"
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                <Store className="w-3.5 h-3.5" /> Chi nhánh gần khách nhất (nhận đơn)
+                <Store className="w-3.5 h-3.5" /> {deliveryType === 'pickup' ? 'Chi nhánh khách đến lấy' : 'Chi nhánh gần khách nhất (nhận đơn)'}
               </label>
               <select
                 value={deliveryBranch}
@@ -425,7 +428,23 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                     <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)} placeholder="Đơn vị ship (Grab/Ahamove...) — áp dụng hằng ngày" className="w-full px-3 py-2 rounded-xl border text-sm" />
                   )
                 )}
-                <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder={mode === 'combo' ? 'Phí ship mỗi buổi (VNĐ)' : 'Phí ship (VNĐ)'} className="w-full px-3 py-2 rounded-xl border text-sm" />
+                {mode === 'retail' && (
+                  <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder="Phí ship (VNĐ)" className="w-full px-3 py-2 rounded-xl border text-sm" />
+                )}
+              </div>
+            )}
+            {mode === 'combo' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> {deliveryType === 'pickup' ? 'Giờ khách lấy mặc định' : 'Giờ giao mặc định'}
+                </label>
+                <input
+                  type="time"
+                  value={comboDeliveryTime}
+                  onChange={(e) => setComboDeliveryTime(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Áp dụng cho tất cả buổi; có thể sửa riêng từng buổi sau ở chi tiết combo.</p>
               </div>
             )}
             <textarea
@@ -603,17 +622,19 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               ) : (
                 <p className="text-sm text-gray-500">Chưa chọn gói combo — bấm nút bên dưới để thiết lập.</p>
               )}
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship (nếu có)</label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={shipFee}
-                  onChange={(e) => setShipFee(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm"
-                />
-              </div>
+              {deliveryType === 'delivery' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship mỗi buổi (nếu có)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={shipFee}
+                    onChange={(e) => setShipFee(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm"
+                  />
+                </div>
+              )}
               {previousCombos.length > 0 && (
                 <div>
                   <label className="text-xs font-bold text-gray-500 mb-1 block">Loại đăng ký</label>

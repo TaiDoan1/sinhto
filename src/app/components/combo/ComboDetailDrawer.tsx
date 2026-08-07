@@ -100,11 +100,13 @@ export function ComboDetailDrawer({
   const [slotDate, setSlotDate] = useState('');
   const [slotTime, setSlotTime] = useState('');
   const [slotAddr, setSlotAddr] = useState('');
+  const [slotBranch, setSlotBranch] = useState('');
   const [slotBusy, setSlotBusy] = useState(false);
 
   const items = normalizeComboItems(combo.items);
   const renewalBadge = getRenewalBadge(combo);
   const canEditSchedule = (variant === 'cskh' || variant === 'admin') && combo.status !== 'completed';
+  const branchName = (id?: string) => (branchOptions || []).find((b) => b.id === id)?.name || id || '';
 
   const loadLogs = () => {
     setLogsLoading(true);
@@ -134,12 +136,13 @@ export function ComboDetailDrawer({
     setSlotDate((log.deliveryDate || '').split('T')[0]);
     setSlotTime(log.deliveryTime || '08:00');
     setSlotAddr(log.deliveryAddress || combo.deliveryAddress || '');
+    setSlotBranch(log.branchId || combo.branchId || '');
   };
 
   const saveSlot = async (log: DeliveryLogDetail) => {
     setSlotBusy(true);
     try {
-      await api.rescheduleDeliveryLog(log.id, { deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr });
+      await api.rescheduleDeliveryLog(log.id, { deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr, branchId: slotBranch });
       setEditingSlotId('');
       await loadLogs();
     } catch (e) {
@@ -352,11 +355,24 @@ export function ComboDetailDrawer({
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">Địa chỉ giao buổi này</label>
-                          <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}
-                            placeholder="Để trống = dùng địa chỉ chung của combo"
-                            className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
+                          <label className="text-[10px] font-bold text-gray-400 uppercase">
+                            {combo.deliveryType === 'pickup' ? 'Chi nhánh khách lấy buổi này' : 'Chi nhánh làm/giao buổi này'}
+                          </label>
+                          <select value={slotBranch} onChange={(e) => setSlotBranch(e.target.value)}
+                            className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white">
+                            {(branchOptions || []).map((b) => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
                         </div>
+                        {combo.deliveryType !== 'pickup' && (
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Địa chỉ giao buổi này</label>
+                            <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}
+                              placeholder="Để trống = dùng địa chỉ chung của combo"
+                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
+                          </div>
+                        )}
                         <div className="flex gap-2">
                           <button type="button" onClick={() => saveSlot(log)} disabled={slotBusy}
                             className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:opacity-60">
@@ -394,11 +410,18 @@ export function ComboDetailDrawer({
                           )}
                         </div>
                       </div>
-                      {(log.deliveryAddress && log.deliveryAddress !== combo.deliveryAddress) && (
+                      {combo.deliveryType !== 'pickup' && (log.deliveryAddress && log.deliveryAddress !== combo.deliveryAddress) && (
                         <div className="flex items-start gap-1 text-[11px] text-emerald-700 mt-0.5">
                           <MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {log.deliveryAddress}
                         </div>
                       )}
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        {combo.deliveryType === 'pickup' ? '🏪 Lấy tại: ' : '🏭 Làm/giao tại: '}
+                        <span className="font-semibold text-gray-700">{branchName(log.branchId)}</span>
+                        {log.branchId && combo.branchId && log.branchId !== combo.branchId && (
+                          <span className="ml-1 text-amber-700 font-bold">(khác mặc định)</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -406,9 +429,11 @@ export function ComboDetailDrawer({
             )}
           </div>
 
-          {variant === 'admin' && onChangeBranch && (
+          {(variant === 'admin' || variant === 'cskh') && onChangeBranch && (
             <div className="space-y-1.5">
-              <div className="text-xs font-bold text-gray-400 uppercase">Chi nhánh phụ trách</div>
+              <div className="text-xs font-bold text-gray-400 uppercase">
+                {combo.deliveryType === 'pickup' ? 'Chi nhánh khách lấy (mặc định)' : 'Chi nhánh phụ trách (mặc định)'}
+              </div>
               <div className="flex gap-2">
                 <select
                   value={selectedBranch}

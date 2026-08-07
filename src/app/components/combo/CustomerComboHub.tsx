@@ -457,7 +457,7 @@ export function CustomerComboHub({
                 : undefined
             }
             onChangeBranch={
-              variant === 'admin'
+              variant === 'admin' || variant === 'cskh'
                 ? (branchId) => handleChangeBranch(detailCombo, branchId)
                 : undefined
             }

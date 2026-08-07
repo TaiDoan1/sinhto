@@ -506,9 +506,9 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
   app.patch('/api/delivery-logs/:id/reschedule', async (req, res) => {
     try {
       const { id } = req.params;
-      const { deliveryDate, deliveryTime, deliveryAddress, note } = req.body || {};
-      if (!deliveryDate && !deliveryTime && deliveryAddress === undefined) {
-        return res.status(400).json({ error: 'deliveryDate hoac deliveryTime hoac deliveryAddress required' });
+      const { deliveryDate, deliveryTime, deliveryAddress, branchId, note } = req.body || {};
+      if (!deliveryDate && !deliveryTime && deliveryAddress === undefined && !branchId) {
+        return res.status(400).json({ error: 'deliveryDate hoac deliveryTime hoac deliveryAddress hoac branchId required' });
       }
       const log = await dbGet(db, 'SELECT * FROM delivery_logs WHERE id = ?', [id]);
       if (!log) return res.status(404).json({ error: 'Delivery log not found' });
@@ -520,12 +520,13 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       const newDate = deliveryDate || log.delivery_date;
       await dbRun(
         db,
-        `UPDATE delivery_logs SET delivery_date = ?, delivery_time = ?, delivery_address = ?, scheduled_day_index = ?,
+        `UPDATE delivery_logs SET delivery_date = ?, delivery_time = ?, delivery_address = ?, branch_id = ?, scheduled_day_index = ?,
          flavor_note = COALESCE(?, flavor_note), alert_sent = 0, updated_at = ? WHERE id = ?`,
         [
           newDate,
           deliveryTime || log.delivery_time || '08:00',
           deliveryAddress !== undefined ? deliveryAddress : (log.delivery_address || ''),
+          branchId || log.branch_id,
           new Date(newDate).getDay(),
           note || null,
           now,

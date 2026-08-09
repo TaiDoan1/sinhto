@@ -12,7 +12,7 @@ import {
 } from '../../utils/comboUtils';
 import { Search, Phone, Package, User, ChevronRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { ComboDetailDrawer } from './ComboDetailDrawer';
-import { ComboCardDetails, type ComboActionProps } from './ComboCardDetails';
+import { type ComboActionProps } from './ComboCardDetails';
 
 export type CustomerComboHubVariant = 'pos' | 'admin' | 'cskh';
 
@@ -48,7 +48,7 @@ const STATUS_COLOR: Record<string, string> = {
  * toàn bộ chi tiết + thao tác còn lại (dùng chung ComboCardDetails).
  */
 function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void }) {
-  const { combo, variant, onActivate, onDeliver, onOpenDetail, delivering } = props;
+  const { combo, variant, onActivate, onClaim, onDeliver, onOpenDetail, delivering } = props;
   const progress = getComboProgress(combo);
   const dueToday = !wasDeliveredToday(combo) && combo.status === 'active';
   const renewalBadge = getRenewalBadge(combo);
@@ -136,7 +136,7 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
             <a href={`tel:${combo.customerPhone}`} className="text-sm text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
               <Phone className="w-3.5 h-3.5" />{combo.customerPhone}
             </a>
-            <p className="text-xs text-gray-500 mt-0.5">{combo.planName || 'Combo FitBlend'} · {combo.id}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{combo.planName || 'Combo FitBlend'}</p>
           </div>
           <div className="text-right shrink-0">
             <div className="text-lg font-black text-emerald-700">{progress.label}</div>
@@ -144,7 +144,41 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
           </div>
         </div>
 
-        <ComboCardDetails {...props} />
+        {/* Tóm tắt gọn — bấm "Chi tiết" để xem đầy đủ (địa chỉ, ghi chú, kho, Copy Zalo, tạm dừng...) */}
+        {(() => {
+          const it = getComboItemForToday(combo);
+          // CSKH không trực tiếp giao (chi nhánh giao qua app Giao Combo) — nút nhanh chỉ là "Chốt combo"
+          // khi đơn còn chờ chốt; các thao tác khác (tạm dừng, hoàn thành, Copy Zalo...) nằm trong Chi tiết.
+          const quick = combo.status === 'pending' && onClaim
+            ? { label: 'Chốt combo', onClick: onClaim, disabled: false, className: 'bg-emerald-600 hover:bg-emerald-700 text-white' }
+            : null;
+          return (
+            <div className="mt-2.5 space-y-2">
+              {it && (
+                <div className="text-sm bg-gray-50 rounded-lg px-2.5 py-1.5">
+                  <span className="font-semibold text-emerald-700">Hôm nay:</span>{' '}
+                  <span className="text-gray-800">{it.productName}{it.size ? ` · ${it.size}` : ''}{it.protein ? ` · ${it.protein}g` : ''}</span>
+                  {combo.deliveryTime && <span className="text-gray-500"> · {combo.deliveryTime}</span>}
+                </div>
+              )}
+              {combo.allergyNote && (
+                <div className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">🚫 Dị ứng: {combo.allergyNote}</div>
+              )}
+              <div className="flex items-center gap-2">
+                {quick && (
+                  <button type="button" onClick={quick.onClick} disabled={quick.disabled}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-60 ${quick.className}`}>
+                    {quick.label}
+                  </button>
+                )}
+                <button type="button" onClick={onOpenDetail}
+                  className={`${quick ? '' : 'flex-1'} px-3 py-2 rounded-lg text-sm font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1`}>
+                  Chi tiết <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

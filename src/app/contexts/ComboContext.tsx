@@ -257,14 +257,17 @@ export function ComboProvider({ children }: { children: ReactNode }) {
     const todayItem = getComboItemForToday(combo);
     const productName = todayItem?.productName || combo.planName || 'FitBlend';
 
+    let pendingLogs: any[] = [];
     try {
-      const pendingLogs = await api.fetchDeliveryLogs({
-        comboOrderId: comboId,
-        date: today,
-        status: 'pending',
-      });
+      pendingLogs = await api.fetchDeliveryLogs({ comboOrderId: comboId, date: today, status: 'pending' });
+    } catch (err) {
+      console.warn('fetchDeliveryLogs lỗi, dùng nhánh cũ:', err);
+    }
 
-      if (pendingLogs.length > 0) {
+    // Combo có lịch chi tiết (delivery_logs) → giao qua API. Nếu API TỪ CHỐI (VD đã đủ số ly)
+    // thì báo lỗi và DỪNG — KHÔNG rơi xuống nhánh legacy (tránh cộng dồn lách qua guard chặn giao dư).
+    if (pendingLogs.length > 0) {
+      try {
         const result = await api.deliverDeliveryLog(pendingLogs[0].id, {
           performedBy,
           branchId,
@@ -280,9 +283,10 @@ export function ComboProvider({ children }: { children: ReactNode }) {
           message: `Đã giao ${productName} cho ${combo.customerName} (${normalized.deliveredCups ?? 0}/${normalized.totalCups ?? 7} ly)`,
         });
         return true;
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Không giao được buổi này');
+        return false;
       }
-    } catch (err) {
-      console.warn('delivery_logs API fallback:', err);
     }
 
     const log = [...(combo.deliveryLog || [])];

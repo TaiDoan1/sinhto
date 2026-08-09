@@ -435,6 +435,21 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
         return res.status(400).json({ error: 'Khong the giao tu trang thai nay' });
       }
 
+      // Chặn giao DƯ: nếu combo đã giao đủ số ly (deliveredCups >= totalCups) thì không cho giao thêm.
+      const comboForGuard = await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [log.combo_order_id]);
+      if (comboForGuard) {
+        const already = await dbGet(
+          db,
+          `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status = 'delivered'`,
+          [log.combo_order_id]
+        );
+        const deliveredNow = Number(already?.c || 0);
+        const totalCupsGuard = comboForGuard.totalCups != null ? Number(comboForGuard.totalCups) : 7;
+        if (deliveredNow >= totalCupsGuard) {
+          return res.status(400).json({ error: `Combo đã giao đủ ${totalCupsGuard} ly — không thể giao thêm` });
+        }
+      }
+
       const now = new Date().toISOString();
       await dbRun(
         db,

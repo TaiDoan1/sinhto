@@ -1,20 +1,22 @@
 import { useState } from 'react';
-import { LogOut, Store, Calendar, List, Warehouse, Package, CalendarCheck } from 'lucide-react';
+import { LogOut, Store, Calendar, List, Warehouse, Package, CalendarCheck, History } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { AdminLogin } from './AdminLogin';
 import { ShiftSchedule } from './ShiftSchedule';
 import { StoreManagerEmployeeList } from './StoreManagerEmployeeList';
 import { StoreManagerAttendance } from './StoreManagerAttendance';
+import { StoreManagerCheckinHistory } from './StoreManagerCheckinHistory';
 import { CrossBranchInventory } from './CrossBranchInventory';
 import { InventoryDashboard } from './InventoryDashboard';
 
-type StoreManagerTab = 'schedule' | 'list' | 'attendance' | 'stock' | 'materials';
+type StoreManagerTab = 'schedule' | 'list' | 'attendance' | 'history' | 'stock' | 'materials';
 
 const tabs: { id: StoreManagerTab; label: string; icon: typeof Calendar }[] = [
   { id: 'schedule', label: 'Sắp Lịch', icon: Calendar },
   { id: 'list', label: 'Danh Sách NV', icon: List },
   { id: 'attendance', label: 'Chấm Công', icon: CalendarCheck },
+  { id: 'history', label: 'Lịch Sử', icon: History },
   { id: 'stock', label: 'Quản Lý Kho', icon: Warehouse },
   { id: 'materials', label: 'Nguyên Liệu', icon: Package },
 ];
@@ -99,6 +101,7 @@ export function StoreManagerApp() {
           {activeTab === 'schedule' && <ShiftSchedule />}
           {activeTab === 'list' && <StoreManagerEmployeeList />}
           {activeTab === 'attendance' && <StoreManagerAttendance />}
+          {activeTab === 'history' && <StoreManagerCheckinHistory />}
           {activeTab === 'stock' && <CrossBranchInventory />}
           {activeTab === 'materials' && <InventoryDashboard />}
         </div>

@@ -25,6 +25,24 @@ function hhmm(iso?: string) {
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
+/** Số phút làm giữa check-in và check-out (0 nếu thiếu 1 trong 2). */
+function workMinutes(checkIn?: string, checkOut?: string) {
+  if (!checkIn || !checkOut) return 0;
+  const a = new Date(checkIn).getTime();
+  const b = new Date(checkOut).getTime();
+  if (isNaN(a) || isNaN(b) || b <= a) return 0;
+  return Math.round((b - a) / 60000);
+}
+
+/** Định dạng phút → "8h30" / "8h" / "45p". */
+function fmtDuration(mins: number) {
+  if (!mins) return '—';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}p`;
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+}
+
 /** Bảng chấm công cho Cửa hàng trưởng: chọn tháng → xem số ngày công + giờ check-in/out từng ngày
  * của từng nhân viên (theo chi nhánh). KHÔNG hiển thị lương/tiền. */
 export function StoreManagerAttendance() {
@@ -72,13 +90,19 @@ export function StoreManagerAttendance() {
       .filter((e) => !term || (e.fullName || '').toLowerCase().includes(term) || (e.employeeId || '').toLowerCase().includes(term))
       .map((e) => {
         const days = byEmp.get(e.id);
-        const dayList = days ? [...days.entries()].map(([date, v]) => ({ date, ...v })).sort((a, b) => a.date.localeCompare(b.date)) : [];
-        return { emp: e, dayCount: dayList.length, dayList };
+        const dayList = days
+          ? [...days.entries()]
+              .map(([date, v]) => ({ date, ...v, mins: workMinutes(v.checkIn, v.checkOut) }))
+              .sort((a, b) => a.date.localeCompare(b.date))
+          : [];
+        const totalMins = dayList.reduce((s, d) => s + d.mins, 0);
+        return { emp: e, dayCount: dayList.length, dayList, totalMins };
       })
       .sort((a, b) => (b.dayCount - a.dayCount) || (a.emp.fullName || '').localeCompare(b.emp.fullName || ''));
   }, [employees, byEmp, branchFilter, search]);
 
   const totalDays = rows.reduce((s, r) => s + r.dayCount, 0);
+  const totalHours = rows.reduce((s, r) => s + r.totalMins, 0);
 
   return (
     <div className="space-y-3">
@@ -103,7 +127,7 @@ export function StoreManagerAttendance() {
       </div>
 
       <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm text-emerald-800 font-semibold">
-        Tháng {month.split('-')[1]}/{month.split('-')[0]} · {rows.length} nhân viên · {totalDays} lượt ngày công
+        Tháng {month.split('-')[1]}/{month.split('-')[0]} · {rows.length} nhân viên · {totalDays} lượt ngày công · tổng {fmtDuration(totalHours)}
       </div>
 
       {loading ? (
@@ -112,7 +136,7 @@ export function StoreManagerAttendance() {
         <p className="text-center text-gray-400 py-10 text-sm">Không có nhân viên phù hợp.</p>
       ) : (
         <div className="space-y-2">
-          {rows.map(({ emp, dayCount, dayList }) => {
+          {rows.map(({ emp, dayCount, dayList, totalMins }) => {
             const open = expanded[emp.id];
             return (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -126,8 +150,8 @@ export function StoreManagerAttendance() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-lg font-black text-emerald-700">{dayCount}</span>
-                    <span className="text-xs text-gray-400"> ngày công</span>
+                    <div><span className="text-lg font-black text-emerald-700">{dayCount}</span><span className="text-xs text-gray-400"> ngày công</span></div>
+                    <div className="text-xs font-semibold text-sky-700">{fmtDuration(totalMins)} làm</div>
                   </div>
                 </button>
                 {open && (
@@ -135,12 +159,13 @@ export function StoreManagerAttendance() {
                     {dayList.length === 0 ? (
                       <div className="px-4 py-3 text-xs text-gray-400">Không có ngày công nào trong tháng.</div>
                     ) : dayList.map((d) => (
-                      <div key={d.date} className="flex items-center justify-between px-4 py-2 text-sm">
-                        <span className="text-gray-600">{new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
-                        <span className="font-semibold text-gray-800">
+                      <div key={d.date} className="flex items-center justify-between px-4 py-2 text-sm gap-2">
+                        <span className="text-gray-600 shrink-0">{new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
+                        <span className="font-semibold text-gray-800 text-right">
                           <span className="text-emerald-700">{hhmm(d.checkIn)}</span>
                           {' → '}
                           <span className={d.checkOut ? 'text-gray-800' : 'text-amber-600'}>{hhmm(d.checkOut)}</span>
+                          <span className="ml-2 text-xs font-bold text-sky-700">{fmtDuration(d.mins)}</span>
                         </span>
                       </div>
                     ))}

@@ -587,7 +587,7 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
         flavorNote: flavorNote || '',
       });
       // Cộng thêm 1 buổi vào tổng số ly của combo cho khớp lịch mới
-      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status != 'cancelled'`, [comboOrderId]);
+      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status IN ('delivered','pending','shipping')`, [comboOrderId]);
       await dbRun(db, 'UPDATE combo_subscriptions SET totalCups = ?, updatedAt = ? WHERE id = ?', [Number(activeCount.c), new Date().toISOString(), comboOrderId]);
       await syncComboFromLogs(db, comboOrderId);
       const parsed = parseComboRow(await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [comboOrderId]));
@@ -610,7 +610,7 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
       }
       const now = new Date().toISOString();
       await dbRun(db, `UPDATE delivery_logs SET status = 'cancelled', updated_at = ? WHERE id = ?`, [now, id]);
-      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status != 'cancelled'`, [log.combo_order_id]);
+      const activeCount = await dbGet(db, `SELECT COUNT(*) AS c FROM delivery_logs WHERE combo_order_id = ? AND status IN ('delivered','pending','shipping')`, [log.combo_order_id]);
       await dbRun(db, 'UPDATE combo_subscriptions SET totalCups = ?, updatedAt = ? WHERE id = ?', [Number(activeCount.c), now, log.combo_order_id]);
       await syncComboFromLogs(db, log.combo_order_id);
       const parsed = parseComboRow(await dbGet(db, 'SELECT * FROM combo_subscriptions WHERE id = ?', [log.combo_order_id]));

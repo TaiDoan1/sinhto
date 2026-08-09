@@ -89,6 +89,16 @@ function POSInterfaceInner() {
   const orderNotificationAudioUrl = usePosOrderNotificationAudioUrl();
   const orderNotificationMode = usePosOrderNotificationMode();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
+  // Bán combo ở POS: chọn NV bán (người chốt, 80%) + CSKH quản lý (20%) trước khi tạo gói
+  const [comboPendingStaff, setComboPendingStaff] = useState<any | null>(null);
+  const [posEmployees, setPosEmployees] = useState<{ id: string; fullName: string; position: string; branch: string }[]>([]);
+  const [sellerId, setSellerId] = useState('');
+  const [mgrId, setMgrId] = useState('');
+  useEffect(() => {
+    api.fetchEmployees()
+      .then((list: any[]) => setPosEmployees((list || []).map((e) => ({ id: e.id, fullName: e.fullName, position: e.position, branch: e.branch }))))
+      .catch(() => {});
+  }, []);
 
   // Kiểm tra ca hiện hành mỗi khi mở/quay lại màn POS (không chỉ lúc đăng nhập) — để MỖI CA khi
   // bắt đầu đều được hỏi tiền mặt đầu ca riêng, kể cả khi máy để nguyên phiên từ ca trước.
@@ -477,10 +487,21 @@ function POSInterfaceInner() {
 
   // Combo tại quầy đã thu tiền ngay (nằm chung giỏ hàng) — nhưng vẫn phải tạo
   // ra 1 gói combo subscription thật (giống bên CSKH) để sinh lịch giao hàng ngày.
+  // Bán combo ở POS: mở modal chọn NV bán + CSKH quản lý trước, rồi mới tạo gói (để chia hoa hồng)
   const handleCreateComboSubscription = async (combo: any) => {
+    setSellerId(session?.employeeId || '');
+    setMgrId('');
+    setComboPendingStaff(combo);
+  };
+
+  const confirmComboStaff = async () => {
+    const combo = comboPendingStaff;
+    if (!combo) return;
     const raw = combo.rawComboData || {};
     const duration = raw.duration || 'monthly';
     const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
+    const seller = posEmployees.find((e) => e.id === sellerId);
+    const mgr = posEmployees.find((e) => e.id === mgrId);
     try {
       await api.createComboSubscription({
         customerName: combo.customerName || raw.customerName || '',
@@ -497,12 +518,20 @@ function POSInterfaceInner() {
         status: 'active',
         branchId,
         deliveryTime: raw.deliveryTime || '08:00',
-        staff: `POS - ${session?.employeeName || ''}`,
-        careStaffId: session?.employeeId,
-        careStaffName: session?.employeeName,
+        staff: `POS - ${seller?.fullName || session?.employeeName || ''}`,
+        // CSKH quản lý = careStaff (để combo hiện trong danh sách của CSKH đó) + nhận 20%
+        careStaffId: mgr?.id || session?.employeeId,
+        careStaffName: mgr?.fullName || session?.employeeName,
+        // Người chốt POS = nhận 80%
+        commissionStaffId: seller?.id || session?.employeeId,
+        commissionStaffName: seller?.fullName || session?.employeeName,
+        mgrStaffId: mgr?.id || '',
+        mgrStaffName: mgr?.fullName || '',
       });
     } catch (err) {
       console.error('Tạo combo subscription từ POS thất bại:', err);
+    } finally {
+      setComboPendingStaff(null);
     }
   };
 
@@ -835,6 +864,43 @@ function POSInterfaceInner() {
                 handleCreateComboSubscription(combo);
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {comboPendingStaff && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5">
+            <h3 className="text-lg font-black text-gray-900 mb-1">Chốt combo tại quầy</h3>
+            <p className="text-xs text-gray-500 mb-4">Gói: <b>{comboPendingStaff.name}</b> · {(comboPendingStaff.price || 0).toLocaleString('vi-VN')}đ — chọn người hưởng hoa hồng.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1 block">👤 Nhân viên bán (người chốt — hưởng phần lớn)</label>
+                <select value={sellerId} onChange={(e) => setSellerId(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                  <option value="">-- Chọn nhân viên bán --</option>
+                  {posEmployees.filter((e) => !branchId || e.branch === branchId).map((e) => (
+                    <option key={e.id} value={e.id}>{e.fullName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-emerald-700 mb-1 block">🛍️ CSKH quản lý combo (hưởng phần còn lại)</label>
+                <select value={mgrId} onChange={(e) => setMgrId(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                  <option value="">-- Không có (người bán hưởng 100%) --</option>
+                  {posEmployees.filter((e) => ['online_sales', 'customer_care'].includes(e.position)).map((e) => (
+                    <option key={e.id} value={e.id}>{e.fullName}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Tỷ lệ chia do Admin cấu hình (mặc định 80% người bán / 20% CSKH).</p>
+              </div>
+            </div>
+            <button
+              onClick={confirmComboStaff}
+              disabled={!sellerId}
+              className="w-full mt-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl"
+            >
+              Xác nhận tạo combo
+            </button>
           </div>
         </div>
       )}

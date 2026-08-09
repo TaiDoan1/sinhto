@@ -8,6 +8,11 @@ interface ComboRow {
   commissionStaffName?: string | null;
   commissionAmount?: number;
   commissionStatus?: string;
+  mgrStaffId?: string | null;
+  mgrStaffName?: string | null;
+  mgrCommissionAmount?: number;
+  _share?: number;
+  _role?: 'seller' | 'mgr';
   commissionType?: string;
   isRenewal?: boolean;
   planName?: string;
@@ -57,7 +62,7 @@ export function ComboCommissionReport() {
     setLoading(true);
     api
       .fetchComboSubscriptions()
-      .then((rows: ComboRow[]) => setCombos(rows.filter((c) => (c.commissionAmount || 0) > 0 && c.commissionStaffId)))
+      .then((rows: ComboRow[]) => setCombos(rows.filter((c) => ((c.commissionAmount || 0) > 0 && c.commissionStaffId) || ((c.mgrCommissionAmount || 0) > 0 && c.mgrStaffId))))
       .catch(() => setCombos([]))
       .finally(() => setLoading(false));
   };
@@ -73,18 +78,21 @@ export function ComboCommissionReport() {
 
   const groups = useMemo<StaffGroup[]>(() => {
     const map = new Map<string, StaffGroup>();
+    const add = (staffId: string | null | undefined, staffName: string | null | undefined, c: ComboRow, share: number, role: 'seller' | 'mgr') => {
+      if (!staffId || share <= 0) return;
+      if (!map.has(staffId)) {
+        map.set(staffId, { staffId, staffName: staffName || 'NV ' + staffId, newCount: 0, renewCount: 0, total: 0, paid: 0, unpaid: 0, combos: [] });
+      }
+      const g = map.get(staffId)!;
+      g.total += share;
+      if (c.isRenewal) g.renewCount += 1; else g.newCount += 1;
+      if (c.commissionStatus === 'paid') g.paid += share; else g.unpaid += share;
+      g.combos.push({ ...c, _share: share, _role: role });
+    };
     for (const c of combos) {
       if (!inPeriod(c)) continue;
-      const sid = c.commissionStaffId || '';
-      if (!map.has(sid)) {
-        map.set(sid, { staffId: sid, staffName: c.commissionStaffName || 'CSKH ' + sid, newCount: 0, renewCount: 0, total: 0, paid: 0, unpaid: 0, combos: [] });
-      }
-      const g = map.get(sid)!;
-      const amt = c.commissionAmount || 0;
-      g.total += amt;
-      if (c.isRenewal) g.renewCount += 1; else g.newCount += 1;
-      if (c.commissionStatus === 'paid') g.paid += amt; else g.unpaid += amt;
-      g.combos.push(c);
+      add(c.commissionStaffId, c.commissionStaffName, c, c.commissionAmount || 0, 'seller');
+      add(c.mgrStaffId, c.mgrStaffName, c, c.mgrCommissionAmount || 0, 'mgr');
     }
     return [...map.values()].sort((a, b) => b.total - a.total);
   }, [combos, month]);
@@ -212,9 +220,12 @@ export function ComboCommissionReport() {
                             <p className="text-sm font-semibold text-gray-800 truncate">
                               {c.customerName || 'Khách'} · {c.planName || 'Combo'}
                               {c.isRenewal && <span className="ml-1 text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">gia hạn</span>}
+                              {c._role === 'mgr'
+                                ? <span className="ml-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">quản lý</span>
+                                : <span className="ml-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">người chốt</span>}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {fmt(c.totalPrice || 0)} · HH {fmt(c.commissionAmount || 0)}
+                              {fmt(c.totalPrice || 0)} · HH nhận {fmt(c._share ?? c.commissionAmount ?? 0)}
                               {d ? ` · ${d.toLocaleDateString('vi-VN')}` : ''}
                             </p>
                           </div>

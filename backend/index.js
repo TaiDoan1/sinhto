@@ -11,7 +11,7 @@ const { hashPassword, verifyPassword, isHashed } = require('./password');
 const { signToken, verifyToken, getTokenFromReq } = require('./auth');
 const { initDatabase, getPool, isPostgres } = require('./db');
 const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesApi');
-const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo } = require('./comboDeliveryApi');
+const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo, applyPosComboCommission } = require('./comboDeliveryApi');
 const { registerCskhRoutes } = require('./cskhApi');
 const { registerFacebookRoutes } = require('./facebookApi');
 const { registerGiftCampaignRoutes } = require('./giftCampaignsApi');
@@ -2295,6 +2295,9 @@ function parseComboRow(row) {
     commissionStaffName: row.commissionStaffName || null,
     commissionType: row.commissionType || 'percent',
     isRenewal: row.isRenewal != null ? !!Number(row.isRenewal) : !!row.renewedFromComboId,
+    mgrStaffId: row.mgrStaffId || null,
+    mgrStaffName: row.mgrStaffName || null,
+    mgrCommissionAmount: row.mgrCommissionAmount != null ? Number(row.mgrCommissionAmount) : 0,
     deliveryType: row.deliveryType || 'delivery',
     shipMethod: row.shipMethod || 'own',
     shipProvider: row.shipProvider || '',
@@ -2432,8 +2435,9 @@ app.post('/api/combo-subscriptions', (req, res) => {
     closedAt, assignedAt, pauseStartDate, pauseEndDate, notes, staff,
     lastDeliveredAt, deliveryLog, totalCups, deliveryTime, shipFee, endDate,
     renewedFromComboId, renewedFromDuration, renewedFromPlanName,
-    deliveryType, shipMethod, shipProvider, allergyNote, createdAt, updatedAt
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    deliveryType, shipMethod, shipProvider, allergyNote,
+    commissionStaffId, commissionStaffName, mgrStaffId, mgrStaffName, createdAt, updatedAt
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.run(query, [
     id, body.orderId || null, normStr(body.customerName), body.customerPhone || '',
@@ -2449,6 +2453,8 @@ app.post('/api/combo-subscriptions', (req, res) => {
     body.renewedFromComboId || null, body.renewedFromDuration || null, body.renewedFromPlanName || null,
     body.deliveryType || 'delivery', body.shipMethod || 'own', normStr(body.shipProvider) || '',
     (body.allergyNote || '').trim(),
+    body.commissionStaffId || null, body.commissionStaffName || null,
+    body.mgrStaffId || null, body.mgrStaffName || null,
     now, now
   ], function(err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -2459,6 +2465,10 @@ app.post('/api/combo-subscriptions', (req, res) => {
       if (row.status === 'active') {
         try {
           await generateDeliveryLogsForCombo(db, row);
+          // Combo bán ở POS (có người chốt commissionStaffId) → tính & CHIA hoa hồng cho người chốt + CSKH quản lý.
+          if (row.commissionStaffId) {
+            await applyPosComboCommission(db, row);
+          }
           row = await new Promise((resolve) => {
             db.get('SELECT * FROM combo_subscriptions WHERE id = ?', [id], (e2, row2) => resolve(row2));
           });

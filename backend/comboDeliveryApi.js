@@ -173,6 +173,9 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE combo_subscriptions ADD COLUMN commissionType TEXT DEFAULT \'percent\'',
     'ALTER TABLE combo_subscriptions ADD COLUMN isRenewal INTEGER DEFAULT 0',
     'ALTER TABLE combo_subscriptions ADD COLUMN allergyNote TEXT',
+    'ALTER TABLE combo_subscriptions ADD COLUMN mgrStaffId TEXT',
+    'ALTER TABLE combo_subscriptions ADD COLUMN mgrStaffName TEXT',
+    'ALTER TABLE combo_subscriptions ADD COLUMN mgrCommissionAmount INTEGER DEFAULT 0',
     'ALTER TABLE combo_subscriptions ADD COLUMN deliveryTime TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
@@ -390,6 +393,29 @@ async function afterComboClaimed(db, comboRow) {
       new Date().toISOString(),
       comboRow.id,
     ]
+  );
+}
+
+// Tỷ lệ chia hoa hồng combo bán ở POS (mặc định người chốt 80% / CSKH quản lý 20%). Admin cấu hình.
+async function getSellerPercent(db) {
+  const s = await getSetting(db, 'comboCommissionSplit');
+  const p = s && Number(s.sellerPercent);
+  return Number.isFinite(p) && p >= 0 && p <= 100 ? p : 80;
+}
+
+// Combo bán ở POS: tính tổng hoa hồng theo gói rồi CHIA cho người chốt (commissionStaffId) và
+// CSKH quản lý (mgrStaffId) theo tỷ lệ cấu hình. Gọi sau khi INSERT combo active từ POS.
+async function applyPosComboCommission(db, comboRow) {
+  const { amount: total, type, isRenewal } = await computeComboCommission(db, comboRow);
+  const sellerPct = await getSellerPercent(db);
+  const hasMgr = !!comboRow.mgrStaffId && comboRow.mgrStaffId !== comboRow.commissionStaffId;
+  const sellerAmt = hasMgr ? Math.round((total * sellerPct) / 100) : total;
+  const mgrAmt = hasMgr ? Math.max(0, total - sellerAmt) : 0;
+  await dbRun(
+    db,
+    `UPDATE combo_subscriptions SET commissionAmount = ?, commissionType = ?, isRenewal = ?,
+     mgrCommissionAmount = ?, commissionStatus = 'approved', updatedAt = ? WHERE id = ?`,
+    [sellerAmt, type, isRenewal ? 1 : 0, mgrAmt, new Date().toISOString(), comboRow.id]
   );
 }
 
@@ -790,6 +816,7 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
 module.exports = {
   registerComboDeliveryRoutes,
   afterComboClaimed,
+  applyPosComboCommission,
   ensureComboDeliverySchema,
   generateDeliveryLogsForCombo,
   syncComboFromLogs,

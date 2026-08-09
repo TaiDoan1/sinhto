@@ -60,6 +60,8 @@ export function ComboPackageTemplates() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editing, setEditing] = useState<ComboPackageTemplate | null>(null);
+  const [sellerPct, setSellerPct] = useState(80); // tỷ lệ chia hoa hồng combo bán ở POS
+  const [splitSaved, setSplitSaved] = useState(false);
 
   useEffect(() => {
     api
@@ -69,7 +71,18 @@ export function ComboPackageTemplates() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    api.fetchSetting('comboCommissionSplit')
+      .then((v: any) => { if (v && Number.isFinite(Number(v.sellerPercent))) setSellerPct(Number(v.sellerPercent)); })
+      .catch(() => {});
   }, []);
+
+  const saveSplit = async (pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    setSellerPct(clamped);
+    await api.saveSetting('comboCommissionSplit', { sellerPercent: clamped });
+    setSplitSaved(true);
+    setTimeout(() => setSplitSaved(false), 2000);
+  };
 
   const persist = async (next: ComboPackageTemplate[]) => {
     setTemplates(next);
@@ -137,6 +150,21 @@ export function ComboPackageTemplates() {
             <Plus className="w-4 h-4" />
             Thêm gói mới
           </button>
+        </div>
+      </div>
+
+      <div className="mb-5 bg-indigo-50/60 border border-indigo-100 rounded-xl p-4">
+        <p className="text-sm font-bold text-indigo-800 mb-1">Chia hoa hồng combo bán ở POS</p>
+        <p className="text-xs text-gray-500 mb-2">Combo bán tại quầy chia cho <b>người chốt (NV bán)</b> và <b>CSKH quản lý</b>. Nhập % người bán, phần còn lại là của CSKH.</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-600">Người bán</span>
+          <input type="number" min={0} max={100} value={sellerPct}
+            onChange={(e) => setSellerPct(Number(e.target.value))}
+            onBlur={(e) => saveSplit(Number(e.target.value))}
+            className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold" />
+          <span className="text-sm text-gray-600">%  ·  CSKH quản lý</span>
+          <span className="w-20 text-center text-sm font-bold text-emerald-700 bg-emerald-50 rounded-lg px-2 py-1.5">{Math.max(0, 100 - sellerPct)}%</span>
+          {splitSaved && <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Đã lưu</span>}
         </div>
       </div>
 

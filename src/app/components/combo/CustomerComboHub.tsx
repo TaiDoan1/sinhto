@@ -352,7 +352,7 @@ export function CustomerComboHub({
   };
 
   const hubTitle = title || (
-    variant === 'pos' ? 'Combo Khách Hàng' :
+    variant === 'pos' ? 'Combo giao hôm nay' :
     variant === 'cskh' ? 'Khách Combo Của Tôi' :
     'Quản Lý Combo Khách Hàng'
   );
@@ -396,14 +396,17 @@ export function CustomerComboHub({
           />
         </div>
         <div className="flex gap-1 flex-wrap">
-          {([
-            ['due', `Giao hôm nay (${dueToday.length})`],
-            ['pending', 'Chờ chốt'],
-            ['active', 'Đang chạy'],
-            ['paused', 'Tạm dừng'],
-            ['completed', 'Xong'],
-            ['all', 'Tất cả'],
-          ] as const).map(([id, label]) => (
+          {(variant === 'pos'
+            ? ([['due', `Giao hôm nay (${dueToday.length})`]] as const)
+            : ([
+                ['due', `Giao hôm nay (${dueToday.length})`],
+                ['pending', 'Chờ chốt'],
+                ['active', 'Đang chạy'],
+                ['paused', 'Tạm dừng'],
+                ['completed', 'Xong'],
+                ['all', 'Tất cả'],
+              ] as const)
+          ).map(([id, label]) => (
             <button
               key={id}
               type="button"

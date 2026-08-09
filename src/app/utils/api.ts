@@ -479,12 +479,14 @@ export async function deleteEmployee(id: string) {
 }
 
 // --- SHIFTS ---
-export async function fetchShifts(params?: { employeeId?: string; status?: string; branch?: string; date?: string }) {
+export async function fetchShifts(params?: { employeeId?: string; status?: string; branch?: string; date?: string; from?: string; to?: string }) {
   const qs = new URLSearchParams();
   if (params?.employeeId) qs.set('employeeId', params.employeeId);
   if (params?.status) qs.set('status', params.status);
   if (params?.branch) qs.set('branch', params.branch);
   if (params?.date) qs.set('date', params.date);
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
   const query = qs.toString();
   const res = await fetch(`${BASE_URL}/shifts${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Failed to fetch shifts');

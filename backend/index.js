@@ -1252,7 +1252,7 @@ app.delete('/api/employees/:id', (req, res) => {
 
 // --- SHIFTS API ---
 app.get('/api/shifts', (req, res) => {
-  const { employeeId, status, branch, date } = req.query;
+  const { employeeId, status, branch, date, from, to } = req.query;
   let sql = "SELECT * FROM shifts";
   const params = [];
   const clauses = [];
@@ -1260,6 +1260,8 @@ app.get('/api/shifts', (req, res) => {
   if (status) { clauses.push("status = ?"); params.push(status); }
   if (branch) { clauses.push("branch = ?"); params.push(branch); }
   if (date) { clauses.push("date = ?"); params.push(date); }
+  if (from) { clauses.push("date >= ?"); params.push(from); }
+  if (to) { clauses.push("date <= ?"); params.push(to); }
   if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
   sql += " ORDER BY date DESC";
   db.all(sql, params, (err, rows) => {

@@ -356,8 +356,12 @@ async function computeComboCommission(db, comboRow) {
   const isRenewal = !!comboRow.renewedFromComboId;
   const total = Number(comboRow.totalPrice) || 0;
   const templates = (await getSetting(db, 'comboPackageTemplates')) || [];
+  const plan = String(comboRow.planName || '').trim();
+  // Khớp gói: ưu tiên trùng khớp tên chính xác; nếu không có (VD combo POS có hậu tố
+  // "Fat Loss Plan (Tuần × 1)") thì khớp theo tiền tố — tên gói bắt đầu bằng tên mẫu.
   const tpl = Array.isArray(templates)
-    ? templates.find((t) => t && t.name && t.name === comboRow.planName)
+    ? (templates.find((t) => t && t.name && t.name === plan)
+      || templates.find((t) => t && t.name && plan.startsWith(String(t.name).trim())))
     : null;
 
   let type = tpl?.commissionType || 'percent';

@@ -377,6 +377,8 @@ export const DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE: ShiftClosingBillTemplate = {
 
 export interface ShiftClosingReceiptData {
   employeeName: string;
+  branch?: string;      // mã chi nhánh (CN1...)
+  branchName?: string;  // tên chi nhánh hiển thị (nếu có, ưu tiên hơn mã)
   startTime: string;
   endTime: string;
   checkIn?: Date;
@@ -396,6 +398,7 @@ export interface ShiftClosingReceiptData {
 
 interface ShiftLike {
   employeeName: string;
+  branch?: string;
   startTime: string;
   endTime: string;
   checkIn?: string;
@@ -446,6 +449,7 @@ export function buildShiftClosingReceiptData(
 
   return {
     employeeName: shift.employeeName,
+    branch: shift.branch,
     startTime: shift.startTime,
     endTime: shift.endTime,
     checkIn: shift.checkIn ? new Date(shift.checkIn) : undefined,
@@ -506,6 +510,7 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
   return `
     <div class="center bold" style="font-size:14px">${t.shopName}</div>
     <div class="center" style="font-size:11px">${t.title}</div>
+    ${(data.branchName || data.branch) ? `<div class="center bold" style="font-size:12px;margin-top:2px">🏪 ${data.branchName || data.branch}</div>` : ''}
     <div class="line"></div>
     <div class="bold">Đầu ca</div>
     <div style="font-size:11px">

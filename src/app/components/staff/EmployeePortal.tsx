@@ -290,7 +290,8 @@ export function EmployeePortal() {
         const shiftOrders =
           closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
         const actualCash = closingActualCashInput.trim() === '' ? undefined : Number(closingActualCashInput);
-        return buildShiftClosingReceiptData(closingShift, shiftOrders, closingCashMovements, closingBillTemplate, actualCash);
+        const data = buildShiftClosingReceiptData(closingShift, shiftOrders, closingCashMovements, closingBillTemplate, actualCash);
+        return { ...data, branchName: branchLabel(closingShift.branch) || closingShift.branch };
       })()
     : null;
 

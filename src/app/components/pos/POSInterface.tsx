@@ -318,13 +318,14 @@ function POSInterfaceInner() {
         const shiftOrders =
           closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
         const actualCash = actualCashInput.trim() === '' ? undefined : Number(actualCashInput);
-        return buildShiftClosingReceiptData(
+        const data = buildShiftClosingReceiptData(
           closingShift,
           shiftOrders,
           closingCashMovements,
           billTemplate,
           actualCash
         );
+        return { ...data, branchName: branchLabel(closingShift.branch) || closingShift.branch };
       })()
     : null;
 

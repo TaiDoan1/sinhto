@@ -4,6 +4,7 @@ import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useBranches } from '../../contexts/BranchContext';
 import { buildShiftClosingReceiptData, printShiftClosingReceipt, DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE } from '../../utils/posPrint';
 
 function formatItemLine(item: any) {
@@ -50,6 +51,7 @@ const statusMeta: Record<string, { label: string; className: string; icon: typeo
 };
 
 export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
+  const { branchLabel } = useBranches();
   const [date, setDate] = useState(todayStr());
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [detailShift, setDetailShift] = useState<ShiftRow | null>(null);
@@ -198,7 +200,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       // giữ template mặc định nếu chưa cấu hình
     }
     const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
-    printShiftClosingReceipt(data);
+    printShiftClosingReceipt({ ...data, branchName: branchLabel(shift.branch || branchId) || shift.branch || branchId });
   };
 
   const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));

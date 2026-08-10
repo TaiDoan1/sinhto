@@ -2817,7 +2817,20 @@ async function start() {
     if (fs.existsSync(distDir)) {
       // index:false để "/" KHÔNG bị static tự trả index.html — nhường cho catch-all định tuyến
       // theo hostname (landing domain phải trả landing.html, không phải index.html quản lý).
-      app.use(express.static(distDir, { index: false }));
+      // File trong /assets/ có mã hash trong tên (đổi theo mỗi build) → cache VĨNH VIỄN an toàn:
+      // máy POS mạng yếu tải 1 lần rồi dùng cache, không phải tải lại CSS/JS mỗi lần mở (tránh
+      // lỗi "mất màu" do CSS rớt giữa chừng). File .html giữ no-cache để luôn lấy bản mới (trỏ
+      // tới đúng hash asset mới sau khi deploy).
+      app.use(express.static(distDir, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      }));
 
       // LANDING_HOSTS = danh sách domain của trang khách (phân tách bởi dấu phẩy), VD
       // "fitblend.vn,www.fitblend.vn". Khi khớp → phục vụ landing.html cho MỌI path (kể cả

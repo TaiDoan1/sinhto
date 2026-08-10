@@ -5,6 +5,7 @@ import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useAdmin } from '../../contexts/AdminContext';
 
 const positions = [
   { id: 'manager', name: 'Quản Lý Chi Nhánh' },
@@ -19,6 +20,9 @@ const positions = [
 
 export function EmployeeList() {
   const { activeBranches, branchLabel } = useBranches();
+  const { adminUser } = useAdmin();
+  // Cửa hàng trưởng KHÔNG được xem lương cơ bản của nhân viên (ẩn cột lương + ô sửa lương)
+  const isStoreManager = adminUser?.position === 'store_manager';
   const branchOptions = [
     { id: 'ALL', name: 'Tất cả chi nhánh' },
     { id: 'UNASSIGNED', name: '🕐 Chờ phân bổ' },
@@ -163,7 +167,7 @@ export function EmployeeList() {
                   <th className="px-4 py-3">Chức vụ</th>
                   <th className="px-4 py-3">SĐT</th>
                   <th className="px-4 py-3 min-w-[180px]">Email</th>
-                  <th className="px-4 py-3 text-right">Lương CB</th>
+                  {!isStoreManager && <th className="px-4 py-3 text-right">Lương CB</th>}
                   <th className="px-4 py-3">Username</th>
                   <th className="px-4 py-3 text-center w-24">Thao tác</th>
                 </tr>
@@ -202,11 +206,13 @@ export function EmployeeList() {
                     <td className="px-4 py-3 text-gray-600">{getPositionName(emp.position)}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{emp.phone}</td>
                     <td className="px-4 py-3 text-gray-600 truncate max-w-[200px]" title={emp.email}>{emp.email}</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
-                      {emp.payType === 'hourly'
-                        ? `${(emp.hourlyRate || 0).toLocaleString('vi-VN')}đ/giờ`
-                        : `${(emp.baseSalary || 0).toLocaleString('vi-VN')}đ`}
-                    </td>
+                    {!isStoreManager && (
+                      <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
+                        {emp.payType === 'hourly'
+                          ? `${(emp.hourlyRate || 0).toLocaleString('vi-VN')}đ/giờ`
+                          : `${(emp.baseSalary || 0).toLocaleString('vi-VN')}đ`}
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-mono text-gray-700">{emp.username}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
@@ -388,18 +394,20 @@ export function EmployeeList() {
                   ))}
                 </select>
               </label>
-              <label>
-                <span className="text-xs font-semibold text-gray-500">Hình thức lương</span>
-                <select
-                  value={editForm.payType || 'monthly'}
-                  onChange={e => setEditForm({ ...editForm, payType: e.target.value as 'monthly' | 'hourly' })}
-                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
-                >
-                  <option value="monthly">Theo tháng</option>
-                  <option value="hourly">Theo giờ</option>
-                </select>
-              </label>
-              {editForm.payType === 'hourly' ? (
+              {!isStoreManager && (
+                <label>
+                  <span className="text-xs font-semibold text-gray-500">Hình thức lương</span>
+                  <select
+                    value={editForm.payType || 'monthly'}
+                    onChange={e => setEditForm({ ...editForm, payType: e.target.value as 'monthly' | 'hourly' })}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                  >
+                    <option value="monthly">Theo tháng</option>
+                    <option value="hourly">Theo giờ</option>
+                  </select>
+                </label>
+              )}
+              {!isStoreManager && (editForm.payType === 'hourly' ? (
                 <label>
                   <span className="text-xs font-semibold text-gray-500">Lương theo giờ (VNĐ/giờ)</span>
                   <input
@@ -419,7 +427,7 @@ export function EmployeeList() {
                     className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
                   />
                 </label>
-              )}
+              ))}
               <label>
                 <span className="text-xs font-semibold text-gray-500">Username</span>
                 <input

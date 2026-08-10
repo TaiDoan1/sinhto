@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, Printer, X, Wrench } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, PlayCircle, CalendarClock, ListOrdered, Printer, X, Wrench, RotateCcw } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import { useOrders } from '../../contexts/OrderContext';
@@ -84,6 +84,23 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       .fetchShifts({ branch: branchId, date })
       .then((data: ShiftRow[]) => setShifts(data))
       .catch((err) => console.error('Failed to load shifts:', err));
+  };
+
+  // Mở lại ca đã kết (nhân viên lỡ bấm kết ca khi còn đang làm) — đưa status về 'in_progress'
+  // và xoá giờ kết ca, để POS lại nhận ca đang mở, nhân viên đăng nhập lại làm tiếp bình thường.
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const handleReopen = async (shift: ShiftRow) => {
+    if (!window.confirm(`Mở lại ca của ${shift.employeeName} (bỏ trạng thái đã kết ca)?\nNhân viên đăng nhập lại máy POS sẽ làm tiếp được ca này.`)) return;
+    setReopeningId(shift.id);
+    try {
+      await api.saveShift({ ...shift, status: 'in_progress', checkOut: '' });
+      showSuccess('Đã mở lại ca. Nhân viên đăng nhập lại POS để làm tiếp.');
+      load();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Mở lại ca thất bại');
+    } finally {
+      setReopeningId(null);
+    }
   };
 
   useEffect(() => {
@@ -287,10 +304,22 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                     <ListOrdered className="w-3.5 h-3.5" />
                     Xem chi tiết đơn hàng
                   </button>
+                  {shift.status === 'completed' && (
+                    <button
+                      type="button"
+                      onClick={() => handleReopen(shift)}
+                      disabled={reopeningId === shift.id}
+                      className="flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-40 ml-auto"
+                      title="Nhân viên lỡ bấm kết ca khi còn đang làm — mở lại để làm tiếp"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      {reopeningId === shift.id ? 'Đang mở…' : 'Mở lại ca'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => openFix(shift)}
-                    className="flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 ml-auto"
+                    className={`flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 ${shift.status === 'completed' ? '' : 'ml-auto'}`}
                     title="Sửa giờ vào/kết ca bị ghi sai & gán lại đơn vào ca"
                   >
                     <Wrench className="w-3.5 h-3.5" />

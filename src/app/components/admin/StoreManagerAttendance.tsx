@@ -55,19 +55,33 @@ function fmtDuration(mins: number) {
   return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
 }
 
-/** Bảng chấm công cho Cửa hàng trưởng: chọn tháng → mỗi nhân viên có 2 loại ngày công:
- *  - THỰC TẾ: theo giờ check-in/check-out thật.
- *  - TÍNH LƯƠNG: chỉ theo giờ ca trên lịch (không OT, không trừ đi sớm/đi trễ) — khớp bảng lương.
+interface DayShift {
+  checkIn?: string;
+  checkOut?: string;
+  startTime?: string;
+  endTime?: string;
+  actualMins: number;
+  schedMins: number;
+}
+
+/** Bảng chấm công cho Cửa hàng trưởng: chọn khoảng ngày (hoặc cả tháng) → mỗi nhân viên có 2 loại
+ * ngày công: THỰC TẾ (theo giờ check-in/check-out thật) và TÍNH LƯƠNG (chỉ theo giờ ca trên lịch,
+ * không OT, không trừ đi sớm/đi trễ — khớp bảng lương). Ngày làm 2–3 ca hiện giờ TỪNG CA riêng.
  * KHÔNG hiển thị tiền lương. */
 export function StoreManagerAttendance() {
   const { activeBranches, branchLabel } = useBranches();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<WorkShift[]>([]);
   const [month, setMonth] = useState(currentMonth());
+  const [from, setFrom] = useState(monthRange(currentMonth()).from);
+  const [to, setTo] = useState(monthRange(currentMonth()).to);
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // Khoảng ngày dùng để lấy/lọc dữ liệu (tự đảo nếu nhập từ > đến)
+  const range = useMemo(() => (from <= to ? { lo: from, hi: to } : { lo: to, hi: from }), [from, to]);
 
   useEffect(() => {
     api.fetchEmployees().then(setEmployees).catch(() => {});
@@ -75,34 +89,38 @@ export function StoreManagerAttendance() {
 
   useEffect(() => {
     setLoading(true);
-    const { from, to } = monthRange(month);
-    api.fetchShifts({ from, to })
+    api.fetchShifts({ from: range.lo, to: range.hi })
       .then((data: WorkShift[]) => setShifts(data || []))
       .catch(() => setShifts([]))
       .finally(() => setLoading(false));
-  }, [month]);
+  }, [range.lo, range.hi]);
 
-  // Gộp ca theo nhân viên → theo ngày. Chỉ tính ngày có check-in.
-  //  - actualMins: tổng giờ THỰC TẾ (cộng từng ca đã check-in + check-out trong ngày).
-  //  - schedMins:  tổng giờ THEO LỊCH của các ca đã check-in trong ngày (để tính lương).
-  //  - in/out:     check-in sớm nhất, check-out muộn nhất (chỉ để hiển thị khoảng giờ).
+  // Chọn tháng nhanh → tự set khoảng từ–đến của tháng đó.
+  const pickMonth = (m: string) => {
+    setMonth(m);
+    if (!m) return;
+    const r = monthRange(m);
+    setFrom(r.from);
+    setTo(r.to);
+  };
+
+  // Gộp ca theo nhân viên → theo ngày → DANH SÁCH TỪNG CA (giữ riêng để ngày nhiều ca hiện đúng).
   const byEmp = useMemo(() => {
-    const m = new Map<string, Map<string, { checkIn?: string; checkOut?: string; actualMins: number; schedMins: number; schedRanges: string[] }>>();
+    const m = new Map<string, Map<string, DayShift[]>>();
     shifts.forEach((s) => {
-      if (!s.employeeId || !s.checkIn) return; // chỉ tính ngày có check-in
+      if (!s.employeeId || !s.checkIn) return; // chỉ tính ca có check-in
       if (!m.has(s.employeeId)) m.set(s.employeeId, new Map());
       const days = m.get(s.employeeId)!;
-      const cur = days.get(s.date) || { actualMins: 0, schedMins: 0, schedRanges: [] };
-      if (s.checkIn && (!cur.checkIn || s.checkIn < cur.checkIn)) cur.checkIn = s.checkIn;
-      if (s.checkOut && (!cur.checkOut || s.checkOut > cur.checkOut)) cur.checkOut = s.checkOut;
-      cur.actualMins += workMinutes(s.checkIn, s.checkOut);
-      cur.schedMins += scheduledMinutes(s.startTime, s.endTime);
-      // Giờ ca theo lịch (vd "06:00–12:00") — gom các ca trong ngày, bỏ trùng.
-      if (s.startTime && s.endTime) {
-        const range = `${s.startTime}–${s.endTime}`;
-        if (!cur.schedRanges.includes(range)) cur.schedRanges.push(range);
-      }
-      days.set(s.date, cur);
+      const list = days.get(s.date) || [];
+      list.push({
+        checkIn: s.checkIn,
+        checkOut: s.checkOut,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        actualMins: workMinutes(s.checkIn, s.checkOut),
+        schedMins: scheduledMinutes(s.startTime, s.endTime),
+      });
+      days.set(s.date, list);
     });
     return m;
   }, [shifts]);
@@ -116,7 +134,15 @@ export function StoreManagerAttendance() {
         const days = byEmp.get(e.id);
         const dayList = days
           ? [...days.entries()]
-              .map(([date, v]) => ({ date, ...v }))
+              .map(([date, list]) => {
+                const sorted = [...list].sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''));
+                return {
+                  date,
+                  shifts: sorted,
+                  actualMins: sorted.reduce((s, x) => s + x.actualMins, 0),
+                  schedMins: sorted.reduce((s, x) => s + x.schedMins, 0),
+                };
+              })
               .sort((a, b) => a.date.localeCompare(b.date))
           : [];
         const dayCount = dayList.length;
@@ -134,6 +160,8 @@ export function StoreManagerAttendance() {
   const totalActualAll = rows.reduce((s, r) => s + r.totalActual, 0);
   const totalSchedAll = rows.reduce((s, r) => s + r.totalSched, 0);
 
+  const fmtDay = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -141,13 +169,28 @@ export function StoreManagerAttendance() {
           <CalendarCheck className="w-5 h-5 text-emerald-600" />
           <h3 className="font-bold text-gray-800">Chấm công nhân viên</h3>
         </div>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
-          className="ml-auto border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        <input type="month" value={month} onChange={(e) => pickMonth(e.target.value)}
+          className="ml-auto border border-gray-200 rounded-lg px-3 py-2 text-sm" title="Chọn nhanh cả tháng" />
         <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white">
           <option value="ALL">Tất cả chi nhánh</option>
           {activeBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
+      </div>
+
+      {/* Lọc theo khoảng ngày */}
+      <div className="flex items-center gap-2 flex-wrap bg-white border border-gray-200 rounded-lg px-3 py-2">
+        <span className="text-xs font-semibold text-gray-500">Từ ngày</span>
+        <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setMonth(''); }}
+          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm" />
+        <span className="text-xs font-semibold text-gray-500">đến</span>
+        <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setMonth(''); }}
+          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm" />
+        <button type="button"
+          onClick={() => pickMonth(currentMonth())}
+          className="ml-auto text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline">
+          Tháng này
+        </button>
       </div>
 
       <div className="relative">
@@ -157,7 +200,7 @@ export function StoreManagerAttendance() {
       </div>
 
       <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm text-emerald-800 font-semibold flex flex-wrap gap-x-4 gap-y-1">
-        <span>Tháng {month.split('-')[1]}/{month.split('-')[0]} · {rows.length} NV · {totalDays} ngày công</span>
+        <span>{fmtDay(range.lo)}–{fmtDay(range.hi)} · {rows.length} NV · {totalDays} ngày công</span>
         <span className="text-sky-700">Thực tế: {fmtDuration(totalActualAll)}</span>
         <span className="text-emerald-700">Tính lương: {fmtDuration(totalSchedAll)} ({totalPayrollDays} ngày)</span>
       </div>
@@ -200,27 +243,43 @@ export function StoreManagerAttendance() {
                 {open && (
                   <div className="border-t border-gray-100">
                     <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-[10px] font-bold uppercase text-gray-400">
-                      <span>Ngày · giờ vào–ra</span>
+                      <span>Ngày · ca (vào–ra thực tế / lịch)</span>
                       <span className="flex gap-3"><span className="text-sky-600">Thực tế</span><span className="text-emerald-600">Lương</span></span>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {dayList.length === 0 ? (
-                        <div className="px-4 py-3 text-xs text-gray-400">Không có ngày công nào trong tháng.</div>
+                        <div className="px-4 py-3 text-xs text-gray-400">Không có ngày công nào trong khoảng.</div>
                       ) : dayList.map((d) => (
-                        <div key={d.date} className="flex items-center justify-between px-4 py-2 text-sm gap-2">
-                          <span className="text-gray-600 min-w-0">
-                            <span className="font-medium text-gray-700">{new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
-                            <span className="ml-2 text-xs text-gray-500">
-                              <span className="text-emerald-700">{hhmm(d.checkIn)}</span>
-                              {' → '}
-                              <span className={d.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(d.checkOut)}</span>
+                        <div key={d.date} className="px-4 py-2 text-sm">
+                          {/* Dòng ngày + tổng của ngày (khi nhiều ca) */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-gray-700">
+                              {new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                              {d.shifts.length > 1 && <span className="ml-1.5 text-[11px] font-medium text-gray-400">({d.shifts.length} ca)</span>}
                             </span>
-                            <span className="block text-[11px] text-gray-400">Lịch: {d.schedRanges.length ? d.schedRanges.join(', ') : '—'}</span>
-                          </span>
-                          <span className="flex gap-3 shrink-0 font-bold text-xs">
-                            <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
-                            <span className="text-emerald-700 w-12 text-right">{fmtDuration(d.schedMins)}</span>
-                          </span>
+                            <span className="flex gap-3 shrink-0 font-bold text-xs">
+                              <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
+                              <span className="text-emerald-700 w-12 text-right">{fmtDuration(d.schedMins)}</span>
+                            </span>
+                          </div>
+                          {/* Từng ca trong ngày */}
+                          {d.shifts.map((sh, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2 mt-1 pl-2">
+                              <span className="text-xs text-gray-500 min-w-0">
+                                {d.shifts.length > 1 && <span className="text-gray-400">Ca {i + 1}: </span>}
+                                <span className="text-emerald-700 font-medium">{hhmm(sh.checkIn)}</span>
+                                {' → '}
+                                <span className={sh.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(sh.checkOut)}</span>
+                                <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
+                              </span>
+                              {d.shifts.length > 1 && (
+                                <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
+                                  <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
+                                  <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
+                                </span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>

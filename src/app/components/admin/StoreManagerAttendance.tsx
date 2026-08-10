@@ -87,16 +87,21 @@ export function StoreManagerAttendance() {
   //  - schedMins:  tổng giờ THEO LỊCH của các ca đã check-in trong ngày (để tính lương).
   //  - in/out:     check-in sớm nhất, check-out muộn nhất (chỉ để hiển thị khoảng giờ).
   const byEmp = useMemo(() => {
-    const m = new Map<string, Map<string, { checkIn?: string; checkOut?: string; actualMins: number; schedMins: number }>>();
+    const m = new Map<string, Map<string, { checkIn?: string; checkOut?: string; actualMins: number; schedMins: number; schedRanges: string[] }>>();
     shifts.forEach((s) => {
       if (!s.employeeId || !s.checkIn) return; // chỉ tính ngày có check-in
       if (!m.has(s.employeeId)) m.set(s.employeeId, new Map());
       const days = m.get(s.employeeId)!;
-      const cur = days.get(s.date) || { actualMins: 0, schedMins: 0 };
+      const cur = days.get(s.date) || { actualMins: 0, schedMins: 0, schedRanges: [] };
       if (s.checkIn && (!cur.checkIn || s.checkIn < cur.checkIn)) cur.checkIn = s.checkIn;
       if (s.checkOut && (!cur.checkOut || s.checkOut > cur.checkOut)) cur.checkOut = s.checkOut;
       cur.actualMins += workMinutes(s.checkIn, s.checkOut);
       cur.schedMins += scheduledMinutes(s.startTime, s.endTime);
+      // Giờ ca theo lịch (vd "06:00–12:00") — gom các ca trong ngày, bỏ trùng.
+      if (s.startTime && s.endTime) {
+        const range = `${s.startTime}–${s.endTime}`;
+        if (!cur.schedRanges.includes(range)) cur.schedRanges.push(range);
+      }
       days.set(s.date, cur);
     });
     return m;
@@ -115,14 +120,17 @@ export function StoreManagerAttendance() {
               .sort((a, b) => a.date.localeCompare(b.date))
           : [];
         const dayCount = dayList.length;
+        // Ngày công TÍNH LƯƠNG = số ngày có giờ ca theo lịch (ca có giờ vào–ra hợp lệ).
+        const payrollDays = dayList.filter((d) => d.schedMins > 0).length;
         const totalActual = dayList.reduce((s, d) => s + d.actualMins, 0);
         const totalSched = dayList.reduce((s, d) => s + d.schedMins, 0);
-        return { emp: e, dayCount, dayList, totalActual, totalSched };
+        return { emp: e, dayCount, payrollDays, dayList, totalActual, totalSched };
       })
       .sort((a, b) => (b.dayCount - a.dayCount) || (a.emp.fullName || '').localeCompare(b.emp.fullName || ''));
   }, [employees, byEmp, branchFilter, search]);
 
   const totalDays = rows.reduce((s, r) => s + r.dayCount, 0);
+  const totalPayrollDays = rows.reduce((s, r) => s + r.payrollDays, 0);
   const totalActualAll = rows.reduce((s, r) => s + r.totalActual, 0);
   const totalSchedAll = rows.reduce((s, r) => s + r.totalSched, 0);
 
@@ -151,7 +159,7 @@ export function StoreManagerAttendance() {
       <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm text-emerald-800 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span>Tháng {month.split('-')[1]}/{month.split('-')[0]} · {rows.length} NV · {totalDays} ngày công</span>
         <span className="text-sky-700">Thực tế: {fmtDuration(totalActualAll)}</span>
-        <span className="text-emerald-700">Tính lương: {fmtDuration(totalSchedAll)}</span>
+        <span className="text-emerald-700">Tính lương: {fmtDuration(totalSchedAll)} ({totalPayrollDays} ngày)</span>
       </div>
 
       <p className="text-[11px] text-gray-400 px-1 -mt-1">
@@ -164,7 +172,7 @@ export function StoreManagerAttendance() {
         <p className="text-center text-gray-400 py-10 text-sm">Không có nhân viên phù hợp.</p>
       ) : (
         <div className="space-y-2">
-          {rows.map(({ emp, dayCount, dayList, totalActual, totalSched }) => {
+          {rows.map(({ emp, dayCount, payrollDays, dayList, totalActual, totalSched }) => {
             const open = expanded[emp.id];
             return (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -185,6 +193,7 @@ export function StoreManagerAttendance() {
                     <div className="text-center rounded-lg bg-emerald-50 px-2.5 py-1 min-w-[74px]">
                       <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
                       <div className="text-sm font-black text-emerald-700">{fmtDuration(totalSched)}</div>
+                      <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{payrollDays} ngày</div>
                     </div>
                   </div>
                 </button>
@@ -206,6 +215,7 @@ export function StoreManagerAttendance() {
                               {' → '}
                               <span className={d.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(d.checkOut)}</span>
                             </span>
+                            <span className="block text-[11px] text-gray-400">Lịch: {d.schedRanges.length ? d.schedRanges.join(', ') : '—'}</span>
                           </span>
                           <span className="flex gap-3 shrink-0 font-bold text-xs">
                             <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>

@@ -343,7 +343,7 @@ export function EmployeePortal() {
       } catch {
         // giữ mặc định
       }
-      const data = buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template);
+      const data = { ...buildShiftClosingReceiptData(shift, shiftOrders, cashMovements, template), branchName: branchLabel(shift.branch || '') || shift.branch };
       setClosedSummary(data);
       setBillImageUrl(await renderShiftClosingReceiptImage(data));
       setShowBillPreview(true);

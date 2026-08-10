@@ -468,6 +468,15 @@ export function buildShiftClosingReceiptData(
   };
 }
 
+/** Bỏ tiền tố "Chi Nhánh N - " / "Chi nhánh N - " / "CN N - " để bill chỉ hiện tên địa điểm
+ * (vd "Chi nhánh 4 - 72 Võ Oanh" → "72 Võ Oanh"). Nếu bỏ xong rỗng thì giữ nguyên chuỗi gốc. */
+function cleanBranchName(raw?: string): string {
+  const s = (raw || '').trim();
+  if (!s) return '';
+  const stripped = s.replace(/^\s*(chi\s*nhánh|cn)\s*\d+\s*[-–—:.]\s*/i, '').trim();
+  return stripped || s;
+}
+
 function moneyRow(label: string, value: number, opts?: { bold?: boolean; colorByValue?: boolean }) {
   const color = opts?.colorByValue ? (value < 0 ? '#c0392b' : '#1e8449') : undefined;
   const weight = opts?.bold ? 'font-weight:bold;' : '';
@@ -510,7 +519,7 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
   return `
     <div class="center bold" style="font-size:14px">${t.shopName}</div>
     <div class="center" style="font-size:11px">${t.title}</div>
-    ${(data.branchName || data.branch) ? `<div class="center bold" style="font-size:12px;margin-top:2px">🏪 ${data.branchName || data.branch}</div>` : ''}
+    ${cleanBranchName(data.branchName || data.branch) ? `<div class="center bold" style="font-size:12px;margin-top:2px">${cleanBranchName(data.branchName || data.branch)}</div>` : ''}
     <div class="line"></div>
     <div class="bold">Đầu ca</div>
     <div style="font-size:11px">

@@ -2,6 +2,16 @@ import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { browserslistToTargets } from 'lightningcss'
+import browserslist from 'browserslist'
+
+// Máy POS Android dùng trình duyệt/WebView CŨ không hiểu màu đời mới (oklch/color-mix) mà Tailwind
+// v4 xuất ra → giao diện "mất màu"/trắng. Dùng Lightning CSS hạ cấp CSS về cú pháp trình duyệt cũ
+// hiểu được (oklch→rgb, color-mix→rgb, nesting, @property...) nhắm các mốc dưới đây. Trình duyệt
+// mới (Võ Oanh) vẫn hiển thị y hệt — chỉ khác cách viết màu bên trong, không đổi giao diện.
+const cssTargets = browserslistToTargets(
+  browserslist(['Chrome >= 87', 'Edge >= 87', 'Firefox >= 78', 'Safari >= 12.1', 'iOS >= 12.2', 'Android >= 6', 'Samsung >= 10'])
+)
 
 
 function figmaAssetResolver() {
@@ -34,7 +44,14 @@ export default defineConfig({
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
+  // Lightning CSS: hạ cấp màu/cú pháp CSS đời mới về mức trình duyệt cũ (máy POS Android) hiểu được.
+  css: {
+    transformer: 'lightningcss',
+    lightningcss: { targets: cssTargets },
+  },
+
   build: {
+    cssMinify: 'lightningcss',
     rollupOptions: {
       input: {
         // 2 entry tách biệt: 'main' = hệ quản lý (admin/pos/staff...), 'landing' = trang khách.

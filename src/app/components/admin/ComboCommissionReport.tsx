@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Wallet, Loader2, ChevronDown, ChevronRight, CheckCircle, RefreshCw } from 'lucide-react';
 import * as api from '../../utils/api';
+import { Pager } from '../common/Pagination';
 
 interface ComboRow {
   id: string;
@@ -57,6 +58,10 @@ export function ComboCommissionReport() {
   const [month, setMonth] = useState<string>(currentMonth()); // '' = tất cả
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyId, setBusyId] = useState('');
+  // Phân trang combos theo TỪNG nhân viên (key = staffId). Đổi tháng → reset.
+  const [comboPage, setComboPage] = useState<Record<string, number>>({});
+  useEffect(() => { setComboPage({}); }, [month]);
+  const COMBOS_PER_PAGE = 15;
 
   const load = () => {
     setLoading(true);
@@ -176,6 +181,9 @@ export function ComboCommissionReport() {
         <div className="space-y-3">
           {groups.map((g) => {
             const isOpen = expanded[g.staffId];
+            const gTotalPages = Math.max(1, Math.ceil(g.combos.length / COMBOS_PER_PAGE));
+            const gp = Math.min(comboPage[g.staffId] || 0, gTotalPages - 1);
+            const pagedCombos = g.combos.slice(gp * COMBOS_PER_PAGE, gp * COMBOS_PER_PAGE + COMBOS_PER_PAGE);
             return (
               <div key={g.staffId} className="border border-gray-200 rounded-2xl overflow-hidden">
                 <button
@@ -211,7 +219,7 @@ export function ComboCommissionReport() {
                         Đánh dấu đã trả tất cả ({fmt(g.unpaid)})
                       </button>
                     )}
-                    {g.combos.map((c) => {
+                    {pagedCombos.map((c) => {
                       const paid = c.commissionStatus === 'paid';
                       const d = earnedDate(c);
                       return (
@@ -241,6 +249,15 @@ export function ComboCommissionReport() {
                         </div>
                       );
                     })}
+                    <Pager
+                      page={gp}
+                      totalPages={gTotalPages}
+                      total={g.combos.length}
+                      from={g.combos.length === 0 ? 0 : gp * COMBOS_PER_PAGE + 1}
+                      to={Math.min((gp + 1) * COMBOS_PER_PAGE, g.combos.length)}
+                      onPage={(fn) => setComboPage((prev) => ({ ...prev, [g.staffId]: fn(gp) }))}
+                      unit="combo"
+                    />
                   </div>
                 )}
               </div>

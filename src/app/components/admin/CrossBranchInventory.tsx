@@ -11,10 +11,6 @@ import { BranchInventory as BranchStockDetail } from './BranchInventory';
 import * as api from '../../utils/api';
 import { getModeFromPath } from '../../utils/appMode';
 
-// Chỉ Admin (app /admin) mới được reset kho về 0. Cửa hàng trưởng (/store-manager) và Nhân sự
-// (/hr) dùng chung component này nhưng KHÔNG được thấy nút reset (thao tác nguy hiểm, không hoàn tác).
-const IS_ADMIN_APP = getModeFromPath() === 'admin';
-
 export interface InventoryItem {
   id: string;
   name: string;
@@ -113,6 +109,10 @@ export function CrossBranchInventory() {
   const { showSuccess, showError } = useToast();
   const { adminUser } = useAdmin();
   const actorName = adminUser?.fullName || adminUser?.employeeId || 'Admin';
+  // Chỉ Admin (app /admin) mới được reset kho về 0. Cửa hàng trưởng (/store-manager) và Nhân sự
+  // (/hr) dùng chung component này nhưng KHÔNG được thấy nút reset. Tính TRONG component (đọc lại
+  // mỗi render) vì chuyển app dùng pushState — nếu để cấp module sẽ kẹt giá trị cũ.
+  const isAdminApp = getModeFromPath() === 'admin';
 
   const [activeTab, setActiveTab] = useState<'central' | 'overview' | 'pending' | 'history'>('central');
 
@@ -512,7 +512,7 @@ export function CrossBranchInventory() {
             Kho tổng → phiếu nhập kho chi nhánh → duyệt → lịch sử xuất nhập
           </p>
         </div>
-        {IS_ADMIN_APP && (
+        {isAdminApp && (
           <button
             onClick={handleResetAll}
             disabled={resetting}

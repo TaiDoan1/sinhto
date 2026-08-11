@@ -8,10 +8,6 @@ import { useBranches } from '../../contexts/BranchContext';
 import { buildShiftClosingReceiptData, printShiftClosingReceipt, DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE } from '../../utils/posPrint';
 import { getModeFromPath } from '../../utils/appMode';
 
-// "Mở lại ca" (khôi phục ca đã kết) là thao tác chỉ dành cho Admin (app /admin). Cửa hàng trưởng
-// và Nhân sự KHÔNG được thấy nút này.
-const IS_ADMIN_APP = getModeFromPath() === 'admin';
-
 function formatItemLine(item: any) {
   return typeof item === 'string' ? item : `${item.quantity || 1}x ${item.productName || item.name}`;
 }
@@ -59,6 +55,9 @@ const statusMeta: Record<string, { label: string; className: string; icon: typeo
 
 export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const { branchLabel } = useBranches();
+  // "Mở lại ca" chỉ dành cho Admin (/admin). Tính trong component (đọc lại mỗi render) vì chuyển
+  // app dùng pushState — để cấp module sẽ kẹt giá trị cũ.
+  const isAdminApp = getModeFromPath() === 'admin';
   const [date, setDate] = useState(todayStr());
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [detailShift, setDetailShift] = useState<ShiftRow | null>(null);
@@ -323,7 +322,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                     <ListOrdered className="w-3.5 h-3.5" />
                     Xem chi tiết đơn hàng
                   </button>
-                  {IS_ADMIN_APP && shift.status === 'completed' && (
+                  {isAdminApp && shift.status === 'completed' && (
                     <button
                       type="button"
                       onClick={() => handleReopen(shift)}
@@ -338,7 +337,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
                   <button
                     type="button"
                     onClick={() => openFix(shift)}
-                    className={`flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 ${IS_ADMIN_APP && shift.status === 'completed' ? '' : 'ml-auto'}`}
+                    className={`flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 ${isAdminApp && shift.status === 'completed' ? '' : 'ml-auto'}`}
                     title="Sửa giờ vào/kết ca bị ghi sai & gán lại đơn vào ca"
                   >
                     <Wrench className="w-3.5 h-3.5" />

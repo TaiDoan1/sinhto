@@ -8,6 +8,11 @@ import { useSSE } from '../../contexts/SSEContext';
 import { useToast } from '../../contexts/ToastContext';
 import { BranchInventory as BranchStockDetail } from './BranchInventory';
 import * as api from '../../utils/api';
+import { getModeFromPath } from '../../utils/appMode';
+
+// Chỉ Admin (app /admin) mới được reset kho về 0. Cửa hàng trưởng (/store-manager) và Nhân sự
+// (/hr) dùng chung component này nhưng KHÔNG được thấy nút reset (thao tác nguy hiểm, không hoàn tác).
+const IS_ADMIN_APP = getModeFromPath() === 'admin';
 
 export interface InventoryItem {
   id: string;
@@ -494,14 +499,16 @@ export function CrossBranchInventory() {
             Kho tổng → phiếu nhập kho chi nhánh → duyệt → lịch sử xuất nhập
           </p>
         </div>
-        <button
-          onClick={handleResetAll}
-          disabled={resetting}
-          className="shrink-0 flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
-          title="Đưa toàn bộ kho tổng + kho chi nhánh về 0"
-        >
-          <Trash2 className="w-4 h-4" /> {resetting ? 'Đang reset...' : 'Reset kho về 0'}
-        </button>
+        {IS_ADMIN_APP && (
+          <button
+            onClick={handleResetAll}
+            disabled={resetting}
+            className="shrink-0 flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
+            title="Đưa toàn bộ kho tổng + kho chi nhánh về 0"
+          >
+            <Trash2 className="w-4 h-4" /> {resetting ? 'Đang reset...' : 'Reset kho về 0'}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

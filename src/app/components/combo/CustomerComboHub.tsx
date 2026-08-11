@@ -27,6 +27,10 @@ interface CustomerComboHubProps {
   title?: string;
   className?: string;
   defaultStatusFilter?: 'all' | 'due' | 'pending' | 'active' | 'paused' | 'completed';
+  /** Chỉ hiện combo của 1 khách (theo SĐT) — dùng khi nhúng trong chi tiết khách ở Quản Lý Khách. */
+  filterPhone?: string;
+  /** Ẩn thanh tiêu đề/thống kê phía trên (khi nhúng gọn). */
+  hideHeader?: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -152,7 +156,9 @@ function ComboCustomerCard(props: ComboActionProps & { onOpenDetail: () => void 
           // khi đơn còn chờ chốt; các thao tác khác (tạm dừng, hoàn thành, Copy Zalo...) nằm trong Chi tiết.
           const quick = combo.status === 'pending' && onClaim
             ? { label: 'Chốt combo', onClick: onClaim, disabled: false, className: 'bg-emerald-600 hover:bg-emerald-700 text-white' }
-            : null;
+            : onDeliver
+              ? { label: delivering ? 'Đang giao...' : 'Giao', onClick: () => onDeliver(''), disabled: !!delivering, className: 'bg-emerald-700 hover:bg-emerald-800 text-white' }
+              : null;
           return (
             <div className="mt-2.5 space-y-2">
               {it && (
@@ -194,6 +200,8 @@ export function CustomerComboHub({
   title,
   className = '',
   defaultStatusFilter,
+  filterPhone,
+  hideHeader,
 }: CustomerComboHubProps) {
   const { combos, claimCombo, updateCombo, updateComboStatus, confirmDelivery, postponeDelivery, rescheduleDelivery, changeComboBranch, isLoading } = useCombos();
   const { deductStockForOrder, checkCartStock, formatShortageMessage } = useInventory();
@@ -213,14 +221,18 @@ export function CustomerComboHub({
 
   const baseCombos = useMemo(() => {
     let list = [...combos];
+    if (filterPhone) {
+      const digits = (filterPhone || '').replace(/\D/g, '');
+      list = list.filter((c) => (c.customerPhone || '').replace(/\D/g, '') === digits);
+    }
     if (branchId) list = list.filter((c) => c.branchId === branchId);
-    if (variant === 'cskh' && staffId) {
+    if (variant === 'cskh' && staffId && !filterPhone) {
       list = list.filter(
         (c) => c.careStaffId === staffId || c.status === 'pending'
       );
     }
     return list;
-  }, [combos, branchId, variant, staffId]);
+  }, [combos, branchId, variant, staffId, filterPhone]);
 
   const dueToday = useMemo(
     () => getCombosDueToday(baseCombos.filter((c) => c.status === 'active'), branchId) as ComboSubscription[],

@@ -3,6 +3,7 @@ import { Users, Search, UserPlus, Pencil, X, Loader2, Phone, Package, Star, Chev
 import * as api from '../../utils/api';
 import { isOnlineSalesPosition } from '../../types/employee';
 import { usePagination, Pager } from '../common/Pagination';
+import { CustomerComboHub } from '../combo/CustomerComboHub';
 
 interface Customer { id: string; name: string; phone: string; points: number; createdAt?: string }
 interface Assignment { customerPhone: string; customerName?: string; careStaffId: string; careStaffName?: string; notes?: string }
@@ -256,7 +257,7 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
 
       {editing && <CustomerEditModal editing={editing} isNew={isNew} saving={saving} onChange={setEditing} onClose={() => setEditing(null)} onSave={saveCustomer} />}
       {assigning && <AssignModal assigning={assigning} staff={staff} saving={saving} onClose={() => setAssigning(null)} onAssign={doAssign} />}
-      {detail && <CustomerDetailDrawer customer={detail} combos={combos.filter((c) => normPhone(c.customerPhone) === normPhone(detail.phone))} owner={ownerByPhone.get(normPhone(detail.phone))} onClose={() => setDetail(null)} />}
+      {detail && <CustomerDetailDrawer customer={detail} combos={combos.filter((c) => normPhone(c.customerPhone) === normPhone(detail.phone))} owner={ownerByPhone.get(normPhone(detail.phone))} scope={scope} staffId={staffId} staffName={staffName} onClose={() => setDetail(null)} />}
     </div>
   );
 }
@@ -329,7 +330,7 @@ function dayLabel(dateStr: string) {
   return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
 
-function CustomerDetailDrawer({ customer, combos, owner, onClose }: { customer: Customer; combos: Combo[]; owner?: Assignment; onClose: () => void }) {
+function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffName, onClose }: { customer: Customer; combos: Combo[]; owner?: Assignment; scope: 'admin' | 'cskh'; staffId?: string; staffName?: string; onClose: () => void }) {
   const [orders, setOrders] = useState<any[] | null>(null);
   const [schedule, setSchedule] = useState<any[] | null>(null);
   useEffect(() => {
@@ -377,19 +378,19 @@ function CustomerDetailDrawer({ customer, combos, owner, onClose }: { customer: 
           )}
 
           <div>
-            <div className="flex items-center gap-1.5 font-bold text-gray-700 mb-2"><Package className="w-4 h-4 text-indigo-600" /> Combo ({combos.length})</div>
-            {combos.length === 0 ? <p className="text-sm text-gray-400">Chưa có combo.</p> : (
-              <div className="space-y-2">
-                {combos.map((c) => (
-                  <div key={c.id} className="border border-gray-100 rounded-lg px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-gray-800 text-sm truncate">{c.planName || 'Combo'}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : c.status === 'completed' ? 'bg-gray-100 text-gray-600' : c.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>{c.status}</span>
-                    </div>
-                    {(c.totalCups || 0) > 0 && <div className="text-xs text-gray-500 mt-0.5">Đã giao {c.deliveredCups || 0}/{c.totalCups} ly</div>}
-                  </div>
-                ))}
-              </div>
+            <div className="flex items-center gap-1.5 font-bold text-gray-700 mb-2"><Package className="w-4 h-4 text-indigo-600" /> Combo & Giao hàng</div>
+            {combos.length === 0 ? <p className="text-sm text-gray-400">Khách chưa có combo.</p> : (
+              // Tái dùng nguyên CustomerComboHub (lọc theo SĐT khách): có nút Giao, Chi tiết combo
+              // (sửa lịch/hoãn/gia hạn/đổi chi nhánh) — gộp trọn quản lý combo vào đây.
+              <CustomerComboHub
+                variant={scope === 'admin' ? 'admin' : 'cskh'}
+                staffId={staffId}
+                staffName={staffName}
+                claimAs={staffId ? { id: staffId, name: staffName || '' } : null}
+                filterPhone={customer.phone}
+                defaultStatusFilter="all"
+                className="!p-0"
+              />
             )}
           </div>
 

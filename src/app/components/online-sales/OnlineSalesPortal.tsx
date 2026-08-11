@@ -491,8 +491,7 @@ export function OnlineSalesPortal() {
     { id: 'leads', label: 'Lead FB', icon: UserPlus, badge: leads.length },
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
-    { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
-    { id: 'customers', label: 'Quản lý khách', icon: Users },
+    { id: 'customers', label: 'Quản lý khách', icon: Users, badge: myCombos.filter((c) => c.status === 'active').length || undefined },
     { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
@@ -751,10 +750,6 @@ export function OnlineSalesPortal() {
                   )}
                 </div>
               </div>
-            )}
-
-            {view === 'combo' && (
-              <CustomerComboHub {...comboHubProps} />
             )}
 
             {view === 'customers' && (

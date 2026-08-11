@@ -2,6 +2,7 @@ import { Clock, AlertCircle, CheckCircle, Package, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
+import { usePagination, Pager } from '../common/Pagination';
 
 export function OrderManagement() {
   const { orders } = useOrders();
@@ -65,6 +66,8 @@ export function OrderManagement() {
 
     return true;
   });
+
+  const { pageItems, ...pager } = usePagination(filteredOrders, 20, `${filter}|${searchTerm}`);
 
   const delayedCount = orders.filter(o => categorizeOrder(o) === 'delayed').length;
   const waitingCount = orders.filter(o => categorizeOrder(o) === 'waiting').length;
@@ -230,7 +233,7 @@ export function OrderManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(order => {
+                pageItems.map(order => {
                   const category = categorizeOrder(order);
                   const waitTime = getWaitTime(order.time);
 
@@ -308,6 +311,7 @@ export function OrderManagement() {
               )}
             </tbody>
           </table>
+          <Pager {...pager} onPage={pager.setPage} unit="đơn" className="px-4" />
         </div>
       </div>
     </div>

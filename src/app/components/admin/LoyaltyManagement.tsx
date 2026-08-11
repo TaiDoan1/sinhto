@@ -16,6 +16,7 @@ import {
   type RedeemProgramType,
 } from '../../types/loyalty';
 import { IssueVoucherModal, VoucherListModal } from './LoyaltyVoucherModals';
+import { usePagination, Pager } from '../common/Pagination';
 
 type AdminTab = 'config' | 'members';
 
@@ -46,6 +47,7 @@ export function LoyaltyManagement() {
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.includes(searchTerm)
   );
+  const { pageItems: pagedCustomers, ...custPager } = usePagination(filteredCustomers, 20, searchTerm);
 
   const handleSaveAll = async () => {
     setSaving(true);
@@ -411,7 +413,7 @@ export function LoyaltyManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
-                  {filteredCustomers.map(customer => {
+                  {pagedCustomers.map(customer => {
                     const tier = getCustomerTier(customer.points);
                     return (
                       <tr key={customer.id} className="hover:bg-gray-50/50">
@@ -440,6 +442,7 @@ export function LoyaltyManagement() {
                   })}
                 </tbody>
               </table>
+              <Pager {...custPager} onPage={custPager.setPage} unit="khách" className="px-6" />
             </div>
           )}
         </div>

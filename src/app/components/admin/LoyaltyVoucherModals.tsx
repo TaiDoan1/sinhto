@@ -5,6 +5,7 @@ import {
   Users, FileSpreadsheet, Filter,
 } from 'lucide-react';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { usePagination, Pager } from '../common/Pagination';
 import {
   formatProgramValue,
   formatVoucherStatus,
@@ -364,6 +365,8 @@ export function VoucherListModal({
     });
   }, [vouchers, search, statusFilter]);
 
+  const { pageItems: pagedVouchers, ...voucherPager } = usePagination(filtered, 20, `${search}|${statusFilter}`);
+
   const stats = useMemo(() => ({
     active: vouchers.filter(v => v.status === 'active').length,
     used: vouchers.filter(v => v.status === 'used').length,
@@ -455,7 +458,7 @@ export function VoucherListModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map(v => (
+                  {pagedVouchers.map(v => (
                     <tr
                       key={v.id}
                       onClick={() => setSelected(v)}
@@ -478,6 +481,7 @@ export function VoucherListModal({
                 </tbody>
               </table>
             )}
+            <Pager {...voucherPager} onPage={voucherPager.setPage} unit="voucher" className="px-2" />
           </div>
 
           <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l p-4 flex-shrink-0 overflow-y-auto bg-gray-50/50">

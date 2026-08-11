@@ -4,6 +4,7 @@ import * as api from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
 import type { WorkShift } from '../../types/employee';
 import type { Employee } from './EmployeeRegistration';
+import { usePagination, Pager } from '../common/Pagination';
 
 interface CheckInRecord {
   id: string;
@@ -91,6 +92,10 @@ export function StoreManagerCheckinHistory() {
   const sortedCheckinRecords = checkinSort === 'oldest'
     ? [...filteredCheckinRecords].reverse()
     : filteredCheckinRecords;
+  const { pageItems: pagedCheckins, ...pager } = usePagination(
+    sortedCheckinRecords, 30,
+    `${checkinStart}|${checkinEnd}|${checkinBranchFilter}|${checkinEmployeeQuery}|${checkinSort}`
+  );
 
   return (
     <div className="bg-white rounded-xl shadow-lg">
@@ -171,7 +176,7 @@ export function StoreManagerCheckinHistory() {
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Đang tải...</td></tr>
             ) : sortedCheckinRecords.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Chưa có bản ghi check-in/out nào.</td></tr>
-            ) : sortedCheckinRecords.slice(0, 50).map((record) => (
+            ) : pagedCheckins.map((record) => (
               <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 text-sm text-gray-900">{new Date(record.date).toLocaleDateString('vi-VN')}</td>
                 <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employeeId}</td>
@@ -223,11 +228,15 @@ export function StoreManagerCheckinHistory() {
         </table>
       </div>
 
+      <div className="px-4">
+        <Pager {...pager} onPage={pager.setPage} unit="bản ghi" />
+      </div>
+
       <div className="p-4 bg-gray-50 border-t border-gray-200">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <p className="text-sm text-gray-600">
-            Hiển thị {Math.min(50, filteredCheckinRecords.length)}/{filteredCheckinRecords.length} bản ghi
-            {filteredCheckinRecords.length !== checkinRecords.length ? ` (đã lọc từ ${checkinRecords.length})` : ' gần nhất'}
+            {filteredCheckinRecords.length} bản ghi
+            {filteredCheckinRecords.length !== checkinRecords.length ? ` (đã lọc từ ${checkinRecords.length})` : ''}
           </p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

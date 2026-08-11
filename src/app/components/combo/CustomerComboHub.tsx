@@ -13,6 +13,7 @@ import {
 import { Search, Phone, Package, User, ChevronRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { ComboDetailDrawer } from './ComboDetailDrawer';
 import { type ComboActionProps } from './ComboCardDetails';
+import { usePagination, Pager } from '../common/Pagination';
 
 export type CustomerComboHubVariant = 'pos' | 'admin' | 'cskh';
 
@@ -251,6 +252,8 @@ export function CustomerComboHub({
     });
   }, [baseCombos, statusFilter, search, dueToday]);
 
+  const { pageItems: pagedCombos, ...comboPager } = usePagination(filtered, 12, `${statusFilter}|${search}`);
+
   const pendingCount = baseCombos.filter((c) => c.status === 'pending').length;
   const activeCount = baseCombos.filter((c) => c.status === 'active').length;
 
@@ -437,7 +440,7 @@ export function CustomerComboHub({
           }`}
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          {filtered.map((combo) => (
+          {pagedCombos.map((combo) => (
             <ComboCustomerCard
               key={combo.id}
               combo={combo}
@@ -475,6 +478,9 @@ export function CustomerComboHub({
               onOpenDetail={() => setDetailComboId(combo.id)}
             />
           ))}
+          <div className={variant === 'pos' ? '' : 'lg:col-span-2'}>
+            <Pager {...comboPager} onPage={comboPager.setPage} unit="combo" />
+          </div>
         </div>
       )}
 

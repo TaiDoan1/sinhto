@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { RefundOrderModal } from './RefundOrderModal';
 import type { Order } from '../../contexts/OrderContext';
+import { usePagination, Pager } from '../common/Pagination';
 
 const sourceColors = {
   counter: 'bg-green-500',
@@ -73,6 +74,8 @@ export function OrderHistory({ branchId }: { branchId: string }) {
 
     return true;
   });
+
+  const { pageItems, ...pager } = usePagination(filteredHistory, 20, `${filterDate}|${searchTerm}`);
 
   const totalRevenue = filteredHistory.reduce((sum, order) => sum + order.total, 0);
 
@@ -158,7 +161,7 @@ export function OrderHistory({ branchId }: { branchId: string }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredHistory.map(order => (
+            {pageItems.map(order => (
               <div key={order.id} className="bg-white rounded-xl shadow-md p-4 border border-gray-200">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-3">
@@ -234,6 +237,7 @@ export function OrderHistory({ branchId }: { branchId: string }) {
                 </div>
               </div>
             ))}
+            <Pager {...pager} onPage={pager.setPage} unit="đơn" />
           </div>
         )}
       </div>

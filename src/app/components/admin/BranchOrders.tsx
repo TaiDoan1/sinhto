@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { normalizePhoneVN } from '../../utils/phone';
+import { usePagination, Pager } from '../common/Pagination';
 
 const FAST_THRESHOLD_MIN = 15;
 
@@ -88,6 +89,7 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
 
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
+  const { pageItems: pagedCompleted, ...completedPager } = usePagination(completedOrders, 20);
 
   return (
     <div>
@@ -183,7 +185,7 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                 Đã Hoàn Thành ({completedOrders.length})
               </h3>
               <div className="space-y-3">
-                {completedOrders.map(order => {
+                {pagedCompleted.map(order => {
                   const loyaltyPhone = getLoyaltyPhone(order.customerPhone);
                   const durationMin = order.completedAt
                     ? Math.max(0, Math.round((order.completedAt.getTime() - order.time.getTime()) / 60000))
@@ -230,6 +232,7 @@ export function BranchOrders({ branchId }: BranchOrdersProps) {
                   );
                 })}
               </div>
+              <Pager {...completedPager} onPage={completedPager.setPage} unit="đơn" />
             </div>
           )}
         </div>

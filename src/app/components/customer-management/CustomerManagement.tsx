@@ -6,7 +6,7 @@ import { usePagination, Pager } from '../common/Pagination';
 
 interface Customer { id: string; name: string; phone: string; points: number; createdAt?: string }
 interface Assignment { customerPhone: string; customerName?: string; careStaffId: string; careStaffName?: string; notes?: string }
-interface Combo { id: string; customerPhone?: string; careStaffId?: string; status: string; planName?: string; deliveredCups?: number; totalCups?: number }
+interface Combo { id: string; customerPhone?: string; customerName?: string; careStaffId?: string; status: string; planName?: string; deliveredCups?: number; totalCups?: number }
 interface StaffLite { id: string; fullName: string; position: string }
 
 interface Props {
@@ -71,15 +71,38 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
     return m;
   }, [combos]);
 
+  // GỘP mọi nguồn khách: bảng khách (điểm) + khách có combo + khách được gán CSKH — theo SĐT.
+  // Nhờ vậy khách combo (chưa có trong bảng điểm) vẫn hiện ở đây.
+  const allCustomers = useMemo(() => {
+    const byPhone = new Map<string, Customer>();
+    for (const c of customers) { const k = normPhone(c.phone); if (k) byPhone.set(k, c); }
+    for (const c of combos) {
+      const k = normPhone(c.customerPhone); if (!k || byPhone.has(k)) continue;
+      byPhone.set(k, { id: '', name: c.customerName || 'Khách', phone: c.customerPhone || '', points: 0 });
+    }
+    for (const a of assignments) {
+      const k = normPhone(a.customerPhone); if (!k || byPhone.has(k)) continue;
+      byPhone.set(k, { id: '', name: a.customerName || 'Khách', phone: a.customerPhone || '', points: 0 });
+    }
+    return [...byPhone.values()];
+  }, [customers, combos, assignments]);
+
+  // CSKH scope: khách "của mình" = được gán CSKH cho mình HOẶC có bất kỳ combo nào mình phụ trách.
+  const myComboPhones = useMemo(() => {
+    const s = new Set<string>();
+    if (scope === 'cskh' && staffId) for (const c of combos) if (c.careStaffId === staffId) s.add(normPhone(c.customerPhone));
+    return s;
+  }, [combos, scope, staffId]);
+
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return customers
+    return allCustomers
       .map((c) => {
         const owner = ownerByPhone.get(normPhone(c.phone));
         return { c, owner, activeCombos: activeCombosByPhone.get(normPhone(c.phone)) || 0 };
       })
-      // scope CSKH: chỉ khách mình phụ trách
-      .filter((r) => scope === 'admin' || r.owner?.careStaffId === staffId)
+      // scope CSKH: chỉ khách mình phụ trách (theo assignment) hoặc có combo của mình
+      .filter((r) => scope === 'admin' || r.owner?.careStaffId === staffId || myComboPhones.has(normPhone(r.c.phone)))
       // lọc theo CSKH phụ trách (admin)
       .filter((r) => ownerFilter === 'ALL' || (ownerFilter === 'NONE' ? !r.owner : r.owner?.careStaffId === ownerFilter))
       // lọc combo
@@ -87,7 +110,7 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
       // tìm kiếm
       .filter((r) => !term || r.c.name.toLowerCase().includes(term) || normPhone(r.c.phone).includes(normPhone(term)))
       .sort((a, b) => (b.activeCombos - a.activeCombos) || a.c.name.localeCompare(b.c.name));
-  }, [customers, ownerByPhone, activeCombosByPhone, scope, staffId, ownerFilter, comboFilter, search]);
+  }, [allCustomers, ownerByPhone, activeCombosByPhone, myComboPhones, scope, staffId, ownerFilter, comboFilter, search]);
 
   const { pageItems, ...pager } = usePagination(rows, 20, `${scope}|${ownerFilter}|${comboFilter}|${search}`);
 
@@ -104,7 +127,7 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
     if (!name || !phone) { alert('Nhập tên và số điện thoại'); return; }
     setSaving(true);
     try {
-      if (isNew) {
+      if (isNew || !editing.id) {
         const created = await api.createCustomer({ name, phone });
         // CSKH tạo khách mới → tự gán cho chính mình
         if (scope === 'cskh' && staffId) {

@@ -293,8 +293,20 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Update locally immediately
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
+    // Cập nhật cục bộ NGAY — không chờ SSE server bắn ngược (máy POS mạng yếu SSE hay rớt → đơn
+    // hoàn tất không vào Lịch sử tới khi tải lại trang). Đơn 'completed' phải RỜI hàng đợi và VÀO
+    // history ngay tại máy vừa thao tác, y như handler ORDER_UPDATED xử lý cho các máy khác.
+    if (status === 'completed') {
+      const completedOrder = activeOrder ? { ...activeOrder, ...updates } as Order : null;
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      if (completedOrder) {
+        setHistory(h => h.some(o => o.id === orderId)
+          ? h.map(o => o.id === orderId ? completedOrder : o)
+          : [completedOrder, ...h]);
+      }
+    } else {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
+    }
 
     try {
       await api.updateOrderStatus(orderId, status, updates);

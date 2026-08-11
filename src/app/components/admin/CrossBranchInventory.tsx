@@ -130,6 +130,7 @@ export function CrossBranchInventory() {
   const [histBranch, setHistBranch] = useState('all');
   const [histSearch, setHistSearch] = useState('');
   const [histPage, setHistPage] = useState(0);
+  const [receiptPage, setReceiptPage] = useState(0);
   const [moveModal, setMoveModal] = useState<{
     fromBranch: string;
     toBranch: string;
@@ -433,6 +434,15 @@ export function CrossBranchInventory() {
 
   const pendingReceipts = receipts.filter((r) => r.status === 'pending');
   const processedReceipts = receipts.filter((r) => r.status !== 'pending');
+
+  // Phân trang danh sách phiếu nhập kho đã xử lý (lịch sử) — tránh danh sách dài vô tận.
+  const RECEIPTS_PER_PAGE = 10;
+  const receiptTotalPages = Math.max(1, Math.ceil(processedReceipts.length / RECEIPTS_PER_PAGE));
+  const receiptPageSafe = Math.min(receiptPage, receiptTotalPages - 1);
+  const pagedProcessedReceipts = processedReceipts.slice(
+    receiptPageSafe * RECEIPTS_PER_PAGE,
+    receiptPageSafe * RECEIPTS_PER_PAGE + RECEIPTS_PER_PAGE
+  );
 
   const categories = ['all', 'fruit', 'dairy', 'protein', 'topping', 'other'];
   const categoryLabels: Record<string, string> = {
@@ -905,7 +915,7 @@ export function CrossBranchInventory() {
               <div className="px-6 py-6 text-center text-gray-400 text-sm">Chưa có phiếu nào được xử lý.</div>
             ) : (
               <div className="divide-y divide-gray-200">
-                {processedReceipts.map((r) => {
+                {pagedProcessedReceipts.map((r) => {
                   const isOpen = expandedParents.has(r.id);
                   const isApproved = r.status === 'approved';
                   return (
@@ -1001,6 +1011,20 @@ export function CrossBranchInventory() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {processedReceipts.length > RECEIPTS_PER_PAGE && (
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-t border-gray-100 text-sm">
+                <span className="text-gray-400">
+                  {receiptPageSafe * RECEIPTS_PER_PAGE + 1}–{Math.min((receiptPageSafe + 1) * RECEIPTS_PER_PAGE, processedReceipts.length)} / {processedReceipts.length} phiếu
+                </span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setReceiptPage((p) => Math.max(0, p - 1))} disabled={receiptPageSafe === 0}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 font-semibold disabled:opacity-40 hover:bg-gray-50">‹ Trước</button>
+                  <span className="px-2 text-gray-600">Trang {receiptPageSafe + 1}/{receiptTotalPages}</span>
+                  <button onClick={() => setReceiptPage((p) => Math.min(receiptTotalPages - 1, p + 1))} disabled={receiptPageSafe >= receiptTotalPages - 1}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 font-semibold disabled:opacity-40 hover:bg-gray-50">Sau ›</button>
+                </div>
               </div>
             )}
           </div>

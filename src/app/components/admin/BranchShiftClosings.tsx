@@ -223,11 +223,13 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   };
 
   const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
-  // Ca nghỉ (shiftType 'off') và ca đã hủy (rejected/cancelled) KHÔNG phải ca cần kết — tách
-  // riêng để không hiện thành thẻ kết ca đầy đủ (dễ nhầm là ca đang cần kết).
-  const isNonWorking = (s: ShiftRow) => s.shiftType === 'off' || s.status === 'rejected' || s.status === 'cancelled';
-  const working = sorted.filter((s) => !isNonWorking(s));
-  const offList = sorted.filter(isNonWorking);
+  // Ca cần kết = ca làm thật. Loại bỏ:
+  //  - Ca ĐÃ HỦY (rejected/cancelled): ca nhân viên xin/đăng ký nhưng bị từ chối duyệt → ẩn hẳn.
+  //  - Ca NGHỈ (shiftType 'off'): không hiện thành thẻ kết ca, chỉ gom xuống mục "Nghỉ" cho gọn.
+  const isCancelled = (s: ShiftRow) => s.status === 'rejected' || s.status === 'cancelled';
+  const isOff = (s: ShiftRow) => s.shiftType === 'off';
+  const working = sorted.filter((s) => !isOff(s) && !isCancelled(s));
+  const offList = sorted.filter((s) => isOff(s) && !isCancelled(s));
   const dayTotal = working.reduce((sum, s) => sum + getStat(s).total, 0);
   const closedCount = working.filter((s) => s.status === 'completed').length;
 
@@ -352,14 +354,12 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
 
           {offList.length > 0 && (
             <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="text-xs font-bold uppercase text-gray-400 mb-2">Nghỉ / đã hủy ({offList.length})</div>
+              <div className="text-xs font-bold uppercase text-gray-400 mb-2">Nghỉ ({offList.length})</div>
               <div className="flex flex-wrap gap-2">
                 {offList.map((s) => (
                   <span key={s.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm">
                     <span className="font-semibold text-gray-700">{s.employeeName}</span>
-                    <span className={`text-xs font-semibold ${s.status === 'rejected' || s.status === 'cancelled' ? 'text-red-500' : 'text-gray-400'}`}>
-                      {s.status === 'rejected' || s.status === 'cancelled' ? 'Đã hủy' : 'Nghỉ'}
-                    </span>
+                    <span className="text-xs font-semibold text-gray-400">Nghỉ</span>
                   </span>
                 ))}
               </div>

@@ -34,6 +34,7 @@ const LoyaltyManagement = lazyNamed(() => import("./components/admin/LoyaltyMana
 const StoreManagerApp = lazyNamed(() => import("./components/admin/StoreManagerApp"), "StoreManagerApp");
 const HrApp = lazyNamed(() => import("./components/admin/HrApp"), "HrApp");
 const CustomerCareManagement = lazyNamed(() => import("./components/admin/CustomerCareManagement"), "CustomerCareManagement");
+const CustomerManagement = lazyNamed(() => import("./components/customer-management/CustomerManagement"), "CustomerManagement");
 const BackupData = lazyNamed(() => import("./components/admin/BackupData"), "BackupData");
 import { OrderProvider } from "./contexts/OrderContext";
 import { ComboProvider } from "./contexts/ComboContext";
@@ -154,6 +155,8 @@ function AdminShell() {
         return <OrderNotificationSettings />;
       case "online-sales":
         return <CustomerCareManagement />;
+      case "customer-management":
+        return <CustomerManagement scope="admin" />;
       case "backup":
         return <BackupData />;
       default:

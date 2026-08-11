@@ -2496,14 +2496,29 @@ app.post('/api/combo-subscriptions', (req, res) => {
   });
   };
 
+  // #3: Nếu khách đã có CSKH PHỤ TRÁCH (chủ) từ trước → combo về ĐÚNG chủ đó, không phải người
+  // bấm đăng ký. Nhờ vậy 1 CSKH chốt hộ khách của người khác thì combo vẫn thuộc chủ của khách.
+  // Khách mới (chưa có chủ) → dùng người đăng ký, và họ trở thành chủ (upsert assignment sau insert).
+  const insertComboWithOwner = (careStaffId, careStaffName) => {
+    const phone = body.customerPhone;
+    if (!phone) return insertCombo(careStaffId, careStaffName);
+    db.get('SELECT careStaffId, careStaffName FROM customer_care_assignments WHERE customerPhone = ?', [phone], (e, owner) => {
+      if (!e && owner && owner.careStaffId) {
+        insertCombo(owner.careStaffId, owner.careStaffName || careStaffName);
+      } else {
+        insertCombo(careStaffId, careStaffName);
+      }
+    });
+  };
+
   const refCode = body.salesRefCode;
   if (!body.careStaffId && refCode) {
     resolveSalesRef(refCode, (refErr, staff) => {
       if (refErr) return res.status(500).json({ error: refErr.message });
-      insertCombo(staff?.id, staff?.fullName);
+      insertComboWithOwner(staff?.id, staff?.fullName);
     });
   } else {
-    insertCombo(body.careStaffId, body.careStaffName);
+    insertComboWithOwner(body.careStaffId, body.careStaffName);
   }
 });
 

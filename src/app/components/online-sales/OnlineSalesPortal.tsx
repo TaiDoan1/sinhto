@@ -18,6 +18,7 @@ import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
+import { CustomerManagement } from '../customer-management/CustomerManagement';
 import { lookupMacroFull } from '../../utils/macroData';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
@@ -27,7 +28,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'schedule' | 'alerts' | 'fbMessages';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -491,6 +492,7 @@ export function OnlineSalesPortal() {
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'combo', label: 'Khách combo', icon: Package, badge: myCombos.filter((c) => c.status === 'active').length },
+    { id: 'customers', label: 'Quản lý khách', icon: Users },
     { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
@@ -753,6 +755,10 @@ export function OnlineSalesPortal() {
 
             {view === 'combo' && (
               <CustomerComboHub {...comboHubProps} />
+            )}
+
+            {view === 'customers' && (
+              <CustomerManagement scope="cskh" staffId={activeEmployee.id} staffName={activeEmployee.fullName} />
             )}
 
             {view === 'schedule' && (

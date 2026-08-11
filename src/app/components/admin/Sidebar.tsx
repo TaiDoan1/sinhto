@@ -30,6 +30,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'combo-ship', label: 'Giao Combo Hôm Nay', icon: Truck },
     { id: 'combo-commission', label: 'Hoa Hồng CSKH', icon: Wallet },
     { id: 'online-sales', label: 'Chăm Sóc Khách Hàng', icon: Globe },
+    { id: 'customer-management', label: 'Quản Lý Khách Hàng', icon: Users },
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
     { id: 'gift-campaigns', label: 'Khuyến Mãi Tặng Quà', icon: Gift },
     { id: 'order-notification', label: 'Thông Báo Đơn CSKH', icon: Volume2 },

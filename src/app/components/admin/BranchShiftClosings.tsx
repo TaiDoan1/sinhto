@@ -19,7 +19,9 @@ interface ShiftRow {
   date: string;
   startTime: string;
   endTime: string;
+  shiftType?: string;
   status: string;
+  reason?: string;
   checkIn?: string;
   checkOut?: string;
   closingOrderCount?: number;
@@ -221,8 +223,13 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   };
 
   const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const dayTotal = sorted.reduce((sum, s) => sum + getStat(s).total, 0);
-  const closedCount = sorted.filter((s) => s.status === 'completed').length;
+  // Ca nghỉ (shiftType 'off') và ca đã hủy (rejected/cancelled) KHÔNG phải ca cần kết — tách
+  // riêng để không hiện thành thẻ kết ca đầy đủ (dễ nhầm là ca đang cần kết).
+  const isNonWorking = (s: ShiftRow) => s.shiftType === 'off' || s.status === 'rejected' || s.status === 'cancelled';
+  const working = sorted.filter((s) => !isNonWorking(s));
+  const offList = sorted.filter(isNonWorking);
+  const dayTotal = working.reduce((sum, s) => sum + getStat(s).total, 0);
+  const closedCount = working.filter((s) => s.status === 'completed').length;
 
   return (
     <div>
@@ -230,7 +237,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Kết Ca Nhân Viên</h2>
           <p className="text-gray-600 mt-1">
-            {closedCount}/{sorted.length} đã kết ca • Tổng doanh thu: {dayTotal.toLocaleString('vi-VN')}đ
+            {closedCount}/{working.length} đã kết ca • Tổng doanh thu: {dayTotal.toLocaleString('vi-VN')}đ
           </p>
         </div>
         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
@@ -244,14 +251,19 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
         </div>
       </div>
 
-      {sorted.length === 0 ? (
+      {working.length === 0 && offList.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-12 text-center">
           <Clock className="w-16 h-16 mx-auto mb-4 text-gray-400" />
           <p className="text-gray-600 text-lg">Không có ca làm nào ngày này</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {sorted.map((shift) => {
+          {working.length === 0 && (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500 text-sm">
+              Không có ca cần kết trong ngày.
+            </div>
+          )}
+          {working.map((shift) => {
             const meta = statusMeta[shift.status] || statusMeta.scheduled;
             const StatusIcon = meta.icon;
             const stat = getStat(shift);
@@ -337,6 +349,22 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
               </div>
             );
           })}
+
+          {offList.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="text-xs font-bold uppercase text-gray-400 mb-2">Nghỉ / đã hủy ({offList.length})</div>
+              <div className="flex flex-wrap gap-2">
+                {offList.map((s) => (
+                  <span key={s.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm">
+                    <span className="font-semibold text-gray-700">{s.employeeName}</span>
+                    <span className={`text-xs font-semibold ${s.status === 'rejected' || s.status === 'cancelled' ? 'text-red-500' : 'text-gray-400'}`}>
+                      {s.status === 'rejected' || s.status === 'cancelled' ? 'Đã hủy' : 'Nghỉ'}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

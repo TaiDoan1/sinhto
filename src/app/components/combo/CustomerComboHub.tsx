@@ -374,16 +374,18 @@ export function CustomerComboHub({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-          <Package className="w-5 h-5 text-emerald-600" />
-          {hubTitle}
-        </h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {activeCount} đang chạy · {dueToday.length} giao hôm nay
-          {pendingCount > 0 && ` · ${pendingCount} chờ chốt`}
-        </p>
-      </div>
+      {!hideHeader && (
+        <div className="mb-4">
+          <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+            <Package className="w-5 h-5 text-emerald-600" />
+            {hubTitle}
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {activeCount} đang chạy · {dueToday.length} giao hôm nay
+            {pendingCount > 0 && ` · ${pendingCount} chờ chốt`}
+          </p>
+        </div>
+      )}
 
       {pendingCount > 0 && (variant === 'admin' || variant === 'cskh') && (
         <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2 text-sm text-amber-900">
@@ -392,13 +394,14 @@ export function CustomerComboHub({
         </div>
       )}
 
-      {variant !== 'cskh' && (
+      {!hideHeader && variant !== 'cskh' && (
         <div className="mb-3 bg-blue-50 border border-blue-100 rounded-xl p-2.5 flex gap-2 text-xs text-blue-900">
           <MessageCircle className="w-4 h-4 shrink-0" />
           Copy Zalo → dán nhóm SHIP COMBO. Đã giao → tự cập nhật tiến độ (6/7 ly).
         </div>
       )}
 
+      {!hideHeader && (
       <div className="flex flex-col sm:flex-row gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -437,6 +440,7 @@ export function CustomerComboHub({
           ))}
         </div>
       </div>
+      )}
 
       {isLoading ? (
         <div className="text-center py-12 text-gray-400">Đang tải combo...</div>

@@ -389,6 +389,7 @@ function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffNa
                 claimAs={staffId ? { id: staffId, name: staffName || '' } : null}
                 filterPhone={customer.phone}
                 defaultStatusFilter="all"
+                hideHeader
                 className="!p-0"
               />
             )}

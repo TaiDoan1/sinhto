@@ -80,7 +80,7 @@ function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
-  const { orders, history } = useBranchOrders(branchId);
+  const { orders, history, offlineQueueLength } = useBranchOrders(branchId);
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
   const { isWarehouseReady, loadForBranch } = useInventory();
@@ -299,6 +299,16 @@ function POSInterfaceInner() {
   // Kết ca: kiểm tra ca đang mở, bắt buộc chốt doanh thu/đơn trước khi đăng xuất.
   const handleEndShift = async () => {
     if (!session) return;
+    // CHẶN kết ca khi còn đơn chưa lưu lên máy chủ (mất mạng): nếu kết ca lúc này, ca đóng lại,
+    // đơn kia gửi sau sẽ không tìm được ca in_progress → bị rớt khỏi ca (thiếu ly/doanh thu).
+    if (offlineQueueLength > 0) {
+      alert(
+        `⚠️ Còn ${offlineQueueLength} đơn CHƯA lưu lên máy chủ (do mất mạng).\n\n` +
+        `Vui lòng chờ mạng ổn định — hệ thống tự gửi lại các đơn này (số sẽ về 0), rồi hãy kết ca.\n\n` +
+        `Nếu kết ca ngay bây giờ, các đơn đó sẽ bị THIẾU khỏi ca (sai số ly & doanh thu).`
+      );
+      return;
+    }
     try {
       const activeShifts = (await api.fetchShifts({
         employeeId: session.employeeId,
@@ -316,6 +326,13 @@ function POSInterfaceInner() {
 
   // Thoát: đăng xuất thẳng về màn hình đăng nhập, không kết ca (VD: đổi người dùng máy nhanh).
   const handleExit = () => {
+    if (offlineQueueLength > 0) {
+      alert(
+        `⚠️ Còn ${offlineQueueLength} đơn CHƯA lưu lên máy chủ (do mất mạng).\n\n` +
+        `Chờ mạng ổn định để hệ thống gửi xong (số về 0) rồi hãy thoát — tránh mất đơn/rớt khỏi ca.`
+      );
+      return;
+    }
     if (confirm('Thoát khỏi máy POS? (Không kết ca — quay lại màn hình đăng nhập)')) {
       logout();
       setCart([]);
@@ -588,6 +605,14 @@ function POSInterfaceInner() {
               <Receipt className="w-4 h-4" />
               Kết ca
             </button>
+            {offlineQueueLength > 0 && (
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg text-sm font-bold shrink-0 animate-pulse"
+                title="Còn đơn chưa gửi lên máy chủ do mất mạng — chờ số về 0 rồi hãy kết ca"
+              >
+                ⚠️ {offlineQueueLength} đơn chưa lưu
+              </span>
+            )}
           </div>
 
           <div className="relative shrink-0">

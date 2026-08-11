@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, AlertTriangle, ChevronRight, Pause, Play, Calendar } from 'lucide-react';
 import { getWholesaleAccounts, type WholesaleAccount } from './CustomerApp';
 import * as api from '../../utils/api';
+import { usePagination, Pager } from '../common/Pagination';
 
 interface Props {
   isOpen: boolean;
@@ -282,6 +283,9 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
   const [comboResults, setComboResults] = useState<any[]>([]);
   const [comboSearched, setComboSearched] = useState(false);
 
+  const { pageItems: pagedResults, ...resultsPager } = usePagination(results, 15, phone);
+  const { pageItems: pagedComboResults, ...comboResPager } = usePagination(comboResults, 15, comboPhone);
+
   const handleSearch = async () => {
     if (!phone) return;
     try {
@@ -424,7 +428,7 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                   <p className="font-bold text-[14px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Không tìm thấy đơn hàng</p>
                 </div>
               ) : (
-                results.map(order => (
+                pagedResults.map(order => (
                   <div
                     key={order.id}
                     className="rounded-[18px] overflow-hidden"
@@ -465,6 +469,7 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                   </div>
                 ))
               )}
+              <Pager {...resultsPager} onPage={resultsPager.setPage} unit="đơn" />
             </div>
           </>
         )}
@@ -602,9 +607,10 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                   <p className="text-[11px] font-bold" style={{ color: 'rgba(0,0,0,0.4)' }}>
                     Tìm thấy {comboResults.length} gói Combo đăng ký
                   </p>
-                  {comboResults.map(combo => (
+                  {pagedComboResults.map(combo => (
                     <CustomerComboCard key={combo.id} combo={combo} updateCombo={pauseCombo} />
                   ))}
+                  <Pager {...comboResPager} onPage={comboResPager.setPage} unit="combo" />
                 </>
               )}
             </div>

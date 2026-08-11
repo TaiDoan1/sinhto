@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAffiliate } from '../../contexts/AffiliateContext';
+import { usePagination, Pager } from '../common/Pagination';
 import { Plus, Search, DollarSign, Award, Users, CreditCard, ChevronRight, X, Phone } from 'lucide-react';
 
 export function PTManagement() {
@@ -75,11 +76,15 @@ export function PTManagement() {
     setShowDetailModal(true);
   };
 
-  const filteredPartners = partners.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredPartners = partners.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.phone.includes(searchTerm)
   );
+  const { pageItems: pagedPartners, ...partnerPager } = usePagination(filteredPartners, 20, searchTerm);
+
+  const ptTransactions = selectedPtForDetail ? transactions.filter(t => t.ptId === selectedPtForDetail.id) : [];
+  const { pageItems: pagedPtTx, ...ptTxPager } = usePagination(ptTransactions, 15, selectedPtForDetail?.id);
 
   // Format Helper
   const fmt = (n: number) => {
@@ -168,7 +173,7 @@ export function PTManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredPartners.map(pt => {
+                pagedPartners.map(pt => {
                   const monthlyStats = getPTMonthlyStats(pt.id, now.getFullYear(), now.getMonth());
                   const overall = getPTOverallStats(pt.id);
 
@@ -228,6 +233,7 @@ export function PTManagement() {
               )}
             </tbody>
           </table>
+          <Pager {...partnerPager} onPage={partnerPager.setPage} unit="PT" className="px-4" />
         </div>
       </div>
 
@@ -345,11 +351,11 @@ export function PTManagement() {
             <p className="text-sm text-gray-500 mb-6">{selectedPtForDetail.name} ({selectedPtForDetail.code})</p>
             
             <div className="flex-1 overflow-y-auto space-y-4">
-              {transactions.filter(t => t.ptId === selectedPtForDetail.id).length === 0 ? (
+              {ptTransactions.length === 0 ? (
                 <div className="py-12 text-center text-gray-400">Chưa ghi nhận đơn hàng giới thiệu nào.</div>
               ) : (
                 <div className="space-y-3">
-                  {transactions.filter(t => t.ptId === selectedPtForDetail.id).map(tx => {
+                  {pagedPtTx.map(tx => {
                     const d = new Date(tx.timestamp);
                     // Dynamically resolve rate for this month's stats to render current estimated payout on item
                     const monthStats = getPTMonthlyStats(selectedPtForDetail.id, d.getFullYear(), d.getMonth());
@@ -376,6 +382,7 @@ export function PTManagement() {
                       </div>
                     );
                   })}
+                  <Pager {...ptTxPager} onPage={ptTxPager.setPage} unit="giao dịch" />
                 </div>
               )}
             </div>

@@ -6,6 +6,7 @@ import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAdmin } from '../../contexts/AdminContext';
+import { usePagination, Pager } from '../common/Pagination';
 
 const positions = [
   { id: 'manager', name: 'Quản Lý Chi Nhánh' },
@@ -112,6 +113,8 @@ export function EmployeeList() {
     })
     .sort((a, b) => normalizeText(a.branch).localeCompare(normalizeText(b.branch)) || normalizeText(a.employeeId).localeCompare(normalizeText(b.employeeId)));
 
+  const { pageItems: pagedEmployees, ...empPager } = usePagination(filteredEmployees, 20, `${branchFilter}|${searchTerm}`);
+
   const getPositionName = (id: string) => positions.find(p => p.id === id)?.name || id;
 
   return (
@@ -173,9 +176,9 @@ export function EmployeeList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredEmployees.map((emp, idx) => (
+                {pagedEmployees.map((emp, idx) => (
                   <tr key={emp.id} className="hover:bg-emerald-50/50 transition-colors">
-                    <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                    <td className="px-4 py-3 text-gray-400">{empPager.from + idx}</td>
                     <td className="px-4 py-3 font-mono font-semibold text-emerald-700">{emp.employeeId}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -236,6 +239,7 @@ export function EmployeeList() {
                 ))}
               </tbody>
             </table>
+            <Pager {...empPager} onPage={empPager.setPage} unit="nhân viên" className="px-4" />
           </div>
         </div>
       )}

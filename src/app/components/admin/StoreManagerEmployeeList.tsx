@@ -3,6 +3,7 @@ import { Search, User, LogIn, LogOut as LogOutIcon } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import { WorkShift } from '../../types/employee';
 import * as api from '../../utils/api';
+import { usePagination, Pager } from '../common/Pagination';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 
@@ -101,6 +102,7 @@ export function StoreManagerEmployeeList() {
 
   const getPositionName = (id: string) => positions.find((p) => p.id === id)?.name || id;
   const checkedInCount = filteredEmployees.filter((e) => attendanceByEmp.get(e.employeeId)?.checkIn).length;
+  const { pageItems: pagedEmployees, ...empPager } = usePagination(filteredEmployees, 20, `${branchFilter}|${searchTerm}`);
 
   return (
     <div>
@@ -153,7 +155,7 @@ export function StoreManagerEmployeeList() {
         <>
         {/* Mobile: danh sách thẻ, khỏi cuộn ngang */}
         <div className="sm:hidden space-y-2.5">
-          {filteredEmployees.map((emp) => {
+          {pagedEmployees.map((emp) => {
             const att = attendanceByEmp.get(emp.employeeId);
             const checkIn = formatTime(att?.checkIn);
             const checkOut = formatTime(att?.checkOut);
@@ -203,6 +205,7 @@ export function StoreManagerEmployeeList() {
               </div>
             );
           })}
+          <Pager {...empPager} onPage={empPager.setPage} unit="nhân viên" />
         </div>
 
         {/* Desktop: bảng */}
@@ -222,13 +225,13 @@ export function StoreManagerEmployeeList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredEmployees.map((emp, idx) => {
+                {pagedEmployees.map((emp, idx) => {
                   const att = attendanceByEmp.get(emp.employeeId);
                   const checkIn = formatTime(att?.checkIn);
                   const checkOut = formatTime(att?.checkOut);
                   return (
                     <tr key={emp.id} className="hover:bg-emerald-50/50 transition-colors">
-                      <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
+                      <td className="px-4 py-3 text-gray-400">{empPager.from + idx}</td>
                       <td className="px-4 py-3 font-mono font-semibold text-emerald-700">{emp.employeeId}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -281,6 +284,7 @@ export function StoreManagerEmployeeList() {
                 })}
               </tbody>
             </table>
+            <Pager {...empPager} onPage={empPager.setPage} unit="nhân viên" className="px-4" />
           </div>
         </div>
         </>

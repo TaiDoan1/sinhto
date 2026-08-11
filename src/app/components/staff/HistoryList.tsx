@@ -1,10 +1,12 @@
 import { Clock, Package, CheckCircle } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { usePagination, Pager } from '../common/Pagination';
 
 export function HistoryList() {
   const { history } = useOrders();
   const staffName = 'Nguyễn Văn An'; // TODO: Lấy từ user context
   const myHistory = history.filter(order => order.staff === staffName);
+  const { pageItems, ...pager } = usePagination(myHistory, 20);
 
   const getElapsedTime = (orderTime: Date, completedTime?: Date) => {
     if (!completedTime) return '0p';
@@ -38,7 +40,7 @@ export function HistoryList() {
           </div>
         ) : (
           <div className="space-y-3">
-            {myHistory.map(order => (
+            {pageItems.map(order => (
               <div key={order.id} className="bg-white rounded-xl shadow-md p-4 border-2 border-gray-200">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-3">
@@ -80,6 +82,7 @@ export function HistoryList() {
                 </div>
               </div>
             ))}
+            <Pager {...pager} onPage={pager.setPage} unit="đơn" />
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { Gift, Plus, Save, Loader2, CheckCircle, Trash2, Pencil, Eye, EyeOff, X,
 import * as api from '../../utils/api';
 import type { GiftCampaign, GiftRedemption, GiftRewardType, GiftApplyMode } from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
+import { usePagination, Pager } from '../common/Pagination';
 
 const SIZE_OPTIONS = ['250ml', '360ml', '500ml', '700ml'];
 const PROTEIN_OPTIONS = [20, 40];
@@ -55,6 +56,7 @@ export function GiftCampaigns() {
   const [viewingRedemptions, setViewingRedemptions] = useState<GiftCampaign | null>(null);
   const [redemptions, setRedemptions] = useState<GiftRedemption[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
+  const { pageItems: pagedRedemptions, ...redemptionPager } = usePagination(redemptions, 20, viewingRedemptions?.id);
 
   const load = () => {
     api.fetchGiftCampaigns().then(setCampaigns).catch(() => {}).finally(() => setLoading(false));
@@ -400,7 +402,7 @@ export function GiftCampaigns() {
                     </tr>
                   </thead>
                   <tbody>
-                    {redemptions.map((r) => (
+                    {pagedRedemptions.map((r) => (
                       <tr key={r.id} className="border-b last:border-0">
                         <td className="py-2 pr-2 font-semibold text-gray-800">{r.customerPhone}</td>
                         <td className="py-2 pr-2 font-mono font-bold text-pink-700">{r.code || '-'}</td>
@@ -412,6 +414,7 @@ export function GiftCampaigns() {
                   </tbody>
                 </table>
               )}
+              <Pager {...redemptionPager} onPage={redemptionPager.setPage} unit="lượt" />
             </div>
           </div>
         </div>

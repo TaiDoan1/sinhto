@@ -6,6 +6,7 @@ import {
 import { useCombos, ComboSubscription } from '../../contexts/ComboContext';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
+import { usePagination, Pager } from '../common/Pagination';
 import type { TeamStat } from '../../types/onlineSales';
 import type { Employee } from '../../types/employee';
 import { POSITION_LABELS, isOnlineSalesPosition } from '../../types/employee';
@@ -85,6 +86,9 @@ export function CustomerCareManagement() {
           a.customerPhone.includes(q)
       );
   }, [assignments, selectedStaffId, search]);
+
+  const { pageItems: pagedStaffCustomers, ...custPager } = usePagination(staffCustomers, 20, `${selectedStaffId}|${search}`);
+  const { pageItems: pagedStaffCombos, ...comboPager } = usePagination(staffCombos, 20, selectedStaffId);
 
   const pendingCombos = combos.filter((c) => c.status === 'pending');
 
@@ -310,7 +314,7 @@ export function CustomerCareManagement() {
                   <p className="p-5 text-sm text-gray-400">Chưa có khách được gán</p>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {staffCustomers.map((a) => (
+                    {pagedStaffCustomers.map((a) => (
                       <div key={a.id} className="px-5 py-4 flex items-center justify-between gap-3">
                         <div>
                           <p className="font-semibold text-gray-900">{a.customerName || 'Khách hàng'}</p>
@@ -328,6 +332,7 @@ export function CustomerCareManagement() {
                         </button>
                       </div>
                     ))}
+                    <Pager {...custPager} onPage={custPager.setPage} unit="khách" className="px-5" />
                   </div>
                 )}
               </div>
@@ -342,7 +347,7 @@ export function CustomerCareManagement() {
                   <p className="p-5 text-sm text-gray-400">Chưa có combo</p>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {staffCombos.map((combo) => (
+                    {pagedStaffCombos.map((combo) => (
                       <div key={combo.id} className="px-5 py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -385,6 +390,7 @@ export function CustomerCareManagement() {
                         </div>
                       </div>
                     ))}
+                    <Pager {...comboPager} onPage={comboPager.setPage} unit="combo" className="px-5" />
                   </div>
                 )}
               </div>

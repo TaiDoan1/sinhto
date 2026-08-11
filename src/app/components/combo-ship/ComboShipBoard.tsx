@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
 import * as api from '../../utils/api';
+import { usePagination, Pager } from '../common/Pagination';
 
 type Tab = 'today' | 'done' | 'all';
 
@@ -82,6 +83,7 @@ export function ComboShipBoard() {
 
   const displayed =
     tab === 'today' ? dueToday : tab === 'done' ? doneToday : activeCombos;
+  const { pageItems: pagedDisplayed, ...shipPager } = usePagination(displayed, 15, `${tab}|${branchId}`);
 
   const handleSelectBranch = (id: string) => {
     setBranchId(id);
@@ -229,7 +231,7 @@ export function ComboShipBoard() {
           </div>
         )}
 
-        {displayed.map((combo) => {
+        {pagedDisplayed.map((combo) => {
           const todayItem = todayItemFor(combo);
           const progress = getComboProgress(combo);
           const isDone = wasDeliveredToday(combo);
@@ -384,6 +386,8 @@ export function ComboShipBoard() {
             </div>
           );
         })}
+
+        <Pager {...shipPager} onPage={shipPager.setPage} unit="combo" />
 
         {dueToday.length > 0 && tab !== 'today' && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2 text-sm">

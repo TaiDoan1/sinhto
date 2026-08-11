@@ -3,6 +3,7 @@ import { Plus, Truck, X, Coffee, Layers3, Search, PackageCheck, Clock, Pencil, B
 import { useInventory } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
+import { useAdmin } from '../../contexts/AdminContext';
 import * as api from '../../utils/api';
 
 interface BranchInventoryProps {
@@ -71,6 +72,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
   const { loadForBranch, isWarehouseReady } = useInventory();
   const { subscribe } = useSSE();
   const { activeBranches, branchLabel } = useBranches();
+  const { adminUser } = useAdmin();
 
   const [receiptStage, setReceiptStage] = useState<ReceiptStage>('idle');
   const [receiptName, setReceiptName] = useState('');
@@ -211,7 +213,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     try {
       const receipt = await api.createStockReceipt({
         branchId,
-        createdBy: 'Admin',
+        createdBy: adminUser?.fullName || adminUser?.employeeId || 'Admin',
         note: receiptName.trim() || 'Nhap kho',
         lines: diffLines,
       });

@@ -6,6 +6,7 @@ import {
 import { useBranches } from '../../contexts/BranchContext';
 import { useSSE } from '../../contexts/SSEContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useAdmin } from '../../contexts/AdminContext';
 import { BranchInventory as BranchStockDetail } from './BranchInventory';
 import * as api from '../../utils/api';
 import { getModeFromPath } from '../../utils/appMode';
@@ -110,6 +111,8 @@ export function CrossBranchInventory() {
   const { activeBranches, branchLabel } = useBranches();
   const { subscribe } = useSSE();
   const { showSuccess, showError } = useToast();
+  const { adminUser } = useAdmin();
+  const actorName = adminUser?.fullName || adminUser?.employeeId || 'Admin';
 
   const [activeTab, setActiveTab] = useState<'central' | 'overview' | 'pending' | 'history'>('central');
 
@@ -396,7 +399,7 @@ export function CrossBranchInventory() {
   const handleApprove = async (receipt: StockReceipt) => {
     setProcessingId(receipt.id);
     try {
-      await api.approveStockReceipt(receipt.id, 'Admin');
+      await api.approveStockReceipt(receipt.id, actorName);
       showSuccess(`Đã duyệt phiếu ${receipt.id} — đã cập nhật kho tổng và kho ${branchLabel(receipt.branchId)}`);
       loadReceipts();
     } catch (err) {
@@ -410,7 +413,7 @@ export function CrossBranchInventory() {
     if (!confirm(`Từ chối phiếu ${receipt.id}?`)) return;
     setProcessingId(receipt.id);
     try {
-      await api.rejectStockReceipt(receipt.id, 'Admin');
+      await api.rejectStockReceipt(receipt.id, actorName);
       showSuccess(`Đã từ chối phiếu ${receipt.id}`);
       loadReceipts();
     } catch (err) {
@@ -818,7 +821,7 @@ export function CrossBranchInventory() {
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Chờ duyệt</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {fullDateTime(r.createdAt)} · Chi nhánh <span className="font-bold text-gray-700">{branchLabel(r.branchId)}</span> · {r.createdBy}
+                      {fullDateTime(r.createdAt)} · Chi nhánh <span className="font-bold text-gray-700">{branchLabel(r.branchId)}</span> · Người tạo: <span className="font-semibold text-gray-700">{r.createdBy || '—'}</span>
                       {r.note ? ` · ${r.note}` : ''}
                     </div>
                   </div>
@@ -930,8 +933,9 @@ export function CrossBranchInventory() {
                             </div>
                           </div>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          Người duyệt: <span className="font-semibold text-gray-600">{r.approvedBy || '—'}</span>
+                        <div className="text-xs text-gray-400 text-right leading-relaxed">
+                          <div>Người tạo: <span className="font-semibold text-gray-600">{r.createdBy || '—'}</span></div>
+                          <div>{isApproved ? 'Người duyệt' : 'Người từ chối'}: <span className="font-semibold text-gray-600">{r.approvedBy || '—'}</span></div>
                         </div>
                       </button>
 
@@ -1125,6 +1129,10 @@ export function CrossBranchInventory() {
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
                   {subReceiptDetail.receipt.id} · {fullDateTime(subReceiptDetail.receipt.approvedAt)}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Người tạo: <span className="font-semibold text-gray-700">{subReceiptDetail.receipt.createdBy || '—'}</span>
+                  {' · '}Người duyệt: <span className="font-semibold text-gray-700">{subReceiptDetail.receipt.approvedBy || '—'}</span>
                 </p>
               </div>
               <button

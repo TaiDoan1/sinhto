@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Search, UserPlus, Pencil, X, Loader2, Phone, Package, Star, ChevronRight, UserCog, History } from 'lucide-react';
+import { Users, Search, UserPlus, Pencil, X, Loader2, Phone, Package, Star, ChevronRight, UserCog, History, CalendarDays } from 'lucide-react';
 import * as api from '../../utils/api';
 import { isOnlineSalesPosition } from '../../types/employee';
 import { usePagination, Pager } from '../common/Pagination';
@@ -318,11 +318,33 @@ function AssignModal({ assigning, staff, saving, onClose, onAssign }: any) {
   );
 }
 
+function dayLabel(dateStr: string) {
+  // '2026-08-11' -> Hôm nay / Mai / T-hai dd/mm ...
+  const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD local
+  const tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
+  const tmrStr = tmr.toLocaleDateString('sv-SE');
+  if (dateStr === todayStr) return 'Hôm nay';
+  if (dateStr === tmrStr) return 'Ngày mai';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
+}
+
 function CustomerDetailDrawer({ customer, combos, owner, onClose }: { customer: Customer; combos: Combo[]; owner?: Assignment; onClose: () => void }) {
   const [orders, setOrders] = useState<any[] | null>(null);
+  const [schedule, setSchedule] = useState<any[] | null>(null);
   useEffect(() => {
     api.fetchOrdersByPhone(customer.phone).then((d: any[]) => setOrders(d || [])).catch(() => setOrders([]));
-  }, [customer.phone]);
+    // Lịch giao: gộp delivery-logs của các combo của khách (combo còn chạy/chờ)
+    const active = combos.filter((c) => c.status === 'active' || c.status === 'pending');
+    if (active.length === 0) { setSchedule([]); return; }
+    Promise.all(active.map((c) => api.fetchDeliveryLogs({ comboOrderId: c.id }).catch(() => [])))
+      .then((lists) => {
+        const all = lists.flat().filter((l: any) => l && l.status !== 'cancelled');
+        all.sort((a: any, b: any) => (a.deliveryDate || '').localeCompare(b.deliveryDate || '') || (a.deliveryTime || '').localeCompare(b.deliveryTime || ''));
+        setSchedule(all);
+      })
+      .catch(() => setSchedule([]));
+  }, [customer.phone, combos]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex justify-end" onClick={onClose}>
@@ -369,6 +391,33 @@ function CustomerDetailDrawer({ customer, combos, owner, onClose }: { customer: 
                 ))}
               </div>
             )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-gray-700 mb-2"><CalendarDays className="w-4 h-4 text-indigo-600" /> Lịch giao sắp tới</div>
+            {schedule === null ? <Loader2 className="w-5 h-5 animate-spin text-emerald-600" /> : (() => {
+              const upcoming = schedule.filter((l: any) => l.status !== 'delivered');
+              const deliveredN = schedule.length - upcoming.length;
+              if (upcoming.length === 0) return <p className="text-sm text-gray-400">Không có buổi giao sắp tới{deliveredN > 0 ? ` (đã giao ${deliveredN} buổi)` : ''}.</p>;
+              return (
+                <div className="space-y-1.5">
+                  {upcoming.slice(0, 12).map((l: any, i: number) => {
+                    const isToday = dayLabel(l.deliveryDate) === 'Hôm nay';
+                    return (
+                      <div key={l.id || i} className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 ${isToday ? 'bg-emerald-50 border border-emerald-100' : ''}`}>
+                        <span className="min-w-0">
+                          <span className={`font-semibold text-sm ${isToday ? 'text-emerald-700' : 'text-gray-800'}`}>{dayLabel(l.deliveryDate)}</span>
+                          <span className="text-xs text-gray-400 ml-1.5">{l.deliveryTime || '08:00'}</span>
+                          <span className="block text-xs text-gray-500 truncate">{l.productName || 'Sinh tố'}{l.size ? ` · ${l.size}` : ''}{l.deliveryType === 'pickup' ? ' · 🏪 Lấy tại quầy' : ''}</span>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${l.status === 'postponed' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>{l.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}</span>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-gray-400 pt-0.5">Đã giao {deliveredN} buổi{upcoming.length > 12 ? ` · còn ${upcoming.length - 12} buổi nữa` : ''}</p>
+                </div>
+              );
+            })()}
           </div>
 
           <div>

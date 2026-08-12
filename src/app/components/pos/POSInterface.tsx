@@ -299,15 +299,17 @@ function POSInterfaceInner() {
   // Kết ca: kiểm tra ca đang mở, bắt buộc chốt doanh thu/đơn trước khi đăng xuất.
   const handleEndShift = async () => {
     if (!session) return;
-    // CHẶN kết ca khi còn đơn chưa lưu lên máy chủ (mất mạng): nếu kết ca lúc này, ca đóng lại,
-    // đơn kia gửi sau sẽ không tìm được ca in_progress → bị rớt khỏi ca (thiếu ly/doanh thu).
+    // CẢNH BÁO (không chặn cứng) khi còn đơn chưa lưu lên máy chủ (mất mạng). Cho phép nhân viên
+    // VẪN kết ca nếu cần — tránh kẹt cứng khi đơn không gửi được. Đơn KHÔNG mất (nằm trong máy,
+    // tự gửi lại khi có mạng), chỉ có thể bị lệch khỏi ca.
     if (offlineQueueLength > 0) {
-      alert(
+      const proceed = confirm(
         `⚠️ Còn ${offlineQueueLength} đơn CHƯA lưu lên máy chủ (do mất mạng).\n\n` +
-        `Vui lòng chờ mạng ổn định — hệ thống tự gửi lại các đơn này (số sẽ về 0), rồi hãy kết ca.\n\n` +
-        `Nếu kết ca ngay bây giờ, các đơn đó sẽ bị THIẾU khỏi ca (sai số ly & doanh thu).`
+        `NÊN: chờ mạng ổn định để hệ thống tự gửi (số về 0) rồi hãy kết ca.\n\n` +
+        `Nếu VẪN kết ca bây giờ: các đơn đó có thể bị thiếu khỏi ca (sai số ly & doanh thu) — nhưng đơn KHÔNG mất, sẽ tự gửi lên khi có mạng lại.\n\n` +
+        `Bấm OK để VẪN kết ca · Cancel để chờ thêm.`
       );
-      return;
+      if (!proceed) return;
     }
     try {
       const activeShifts = (await api.fetchShifts({
@@ -327,11 +329,12 @@ function POSInterfaceInner() {
   // Thoát: đăng xuất thẳng về màn hình đăng nhập, không kết ca (VD: đổi người dùng máy nhanh).
   const handleExit = () => {
     if (offlineQueueLength > 0) {
-      alert(
+      const proceed = confirm(
         `⚠️ Còn ${offlineQueueLength} đơn CHƯA lưu lên máy chủ (do mất mạng).\n\n` +
-        `Chờ mạng ổn định để hệ thống gửi xong (số về 0) rồi hãy thoát — tránh mất đơn/rớt khỏi ca.`
+        `Nên chờ mạng ổn định để hệ thống gửi xong (số về 0). Đơn KHÔNG mất — nằm trong máy này, tự gửi khi có mạng.\n\n` +
+        `Bấm OK để VẪN thoát · Cancel để chờ.`
       );
-      return;
+      if (!proceed) return;
     }
     if (confirm('Thoát khỏi máy POS? (Không kết ca — quay lại màn hình đăng nhập)')) {
       logout();

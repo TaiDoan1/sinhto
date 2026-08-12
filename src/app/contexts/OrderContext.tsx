@@ -180,9 +180,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       console.log('🔄 Đang kiểm tra để tự động đồng bộ hóa các đơn hàng ngoại tuyến...');
       const queueCopy = [...offlineQueue];
       let successCount = 0;
+      const failed: any[] = [];
 
-      for (let i = 0; i < queueCopy.length; i++) {
-        const item = queueCopy[i];
+      // Thử TẤT CẢ đơn trong hàng đợi (KHÔNG break) — để 1 đơn lỗi cố định không chặn cả loạt.
+      // Đơn nào gửi được thì bỏ khỏi hàng đợi; đơn nào lỗi thì giữ lại thử ở lần sau.
+      for (const item of queueCopy) {
         try {
           if (item.action === 'CREATE') {
             await api.createOrder(withSalesRef(item.data));
@@ -191,16 +193,20 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           }
           successCount++;
         } catch (err) {
-          console.warn(`Đồng bộ thất bại cho đơn ${item.orderId || 'NEW'}. Có thể vẫn offline.`);
-          break; // Mạng vẫn lỗi, dừng luồng đồng bộ
+          console.warn(`Đồng bộ thất bại cho đơn ${item.orderId || 'NEW'} — giữ lại thử sau.`);
+          failed.push(item);
         }
       }
 
       if (successCount > 0) {
-        const remainingQueue = queueCopy.slice(successCount);
-        setOfflineQueue(remainingQueue);
-        localStorage.setItem('offline_orders_queue', JSON.stringify(remainingQueue));
-        console.log(`✅ Đã đồng bộ thành công ${successCount} tác vụ đơn hàng ngoại tuyến.`);
+        // Giữ đơn lỗi + đơn mới phát sinh trong lúc đang gửi (không nằm trong queueCopy).
+        setOfflineQueue((prev) => {
+          const newSince = prev.filter((p) => !queueCopy.includes(p));
+          const merged = [...failed, ...newSince];
+          localStorage.setItem('offline_orders_queue', JSON.stringify(merged));
+          return merged;
+        });
+        console.log(`✅ Đã đồng bộ ${successCount} đơn ngoại tuyến (còn lại ${failed.length} lỗi).`);
       }
     }, 10000);
 

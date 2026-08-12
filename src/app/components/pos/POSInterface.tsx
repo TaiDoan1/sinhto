@@ -80,7 +80,7 @@ function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
-  const { orders, history, offlineQueueLength, offlineQueueItems, retryOfflineQueue } = useBranchOrders(branchId);
+  const { orders, history, offlineQueueLength, offlineQueueItems, retryOfflineQueue, addOrder } = useBranchOrders(branchId);
   const [showOfflineList, setShowOfflineList] = useState(false);
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
@@ -95,6 +95,8 @@ function POSInterfaceInner() {
   const [posEmployees, setPosEmployees] = useState<{ id: string; fullName: string; position: string; branch: string }[]>([]);
   const [sellerId, setSellerId] = useState('');
   const [mgrId, setMgrId] = useState('');
+  const [comboPayment, setComboPayment] = useState<'cash' | 'transfer'>('transfer');
+  const [comboSubmitting, setComboSubmitting] = useState(false);
   useEffect(() => {
     api.fetchEmployees()
       .then((list: any[]) => setPosEmployees((list || []).map((e) => ({ id: e.id, fullName: e.fullName, position: e.position, branch: e.branch }))))
@@ -525,13 +527,47 @@ function POSInterfaceInner() {
 
   const confirmComboStaff = async () => {
     const combo = comboPendingStaff;
-    if (!combo) return;
+    if (!combo || comboSubmitting) return;
     const raw = combo.rawComboData || {};
     const duration = raw.duration || 'monthly';
     const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
     const seller = posEmployees.find((e) => e.id === sellerId);
     const mgr = posEmployees.find((e) => e.id === mgrId);
+    setComboSubmitting(true);
     try {
+      // 1) GHI NHẬN ĐƠN BÁN đã thu tiền vào ca NGAY — đây là bước trước đây bị thiếu (combo chỉ tạo
+      //    gói mà không thành đơn nên rớt khỏi ca/doanh thu/lịch sử). Đơn chỉ-combo tự hoàn tất →
+      //    vào thẳng Lịch sử + tính vào kết ca. Người bán (seller) gắn cho đơn để tra soát.
+      const orderOk = addOrder({
+        branchId,
+        source: 'counter',
+        items: [{
+          productId: `combo-${Date.now()}`,
+          productName: combo.name,
+          name: combo.name,
+          quantity: 1,
+          price: combo.price,
+          size: '',
+          protein: 0,
+          toppings: combo.toppings,
+          isCustomCombo: true,
+          rawComboData: raw,
+        }],
+        status: 'completed',
+        total: combo.price,
+        staff: seller?.fullName || session?.employeeName || '',
+        staffId: seller?.id || session?.employeeId,
+        sessionStaffId: session?.employeeId,
+        customerName: combo.customerName || raw.customerName || '',
+        customerPhone: combo.customerPhone || raw.customerPhone || '',
+        paymentMethod: comboPayment,
+      } as any);
+      if (!orderOk) {
+        alert('Ghi nhận đơn combo thất bại. Thử lại.');
+        setComboSubmitting(false);
+        return;
+      }
+      // 2) Tạo gói combo (subscription) để sinh lịch giao + chia hoa hồng.
       await api.createComboSubscription({
         customerName: combo.customerName || raw.customerName || '',
         customerPhone: combo.customerPhone || raw.customerPhone || '',
@@ -560,6 +596,7 @@ function POSInterfaceInner() {
     } catch (err) {
       console.error('Tạo combo subscription từ POS thất bại:', err);
     } finally {
+      setComboSubmitting(false);
       setComboPendingStaff(null);
     }
   };
@@ -887,18 +924,9 @@ function POSInterfaceInner() {
               isPOS={true}
               onClose={() => setSelectedProduct(null)}
               onAddToCart={(combo) => {
-                handleAddToCart({
-                  productId: `combo-${Date.now()}`,
-                  productName: combo.name,
-                  name: combo.name,
-                  size: '',
-                  protein: 0,
-                  toppings: combo.toppings,
-                  price: combo.price,
-                  quantity: 1,
-                  isCustomCombo: true,
-                  rawComboData: combo.rawComboData,
-                });
+                // KHÔNG bỏ vào giỏ chờ Thanh toán nữa (nhân viên hay quên bấm → combo không thành
+                // đơn, không vào ca/lịch sử). Mở thẳng modal chốt → xác nhận là tạo LUÔN đơn bán
+                // đã thu tiền + gói combo.
                 setSelectedProduct(null);
                 handleCreateComboSubscription(combo);
               }}
@@ -932,13 +960,38 @@ function POSInterfaceInner() {
                 </select>
                 <p className="text-[11px] text-gray-400 mt-1">Tỷ lệ chia do Admin cấu hình (mặc định 80% người bán / 20% CSKH).</p>
               </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1 block">💵 Hình thức thu tiền</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setComboPayment('cash')}
+                    className={`py-2 rounded-lg text-sm font-bold border ${comboPayment === 'cash' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                  >
+                    Tiền mặt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setComboPayment('transfer')}
+                    className={`py-2 rounded-lg text-sm font-bold border ${comboPayment === 'transfer' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                  >
+                    Chuyển khoản
+                  </button>
+                </div>
+              </div>
             </div>
             <button
               onClick={confirmComboStaff}
-              disabled={!sellerId}
+              disabled={!sellerId || comboSubmitting}
               className="w-full mt-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl"
             >
-              Xác nhận tạo combo
+              {comboSubmitting ? 'Đang ghi nhận...' : `Xác nhận bán combo · ${(comboPendingStaff.price || 0).toLocaleString('vi-VN')}đ`}
+            </button>
+            <button
+              onClick={() => { if (!comboSubmitting) setComboPendingStaff(null); }}
+              className="w-full mt-2 text-gray-500 text-sm py-1"
+            >
+              Hủy
             </button>
           </div>
         </div>

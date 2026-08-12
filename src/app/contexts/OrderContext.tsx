@@ -128,6 +128,19 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // 3. Subscribe to real-time events via global SSEContext
     const unsubCreate = subscribe('ORDER_CREATED', (data) => {
       const newOrder = normalizeOrder(data);
+      // Đơn tạo ra đã ở trạng thái hoàn tất (VD đơn combo gói trả trước tự hoàn thành) → vào thẳng
+      // Lịch sử, KHÔNG nằm ở hàng chờ pha chế. Áp cho mọi máy nhận sự kiện.
+      if (newOrder.status === 'completed') {
+        setHistory(h => h.some(o => o.id === newOrder.id)
+          ? h.map(o => o.id === newOrder.id ? newOrder : o)
+          : [newOrder, ...h]);
+        setOrders(prev => {
+          const updated = prev.filter(o => o.id !== newOrder.id);
+          localStorage.setItem('cached_active_orders', JSON.stringify(updated));
+          return updated;
+        });
+        return;
+      }
       setOrders(prev => {
         // Đơn do chính tab này tạo đã có sẵn 1 bản optimistic (cùng id, tự sinh ở addOrder())
         // nhưng KHÔNG có shiftId/orderNumber vì đó là các trường server tự gán khi lưu. Phải
@@ -267,15 +280,21 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           }
     );
     const retailLines = stockLines.filter((l) => !l.isCustomCombo);
+    const hasComboLine = stockLines.some((l) => l.isCustomCombo);
+    // Đơn CHỈ gồm combo (gói trả trước, không có ly lẻ cần pha) → HOÀN TẤT NGAY, vào thẳng Lịch sử.
+    // Nếu để 'preparing' trong hàng chờ, nhân viên không có gì để "pha" nên không bấm hoàn thành,
+    // đơn combo sẽ kẹt mãi ở hàng chờ và KHÔNG bao giờ hiện trong Lịch sử (đúng lỗi đang gặp).
+    const isPureComboOrder = hasComboLine && retailLines.length === 0;
 
     const newOrder: Partial<Order> = {
       ...orderData,
       id: tempId,
       time: now,
       paidAt: orderData.paidAt || now,
-      status: orderData.status || 'pending',
+      status: isPureComboOrder ? 'completed' : (orderData.status || 'pending'),
       stockDeducted: false,
     };
+    if (isPureComboOrder) newOrder.completedAt = now;
 
     if (options?.skipStockCheck) {
       // Chi nhánh nhận đơn sẽ tự trừ kho khi họ hoàn tất đơn (xem updateOrderStatus).
@@ -288,7 +307,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       newOrder.stockDeducted = true;
     }
 
-    setOrders((prev) => [newOrder as Order, ...prev]);
+    if (isPureComboOrder) {
+      // Vào thẳng Lịch sử, không nằm ở hàng chờ pha chế.
+      setHistory((h) => [newOrder as Order, ...h]);
+    } else {
+      setOrders((prev) => [newOrder as Order, ...prev]);
+    }
 
     api.createOrder(withSalesRef(newOrder)).catch((err) => {
       console.warn('Mất kết nối máy chủ backend. Đang xếp đơn hàng vào hàng đợi đồng bộ offline.', err);

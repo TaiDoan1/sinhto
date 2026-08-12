@@ -48,6 +48,8 @@ interface OrderContextType {
   orders: Order[];
   history: Order[];
   offlineQueueLength: number;
+  /** Danh sách các đơn đang kẹt chưa gửi lên máy chủ (để xem/đối chiếu tại quán). */
+  offlineQueueItems: any[];
   addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }) => boolean;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
@@ -329,7 +331,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <OrderContext.Provider value={{ orders, history, offlineQueueLength: offlineQueue.length, addOrder, updateOrderStatus, updateOrder }}>
+    <OrderContext.Provider value={{ orders, history, offlineQueueLength: offlineQueue.length, offlineQueueItems: offlineQueue, addOrder, updateOrderStatus, updateOrder }}>
       {children}
     </OrderContext.Provider>
   );

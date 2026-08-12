@@ -80,7 +80,8 @@ function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
-  const { orders, history, offlineQueueLength } = useBranchOrders(branchId);
+  const { orders, history, offlineQueueLength, offlineQueueItems } = useBranchOrders(branchId);
+  const [showOfflineList, setShowOfflineList] = useState(false);
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
   const { isWarehouseReady, loadForBranch } = useInventory();
@@ -609,12 +610,14 @@ function POSInterfaceInner() {
               Kết ca
             </button>
             {offlineQueueLength > 0 && (
-              <span
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg text-sm font-bold shrink-0 animate-pulse"
-                title="Còn đơn chưa gửi lên máy chủ do mất mạng — chờ số về 0 rồi hãy kết ca"
+              <button
+                type="button"
+                onClick={() => setShowOfflineList(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 rounded-lg text-sm font-bold shrink-0 animate-pulse"
+                title="Bấm để xem danh sách đơn chưa gửi lên máy chủ"
               >
                 ⚠️ {offlineQueueLength} đơn chưa lưu
-              </span>
+              </button>
             )}
           </div>
 
@@ -1234,6 +1237,76 @@ function POSInterfaceInner() {
                     ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOfflineList && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[120] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h3 className="font-bold text-lg text-red-700">⚠️ {offlineQueueItems.length} đơn chưa lưu lên máy chủ</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Các đơn này đang chờ gửi (do mất mạng). Khi có mạng ổn định sẽ tự gửi, số về 0.
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowOfflineList(false)} className="text-gray-400 hover:text-gray-600 text-xl px-2">
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 space-y-2">
+              {offlineQueueItems.length === 0 && (
+                <div className="text-center text-gray-400 py-8 text-sm">Không còn đơn nào chờ gửi 🎉</div>
+              )}
+              {offlineQueueItems.map((it: any, idx: number) => {
+                const isCreate = it.action === 'CREATE';
+                const d = it.data || {};
+                const items = Array.isArray(d.items) ? d.items : [];
+                const cups = items.reduce((s: number, x: any) => s + (Number(x.quantity) || 0), 0);
+                return (
+                  <div key={idx} className="border border-red-200 bg-red-50/50 rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-gray-800">
+                        {isCreate ? (
+                          <>#{d.orderNumber ?? '—'} · Đơn mới{cups > 0 ? ` (${cups} ly)` : ''}</>
+                        ) : (
+                          <>Cập nhật trạng thái: {it.orderId}</>
+                        )}
+                      </span>
+                      {isCreate && (
+                        <span className="font-bold text-emerald-700 shrink-0">
+                          {(Number(d.total) || 0).toLocaleString('vi-VN')}đ
+                        </span>
+                      )}
+                    </div>
+                    {isCreate ? (
+                      <>
+                        <div className="text-gray-600 text-xs leading-relaxed">
+                          {items.length > 0
+                            ? items.map((x: any) => `${x.name || x.productName || 'Món'} x${x.quantity || 1}`).join(', ')
+                            : 'Không có chi tiết món'}
+                        </div>
+                        <div className="text-gray-400 text-[11px] mt-1">
+                          {d.time ? `Giờ: ${d.time}` : ''} {d.paymentMethod ? `· ${d.paymentMethod}` : ''} {d.branchId ? `· CN: ${d.branchId}` : ''}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-gray-500 text-xs">→ {it.status}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-3 border-t border-gray-200 text-center">
+              <button
+                type="button"
+                onClick={() => setShowOfflineList(false)}
+                className="px-5 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-semibold text-gray-700"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

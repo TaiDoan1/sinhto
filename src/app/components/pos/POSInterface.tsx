@@ -1029,9 +1029,11 @@ function POSInterfaceInner() {
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Sản phẩm đã bán</p>
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-40 overflow-y-auto">
                   {shiftClosingSummary.items.map((it) => (
-                    <div key={it.productName} className="flex justify-between text-xs">
-                      <span className="text-gray-700">{it.productName} x{it.quantity}</span>
-                      <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
+                    <div key={it.productName} className={`flex justify-between text-xs ${it.isCombo ? 'text-indigo-700 font-semibold' : ''}`}>
+                      <span className={it.isCombo ? 'text-indigo-700' : 'text-gray-700'}>{it.productName} x{it.quantity}</span>
+                      <span className={it.isCombo ? 'text-indigo-600' : 'text-gray-500'}>
+                        {it.isCombo && it.revenue === 0 ? '(gói trả trước)' : it.revenue.toLocaleString('vi-VN') + 'đ'}
+                      </span>
                     </div>
                   ))}
                 </div>

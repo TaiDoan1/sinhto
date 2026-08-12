@@ -336,6 +336,16 @@ export interface ShiftItemSummary {
   productName: string;
   quantity: number;
   revenue: number;
+  /** true nếu dòng này là combo (gói bán tại quầy hoặc ly giao từ gói combo) — để bill gắn nhãn rõ. */
+  isCombo?: boolean;
+}
+
+/** Nhận diện 1 item có phải combo không (gói bán tại quầy hoặc ly combo). */
+function isComboItem(item: any): boolean {
+  if (!item || typeof item === 'string') return false;
+  return item.isCustomCombo === true ||
+    item.productCategory === 'combo' || item.category === 'combo' ||
+    item.isCombo === true;
 }
 
 /** Gộp sản phẩm đã bán trong ca từ danh sách đơn hàng (mỗi đơn có items: any[]) */
@@ -343,12 +353,16 @@ export function aggregateShiftItems(orders: { items: any[] }[]): ShiftItemSummar
   const map = new Map<string, ShiftItemSummary>();
   for (const order of orders) {
     for (const item of order.items || []) {
-      const productName = typeof item === 'string' ? item : item.productName || item.name || 'Khác';
+      const combo = isComboItem(item);
+      const baseName = typeof item === 'string' ? item : item.productName || item.name || 'Khác';
+      // Gắn nhãn rõ để nhân viên biết đây là combo (tránh "không rõ tiền gì" trên bill kết ca).
+      const productName = combo ? `🎁 COMBO: ${baseName}` : baseName;
       const quantity = typeof item === 'string' ? 1 : item.quantity || 1;
       const price = typeof item === 'string' ? 0 : item.price || 0;
-      const cur = map.get(productName) || { productName, quantity: 0, revenue: 0 };
+      const cur = map.get(productName) || { productName, quantity: 0, revenue: 0, isCombo: combo };
       cur.quantity += quantity;
       cur.revenue += price * quantity;
+      if (combo) cur.isCombo = true;
       map.set(productName, cur);
     }
   }
@@ -492,7 +506,7 @@ export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
       (it) => `
 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
   <span>${it.productName} x${it.quantity}</span>
-  <span>${it.revenue.toLocaleString('vi-VN')}đ</span>
+  <span>${it.isCombo && it.revenue === 0 ? '(gói trả trước)' : it.revenue.toLocaleString('vi-VN') + 'đ'}</span>
 </div>`
     )
     .join('');

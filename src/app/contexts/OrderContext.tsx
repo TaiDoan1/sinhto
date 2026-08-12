@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { useInventory } from './InventoryContext';
 import { useSSE } from './SSEContext';
 import * as api from '../utils/api';
@@ -50,6 +50,8 @@ interface OrderContextType {
   offlineQueueLength: number;
   /** Danh sách các đơn đang kẹt chưa gửi lên máy chủ (để xem/đối chiếu tại quán). */
   offlineQueueItems: any[];
+  /** Chủ động gửi lại ngay các đơn đang kẹt (nút "Gửi lại ngay"). */
+  retryOfflineQueue: () => void;
   addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }) => boolean;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
@@ -174,46 +176,77 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     };
   }, [subscribe]);
 
-  // Background Auto-sync loop every 10 seconds
-  useEffect(() => {
-    if (offlineQueue.length === 0) return;
+  // Giữ bản mới nhất của hàng đợi trong ref để flushQueue (dùng trong event listener/interval)
+  // luôn đọc đúng dữ liệu hiện tại mà không phải đăng ký lại listener mỗi lần queue đổi.
+  const queueRef = useRef<any[]>(offlineQueue);
+  useEffect(() => { queueRef.current = offlineQueue; }, [offlineQueue]);
+  const flushingRef = useRef(false);
 
-    const interval = setInterval(async () => {
-      console.log('🔄 Đang kiểm tra để tự động đồng bộ hóa các đơn hàng ngoại tuyến...');
-      const queueCopy = [...offlineQueue];
-      let successCount = 0;
-      const failed: any[] = [];
+  const orderIdOf = (item: any) => (item?.action === 'CREATE' ? (item?.data?.id || item?.orderId) : item?.orderId);
 
-      // Thử TẤT CẢ đơn trong hàng đợi (KHÔNG break) — để 1 đơn lỗi cố định không chặn cả loạt.
-      // Đơn nào gửi được thì bỏ khỏi hàng đợi; đơn nào lỗi thì giữ lại thử ở lần sau.
-      for (const item of queueCopy) {
-        try {
-          if (item.action === 'CREATE') {
-            await api.createOrder(withSalesRef(item.data));
-          } else if (item.action === 'UPDATE_STATUS') {
-            await api.updateOrderStatus(item.orderId, item.status, item.extra);
-          }
-          successCount++;
-        } catch (err) {
-          console.warn(`Đồng bộ thất bại cho đơn ${item.orderId || 'NEW'} — giữ lại thử sau.`);
-          failed.push(item);
+  // Gửi lại toàn bộ hàng đợi offline. Gọi khi: định kỳ, có mạng lại (online), quay lại màn hình,
+  // hoặc bấm nút "Gửi lại ngay". Idempotent ở server nên gọi lại nhiều lần vô hại.
+  const flushQueue = useCallback(async () => {
+    if (flushingRef.current) return;
+    const queueCopy = [...queueRef.current];
+    if (queueCopy.length === 0) return;
+    flushingRef.current = true;
+    let successCount = 0;
+    const failed: any[] = [];
+
+    // Thử TẤT CẢ đơn (KHÔNG break) — 1 đơn lỗi không chặn cả loạt.
+    for (const item of queueCopy) {
+      try {
+        if (item.action === 'CREATE') {
+          await api.createOrder(withSalesRef(item.data));
+        } else if (item.action === 'UPDATE_STATUS') {
+          await api.updateOrderStatus(item.orderId, item.status, item.extra);
         }
+        successCount++;
+      } catch (err: any) {
+        // 404 cho lệnh đổi trạng thái = đơn không tồn tại ở server (đã bị dọn/không có).
+        // Chỉ BỎ khi không còn lệnh CREATE cho cùng đơn đang chờ — tránh kẹt vĩnh viễn.
+        // Nếu CREATE cùng đơn vẫn đang chờ thì GIỮ lại (chờ tạo xong rồi đổi trạng thái).
+        if (item.action === 'UPDATE_STATUS' && err?.status === 404) {
+          const hasPendingCreate = queueCopy.some((q) => q.action === 'CREATE' && orderIdOf(q) === item.orderId);
+          if (!hasPendingCreate) {
+            console.warn(`Bỏ lệnh đổi trạng thái mồ côi (404) cho ${item.orderId}.`);
+            continue; // không đưa vào failed → loại khỏi hàng đợi
+          }
+        }
+        console.warn(`Đồng bộ thất bại cho đơn ${item.orderId || 'NEW'} — giữ lại thử sau.`);
+        failed.push(item);
       }
+    }
 
-      if (successCount > 0) {
-        // Giữ đơn lỗi + đơn mới phát sinh trong lúc đang gửi (không nằm trong queueCopy).
-        setOfflineQueue((prev) => {
-          const newSince = prev.filter((p) => !queueCopy.includes(p));
-          const merged = [...failed, ...newSince];
-          localStorage.setItem('offline_orders_queue', JSON.stringify(merged));
-          return merged;
-        });
-        console.log(`✅ Đã đồng bộ ${successCount} đơn ngoại tuyến (còn lại ${failed.length} lỗi).`);
-      }
-    }, 10000);
+    flushingRef.current = false;
 
-    return () => clearInterval(interval);
-  }, [offlineQueue]);
+    if (successCount > 0 || failed.length !== queueCopy.length) {
+      // Giữ đơn lỗi + đơn mới phát sinh trong lúc đang gửi (không nằm trong queueCopy).
+      setOfflineQueue((prev) => {
+        const newSince = prev.filter((p) => !queueCopy.includes(p));
+        const merged = [...failed, ...newSince];
+        localStorage.setItem('offline_orders_queue', JSON.stringify(merged));
+        return merged;
+      });
+      console.log(`✅ Đồng bộ ${successCount} đơn (còn lại ${failed.length} lỗi).`);
+    }
+  }, []);
+
+  // Kích hoạt gửi lại: định kỳ 10s + ngay khi có mạng lại + khi quay lại màn hình (mạng yếu POS).
+  useEffect(() => {
+    const interval = setInterval(() => { flushQueue(); }, 10000);
+    const onWake = () => { flushQueue(); };
+    window.addEventListener('online', onWake);
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', onWake);
+      window.removeEventListener('focus', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
+  }, [flushQueue]);
 
   const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }): boolean => {
     const now = new Date();
@@ -331,7 +364,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <OrderContext.Provider value={{ orders, history, offlineQueueLength: offlineQueue.length, offlineQueueItems: offlineQueue, addOrder, updateOrderStatus, updateOrder }}>
+    <OrderContext.Provider value={{ orders, history, offlineQueueLength: offlineQueue.length, offlineQueueItems: offlineQueue, retryOfflineQueue: flushQueue, addOrder, updateOrderStatus, updateOrder }}>
       {children}
     </OrderContext.Provider>
   );

@@ -577,27 +577,52 @@ app.post('/api/orders', (req, res) => {
     );
   };
 
-  const refCode = order.salesRefCode || order.salesStaffRef;
-  if (!order.salesStaffId && refCode) {
-    resolveSalesRef(refCode, (refErr, staff) => {
-      if (refErr) return res.status(500).json({ error: refErr.message });
-      resolveShiftThenInsert(staff?.id, staff?.fullName);
+  const proceedCreate = () => {
+    const refCode = order.salesRefCode || order.salesStaffRef;
+    if (!order.salesStaffId && refCode) {
+      resolveSalesRef(refCode, (refErr, staff) => {
+        if (refErr) return res.status(500).json({ error: refErr.message });
+        resolveShiftThenInsert(staff?.id, staff?.fullName);
+      });
+    } else {
+      resolveShiftThenInsert(order.salesStaffId, order.salesStaffName);
+    }
+  };
+
+  // Idempotent: máy POS gửi kèm id do nó tự sinh. Nếu đơn với id này ĐÃ tồn tại (do retry
+  // offline gửi lại, hoặc request trước đã lưu thành công nhưng phản hồi bị rớt mạng) thì
+  // TRẢ VỀ đơn cũ, KHÔNG tạo trùng. Nhờ vậy hàng đợi offline có thể gửi lại thoải mái mà
+  // không bao giờ nhân đôi ly/doanh thu. Kiểm tra cả orders_archive (đơn đã kết ca).
+  const safeItems = (v) => { try { return JSON.parse(v); } catch { return []; } };
+  db.get("SELECT * FROM orders WHERE id = ?", [id], (exErr, exRow) => {
+    if (exErr) return res.status(500).json({ error: exErr.message });
+    if (exRow) return res.status(200).json({ ...exRow, items: safeItems(exRow.items), stockDeducted: !!exRow.stockDeducted, duplicate: true });
+    db.get("SELECT * FROM orders_archive WHERE id = ?", [id], (arErr, arRow) => {
+      if (!arErr && arRow) return res.status(200).json({ ...arRow, items: safeItems(arRow.items), stockDeducted: !!arRow.stockDeducted, duplicate: true });
+      proceedCreate();
     });
-  } else {
-    resolveShiftThenInsert(order.salesStaffId, order.salesStaffName);
-  }
+  });
 });
 
 // Update order status/fields
 app.patch('/api/orders/:id', (req, res) => {
   const { id } = req.params;
   const updates = req.body;
-  
-  // Find current order
+
+  // Tìm đơn trong bảng đang hoạt động; nếu không có (đã kết ca → chuyển sang orders_archive)
+  // thì cập nhật ngay trong orders_archive thay vì trả 404. Trước đây 404 khiến các lệnh đổi
+  // trạng thái offline (ready/completed) của đơn đã lưu trữ bị KẸT VĨNH VIỄN trong hàng đợi máy POS.
   db.get("SELECT * FROM orders WHERE id = ?", [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: "Order not found" });
+    if (row) return applyUpdate('orders', row);
+    // Không có trong orders → thử orders_archive
+    db.get("SELECT * FROM orders_archive WHERE id = ?", [id], (aErr, aRow) => {
+      if (!aErr && aRow) return applyUpdate('orders_archive', aRow);
+      return res.status(404).json({ error: "Order not found" });
+    });
+  });
 
+  function applyUpdate(tableName, row) {
     const currentOrder = {
       ...row,
       items: JSON.parse(row.items),
@@ -631,13 +656,25 @@ app.patch('/api/orders/:id', (req, res) => {
     const newShipTrackingCode = pick(updates.shipTrackingCode, row.shipTrackingCode);
     const newAllergyNote = pick(updates.allergyNote, row.allergyNote);
 
+    // Bảng orders_archive được tạo bằng "LIKE orders" tại thời điểm cũ nên có thể THIẾU các cột
+    // mới (deliveryTime, deliveryType, shipMethod, shipProvider, shipTrackingCode, allergyNote).
+    // Vì vậy khi cập nhật vào archive chỉ đụng các cột lõi chắc chắn tồn tại — đủ cho việc đổi
+    // trạng thái/giờ (ready/completed) của đơn đã kết ca; tránh lỗi "column not found".
+    const isArchive = tableName === 'orders_archive';
+    const sql = isArchive
+      ? `UPDATE ${tableName} SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ? WHERE id = ?`
+      : `UPDATE ${tableName} SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ?, allergyNote = ? WHERE id = ?`;
+    const commonParams = [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems];
+    const params = isArchive
+      ? [...commonParams, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, id]
+      : [...commonParams, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, newAllergyNote, id];
     db.run(
-      `UPDATE orders SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ?, allergyNote = ? WHERE id = ?`,
-      [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, newAllergyNote, id],
+      sql,
+      params,
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        
-        db.get("SELECT * FROM orders WHERE id = ?", [id], (err, updatedRow) => {
+
+        db.get(`SELECT * FROM ${tableName} WHERE id = ?`, [id], (err, updatedRow) => {
           if (err || !updatedRow) return res.status(500).json({ error: "Failed to fetch updated order" });
           const finalOrder = {
             ...updatedRow,
@@ -653,7 +690,7 @@ app.patch('/api/orders/:id', (req, res) => {
         });
       }
     );
-  });
+  }
 });
 
 // --- INVENTORY API ---

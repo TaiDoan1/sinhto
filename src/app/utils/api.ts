@@ -110,12 +110,16 @@ export async function createOrder(orderData: any) {
 }
 
 export async function updateOrderStatus(orderId: string, status: string, extra?: any) {
-  const res = await fetch(`${BASE_URL}/orders/${orderId}`, {
+  const res = await fetch(`${BASE_URL}/orders/${encodeURIComponent(orderId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, ...extra })
   });
-  if (!res.ok) throw new Error('Failed to update order status');
+  if (!res.ok) {
+    const err: any = new Error('Failed to update order status');
+    err.status = res.status; // để hàng đợi offline phân biệt 404 (đơn không tồn tại) với lỗi mạng
+    throw err;
+  }
   return res.json();
 }
 

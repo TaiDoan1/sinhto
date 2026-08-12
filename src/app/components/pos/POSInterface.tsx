@@ -80,7 +80,7 @@ function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
-  const { orders, history, offlineQueueLength, offlineQueueItems } = useBranchOrders(branchId);
+  const { orders, history, offlineQueueLength, offlineQueueItems, retryOfflineQueue } = useBranchOrders(branchId);
   const [showOfflineList, setShowOfflineList] = useState(false);
   const { getTodayDeliveries, notifications, markNotificationAsRead } = useBranchCombos(branchId);
   const branchComboAlerts = notifications.filter((n) => n.branchId === branchId && !n.isRead);
@@ -346,8 +346,16 @@ function POSInterfaceInner() {
 
   const shiftClosingSummary = closingShift
     ? (() => {
-        const shiftOrders =
+        const baseShiftOrders =
           closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
+        // Cộng luôn các đơn CREATE còn KẸT trong hàng đợi của máy này (cùng chi nhánh) — để bill
+        // kết ca KHÔNG BAO GIỜ thiếu ly/doanh thu dù đơn chưa gửi lên server kịp. Dedup theo id
+        // (id do máy POS tự sinh, server idempotent dùng lại chính id đó nên không trùng).
+        const existingIds = new Set(baseShiftOrders.map((o: any) => o.id));
+        const pendingOrders = offlineQueueItems
+          .filter((it: any) => it.action === 'CREATE' && it.data && (it.data.branchId === closingShift.branch) && !existingIds.has(it.data.id))
+          .map((it: any) => ({ ...it.data, _pendingSync: true }));
+        const shiftOrders = [...baseShiftOrders, ...pendingOrders];
         const actualCash = actualCashInput.trim() === '' ? undefined : Number(actualCashInput);
         const data = buildShiftClosingReceiptData(
           closingShift,
@@ -1299,7 +1307,14 @@ function POSInterfaceInner() {
                 );
               })}
             </div>
-            <div className="p-3 border-t border-gray-200 text-center">
+            <div className="p-3 border-t border-gray-200 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => retryOfflineQueue()}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold"
+              >
+                🔄 Gửi lại ngay
+              </button>
               <button
                 type="button"
                 onClick={() => setShowOfflineList(false)}

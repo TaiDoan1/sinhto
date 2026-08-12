@@ -17,11 +17,28 @@ const sourceLabels = {
   web: 'Web'
 };
 
+const isComboOrder = (order: Order) =>
+  (order.items || []).some((it) =>
+    typeof it === 'object' && (it.isCustomCombo === true || (it as any).productCategory === 'combo' || (it as any).category === 'combo')
+  );
+
 export function OrderHistory({ branchId }: { branchId: string }) {
-  const { history } = useBranchOrders(branchId);
+  const { history, orders } = useBranchOrders(branchId);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState<'today' | 'week' | 'all'>('today');
+  const [tab, setTab] = useState<'all' | 'combo'>('all');
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+
+  // Tab "Combo" gom cả đơn combo đã hoàn tất (history) LẪN đơn combo còn ở hàng chờ (orders) —
+  // để không sót đơn combo cũ bán trước bản fix (còn kẹt 'preparing'). Dedup theo id.
+  const comboSource = (() => {
+    const map = new Map<string, Order>();
+    for (const o of [...history, ...orders]) {
+      if (isComboOrder(o) && !map.has(o.id)) map.set(o.id, o);
+    }
+    return Array.from(map.values());
+  })();
+  const baseList = tab === 'combo' ? comboSource : history;
 
   const getElapsedTime = (orderTime: Date, completedTime?: Date) => {
     if (!completedTime) return '0p';
@@ -53,7 +70,7 @@ export function OrderHistory({ branchId }: { branchId: string }) {
     return d >= weekAgo && d <= today;
   };
 
-  const filteredHistory = history.filter(order => {
+  const filteredHistory = baseList.filter(order => {
     // Filter by date
     if (filterDate === 'today' && !isToday(order.time)) return false;
     if (filterDate === 'week' && !isThisWeek(order.time)) return false;
@@ -75,7 +92,7 @@ export function OrderHistory({ branchId }: { branchId: string }) {
     return true;
   });
 
-  const { pageItems, ...pager } = usePagination(filteredHistory, 20, `${filterDate}|${searchTerm}`);
+  const { pageItems, ...pager } = usePagination(filteredHistory, 20, `${tab}|${filterDate}|${searchTerm}`);
 
   const totalRevenue = filteredHistory.reduce((sum, order) => sum + order.total, 0);
 
@@ -89,6 +106,26 @@ export function OrderHistory({ branchId }: { branchId: string }) {
       {/* Header */}
       <div className="bg-white p-4 border-b">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Lịch Sử Đơn Hàng</h2>
+
+        {/* Tab: tất cả đơn vs chỉ combo */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setTab('all')}
+            className={`flex-1 px-3 py-2 rounded-lg font-semibold transition-colors ${
+              tab === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => setTab('combo')}
+            className={`flex-1 px-3 py-2 rounded-lg font-semibold transition-colors ${
+              tab === 'combo' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}
+          >
+            🎁 Combo
+          </button>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -156,8 +193,8 @@ export function OrderHistory({ branchId }: { branchId: string }) {
         {filteredHistory.length === 0 ? (
           <div className="text-center text-gray-400 py-20">
             <Calendar className="w-20 h-20 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">Không có lịch sử</p>
-            <p className="text-sm mt-2">Đơn hàng đã hoàn thành sẽ hiện ở đây</p>
+            <p className="text-lg">{tab === 'combo' ? 'Chưa có đơn combo' : 'Không có lịch sử'}</p>
+            <p className="text-sm mt-2">{tab === 'combo' ? 'Đơn bán combo sẽ hiện ở đây' : 'Đơn hàng đã hoàn thành sẽ hiện ở đây'}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -168,8 +205,13 @@ export function OrderHistory({ branchId }: { branchId: string }) {
                   <div className="flex items-center gap-2">
                     <div className="text-3xl font-bold text-green-600">#{order.orderNumber}</div>
                     <div>
-                      <div className={`${sourceColors[order.source]} text-white px-2 py-1 rounded text-xs font-bold mb-1`}>
-                        {sourceLabels[order.source]}
+                      <div className="flex items-center gap-1 mb-1">
+                        <div className={`${sourceColors[order.source]} text-white px-2 py-1 rounded text-xs font-bold`}>
+                          {sourceLabels[order.source]}
+                        </div>
+                        {order.status !== 'completed' && (
+                          <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">⏳ Đang xử lý</div>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500">{order.id}</div>
                     </div>

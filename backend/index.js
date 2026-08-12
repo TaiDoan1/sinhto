@@ -1324,7 +1324,10 @@ function timeRangesOverlap(startA, endA, startB, endB) {
 // 1 người không thể có mặt ở 2 nơi cùng lúc.
 function findConflictingShift(employeeId, date, startTime, endTime, excludeShiftId, cb) {
   db.all(
-    "SELECT * FROM shifts WHERE employeeId = ? AND date = ? AND status NOT IN ('rejected', 'cancelled')",
+    // Loại 'pending' (đơn XIN lịch chưa duyệt) khỏi kiểm tra trùng — đơn chờ duyệt KHÔNG được
+    // chiếm chỗ chặn quản lý xếp ca chính thức. Khi DUYỆT đơn pending (PUT → scheduled) thì
+    // findConflictingShift vẫn chạy lại và sẽ chặn nếu lúc đó thật sự trùng ca đã xếp.
+    "SELECT * FROM shifts WHERE employeeId = ? AND date = ? AND status NOT IN ('rejected', 'cancelled', 'pending')",
     [employeeId, date],
     (err, rows) => {
       if (err) return cb(err);

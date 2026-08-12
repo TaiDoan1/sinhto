@@ -392,7 +392,9 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     shifts.filter(s =>
       s.employeeId === employeeId && s.date === date &&
       s.id !== excludeShiftId &&
-      s.status !== 'rejected' && s.status !== 'cancelled'
+      // Loại 'pending' (đơn XIN lịch chưa duyệt) — khớp backend findConflictingShift. Đơn chờ
+      // duyệt không chiếm chỗ; nếu trùng thật thì lúc bấm Duyệt backend sẽ chặn.
+      s.status !== 'rejected' && s.status !== 'cancelled' && s.status !== 'pending'
     );
 
   const findTimeConflict = (employeeId: string, date: string, startTime: string, endTime: string, excludeShiftId?: string) =>

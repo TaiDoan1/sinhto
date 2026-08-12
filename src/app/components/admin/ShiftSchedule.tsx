@@ -208,6 +208,10 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const handleDeleteShift = async (id: string) => {
     try {
       await api.deleteShift(id);
+      // Cập nhật NGAY tại máy này (không chờ sự kiện SSE) — quán mạng yếu SSE hay rớt, nếu chỉ
+      // dựa vào SHIFT_DELETED thì ca đã xóa vẫn "ma" trên màn hình và tiếp tục chặn giờ (báo
+      // trùng dù DB đã xóa). Xóa optimistic cho khớp cách handleAddShift đã làm.
+      setShifts(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error('Failed to delete shift:', err);
       alert('Lỗi xóa ca làm việc.');
@@ -346,9 +350,13 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
       s.branch === selectedBranch && weekDates.includes(s.date) && !s.isPinned
     );
     try {
+      const deletedIds: string[] = [];
       for (const sh of toDelete) {
         await api.deleteShift(sh.id);
+        deletedIds.push(sh.id);
       }
+      // Cập nhật ngay tại máy (không chờ SSE) để tránh ca "ma" còn chặn giờ khi mạng yếu.
+      setShifts(prev => prev.filter(s => !deletedIds.includes(s.id)));
     } catch (err) {
       console.error('Failed to clear week shifts:', err);
       alert('Lỗi khi xóa lịch tuần.');

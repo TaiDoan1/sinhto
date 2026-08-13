@@ -282,10 +282,9 @@ export function ComboDetailDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Đóng" />
-      <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-3 z-10">
+    <div className="fixed inset-0 z-50 flex">
+      <div className="relative w-full bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-3 z-10 w-full max-w-5xl mx-auto">
           <div className="min-w-0">
             <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Chi tiết đơn combo</p>
             <div className="flex items-center gap-2 flex-wrap mt-1">
@@ -312,7 +311,7 @@ export function ComboDetailDrawer({
           </button>
         </div>
 
-        <div className="p-5 space-y-5 flex-1">
+        <div className="p-5 space-y-5 flex-1 w-full max-w-5xl mx-auto">
           <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm">
             <div className="flex items-center gap-1.5 text-gray-700">
               <User className="w-3.5 h-3.5 text-gray-400" /> {combo.customerName} ({combo.customerPhone})
@@ -385,12 +384,12 @@ export function ComboDetailDrawer({
                 ))}
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {deliveryLogs.map((log) => {
                   const editable = canEditSchedule && log.status === 'pending';
                   if (editingSlotId === log.id) {
                     return (
-                      <div key={log.id} className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2">
+                      <div key={log.id} className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2 sm:col-span-2 xl:col-span-3">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] font-bold text-gray-400 uppercase">Ngày giao</label>
@@ -454,41 +453,45 @@ export function ComboDetailDrawer({
                     );
                   }
                   return (
-                    <div key={log.id} className="text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-gray-700 flex-wrap">
-                          <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                          {new Date(log.deliveryDate).toLocaleDateString('vi-VN')}
-                          <Clock className="w-3.5 h-3.5 text-gray-400 ml-1" />
-                          {log.deliveryTime}
-                          <span className="text-gray-500">· {log.productName}{log.size ? ` (${log.size}${log.protein ? `·${log.protein}g` : ''})` : ''}</span>
+                    <div key={log.id} className={`bg-white border rounded-xl p-3 flex flex-col gap-1.5 ${
+                      log.status === 'delivered' ? 'border-emerald-200' :
+                      log.status === 'postponed' ? 'border-orange-200' : 'border-gray-200'
+                    }`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 font-bold text-gray-800 text-sm">
+                          <Calendar className="w-4 h-4 text-emerald-600" />
+                          {new Date(log.deliveryDate).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
-                            log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
-                            'bg-gray-200 text-gray-600'
-                          }`}>
-                            {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
-                          </span>
-                          {editable && (
-                            <button type="button" onClick={() => startEditSlot(log)}
-                              className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800">Sửa</button>
-                          )}
-                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          log.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
+                          log.status === 'postponed' ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-200 text-gray-600'
+                        }`}>
+                          {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <Clock className="w-3.5 h-3.5 text-gray-400" /> {log.deliveryTime}
+                      </div>
+                      <div className="text-sm text-gray-800 font-semibold">
+                        {log.productName}{log.size ? ` (${log.size}${log.protein ? `·${log.protein}g` : ''})` : ''}
                       </div>
                       {combo.deliveryType !== 'pickup' && (log.deliveryAddress && log.deliveryAddress !== combo.deliveryAddress) && (
-                        <div className="flex items-start gap-1 text-[11px] text-emerald-700 mt-0.5">
+                        <div className="flex items-start gap-1 text-[11px] text-emerald-700">
                           <MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {log.deliveryAddress}
                         </div>
                       )}
-                      <div className="text-[11px] text-gray-500 mt-0.5">
+                      <div className="text-[11px] text-gray-500">
                         {combo.deliveryType === 'pickup' ? '🏪 Lấy tại: ' : '🏭 Làm/giao tại: '}
                         <span className="font-semibold text-gray-700">{branchName(log.branchId)}</span>
                         {log.branchId && combo.branchId && log.branchId !== combo.branchId && (
                           <span className="ml-1 text-amber-700 font-bold">(khác mặc định)</span>
                         )}
                       </div>
+                      {editable && (
+                        <button type="button" onClick={() => startEditSlot(log)}
+                          className="self-start text-[11px] font-bold text-emerald-700 hover:text-emerald-800 mt-0.5">✏️ Sửa buổi</button>
+                      )}
                     </div>
                   );
                 })}

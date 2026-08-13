@@ -281,6 +281,15 @@ export function ComboDetailDrawer({
     }
   };
 
+  // Buổi hôm nay / ngày mai để tô đậm nổi bật trên lịch giao.
+  const dayTagOf = (dateStr: string): 'today' | 'tomorrow' | null => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+    return diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : null;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="relative w-full bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
@@ -452,14 +461,18 @@ export function ComboDetailDrawer({
                       </div>
                     );
                   }
+                  const dayTag = dayTagOf(log.deliveryDate);
+                  const highlight = log.status === 'pending' ? dayTag : null; // đã giao rồi thì không cần tô
                   return (
-                    <div key={log.id} className={`bg-white border rounded-xl p-3 flex flex-col gap-1.5 ${
-                      log.status === 'delivered' ? 'border-emerald-200' :
-                      log.status === 'postponed' ? 'border-orange-200' : 'border-gray-200'
+                    <div key={log.id} className={`rounded-xl p-3 flex flex-col gap-1.5 border ${
+                      highlight === 'today' ? 'border-emerald-400 border-2 bg-emerald-50 ring-2 ring-emerald-200 shadow-md' :
+                      highlight === 'tomorrow' ? 'border-amber-300 border-2 bg-amber-50' :
+                      log.status === 'delivered' ? 'border-emerald-200 bg-white' :
+                      log.status === 'postponed' ? 'border-orange-200 bg-white' : 'border-gray-200 bg-white'
                     }`}>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 font-bold text-gray-800 text-sm">
-                          <Calendar className="w-4 h-4 text-emerald-600" />
+                        <div className={`flex items-center gap-1.5 font-bold text-sm ${highlight === 'today' ? 'text-emerald-800' : 'text-gray-800'}`}>
+                          <Calendar className={`w-4 h-4 ${highlight === 'today' ? 'text-emerald-700' : 'text-emerald-600'}`} />
                           {new Date(log.deliveryDate).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                         </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -470,6 +483,13 @@ export function ComboDetailDrawer({
                           {log.status === 'delivered' ? 'Đã giao' : log.status === 'postponed' ? 'Đã hoãn' : 'Chờ giao'}
                         </span>
                       </div>
+                      {highlight && (
+                        <span className={`self-start text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          highlight === 'today' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                        }`}>
+                          {highlight === 'today' ? '🔥 HÔM NAY' : '⏭️ NGÀY MAI'}
+                        </span>
+                      )}
                       <div className="flex items-center gap-1.5 text-xs text-gray-600">
                         <Clock className="w-3.5 h-3.5 text-gray-400" /> {log.deliveryTime}
                       </div>

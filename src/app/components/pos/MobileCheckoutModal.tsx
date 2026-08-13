@@ -30,9 +30,11 @@ interface MobileCheckoutModalProps {
   onRemoveItem: (index: number) => void;
   onClearCart: () => void;
   onAddItem: (item: CartItem) => void;
+  /** Chế độ bán COMBO: đánh dấu đơn là combo + chọn giao/tại quầy. */
+  comboMode?: boolean;
 }
 
-export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClose, onRemoveItem, onClearCart, onAddItem }: MobileCheckoutModalProps) {
+export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClose, onRemoveItem, onClearCart, onAddItem, comboMode = false }: MobileCheckoutModalProps) {
   const { addOrder } = useOrders();
   const { session } = usePos();
   const staffName = session?.employeeName || 'POS - Nhân viên quầy';
@@ -55,6 +57,8 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'momo' | 'zalopay' | 'qr' | null>(null);
+  const [comboDeliveryType, setComboDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [comboAddress, setComboAddress] = useState('');
 
   // Khi chi nhánh có từ 2 ca đang làm trở lên, cho thu ngân chọn đúng người bán đơn này
   // — mặc định là người đang đăng nhập, nhưng có thể đổi (VD: đổi ca giữa buổi).
@@ -192,6 +196,7 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       protein: item.protein,
       toppings: item.toppings,
       isCustomCombo: item.isCustomCombo,
+      isCombo: comboMode || undefined,
       rawComboData: item.rawComboData
     }));
 
@@ -208,7 +213,11 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
       sessionStaffId: session?.employeeId,
       paymentMethod: selectedPayment || undefined,
       note: orderNote.trim() || undefined,
-    });
+      ...(comboMode ? {
+        deliveryType: comboDeliveryType,
+        deliveryAddress: comboDeliveryType === 'delivery' ? comboAddress.trim() : '',
+      } : {}),
+    } as any);
     if (!ok) {
       alert('Trừ kho thất bại. Kiểm tra tồn kho hoặc nhập kho trước.');
       return;
@@ -373,6 +382,19 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {comboMode && checkoutStep === 'cart' && (
+          <div className="shrink-0 px-4 py-2 bg-indigo-50 border-b border-indigo-200 space-y-2">
+            <div className="text-xs font-black text-indigo-700">🎁 ĐƠN COMBO</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setComboDeliveryType('pickup')} className={`py-2 rounded-lg text-sm font-bold border ${comboDeliveryType === 'pickup' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>🏬 Tại quầy</button>
+              <button type="button" onClick={() => setComboDeliveryType('delivery')} className={`py-2 rounded-lg text-sm font-bold border ${comboDeliveryType === 'delivery' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>🛵 Giao hàng</button>
+            </div>
+            {comboDeliveryType === 'delivery' && (
+              <input value={comboAddress} onChange={(e) => setComboAddress(e.target.value)} placeholder="Địa chỉ giao hàng" className="w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm" />
+            )}
           </div>
         )}
 

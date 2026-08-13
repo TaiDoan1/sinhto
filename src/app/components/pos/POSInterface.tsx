@@ -41,7 +41,6 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
-import { COMBO_PACKAGE_SETTING_KEY, type ComboPackageTemplate } from '../../types/comboPackage';
 import {
   postCustomerDisplayState,
   openCustomerDisplayWindow,
@@ -99,8 +98,7 @@ function POSInterfaceInner() {
   const [mgrId, setMgrId] = useState('');
   const [comboPayment, setComboPayment] = useState<'cash' | 'transfer'>('transfer');
   const [comboSubmitting, setComboSubmitting] = useState(false);
-  // Tab "Bán Combo" — nhập đơn combo tại quầy (workaround khi CSKH chưa đẩy đơn xuống được)
-  const [comboPackages, setComboPackages] = useState<ComboPackageTemplate[]>([]);
+  // Thông tin khách + giao hàng cho modal chốt combo (path bộ dựng combo chi tiết)
   const [comboCustName, setComboCustName] = useState('');
   const [comboCustPhone, setComboCustPhone] = useState('');
   const [comboDeliveryType, setComboDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
@@ -108,10 +106,6 @@ function POSInterfaceInner() {
   useEffect(() => {
     api.fetchEmployees()
       .then((list: any[]) => setPosEmployees((list || []).map((e) => ({ id: e.id, fullName: e.fullName, position: e.position, branch: e.branch }))))
-      .catch(() => {});
-    // Gói combo mẫu do Admin định nghĩa — để tab "Bán Combo" hiện lưới gói cho NV chọn.
-    api.fetchSetting(COMBO_PACKAGE_SETTING_KEY)
-      .then((v: any) => { if (Array.isArray(v)) setComboPackages(v.filter((t) => t.active)); })
       .catch(() => {});
   }, []);
 
@@ -132,6 +126,7 @@ function POSInterfaceInner() {
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [comboCart, setComboCart] = useState<CartItem[]>([]); // giỏ riêng cho tab Bán Combo
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [currentShifts, setCurrentShifts] = useState<Shift[]>([]);
   const [showStaffList, setShowStaffList] = useState(false);
@@ -527,6 +522,9 @@ function POSInterfaceInner() {
   const handleAddToCart = (item: CartItem) => {
     setCart([...cart, item]);
   };
+  const handleAddToComboCart = (item: CartItem) => setComboCart((prev) => [...prev, item]);
+  const handleRemoveComboItem = (index: number) => setComboCart((prev) => prev.filter((_, i) => i !== index));
+  const handleClearComboCart = () => setComboCart([]);
 
   // Combo tại quầy đã thu tiền ngay (nằm chung giỏ hàng) — nhưng vẫn phải tạo
   // ra 1 gói combo subscription thật (giống bên CSKH) để sinh lịch giao hàng ngày.
@@ -535,30 +533,6 @@ function POSInterfaceInner() {
     setSellerId(session?.employeeId || '');
     setMgrId('');
     setComboPendingStaff(combo);
-  };
-
-  // Tab "Bán Combo": chọn 1 gói mẫu → dựng raw đúng dạng CustomComboBuilder rồi mở modal chốt.
-  const handlePickComboPackage = (tpl: ComboPackageTemplate) => {
-    const raw: any = (tpl.items || []).map((it) => ({
-      assignedDay: it.assignedDay,
-      dayLabel: it.dayLabel,
-      productName: it.productName,
-      size: it.size,
-      protein: it.protein,
-      toppings: it.toppings,
-    }));
-    raw.duration = tpl.comboType;
-    raw.deliveryDays = (tpl.items || []).map((it) => it.assignedDay);
-    raw.startDate = new Date().toISOString();
-    raw.deliveryTime = '08:00';
-    setSellerId(session?.employeeId || '');
-    setMgrId('');
-    setComboPayment('transfer');
-    setComboCustName('');
-    setComboCustPhone('');
-    setComboDeliveryType('pickup');
-    setComboAddress('');
-    setComboPendingStaff({ name: tpl.name, price: tpl.price, rawComboData: raw, toppings: [] });
   };
 
   const confirmComboStaff = async () => {
@@ -911,35 +885,15 @@ function POSInterfaceInner() {
                 <ProductGrid onProductClick={setSelectedProduct} />
               )
             ) : activeTab === 'combosale' ? (
-              <div className="p-3 h-full min-h-0 overflow-y-auto">
-                <div className="mb-3">
-                  <h2 className="text-xl font-black text-gray-800">🎁 Bán Combo tại quầy</h2>
-                  <p className="text-xs text-gray-500">Chọn gói combo → nhập khách + hình thức nhận → xác nhận là ghi nhận đơn + tạo gói ngay.</p>
-                </div>
-                {comboPackages.length === 0 ? (
-                  <div className="text-center text-gray-400 py-16">
-                    <Package className="w-16 h-16 mx-auto mb-3 opacity-50" />
-                    <p className="font-semibold">Chưa có gói combo mẫu</p>
-                    <p className="text-sm mt-1">Nhờ Admin thêm gói combo trong phần cấu hình combo.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 min-[1280px]:grid-cols-3 gap-3">
-                    {comboPackages.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        type="button"
-                        onClick={() => handlePickComboPackage(tpl)}
-                        className="text-left bg-white border border-indigo-200 hover:border-indigo-500 hover:shadow-lg rounded-xl p-4 transition-all"
-                      >
-                        <div className="text-2xl mb-1">🎁</div>
-                        <div className="font-bold text-gray-900 leading-tight">{tpl.name}</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">{tpl.comboType === 'weekly' ? 'Gói tuần' : 'Gói tháng'} · {(tpl.items || []).length} buổi</div>
-                        <div className="text-indigo-700 font-black mt-2">{(tpl.price || 0).toLocaleString('vi-VN')}đ</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              selectedProduct && selectedProduct.category !== 'combo' ? (
+                <ModifierModal
+                  product={selectedProduct}
+                  onClose={() => setSelectedProduct(null)}
+                  onAddToCart={(item) => { handleAddToComboCart(item); setSelectedProduct(null); }}
+                />
+              ) : (
+                <ProductGrid onProductClick={setSelectedProduct} />
+              )
             ) : activeTab === 'orders' ? (
               <OrderQueue branchId={branchId} />
             ) : activeTab === 'combos' ? (
@@ -972,21 +926,39 @@ function POSInterfaceInner() {
             />
           </div>
         )}
+        {activeTab === 'combosale' && (
+          <div className="hidden min-[1024px]:flex w-[380px] shrink-0 min-h-0 pos-checkout">
+            <CheckoutPanel
+              comboMode
+              cart={comboCart}
+              branchId={branchId}
+              currentShifts={currentShifts}
+              onRemoveItem={handleRemoveComboItem}
+              onClearCart={handleClearComboCart}
+              onAddItem={handleAddToComboCart}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Giỏ hàng mobile — chỉ khi màn hẹp */}
-      {cart.length > 0 && (
-        <div className="min-[1024px]:hidden shrink-0 p-2 bg-white border-t">
-          <button
-            type="button"
-            onClick={() => setShowMobileCheckout(true)}
-            className="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-bold flex items-center justify-between px-4"
-          >
-            <span>Giỏ ({cart.length})</span>
-            <span>{cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toLocaleString('vi-VN')}đ</span>
-          </button>
-        </div>
-      )}
+      {/* Giỏ hàng mobile — chỉ khi màn hẹp. Tab Bán Combo dùng giỏ combo riêng. */}
+      {(() => {
+        const isComboTab = activeTab === 'combosale';
+        const activeCart = isComboTab ? comboCart : cart;
+        if ((activeTab !== 'products' && !isComboTab) || activeCart.length === 0) return null;
+        return (
+          <div className="min-[1024px]:hidden shrink-0 p-2 bg-white border-t">
+            <button
+              type="button"
+              onClick={() => setShowMobileCheckout(true)}
+              className={`w-full ${isComboTab ? 'bg-indigo-600' : 'bg-emerald-600'} text-white py-2.5 rounded-lg font-bold flex items-center justify-between px-4`}
+            >
+              <span>{isComboTab ? '🎁 Giỏ Combo' : 'Giỏ'} ({activeCart.length})</span>
+              <span>{activeCart.reduce((sum, item) => sum + item.price * item.quantity, 0).toLocaleString('vi-VN')}đ</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {selectedProduct && selectedProduct.category === 'combo' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-black/60">
@@ -1092,15 +1064,28 @@ function POSInterfaceInner() {
       )}
 
       {showMobileCheckout && (
-        <MobileCheckoutModal
-          cart={cart}
-          branchId={branchId}
-          currentShifts={currentShifts}
-          onClose={() => setShowMobileCheckout(false)}
-          onRemoveItem={handleRemoveItem}
-          onClearCart={handleClearCart}
-          onAddItem={handleAddToCart}
-        />
+        activeTab === 'combosale' ? (
+          <MobileCheckoutModal
+            comboMode
+            cart={comboCart}
+            branchId={branchId}
+            currentShifts={currentShifts}
+            onClose={() => setShowMobileCheckout(false)}
+            onRemoveItem={handleRemoveComboItem}
+            onClearCart={handleClearComboCart}
+            onAddItem={handleAddToComboCart}
+          />
+        ) : (
+          <MobileCheckoutModal
+            cart={cart}
+            branchId={branchId}
+            currentShifts={currentShifts}
+            onClose={() => setShowMobileCheckout(false)}
+            onRemoveItem={handleRemoveItem}
+            onClearCart={handleClearCart}
+            onAddItem={handleAddToCart}
+          />
+        )
       )}
 
       {closingShift && shiftClosingSummary && (

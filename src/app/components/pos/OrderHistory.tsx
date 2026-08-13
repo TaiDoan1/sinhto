@@ -19,7 +19,7 @@ const sourceLabels = {
 
 const isComboOrder = (order: Order) =>
   (order.items || []).some((it) =>
-    typeof it === 'object' && (it.isCustomCombo === true || (it as any).productCategory === 'combo' || (it as any).category === 'combo')
+    typeof it === 'object' && (it.isCustomCombo === true || (it as any).isCombo === true || (it as any).productCategory === 'combo' || (it as any).category === 'combo')
   );
 
 export function OrderHistory({ branchId }: { branchId: string }) {

@@ -59,6 +59,10 @@ export interface CustomerReceiptData {
   customerPhone?: string;
   pointsEarned?: number;
   note?: string;
+  /** Đơn combo: đổi tiêu đề bill + hiện hình thức nhận (giao/tại quầy). */
+  isCombo?: boolean;
+  deliveryType?: 'pickup' | 'delivery';
+  deliveryAddress?: string;
 }
 
 export const RECEIPT_STYLE = `
@@ -235,12 +239,13 @@ export async function printCustomerReceipt(data: CustomerReceiptData) {
     <div class="center bold" style="font-size:14px">FITBLEND</div>
     <div class="center" style="font-size:11px">Healthy Protein Smoothie</div>
     <div class="line"></div>
-    <div class="center bold">HÓA ĐƠN THANH TOÁN</div>
+    <div class="center bold">${data.isCombo ? '🎁 HÓA ĐƠN COMBO' : 'HÓA ĐƠN THANH TOÁN'}</div>
+    ${data.isCombo ? `<div class="center" style="font-size:11px;font-weight:bold;border:1px solid #000;border-radius:4px;padding:2px 0;margin-top:4px">ĐƠN COMBO · ${data.deliveryType === 'delivery' ? 'GIAO HÀNG' : 'LẤY TẠI QUẦY'}</div>` : ''}
     <div style="font-size:11px;margin-top:8px">
       Mã: ${data.orderNumber}<br/>
       ${data.time.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}<br/>
       NV: ${data.staff || 'POS'}<br/>
-      TT: ${payLabel}
+      TT: ${payLabel}${data.isCombo && data.deliveryType === 'delivery' && data.deliveryAddress ? `<br/>Giao: ${data.deliveryAddress}` : ''}
     </div>
     ${
       data.note

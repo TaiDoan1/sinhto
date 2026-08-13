@@ -152,6 +152,9 @@ export function MobileCheckoutModal({ cart, branchId, currentShifts = [], onClos
     customerPhone: activeCustomer?.phone,
     pointsEarned: estimatedPointsEarned,
     note: orderNote.trim() || undefined,
+    isCombo: comboMode,
+    deliveryType: comboMode ? comboDeliveryType : undefined,
+    deliveryAddress: comboMode && comboDeliveryType === 'delivery' ? comboAddress.trim() : undefined,
   });
 
   useEffect(() => {

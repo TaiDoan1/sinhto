@@ -154,6 +154,9 @@ export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem
     customerPhone: activeCustomer?.phone,
     pointsEarned: estimatedPointsEarned,
     note: orderNote.trim() || undefined,
+    isCombo: comboMode,
+    deliveryType: comboMode ? comboDeliveryType : undefined,
+    deliveryAddress: comboMode && comboDeliveryType === 'delivery' ? comboAddress.trim() : undefined,
   });
 
   useEffect(() => {

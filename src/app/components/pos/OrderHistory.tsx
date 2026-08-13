@@ -205,10 +205,19 @@ export function OrderHistory({ branchId }: { branchId: string }) {
                   <div className="flex items-center gap-2">
                     <div className="text-3xl font-bold text-green-600">#{order.orderNumber}</div>
                     <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <div className={`${sourceColors[order.source]} text-white px-2 py-1 rounded text-xs font-bold`}>
-                          {sourceLabels[order.source]}
-                        </div>
+                      <div className="flex items-center gap-1 mb-1 flex-wrap">
+                        {isComboOrder(order) ? (
+                          <div className="bg-indigo-600 text-white px-2 py-1 rounded text-xs font-bold">🎁 COMBO</div>
+                        ) : (
+                          <div className={`${sourceColors[order.source]} text-white px-2 py-1 rounded text-xs font-bold`}>
+                            {sourceLabels[order.source]}
+                          </div>
+                        )}
+                        {isComboOrder(order) && (order as any).deliveryType && (
+                          <div className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded text-xs font-bold">
+                            {(order as any).deliveryType === 'delivery' ? '🛵 Giao' : '🏬 Tại quầy'}
+                          </div>
+                        )}
                         {order.status !== 'completed' && (
                           <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">⏳ Đang xử lý</div>
                         )}

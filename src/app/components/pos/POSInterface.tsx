@@ -357,14 +357,29 @@ function POSInterfaceInner() {
     ? (() => {
         const baseShiftOrders =
           closingShiftOrders ?? [...orders, ...history].filter((o) => o.shiftId === closingShift.id);
-        // Cộng luôn các đơn CREATE còn KẸT trong hàng đợi của máy này (cùng chi nhánh) — để bill
-        // kết ca KHÔNG BAO GIỜ thiếu ly/doanh thu dù đơn chưa gửi lên server kịp. Dedup theo id
-        // (id do máy POS tự sinh, server idempotent dùng lại chính id đó nên không trùng).
         const existingIds = new Set(baseShiftOrders.map((o: any) => o.id));
+        // Cứu đơn "mồ côi ca": đơn cùng chi nhánh, tạo TRONG khung giờ ca này, nhưng KHÔNG có
+        // shiftId (mất liên kết ca do lỗi gán ca lúc tạo — vd đơn combo tại quầy). Nếu không gom,
+        // các đơn này rớt khỏi kết ca (thiếu ly & doanh thu). Chỉ gom đơn KHÔNG có shiftId để
+        // không đụng đơn của ca khác.
+        const checkInMs = closingShift.checkIn ? new Date(closingShift.checkIn).getTime() : 0;
+        const checkOutMs = closingShift.checkOut ? new Date(closingShift.checkOut).getTime() : Date.now();
+        const orphanOrders = [...orders, ...history].filter((o: any) => {
+          if (existingIds.has(o.id)) return false;
+          if (o.shiftId === closingShift.id) return false; // đã có trong base
+          if (o.branchId !== closingShift.branch) return false;
+          const t = new Date(o.time).getTime();
+          if (!(t >= checkInMs && t <= checkOutMs)) return false;
+          // Gom đơn KHÔNG có ca (mồ côi), HOẶC đơn do chính nhân viên đóng ca này bán (staffId/
+          // salesStaffId khớp) dù shiftId bị lệch — tránh đụng đơn của ca nhân viên khác.
+          return !o.shiftId || o.staffId === closingShift.employeeId || o.salesStaffId === closingShift.employeeId;
+        });
+        orphanOrders.forEach((o: any) => existingIds.add(o.id));
+        // Cộng luôn các đơn CREATE còn KẸT trong hàng đợi của máy này (cùng chi nhánh).
         const pendingOrders = offlineQueueItems
           .filter((it: any) => it.action === 'CREATE' && it.data && (it.data.branchId === closingShift.branch) && !existingIds.has(it.data.id))
           .map((it: any) => ({ ...it.data, _pendingSync: true }));
-        const shiftOrders = [...baseShiftOrders, ...pendingOrders];
+        const shiftOrders = [...baseShiftOrders, ...orphanOrders, ...pendingOrders];
         const actualCash = actualCashInput.trim() === '' ? undefined : Number(actualCashInput);
         const data = buildShiftClosingReceiptData(
           closingShift,

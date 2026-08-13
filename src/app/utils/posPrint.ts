@@ -360,15 +360,14 @@ export function aggregateShiftItems(orders: { items: any[] }[]): ShiftItemSummar
     for (const item of order.items || []) {
       const combo = isComboItem(item);
       const baseName = typeof item === 'string' ? item : item.productName || item.name || 'Khác';
-      // Gắn nhãn rõ để nhân viên biết đây là combo (tránh "không rõ tiền gì" trên bill kết ca).
-      const productName = combo ? `🎁 COMBO: ${baseName}` : baseName;
       const quantity = typeof item === 'string' ? 1 : item.quantity || 1;
       const price = typeof item === 'string' ? 0 : item.price || 0;
-      const cur = map.get(productName) || { productName, quantity: 0, revenue: 0, isCombo: combo };
+      // Tách khoá riêng combo vs ly lẻ (cùng tên nhưng khác loại) để bill kết ca gộp đúng nhóm.
+      const key = (combo ? 'combo:' : 'le:') + baseName;
+      const cur = map.get(key) || { productName: baseName, quantity: 0, revenue: 0, isCombo: combo };
       cur.quantity += quantity;
       cur.revenue += price * quantity;
-      if (combo) cur.isCombo = true;
-      map.set(productName, cur);
+      map.set(key, cur);
     }
   }
   return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
@@ -506,15 +505,18 @@ function moneyRow(label: string, value: number, opts?: { bold?: boolean; colorBy
 /** Xây HTML bill kết ca (tách riêng khỏi lệnh in để admin dùng lại cho preview). */
 export function buildShiftClosingHtml(data: ShiftClosingReceiptData): string {
   const t = data.template;
-  const itemsHtml = data.items
-    .map(
-      (it) => `
+  const renderItemRow = (it: ShiftItemSummary) => `
 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
   <span>${it.productName} x${it.quantity}</span>
   <span>${it.isCombo && it.revenue === 0 ? '(gói trả trước)' : it.revenue.toLocaleString('vi-VN') + 'đ'}</span>
-</div>`
-    )
-    .join('');
+</div>`;
+  const regularItems = data.items.filter((it) => !it.isCombo);
+  const comboItems = data.items.filter((it) => it.isCombo);
+  const itemsHtml =
+    regularItems.map(renderItemRow).join('') +
+    (comboItems.length
+      ? `<div class="bold" style="margin-top:6px;color:#4338ca">🎁 ĐƠN COMBO</div>${comboItems.map(renderItemRow).join('')}`
+      : '');
 
   const methodSectionsHtml = [
     t.showTransfer

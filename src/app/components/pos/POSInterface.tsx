@@ -1159,15 +1159,26 @@ function POSInterfaceInner() {
             {shiftClosingSummary.items.length > 0 && (
               <div className="text-left mt-4">
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Sản phẩm đã bán</p>
-                <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-40 overflow-y-auto">
-                  {shiftClosingSummary.items.map((it) => (
-                    <div key={it.productName} className={`flex justify-between text-xs ${it.isCombo ? 'text-indigo-700 font-semibold' : ''}`}>
-                      <span className={it.isCombo ? 'text-indigo-700' : 'text-gray-700'}>{it.productName} x{it.quantity}</span>
-                      <span className={it.isCombo ? 'text-indigo-600' : 'text-gray-500'}>
-                        {it.isCombo && it.revenue === 0 ? '(gói trả trước)' : it.revenue.toLocaleString('vi-VN') + 'đ'}
-                      </span>
+                <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-48 overflow-y-auto">
+                  {shiftClosingSummary.items.filter((it) => !it.isCombo).map((it) => (
+                    <div key={`le-${it.productName}`} className="flex justify-between text-xs">
+                      <span className="text-gray-700">{it.productName} x{it.quantity}</span>
+                      <span className="text-gray-500">{it.revenue.toLocaleString('vi-VN')}đ</span>
                     </div>
                   ))}
+                  {shiftClosingSummary.items.some((it) => it.isCombo) && (
+                    <>
+                      <p className="text-[11px] font-black text-indigo-700 pt-2 mt-1 border-t border-gray-200">🎁 ĐƠN COMBO</p>
+                      {shiftClosingSummary.items.filter((it) => it.isCombo).map((it) => (
+                        <div key={`combo-${it.productName}`} className="flex justify-between text-xs font-semibold">
+                          <span className="text-indigo-700">{it.productName} x{it.quantity}</span>
+                          <span className="text-indigo-600">
+                            {it.revenue === 0 ? '(gói trả trước)' : it.revenue.toLocaleString('vi-VN') + 'đ'}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
             )}

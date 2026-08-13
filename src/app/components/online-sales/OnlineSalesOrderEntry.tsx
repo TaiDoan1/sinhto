@@ -13,6 +13,7 @@ import * as api from '../../utils/api';
 import type { Employee } from '../../types/employee';
 import { useBranches } from '../../contexts/BranchContext';
 import { COMBO_PACKAGE_SETTING_KEY, type ComboPackageTemplate } from '../../types/comboPackage';
+import { normalizePhoneVN } from '../../utils/phone';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
@@ -65,6 +66,32 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [successMsg, setSuccessMsg] = useState('');
   const [packageTemplates, setPackageTemplates] = useState<ComboPackageTemplate[]>([]);
   const [showPackagePicker, setShowPackagePicker] = useState(false);
+  // Tra khách cũ theo SĐT: gõ đủ số là tự tìm, thấy khách cũ thì hiện thông tin + tự điền tên.
+  const [foundCustomer, setFoundCustomer] = useState<{ name?: string; phone?: string; points?: number } | null>(null);
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
+
+  useEffect(() => {
+    const digits = customer.phone.replace(/\D/g, '');
+    if (digits.length < 9) { setFoundCustomer(null); return; }
+    const normalized = normalizePhoneVN(customer.phone);
+    let cancelled = false;
+    setLookingUpCustomer(true);
+    const t = setTimeout(async () => {
+      try {
+        const c = await api.fetchCustomerByPhone(normalized);
+        if (cancelled) return;
+        setFoundCustomer(c || null);
+        if (c) {
+          setCustomer((prev) => prev.name.trim() ? prev : { ...prev, name: c.name || prev.name });
+        }
+      } catch {
+        if (!cancelled) setFoundCustomer(null);
+      } finally {
+        if (!cancelled) setLookingUpCustomer(false);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [customer.phone]);
 
   useEffect(() => {
     api
@@ -365,6 +392,25 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm"
               />
             </div>
+            {lookingUpCustomer ? (
+              <div className="text-xs text-gray-400 flex items-center gap-1.5">
+                <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /> Đang kiểm tra SĐT...
+              </div>
+            ) : foundCustomer ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                  ✓ Khách cũ: {foundCustomer.name || 'Không tên'}
+                </div>
+                <div className="text-xs text-emerald-700 mt-0.5">
+                  ⭐ {(foundCustomer.points ?? 0).toLocaleString('vi-VN')} điểm
+                  {previousCombos.length > 0 && ` · 🎁 ${previousCombos.length} combo đã mua`}
+                </div>
+              </div>
+            ) : customer.phone.replace(/\D/g, '').length >= 9 ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs font-semibold text-amber-700">
+                🆕 Khách mới — chưa có trong hệ thống
+              </div>
+            ) : null}
             {deliveryType !== 'pickup' && (
               <div className="relative">
                 <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />

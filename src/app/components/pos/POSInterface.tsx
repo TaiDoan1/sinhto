@@ -41,6 +41,7 @@ import { useInventory } from '../../contexts/InventoryContext';
 import type { CartItem } from './ModifierModal';
 import * as api from '../../utils/api';
 import type { Shift } from '../admin/ShiftSchedule';
+import { COMBO_PACKAGE_SETTING_KEY, type ComboPackageTemplate } from '../../types/comboPackage';
 import {
   postCustomerDisplayState,
   openCustomerDisplayWindow,
@@ -58,7 +59,7 @@ import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
 import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode } from '../../hooks/usePosOrderNotificationText';
 
-type PosTab = 'products' | 'orders' | 'combos' | 'schedule' | 'warehouse' | 'history' | 'admin' | 'macro';
+type PosTab = 'products' | 'combosale' | 'orders' | 'combos' | 'schedule' | 'warehouse' | 'history' | 'admin' | 'macro';
 
 const POS_TABS: {
   id: PosTab;
@@ -67,6 +68,7 @@ const POS_TABS: {
   badge?: 'orders' | 'combos';
 }[] = [
   { id: 'products', label: 'Bán hàng', icon: ShoppingBag },
+  { id: 'combosale', label: 'Bán Combo', icon: Package },
   { id: 'orders', label: 'Hàng đợi', icon: ClipboardList, badge: 'orders' },
   { id: 'combos', label: 'Combo', icon: Package, badge: 'combos' },
   { id: 'schedule', label: 'Lịch giao', icon: CalendarDays },
@@ -97,9 +99,19 @@ function POSInterfaceInner() {
   const [mgrId, setMgrId] = useState('');
   const [comboPayment, setComboPayment] = useState<'cash' | 'transfer'>('transfer');
   const [comboSubmitting, setComboSubmitting] = useState(false);
+  // Tab "Bán Combo" — nhập đơn combo tại quầy (workaround khi CSKH chưa đẩy đơn xuống được)
+  const [comboPackages, setComboPackages] = useState<ComboPackageTemplate[]>([]);
+  const [comboCustName, setComboCustName] = useState('');
+  const [comboCustPhone, setComboCustPhone] = useState('');
+  const [comboDeliveryType, setComboDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [comboAddress, setComboAddress] = useState('');
   useEffect(() => {
     api.fetchEmployees()
       .then((list: any[]) => setPosEmployees((list || []).map((e) => ({ id: e.id, fullName: e.fullName, position: e.position, branch: e.branch }))))
+      .catch(() => {});
+    // Gói combo mẫu do Admin định nghĩa — để tab "Bán Combo" hiện lưới gói cho NV chọn.
+    api.fetchSetting(COMBO_PACKAGE_SETTING_KEY)
+      .then((v: any) => { if (Array.isArray(v)) setComboPackages(v.filter((t) => t.active)); })
       .catch(() => {});
   }, []);
 
@@ -525,6 +537,30 @@ function POSInterfaceInner() {
     setComboPendingStaff(combo);
   };
 
+  // Tab "Bán Combo": chọn 1 gói mẫu → dựng raw đúng dạng CustomComboBuilder rồi mở modal chốt.
+  const handlePickComboPackage = (tpl: ComboPackageTemplate) => {
+    const raw: any = (tpl.items || []).map((it) => ({
+      assignedDay: it.assignedDay,
+      dayLabel: it.dayLabel,
+      productName: it.productName,
+      size: it.size,
+      protein: it.protein,
+      toppings: it.toppings,
+    }));
+    raw.duration = tpl.comboType;
+    raw.deliveryDays = (tpl.items || []).map((it) => it.assignedDay);
+    raw.startDate = new Date().toISOString();
+    raw.deliveryTime = '08:00';
+    setSellerId(session?.employeeId || '');
+    setMgrId('');
+    setComboPayment('transfer');
+    setComboCustName('');
+    setComboCustPhone('');
+    setComboDeliveryType('pickup');
+    setComboAddress('');
+    setComboPendingStaff({ name: tpl.name, price: tpl.price, rawComboData: raw, toppings: [] });
+  };
+
   const confirmComboStaff = async () => {
     const combo = comboPendingStaff;
     if (!combo || comboSubmitting) return;
@@ -533,6 +569,10 @@ function POSInterfaceInner() {
     const startIso = raw.startDate ? new Date(raw.startDate).toISOString() : new Date().toISOString();
     const seller = posEmployees.find((e) => e.id === sellerId);
     const mgr = posEmployees.find((e) => e.id === mgrId);
+    const custName = comboCustName.trim() || combo.customerName || raw.customerName || 'Khách tại quầy';
+    const custPhone = comboCustPhone.trim() || combo.customerPhone || raw.customerPhone || '';
+    const deliveryAddress = comboDeliveryType === 'delivery' ? comboAddress.trim() : '';
+    const deliveryDays = Array.isArray(raw.deliveryDays) && raw.deliveryDays.length ? raw.deliveryDays : [1, 2, 3, 4, 5];
     setComboSubmitting(true);
     try {
       // 1) GHI NHẬN ĐƠN BÁN đã thu tiền vào ca NGAY — đây là bước trước đây bị thiếu (combo chỉ tạo
@@ -558,8 +598,8 @@ function POSInterfaceInner() {
         staff: seller?.fullName || session?.employeeName || '',
         staffId: seller?.id || session?.employeeId,
         sessionStaffId: session?.employeeId,
-        customerName: combo.customerName || raw.customerName || '',
-        customerPhone: combo.customerPhone || raw.customerPhone || '',
+        customerName: custName,
+        customerPhone: custPhone,
         paymentMethod: comboPayment,
       } as any);
       if (!orderOk) {
@@ -569,15 +609,16 @@ function POSInterfaceInner() {
       }
       // 2) Tạo gói combo (subscription) để sinh lịch giao + chia hoa hồng.
       await api.createComboSubscription({
-        customerName: combo.customerName || raw.customerName || '',
-        customerPhone: combo.customerPhone || raw.customerPhone || '',
-        deliveryAddress: raw.deliveryAddress || '',
+        customerName: custName,
+        customerPhone: custPhone,
+        deliveryAddress,
+        deliveryType: comboDeliveryType,
         planName: combo.name,
         comboType: duration === 'weekly' ? 'weekly' : 'monthly',
         comboDuration: duration,
         startDate: startIso,
         nextDelivery: startIso,
-        deliveryDays: [1, 2, 3, 4, 5],
+        deliveryDays,
         items: raw,
         totalPrice: combo.price,
         status: 'active',
@@ -869,6 +910,36 @@ function POSInterfaceInner() {
               ) : (
                 <ProductGrid onProductClick={setSelectedProduct} />
               )
+            ) : activeTab === 'combosale' ? (
+              <div className="p-3 h-full min-h-0 overflow-y-auto">
+                <div className="mb-3">
+                  <h2 className="text-xl font-black text-gray-800">🎁 Bán Combo tại quầy</h2>
+                  <p className="text-xs text-gray-500">Chọn gói combo → nhập khách + hình thức nhận → xác nhận là ghi nhận đơn + tạo gói ngay.</p>
+                </div>
+                {comboPackages.length === 0 ? (
+                  <div className="text-center text-gray-400 py-16">
+                    <Package className="w-16 h-16 mx-auto mb-3 opacity-50" />
+                    <p className="font-semibold">Chưa có gói combo mẫu</p>
+                    <p className="text-sm mt-1">Nhờ Admin thêm gói combo trong phần cấu hình combo.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 min-[1280px]:grid-cols-3 gap-3">
+                    {comboPackages.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => handlePickComboPackage(tpl)}
+                        className="text-left bg-white border border-indigo-200 hover:border-indigo-500 hover:shadow-lg rounded-xl p-4 transition-all"
+                      >
+                        <div className="text-2xl mb-1">🎁</div>
+                        <div className="font-bold text-gray-900 leading-tight">{tpl.name}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">{tpl.comboType === 'weekly' ? 'Gói tuần' : 'Gói tháng'} · {(tpl.items || []).length} buổi</div>
+                        <div className="text-indigo-700 font-black mt-2">{(tpl.price || 0).toLocaleString('vi-VN')}đ</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : activeTab === 'orders' ? (
               <OrderQueue branchId={branchId} />
             ) : activeTab === 'combos' ? (
@@ -937,10 +1008,33 @@ function POSInterfaceInner() {
 
       {comboPendingStaff && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 max-h-[92vh] overflow-y-auto">
             <h3 className="text-lg font-black text-gray-900 mb-1">Chốt combo tại quầy</h3>
-            <p className="text-xs text-gray-500 mb-4">Gói: <b>{comboPendingStaff.name}</b> · {(comboPendingStaff.price || 0).toLocaleString('vi-VN')}đ — chọn người hưởng hoa hồng.</p>
+            <p className="text-xs text-gray-500 mb-4">Gói: <b>{comboPendingStaff.name}</b> · {(comboPendingStaff.price || 0).toLocaleString('vi-VN')}đ</p>
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-gray-600 mb-1 block">Tên khách</label>
+                  <input value={comboCustName} onChange={(e) => setComboCustName(e.target.value)} placeholder="Khách tại quầy" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-600 mb-1 block">SĐT</label>
+                  <input value={comboCustPhone} onChange={(e) => setComboCustPhone(e.target.value)} inputMode="tel" placeholder="SĐT khách" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 mb-1 block">Hình thức nhận</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setComboDeliveryType('pickup')} className={`py-2 rounded-lg text-sm font-bold border ${comboDeliveryType === 'pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}>🏬 Lấy tại chỗ</button>
+                  <button type="button" onClick={() => setComboDeliveryType('delivery')} className={`py-2 rounded-lg text-sm font-bold border ${comboDeliveryType === 'delivery' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}>🛵 Giao hàng</button>
+                </div>
+              </div>
+              {comboDeliveryType === 'delivery' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-600 mb-1 block">Địa chỉ giao</label>
+                  <input value={comboAddress} onChange={(e) => setComboAddress(e.target.value)} placeholder="Địa chỉ giao hàng" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">👤 Nhân viên bán (người chốt — hưởng phần lớn)</label>
                 <select value={sellerId} onChange={(e) => setSellerId(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm bg-white">

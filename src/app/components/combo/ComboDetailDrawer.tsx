@@ -281,6 +281,8 @@ export function ComboDetailDrawer({
     }
   };
 
+  const editingLog = deliveryLogs.find((l) => l.id === editingSlotId) || null;
+
   // Buổi hôm nay / ngày mai để tô đậm nổi bật trên lịch giao.
   const dayTagOf = (dateStr: string): 'today' | 'tomorrow' | null => {
     if (!dateStr) return null;
@@ -396,71 +398,6 @@ export function ComboDetailDrawer({
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {deliveryLogs.map((log) => {
                   const editable = canEditSchedule && log.status === 'pending';
-                  if (editingSlotId === log.id) {
-                    return (
-                      <div key={log.id} className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-2 sm:col-span-2 xl:col-span-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">Ngày giao</label>
-                            <input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)}
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">Giờ giao</label>
-                            <input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)}
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">
-                            {combo.deliveryType === 'pickup' ? 'Chi nhánh khách lấy buổi này' : 'Chi nhánh làm/giao buổi này'}
-                          </label>
-                          <select value={slotBranch} onChange={(e) => setSlotBranch(e.target.value)}
-                            className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white">
-                            {(branchOptions || []).map((b) => (
-                              <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        {combo.deliveryType !== 'pickup' && (
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">Địa chỉ giao buổi này</label>
-                            <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}
-                              placeholder="Để trống = dùng địa chỉ chung của combo"
-                              className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white" />
-                          </div>
-                        )}
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase">Vị buổi này</label>
-                          <div className="grid grid-cols-12 gap-1.5">
-                            <select value={slotFlavor} onChange={(e) => setSlotFlavor(e.target.value)}
-                              className="col-span-6 border rounded-lg px-2 py-1.5 text-xs bg-white">
-                              <option value="">-- Chọn vị --</option>
-                              {smoothies.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-                            </select>
-                            <select value={slotSize} onChange={(e) => setSlotSize(e.target.value)}
-                              className="col-span-3 border rounded-lg px-1 py-1.5 text-xs bg-white">
-                              {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                            <select value={slotProtein} onChange={(e) => setSlotProtein(Number(e.target.value))}
-                              className="col-span-3 border rounded-lg px-1 py-1.5 text-xs bg-white">
-                              {PROTEIN_OPTIONS.map((p) => <option key={p} value={p}>{p}g</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => saveSlot(log)} disabled={slotBusy}
-                            className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:opacity-60">
-                            {slotBusy ? 'Đang lưu...' : 'Lưu buổi'}
-                          </button>
-                          <button type="button" onClick={() => setEditingSlotId('')} disabled={slotBusy}
-                            className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">Huỷ sửa</button>
-                          <button type="button" onClick={() => cancelSlot(log)} disabled={slotBusy}
-                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold">Xoá buổi</button>
-                        </div>
-                      </div>
-                    );
-                  }
                   const dayTag = dayTagOf(log.deliveryDate);
                   const highlight = log.status === 'pending' ? dayTag : null; // đã giao rồi thì không cần tô
                   return (
@@ -645,6 +582,91 @@ export function ComboDetailDrawer({
           />
         </div>
       </div>
+
+      {editingLog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-black/50" onClick={() => !slotBusy && setEditingSlotId('')} aria-label="Đóng" />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-emerald-50 uppercase tracking-wider">Đổi buổi giao</p>
+                <h3 className="text-lg font-black text-white">
+                  {new Date(editingLog.deliveryDate).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
+                </h3>
+              </div>
+              <button type="button" onClick={() => !slotBusy && setEditingSlotId('')} className="p-1.5 rounded-lg hover:bg-white/20 text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">📅 Ngày giao</label>
+                  <input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">⏰ Giờ giao</label>
+                  <input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">
+                  {combo.deliveryType === 'pickup' ? '🏪 Chi nhánh khách lấy' : '🏭 Chi nhánh làm/giao'}
+                </label>
+                <select value={slotBranch} onChange={(e) => setSlotBranch(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none">
+                  {(branchOptions || []).map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {combo.deliveryType !== 'pickup' && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">📍 Địa chỉ giao buổi này</label>
+                  <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}
+                    placeholder="Để trống = dùng địa chỉ chung của combo"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none" />
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">🥤 Vị buổi này</label>
+                <div className="grid grid-cols-12 gap-2">
+                  <select value={slotFlavor} onChange={(e) => setSlotFlavor(e.target.value)}
+                    className="col-span-6 border border-gray-300 rounded-xl px-2 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none">
+                    <option value="">-- Chọn vị --</option>
+                    {smoothies.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                  <select value={slotSize} onChange={(e) => setSlotSize(e.target.value)}
+                    className="col-span-3 border border-gray-300 rounded-xl px-1 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none">
+                    {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={slotProtein} onChange={(e) => setSlotProtein(Number(e.target.value))}
+                    className="col-span-3 border border-gray-300 rounded-xl px-1 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none">
+                    {PROTEIN_OPTIONS.map((p) => <option key={p} value={p}>{p}g</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 p-4 flex gap-2">
+              <button type="button" onClick={() => cancelSlot(editingLog)} disabled={slotBusy}
+                className="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 disabled:opacity-60">Xoá buổi</button>
+              <button type="button" onClick={() => setEditingSlotId('')} disabled={slotBusy}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 disabled:opacity-60">Huỷ</button>
+              <button type="button" onClick={() => saveSlot(editingLog)} disabled={slotBusy}
+                className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700 disabled:opacity-60">
+                {slotBusy ? 'Đang lưu...' : '✓ Lưu buổi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

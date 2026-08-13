@@ -120,9 +120,10 @@ function parseDeliveryLogRow(row) {
     customerName: row.customerName,
     customerPhone: row.customerPhone,
     planName: row.planName,
-    deliveryType: row.deliveryType || 'delivery',
-    shipMethod: row.shipMethod || 'own',
-    shipProvider: row.shipProvider || '',
+    // Ưu tiên hình thức riêng của BUỔI (delivery_logs), không có thì dùng mặc định của combo (cs).
+    deliveryType: row.delivery_type || row.deliveryType || 'delivery',
+    shipMethod: row.ship_method || row.shipMethod || 'own',
+    shipProvider: row.ship_provider || row.shipProvider || '',
     allergyNote: row.allergyNote || '',
     careStaffId: row.careStaffId,
     careStaffName: row.careStaffName,
@@ -180,6 +181,10 @@ function SCHEMA_STATEMENTS() {
     'ALTER TABLE delivery_logs ADD COLUMN delivery_time TEXT DEFAULT \'08:00\'',
     'ALTER TABLE delivery_logs ADD COLUMN alert_sent INTEGER DEFAULT 0',
     'ALTER TABLE delivery_logs ADD COLUMN delivery_address TEXT',
+    // Hình thức nhận/giao RIÊNG cho từng buổi (ghi đè mặc định của combo). Null = dùng của combo.
+    'ALTER TABLE delivery_logs ADD COLUMN delivery_type TEXT',
+    'ALTER TABLE delivery_logs ADD COLUMN ship_method TEXT',
+    'ALTER TABLE delivery_logs ADD COLUMN ship_provider TEXT',
     // Index tăng tốc (delivery_logs trước đây không có index nào ngoài PK)
     'CREATE INDEX IF NOT EXISTS idx_dellog_combo ON delivery_logs(combo_order_id)',
     'CREATE INDEX IF NOT EXISTS idx_dellog_branch_date ON delivery_logs(branch_id, delivery_date)',
@@ -560,8 +565,8 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
   app.patch('/api/delivery-logs/:id/reschedule', async (req, res) => {
     try {
       const { id } = req.params;
-      const { deliveryDate, deliveryTime, deliveryAddress, branchId, note, productName, productId, size, protein } = req.body || {};
-      if (!deliveryDate && !deliveryTime && deliveryAddress === undefined && !branchId && productName === undefined && size === undefined && protein === undefined) {
+      const { deliveryDate, deliveryTime, deliveryAddress, branchId, note, productName, productId, size, protein, deliveryType, shipMethod, shipProvider } = req.body || {};
+      if (!deliveryDate && !deliveryTime && deliveryAddress === undefined && !branchId && productName === undefined && size === undefined && protein === undefined && deliveryType === undefined && shipMethod === undefined && shipProvider === undefined) {
         return res.status(400).json({ error: 'Thiếu dữ liệu cần đổi' });
       }
       const log = await dbGet(db, 'SELECT * FROM delivery_logs WHERE id = ?', [id]);
@@ -576,6 +581,7 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
         db,
         `UPDATE delivery_logs SET delivery_date = ?, delivery_time = ?, delivery_address = ?, branch_id = ?, scheduled_day_index = ?,
          product_name = ?, product_id = ?, size = ?, protein = ?,
+         delivery_type = ?, ship_method = ?, ship_provider = ?,
          flavor_note = COALESCE(?, flavor_note), alert_sent = 0, updated_at = ? WHERE id = ?`,
         [
           newDate,
@@ -587,6 +593,9 @@ function registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast }) {
           productId !== undefined ? productId : log.product_id,
           size !== undefined ? size : log.size,
           protein !== undefined ? Number(protein) : log.protein,
+          deliveryType !== undefined ? deliveryType : (log.delivery_type || null),
+          shipMethod !== undefined ? shipMethod : (log.ship_method || null),
+          shipProvider !== undefined ? shipProvider : (log.ship_provider || null),
           note || null,
           now,
           id,

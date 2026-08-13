@@ -21,6 +21,9 @@ interface DeliveryLogDetail {
   size: string;
   protein: number;
   branchId: string;
+  deliveryType?: 'pickup' | 'delivery';
+  shipMethod?: 'own' | 'external';
+  shipProvider?: string;
 }
 
 const SIZE_OPTIONS = ['250ml', '360ml', '500ml', '700ml'];
@@ -113,6 +116,9 @@ export function ComboDetailDrawer({
   const [slotSize, setSlotSize] = useState('360ml');
   const [slotProtein, setSlotProtein] = useState(40);
   const [slotBusy, setSlotBusy] = useState(false);
+  // Hình thức nhận/giao riêng cho buổi: 'pickup' (lấy tại quầy) | 'own' (NV FIT giao) | 'external' (bookship ngoài)
+  const [slotFulfill, setSlotFulfill] = useState<'pickup' | 'own' | 'external'>('own');
+  const [slotShipProvider, setSlotShipProvider] = useState('');
   const [smoothies, setSmoothies] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -161,6 +167,9 @@ export function ComboDetailDrawer({
               size: r.size || '360ml',
               protein: r.protein ?? 40,
               branchId: r.branchId,
+              deliveryType: r.deliveryType,
+              shipMethod: r.shipMethod,
+              shipProvider: r.shipProvider,
             }))
         );
       })
@@ -177,15 +186,24 @@ export function ComboDetailDrawer({
     setSlotFlavor(log.productName || '');
     setSlotSize(log.size || '360ml');
     setSlotProtein(log.protein ?? 40);
+    // Hình thức nhận/giao của buổi (ưu tiên buổi, fallback combo).
+    const dType = log.deliveryType || combo.deliveryType;
+    const sMethod = log.shipMethod || combo.shipMethod;
+    setSlotFulfill(dType === 'pickup' ? 'pickup' : sMethod === 'external' ? 'external' : 'own');
+    setSlotShipProvider(log.shipProvider || combo.shipProvider || '');
   };
 
   const saveSlot = async (log: DeliveryLogDetail) => {
     setSlotBusy(true);
     try {
       const picked = smoothies.find((s) => s.name === slotFlavor);
+      const deliveryType = slotFulfill === 'pickup' ? 'pickup' : 'delivery';
+      const shipMethod = slotFulfill === 'external' ? 'external' : 'own';
+      const shipProvider = slotFulfill === 'external' ? slotShipProvider.trim() : '';
       await api.rescheduleDeliveryLog(log.id, {
-        deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotAddr, branchId: slotBranch,
+        deliveryDate: slotDate, deliveryTime: slotTime, deliveryAddress: slotFulfill === 'pickup' ? '' : slotAddr, branchId: slotBranch,
         productName: slotFlavor, productId: picked?.id || '', size: slotSize, protein: slotProtein,
+        deliveryType, shipMethod, shipProvider,
       });
       setEditingSlotId('');
       await loadLogs();
@@ -438,8 +456,16 @@ export function ComboDetailDrawer({
                           <MapPin className="w-3 h-3 mt-0.5 shrink-0" /> {log.deliveryAddress}
                         </div>
                       )}
+                      {(() => {
+                        const dType = log.deliveryType || combo.deliveryType;
+                        const sMethod = log.shipMethod || combo.shipMethod;
+                        const label = dType === 'pickup' ? '🏪 Lấy tại quầy'
+                          : sMethod === 'external' ? `📦 Bookship${(log.shipProvider || combo.shipProvider) ? ` (${log.shipProvider || combo.shipProvider})` : ''}`
+                          : '🛵 NV FIT giao';
+                        return <div className="text-[11px] font-bold text-indigo-700">{label}</div>;
+                      })()}
                       <div className="text-[11px] text-gray-500">
-                        {combo.deliveryType === 'pickup' ? '🏪 Lấy tại: ' : '🏭 Làm/giao tại: '}
+                        {(log.deliveryType || combo.deliveryType) === 'pickup' ? '🏪 Lấy tại: ' : '🏭 Làm/giao tại: '}
                         <span className="font-semibold text-gray-700">{branchName(log.branchId)}</span>
                         {log.branchId && combo.branchId && log.branchId !== combo.branchId && (
                           <span className="ml-1 text-amber-700 font-bold">(khác mặc định)</span>
@@ -614,8 +640,29 @@ export function ComboDetailDrawer({
               </div>
 
               <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">🚚 Hình thức nhận buổi này</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => setSlotFulfill('pickup')}
+                    className={`py-2 rounded-xl text-xs font-bold border ${slotFulfill === 'pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}>🏪 Lấy tại quầy</button>
+                  <button type="button" onClick={() => setSlotFulfill('own')}
+                    className={`py-2 rounded-xl text-xs font-bold border ${slotFulfill === 'own' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}>🛵 NV FIT giao</button>
+                  <button type="button" onClick={() => setSlotFulfill('external')}
+                    className={`py-2 rounded-xl text-xs font-bold border ${slotFulfill === 'external' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300'}`}>📦 Bookship ngoài</button>
+                </div>
+              </div>
+
+              {slotFulfill === 'external' && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">Đơn vị bookship</label>
+                  <input value={slotShipProvider} onChange={(e) => setSlotShipProvider(e.target.value)}
+                    placeholder="VD: Grab, Ahamove, Shopee Food..."
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none" />
+                </div>
+              )}
+
+              <div>
                 <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">
-                  {combo.deliveryType === 'pickup' ? '🏪 Chi nhánh khách lấy' : '🏭 Chi nhánh làm/giao'}
+                  {slotFulfill === 'pickup' ? '🏪 Chi nhánh khách lấy' : '🏭 Chi nhánh làm/giao'}
                 </label>
                 <select value={slotBranch} onChange={(e) => setSlotBranch(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:outline-none">
@@ -625,7 +672,7 @@ export function ComboDetailDrawer({
                 </select>
               </div>
 
-              {combo.deliveryType !== 'pickup' && (
+              {slotFulfill !== 'pickup' && (
                 <div>
                   <label className="text-[11px] font-bold text-gray-500 uppercase mb-1 block">📍 Địa chỉ giao buổi này</label>
                   <input value={slotAddr} onChange={(e) => setSlotAddr(e.target.value)}

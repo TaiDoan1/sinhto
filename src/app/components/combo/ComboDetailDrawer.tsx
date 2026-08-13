@@ -510,7 +510,9 @@ export function ComboDetailDrawer({
                       </div>
                       {editable && (
                         <button type="button" onClick={() => startEditSlot(log)}
-                          className="self-start text-[11px] font-bold text-emerald-700 hover:text-emerald-800 mt-0.5">✏️ Sửa buổi</button>
+                          className="self-start mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg px-2.5 py-1">
+                          ✏️ Đổi ngày/giờ giao
+                        </button>
                       )}
                     </div>
                   );
@@ -620,65 +622,6 @@ export function ComboDetailDrawer({
                 className="px-4 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold">
                 {saving ? 'Đang lưu...' : 'Lưu địa chỉ & ghi chú'}
               </button>
-            </div>
-          )}
-
-          {actor && (
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Nhật ký hoạt động
-              </p>
-              <div className="flex gap-2 mb-3">
-                <input
-                  value={noteInput}
-                  onChange={(e) => setNoteInput(e.target.value)}
-                  placeholder="VD: Gia hạn từ combo trước, đã thu 795k tiền mặt..."
-                  className="flex-1 px-3 py-2 rounded-xl border text-sm"
-                  onKeyDown={(e) => e.key === 'Enter' && addNote()}
-                />
-                <button
-                  type="button"
-                  onClick={addNote}
-                  disabled={loggingNote}
-                  className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-60"
-                >
-                  {loggingNote ? '...' : 'Lưu'}
-                </button>
-              </div>
-              {activitiesLoading ? (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                </div>
-              ) : activities.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Chưa có hoạt động</p>
-              ) : (
-                <div className="space-y-3">
-                  {activities.map((a) => (
-                    <div key={a.id} className="flex gap-3">
-                      <div className="w-2 h-2 rounded-full bg-gray-400 mt-2 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-800">{ACTIVITY_LABEL[a.activityType] || a.activityType}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{a.content}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {a.createdAt ? new Date(a.createdAt).toLocaleString('vi-VN') : ''}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {parseDeliveryLog(combo.deliveryLog).length > 0 && (
-            <div>
-              <div className="text-xs font-bold text-gray-400 uppercase mb-1">Lịch sử giao</div>
-              {parseDeliveryLog(combo.deliveryLog).slice().reverse().slice(0, 5).map((e, i) => (
-                <div key={i} className="text-xs text-gray-500 py-0.5">
-                  {new Date(e.date).toLocaleDateString('vi-VN')} — {e.productName}
-                  {e.note ? ` (${e.note})` : ''}
-                </div>
-              ))}
             </div>
           )}
 

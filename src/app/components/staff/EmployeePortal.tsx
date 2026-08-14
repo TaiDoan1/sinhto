@@ -50,6 +50,7 @@ export function EmployeePortal() {
   const [requestDate, setRequestDate] = useState(todayStr());
   const [requesting, setRequesting] = useState(false);
   const [cameraMode, setCameraMode] = useState<'in' | 'out' | null>(null);
+  const [cameraShift, setCameraShift] = useState<WorkShift | null>(null); // ca đang chụp ảnh chấm công
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
@@ -135,15 +136,11 @@ export function EmployeePortal() {
   // Fix: khi có nhiều ca trong ngày (vd nhân viên làm 2 ca), ưu tiên ca chưa hoàn thành
   // (scheduled/approved/in_progress) theo startTime tăng dần. Chỉ fallback về ca "completed"
   // khi tất cả ca trong ngày đều đã xong — để nhân viên vẫn chụp được ảnh bổ sung.
-  const todayShift = (() => {
-    const todayShifts = myShifts
-      .filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-    return (
-      todayShifts.find(s => s.status !== 'completed') ?? // ưu tiên ca chưa xong
-      todayShifts[todayShifts.length - 1]                // fallback: ca completed cuối cùng
-    );
-  })();
+  // TẤT CẢ ca hôm nay (không gộp còn 1) — nhân viên có thể làm 2 ca/2 chi nhánh trong ngày, mỗi ca
+  // cần check-in/check-out/kết ca RIÊNG. Trước đây chỉ lấy 1 ca nên ca kia bị kẹt (không tan ca được).
+  const todayShiftList = myShifts
+    .filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));
 
   // Lịch cả chi nhánh — gộp theo ngày để hiện dạng "ngày -> danh sách ai làm ca nào", chỉ lấy từ
@@ -207,22 +204,25 @@ export function EmployeePortal() {
   };
 
   const handleAttendanceCapture = async (file: File) => {
-    if (!todayShift || !cameraMode) return;
+    const shift = cameraShift;
+    if (!shift || !cameraMode) return;
     try {
       const photoUrl = await api.uploadImage(file);
       if (cameraMode === 'in') {
-        await checkIn(todayShift.id, photoUrl);
+        await checkIn(shift.id, photoUrl);
       } else {
-        const shiftOrders = [...orders, ...history].filter(o => o.shiftId === todayShift.id);
+        const shiftOrders = [...orders, ...history].filter(o => o.shiftId === shift.id);
         const count = shiftOrders.length;
         const total = shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-        await checkOut(todayShift.id, photoUrl);
+        await checkOut(shift.id, photoUrl);
         setShiftSummary({ count, total });
       }
       setCameraMode(null);
+      setCameraShift(null);
     } catch {
       alert('Chấm công thất bại. Vui lòng thử lại.');
       setCameraMode(null);
+      setCameraShift(null);
     }
   };
 
@@ -266,7 +266,12 @@ export function EmployeePortal() {
 
   // Tìm ca đang mở (in_progress) của chính mình để kết ca — không giới hạn theo chi nhánh vì
   // nhân viên có thể hỗ trợ chi nhánh khác chi nhánh mặc định của họ.
-  const handleOpenEndShift = async () => {
+  const handleOpenEndShift = async (shift?: WorkShift) => {
+    // Nếu truyền đúng ca (từ thẻ ca cụ thể) → kết đúng ca đó. Không truyền → tìm ca in_progress đầu tiên.
+    if (shift) {
+      setClosingShift(shift);
+      return;
+    }
     setFindingShiftToClose(true);
     try {
       const activeShifts = (await api.fetchShifts({
@@ -489,92 +494,86 @@ export function EmployeePortal() {
                 {now.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
 
-              {todayShift ? (
-                <div className="space-y-4">
-                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 text-left">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-bold text-emerald-800">Ca hôm nay</div>
-                      {todayShift.branch && (
-                        <span className="bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-                          {branchLabel(todayShift.branch) || todayShift.branch}
-                        </span>
+              {todayShiftList.length > 0 ? (
+                <div className="space-y-5">
+                  {todayShiftList.length > 1 && (
+                    <div className="text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                      Bạn có {todayShiftList.length} ca hôm nay — chấm công &amp; kết ca <b>từng ca riêng</b>.
+                    </div>
+                  )}
+                  {todayShiftList.map((s) => (
+                    <div key={s.id} className="space-y-3">
+                      <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 text-left">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-bold text-emerald-800">Ca {s.startTime}–{s.endTime}</div>
+                          {s.branch && (
+                            <span className="bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                              {branchLabel(s.branch) || s.branch}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm space-y-1 text-gray-700">
+                          {s.checkIn && <div className="flex justify-between"><span>Check-in:</span><span className="font-semibold text-green-600">{new Date(s.checkIn).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</span></div>}
+                          {s.checkOut && <div className="flex justify-between"><span>Check-out:</span><span className="font-semibold text-green-600">{new Date(s.checkOut).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</span></div>}
+                        </div>
+                      </div>
+
+                      {s.checkInPhoto && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-3">
+                          <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1"><Camera className="w-4 h-4" /> Ảnh Check-in</div>
+                          <img src={s.checkInPhoto} alt="Check-in" className="w-full h-auto rounded-lg object-cover max-h-48" />
+                        </div>
                       )}
-                    </div>
-                    <div className="text-sm space-y-1 text-gray-700">
-                      <div className="flex justify-between"><span>Giờ vào ca:</span><span className="font-semibold">{todayShift.startTime}</span></div>
-                      <div className="flex justify-between"><span>Giờ tan ca:</span><span className="font-semibold">{todayShift.endTime}</span></div>
-                      {todayShift.checkIn && <div className="flex justify-between"><span>Check-in:</span><span className="font-semibold text-green-600">{new Date(todayShift.checkIn).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</span></div>}
-                      {todayShift.checkOut && <div className="flex justify-between"><span>Check-out:</span><span className="font-semibold text-green-600">{new Date(todayShift.checkOut).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</span></div>}
-                    </div>
-                  </div>
+                      {s.checkOutPhoto && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-3">
+                          <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1"><Camera className="w-4 h-4" /> Ảnh Check-out</div>
+                          <img src={s.checkOutPhoto} alt="Check-out" className="w-full h-auto rounded-lg object-cover max-h-48" />
+                        </div>
+                      )}
 
-                  {todayShift.checkInPhoto && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-3">
-                      <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-                        <Camera className="w-4 h-4" />
-                        Ảnh Check-in
-                      </div>
-                      <img src={todayShift.checkInPhoto} alt="Check-in" className="w-full h-auto rounded-lg object-cover max-h-48" />
-                    </div>
-                  )}
+                      {!s.checkIn && (
+                        <button
+                          onClick={() => { setCameraShift(s); setCameraMode('in'); }}
+                          className="w-full bg-green-500 active:bg-green-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
+                        >
+                          <Camera className="w-5 h-5" /> Check-in
+                        </button>
+                      )}
+                      {s.checkIn && !s.checkOut && (
+                        <button
+                          onClick={() => { setCameraShift(s); setCameraMode('out'); }}
+                          className="w-full bg-emerald-600 active:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
+                        >
+                          <Camera className="w-5 h-5" /> Check-out
+                        </button>
+                      )}
+                      {s.checkIn && s.checkOut && (
+                        <div className="flex items-center justify-center gap-2 text-green-600 font-semibold py-1">
+                          <CheckCircle className="w-5 h-5" /> Đã hoàn thành ca này
+                        </div>
+                      )}
 
-                  {todayShift.checkOutPhoto && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-3">
-                      <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-                        <Camera className="w-4 h-4" />
-                        Ảnh Check-out
-                      </div>
-                      <img src={todayShift.checkOutPhoto} alt="Check-out" className="w-full h-auto rounded-lg object-cover max-h-48" />
+                      {s.status === 'completed' ? (
+                        <button
+                          onClick={() => handlePrintClosedShiftBill(s)}
+                          disabled={printingClosedBill}
+                          className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
+                        >
+                          {printingClosedBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+                          In bill kết ca
+                        </button>
+                      ) : s.checkIn ? (
+                        <button
+                          onClick={() => handleOpenEndShift(s)}
+                          disabled={findingShiftToClose}
+                          className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
+                        >
+                          {findingShiftToClose ? <Loader2 className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
+                          Kết ca &amp; Xem bill
+                        </button>
+                      ) : null}
                     </div>
-                  )}
-
-                  {/* Luồng tuần tự cho rõ ràng, tránh nhầm: CHƯA vào ca → chỉ nút Check-in.
-                      ĐÃ vào ca, chưa tan ca → chỉ nút Check-out. Xong cả hai → báo hoàn thành. */}
-                  {!todayShift.checkIn && (
-                    <button
-                      onClick={() => setCameraMode('in')}
-                      className="w-full bg-green-500 active:bg-green-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
-                    >
-                      <Camera className="w-5 h-5" />
-                      Check-in
-                    </button>
-                  )}
-                  {todayShift.checkIn && !todayShift.checkOut && (
-                    <button
-                      onClick={() => setCameraMode('out')}
-                      className="w-full bg-emerald-600 active:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
-                    >
-                      <Camera className="w-5 h-5" />
-                      Check-out
-                    </button>
-                  )}
-                  {todayShift.checkIn && todayShift.checkOut && (
-                    <div className="flex items-center justify-center gap-2 text-green-600 font-semibold py-2">
-                      <CheckCircle className="w-5 h-5" />
-                      Đã hoàn thành ca hôm nay
-                    </div>
-                  )}
-
-                  {todayShift.status === 'completed' ? (
-                    // Ca đã được kết trên máy POS rồi — chỉ cần in lại đúng bill đó, không hỏi lại tiền mặt.
-                    <button
-                      onClick={() => handlePrintClosedShiftBill(todayShift)}
-                      disabled={printingClosedBill}
-                      className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
-                    >
-                      {printingClosedBill ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                      In bill kết ca
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleOpenEndShift}
-                      disabled={findingShiftToClose}
-                      className="w-full bg-white border-2 border-emerald-600 text-emerald-700 active:bg-emerald-50 disabled:opacity-60 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[52px]"
-                    >
-                      {findingShiftToClose ? <Loader2 className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
-                      Kết ca & Xem bill
-                    </button>
-                  )}
+                  ))}
                 </div>
               ) : (
                 <div className="text-gray-500 py-4 space-y-4">
@@ -834,11 +833,11 @@ export function EmployeePortal() {
 
       <EmployeeBottomNav activeTab={tab} onTabChange={setTab} />
 
-      {cameraMode && todayShift && (
+      {cameraMode && cameraShift && (
         <AttendanceCamera
           label={cameraMode === 'in' ? 'Chụp ảnh Check-in' : 'Chụp ảnh Check-out'}
           onCapture={handleAttendanceCapture}
-          onCancel={() => setCameraMode(null)}
+          onCancel={() => { setCameraMode(null); setCameraShift(null); }}
         />
       )}
 

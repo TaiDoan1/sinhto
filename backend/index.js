@@ -1463,12 +1463,18 @@ app.patch('/api/shifts/:id/overtime', (req, res) => {
     let overtimeStatus = row.overtimeStatus || '';
     let overtimeReason = row.overtimeReason || '';
 
+    // Khi NV XIN tăng ca: MỞ CA cho làm tiếp NGAY (không chờ duyệt) — nếu ca đã kết ca thì mở lại
+    // (in_progress, bỏ giờ kết ca) để nhân viên bán tiếp + kết ca lại lúc cuối. Duyệt TRẢ TIỀN OT
+    // là việc cửa hàng trưởng làm sau (overtimeStatus='pending' → 'approved').
+    let reopen = false;
+
     if (action === 'request') {
       const h = Number(hours);
       if (!(h > 0)) return res.status(400).json({ error: 'Số giờ làm thêm không hợp lệ' });
       overtimeHours = h;
       overtimeReason = (reason || '').toString().slice(0, 300);
       overtimeStatus = 'pending';
+      if (row.status === 'completed') reopen = true; // ca lỡ kết rồi → mở lại cho làm tiếp
     } else if (action === 'approve') {
       if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh số giờ
       overtimeStatus = 'approved';
@@ -1480,14 +1486,16 @@ app.patch('/api/shifts/:id/overtime', (req, res) => {
       return res.status(400).json({ error: 'action không hợp lệ' });
     }
 
+    const newStatus = reopen ? 'in_progress' : row.status;
+    const newCheckOut = reopen ? '' : (row.checkOut || '');
     db.run(
-      `UPDATE shifts SET overtimeHours = ?, overtimeStatus = ?, overtimeReason = ? WHERE id = ?`,
-      [overtimeHours, overtimeStatus, overtimeReason, id],
+      `UPDATE shifts SET overtimeHours = ?, overtimeStatus = ?, overtimeReason = ?, status = ?, checkOut = ? WHERE id = ?`,
+      [overtimeHours, overtimeStatus, overtimeReason, newStatus, newCheckOut, id],
       function(err2) {
         if (err2) return res.status(500).json({ error: err2.message });
-        const updated = { ...row, overtimeHours, overtimeStatus, overtimeReason };
+        const updated = { ...row, overtimeHours, overtimeStatus, overtimeReason, status: newStatus, checkOut: newCheckOut };
         broadcast('SHIFT_UPDATED', updated);
-        res.json(updated);
+        res.json({ ...updated, reopened: reopen });
       }
     );
   });

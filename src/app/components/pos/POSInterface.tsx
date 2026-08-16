@@ -317,11 +317,19 @@ function POSInterfaceInner() {
     if (!(h > 0)) { alert('Nhập số giờ làm thêm (VD 2)'); return; }
     setOtSubmitting(true);
     try {
-      // Tìm ca đang mở của nhân viên đăng nhập POS để gắn OT.
-      const activeShifts = (await api.fetchShifts({ employeeId: session?.employeeId, status: 'in_progress' })) as Shift[];
-      if (!activeShifts.length) { alert('Không có ca đang mở để tăng ca. Hãy check-in trước.'); setOtSubmitting(false); return; }
-      await api.shiftOvertime(activeShifts[0].id, 'request', { hours: h, reason: otReason.trim() });
-      alert(`Đã gửi xin tăng ca ${h}h — chờ cửa hàng trưởng duyệt.`);
+      // Tìm ca của nhân viên đăng nhập POS: ưu tiên ca ĐANG MỞ; nếu lỡ kết ca rồi thì lấy ca ĐÃ KẾT
+      // gần nhất HÔM NAY để mở lại (backend tự mở lại khi 'request'). Vậy tăng ca = làm tiếp được ngay.
+      const allShifts = (await api.fetchShifts({ employeeId: session?.employeeId })) as Shift[];
+      const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD (giờ máy)
+      const mine = (allShifts || []).filter((s) => s.date === todayStr && s.branch === branchId);
+      const target = mine.find((s) => s.status === 'in_progress')
+        || mine.filter((s) => s.status === 'completed').sort((a, b) => (b.checkIn || '').localeCompare(a.checkIn || ''))[0]
+        || mine[0];
+      if (!target) { alert('Chưa có ca hôm nay để tăng ca. Hãy check-in ca trước.'); setOtSubmitting(false); return; }
+      const res: any = await api.shiftOvertime(target.id, 'request', { hours: h, reason: otReason.trim() });
+      alert(res?.reopened
+        ? `Đã MỞ LẠI ca + xin tăng ca ${h}h. Bạn bán tiếp bình thường, cuối ca kết ca lại. Cửa hàng trưởng duyệt trả tiền OT sau.`
+        : `Đã xin tăng ca ${h}h. Cứ bán tiếp, cuối ca kết ca 1 lần. Cửa hàng trưởng duyệt trả tiền OT sau.`);
       setOtOpen(false); setOtHours(''); setOtReason('');
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Không gửi được yêu cầu tăng ca');

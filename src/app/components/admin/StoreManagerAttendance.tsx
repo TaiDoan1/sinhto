@@ -322,10 +322,16 @@ export function StoreManagerAttendance() {
                     <div className="text-[9px] text-gray-400 leading-tight">tham khảo</div>
                   </div>
                 </div>
+                {/* Chú thích 3 cột cho dễ hiểu */}
+                <div className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                  <div><span className="font-bold text-sky-600">Thực tế</span> = giờ bấm vào–ra thật (đi trễ/về sớm thấy ở đây)</div>
+                  <div><span className="font-bold text-emerald-600">Lương</span> = giờ công tính lương (theo ca trên lịch)</div>
+                  <div><span className="font-bold text-orange-500">OT</span> = giờ làm thêm đã được duyệt</div>
+                </div>
               </div>
               <div className="overflow-y-auto">
                 <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-[10px] font-bold uppercase text-gray-400 sticky top-0">
-                  <span>Ngày · ca (vào–ra thực tế / lịch)</span>
+                  <span>Ngày · ca (vào–ra / lịch)</span>
                   <span className="flex gap-2"><span className="text-sky-600 w-11 text-right">Thực tế</span><span className="text-emerald-600 w-11 text-right">Lương</span><span className="text-orange-500 w-10 text-right">OT</span></span>
                 </div>
                 <div className="divide-y divide-gray-50">

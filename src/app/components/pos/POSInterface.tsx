@@ -98,6 +98,11 @@ function POSInterfaceInner() {
   const [mgrId, setMgrId] = useState('');
   const [comboPayment, setComboPayment] = useState<'cash' | 'transfer'>('transfer');
   const [comboSubmitting, setComboSubmitting] = useState(false);
+  // Tăng ca (OT) ngay trên POS
+  const [otOpen, setOtOpen] = useState(false);
+  const [otHours, setOtHours] = useState('');
+  const [otReason, setOtReason] = useState('');
+  const [otSubmitting, setOtSubmitting] = useState(false);
   // Thông tin khách + giao hàng cho modal chốt combo (path bộ dựng combo chi tiết)
   const [comboCustName, setComboCustName] = useState('');
   const [comboCustPhone, setComboCustPhone] = useState('');
@@ -307,6 +312,24 @@ function POSInterfaceInner() {
   };
 
   // Kết ca: kiểm tra ca đang mở, bắt buộc chốt doanh thu/đơn trước khi đăng xuất.
+  const submitPosOvertime = async () => {
+    const h = Number(otHours);
+    if (!(h > 0)) { alert('Nhập số giờ làm thêm (VD 2)'); return; }
+    setOtSubmitting(true);
+    try {
+      // Tìm ca đang mở của nhân viên đăng nhập POS để gắn OT.
+      const activeShifts = (await api.fetchShifts({ employeeId: session?.employeeId, status: 'in_progress' })) as Shift[];
+      if (!activeShifts.length) { alert('Không có ca đang mở để tăng ca. Hãy check-in trước.'); setOtSubmitting(false); return; }
+      await api.shiftOvertime(activeShifts[0].id, 'request', { hours: h, reason: otReason.trim() });
+      alert(`Đã gửi xin tăng ca ${h}h — chờ cửa hàng trưởng duyệt.`);
+      setOtOpen(false); setOtHours(''); setOtReason('');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không gửi được yêu cầu tăng ca');
+    } finally {
+      setOtSubmitting(false);
+    }
+  };
+
   const handleEndShift = async () => {
     if (!session) return;
     // CẢNH BÁO (không chặn cứng) khi còn đơn chưa lưu lên máy chủ (mất mạng). Cho phép nhân viên
@@ -675,6 +698,14 @@ function POSInterfaceInner() {
             >
               <Banknote className="w-4 h-4" />
               Thu/Chi
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOtHours(''); setOtReason(''); setOtOpen(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-lg text-sm font-bold shrink-0"
+              title="Xin làm thêm giờ — cửa hàng trưởng duyệt mới tính lương"
+            >
+              ➕ Tăng ca
             </button>
             <button
               type="button"
@@ -1074,6 +1105,38 @@ function POSInterfaceInner() {
             >
               Hủy
             </button>
+          </div>
+        </div>
+      )}
+
+      {otOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
+            <h3 className="text-lg font-black text-gray-900 mb-1">➕ Xin tăng ca</h3>
+            <p className="text-xs text-gray-500 mb-4">Làm quá giờ tan ca (VD thiếu người). Cửa hàng trưởng duyệt thì mới tính lương. Cứ bán bình thường tới cuối rồi kết ca 1 lần.</p>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Số giờ làm thêm</label>
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3].map((h) => (
+                <button key={h} type="button" onClick={() => setOtHours(String(h))}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border ${otHours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'}`}>
+                  +{h}h
+                </button>
+              ))}
+              <input type="number" min="0" step="0.5" value={otHours} onChange={(e) => setOtHours(e.target.value)}
+                placeholder="giờ" className="w-20 border border-gray-300 rounded-xl px-2 py-2.5 text-sm text-center" />
+            </div>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Lý do</label>
+            <input value={otReason} onChange={(e) => setOtReason(e.target.value)}
+              placeholder="VD: thiếu người, ở lại phụ ca sau..."
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm mb-4" />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setOtOpen(false)} disabled={otSubmitting}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold">Huỷ</button>
+              <button type="button" onClick={submitPosOvertime} disabled={otSubmitting}
+                className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-black disabled:opacity-60">
+                {otSubmitting ? 'Đang gửi...' : 'Gửi xin tăng ca'}
+              </button>
+            </div>
           </div>
         </div>
       )}

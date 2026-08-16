@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, ChevronDown, ChevronRight, Loader2, Search } from 'lucide-react';
+import { CalendarCheck, ChevronRight, Loader2, Search } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useBranches } from '../../contexts/BranchContext';
 import type { WorkShift } from '../../types/employee';
@@ -82,7 +82,7 @@ export function StoreManagerAttendance() {
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [detailEmpId, setDetailEmpId] = useState<string | null>(null); // nhân viên đang mở popup chi tiết
   const [otHoursEdit, setOtHoursEdit] = useState<Record<string, string>>({});
 
   // Khoảng ngày dùng để lấy/lọc dữ liệu (tự đảo nếu nhập từ > đến)
@@ -249,13 +249,14 @@ export function StoreManagerAttendance() {
       ) : (
         <div className="space-y-2">
           {rows.map(({ emp, dayCount, payrollDays, dayList, totalActual, totalSched }) => {
-            const open = expanded[emp.id];
+            const hasPendingOt = dayList.some((d) => d.shifts.some((sh) => sh.overtimeStatus === 'pending'));
             return (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <button onClick={() => setExpanded((p) => ({ ...p, [emp.id]: !p[emp.id] }))}
+                <button onClick={() => setDetailEmpId(emp.id)}
                   className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-gray-50 text-left">
                   <div className="flex items-center gap-2 min-w-0">
-                    {open ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+                    <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    {hasPendingOt && <span className="text-[10px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full shrink-0">OT</span>}
                     <div className="min-w-0">
                       <p className="font-bold text-gray-800 truncate">{emp.fullName}</p>
                       <p className="text-xs text-gray-500">{branchLabel(emp.branch) || emp.branch || 'Chưa gán CN'} · <span className="font-semibold text-emerald-700">{dayCount}</span> ngày công</p>
@@ -273,85 +274,111 @@ export function StoreManagerAttendance() {
                     </div>
                   </div>
                 </button>
-                {open && (
-                  <div className="border-t border-gray-100">
-                    <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-[10px] font-bold uppercase text-gray-400">
-                      <span>Ngày · ca (vào–ra thực tế / lịch)</span>
-                      <span className="flex gap-3"><span className="text-sky-600">Thực tế</span><span className="text-emerald-600">Lương</span></span>
-                    </div>
-                    <div className="divide-y divide-gray-50">
-                      {dayList.length === 0 ? (
-                        <div className="px-4 py-3 text-xs text-gray-400">Không có ngày công nào trong khoảng.</div>
-                      ) : dayList.map((d) => (
-                        <div key={d.date} className="px-4 py-2 text-sm">
-                          {/* Dòng ngày + tổng của ngày (khi nhiều ca) */}
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-gray-700">
-                              {new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                              {d.shifts.length > 1 && <span className="ml-1.5 text-[11px] font-medium text-gray-400">({d.shifts.length} ca)</span>}
-                            </span>
-                            <span className="flex gap-3 shrink-0 font-bold text-xs">
-                              <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
-                              <span className="text-emerald-700 w-12 text-right">{fmtDuration(d.schedMins)}</span>
-                            </span>
-                          </div>
-                          {/* Từng ca trong ngày */}
-                          {d.shifts.map((sh, i) => {
-                            const otVal = otHoursEdit[sh.id || ''] ?? (sh.overtimeHours ? String(sh.overtimeHours) : '');
-                            const otApproved = sh.overtimeStatus === 'approved';
-                            const hasOt = sh.overtimeStatus === 'pending' || otApproved;
-                            return (
-                            <div key={i} className="mt-1 pl-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs text-gray-500 min-w-0">
-                                  {d.shifts.length > 1 && <span className="text-gray-400">Ca {i + 1}: </span>}
-                                  <span className="text-emerald-700 font-medium">{hhmm(sh.checkIn)}</span>
-                                  {' → '}
-                                  <span className={sh.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(sh.checkOut)}</span>
-                                  <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
-                                </span>
-                                {d.shifts.length > 1 && (
-                                  <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
-                                    <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
-                                    <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
-                                  </span>
-                                )}
-                              </div>
-                              {/* Làm thêm giờ (OT) của ĐÚNG ca/ngày này — duyệt & sửa giờ ngay đây */}
-                              {hasOt && (
-                                <div className={`mt-1 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border ${otApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
-                                  <span className="text-[11px] font-bold text-orange-700">
-                                    ⏰ OT{otApproved ? ' (đã duyệt)' : ' (chờ duyệt)'}{sh.overtimeReason ? `: ${sh.overtimeReason}` : ''}
-                                  </span>
-                                  <div className="flex items-center gap-1 ml-auto">
-                                    <input type="number" min="0" step="0.5" value={otVal}
-                                      onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
-                                      placeholder="giờ" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-xs text-center" />
-                                    <span className="text-[10px] text-gray-500">giờ</span>
-                                    <button onClick={() => handleReviewOt({ id: sh.id }, 'approve')}
-                                      className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg">
-                                      {otApproved ? 'Cập nhật' : 'Duyệt'}
-                                    </button>
-                                    <button onClick={() => handleReviewOt({ id: sh.id }, 'reject')}
-                                      className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg">
-                                      {otApproved ? 'Bỏ' : 'Từ chối'}
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Popup chi tiết chấm công 1 nhân viên (thay cho xổ xuống) */}
+      {detailEmpId && (() => {
+        const dr = rows.find((r) => r.emp.id === detailEmpId);
+        if (!dr) return null;
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <button type="button" className="absolute inset-0 bg-black/50" onClick={() => setDetailEmpId(null)} aria-label="Đóng" />
+            <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+                <div className="min-w-0">
+                  <h3 className="font-black text-gray-900 text-lg truncate">{dr.emp.fullName}</h3>
+                  <p className="text-xs text-gray-500">{branchLabel(dr.emp.branch) || dr.emp.branch || 'Chưa gán CN'} · {fmtDay(range.lo)}–{fmtDay(range.hi)}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-center rounded-lg bg-sky-50 px-2.5 py-1">
+                    <div className="text-[10px] font-bold uppercase text-sky-600/80 leading-tight">Thực tế</div>
+                    <div className="text-sm font-black text-sky-700">{fmtDuration(dr.totalActual)}</div>
+                  </div>
+                  <div className="text-center rounded-lg bg-emerald-50 px-2.5 py-1">
+                    <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
+                    <div className="text-sm font-black text-emerald-700">{fmtDuration(dr.totalSched)}</div>
+                    <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{dr.payrollDays} ngày</div>
+                  </div>
+                  <button type="button" onClick={() => setDetailEmpId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-xl">✕</button>
+                </div>
+              </div>
+              <div className="overflow-y-auto">
+                <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-[10px] font-bold uppercase text-gray-400 sticky top-0">
+                  <span>Ngày · ca (vào–ra thực tế / lịch)</span>
+                  <span className="flex gap-3"><span className="text-sky-600">Thực tế</span><span className="text-emerald-600">Lương</span></span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {dr.dayList.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-gray-400">Không có ngày công nào trong khoảng.</div>
+                  ) : dr.dayList.map((d) => (
+                    <div key={d.date} className="px-4 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-gray-700">
+                          {new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                          {d.shifts.length > 1 && <span className="ml-1.5 text-[11px] font-medium text-gray-400">({d.shifts.length} ca)</span>}
+                        </span>
+                        <span className="flex gap-3 shrink-0 font-bold text-xs">
+                          <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
+                          <span className="text-emerald-700 w-12 text-right">{fmtDuration(d.schedMins)}</span>
+                        </span>
+                      </div>
+                      {d.shifts.map((sh, i) => {
+                        const otVal = otHoursEdit[sh.id || ''] ?? (sh.overtimeHours ? String(sh.overtimeHours) : '');
+                        const otApproved = sh.overtimeStatus === 'approved';
+                        const hasOt = sh.overtimeStatus === 'pending' || otApproved;
+                        return (
+                          <div key={i} className="mt-1 pl-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-500 min-w-0">
+                                {d.shifts.length > 1 && <span className="text-gray-400">Ca {i + 1}: </span>}
+                                <span className="text-emerald-700 font-medium">{hhmm(sh.checkIn)}</span>
+                                {' → '}
+                                <span className={sh.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(sh.checkOut)}</span>
+                                <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
+                              </span>
+                              {d.shifts.length > 1 && (
+                                <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
+                                  <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
+                                  <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
+                                </span>
+                              )}
+                            </div>
+                            {hasOt && (
+                              <div className={`mt-1 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border ${otApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
+                                <span className="text-[11px] font-bold text-orange-700">
+                                  ⏰ OT{otApproved ? ' (đã duyệt)' : ' (chờ duyệt)'}{sh.overtimeReason ? `: ${sh.overtimeReason}` : ''}
+                                </span>
+                                <div className="flex items-center gap-1 ml-auto">
+                                  <input type="number" min="0" step="0.5" value={otVal}
+                                    onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
+                                    placeholder="giờ" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-xs text-center" />
+                                  <span className="text-[10px] text-gray-500">giờ</span>
+                                  <button onClick={() => handleReviewOt({ id: sh.id }, 'approve')}
+                                    className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg">
+                                    {otApproved ? 'Cập nhật' : 'Duyệt'}
+                                  </button>
+                                  <button onClick={() => handleReviewOt({ id: sh.id }, 'reject')}
+                                    className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg">
+                                    {otApproved ? 'Bỏ' : 'Từ chối'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

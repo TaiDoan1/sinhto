@@ -313,8 +313,6 @@ function POSInterfaceInner() {
 
   // Kết ca: kiểm tra ca đang mở, bắt buộc chốt doanh thu/đơn trước khi đăng xuất.
   const submitPosOvertime = async () => {
-    const h = Number(otHours);
-    if (!(h > 0)) { alert('Nhập số giờ làm thêm (VD 2)'); return; }
     setOtSubmitting(true);
     try {
       // Tìm ca của nhân viên đăng nhập POS: ưu tiên ca ĐANG MỞ; nếu lỡ kết ca rồi thì lấy ca ĐÃ KẾT
@@ -326,11 +324,11 @@ function POSInterfaceInner() {
         || mine.filter((s) => s.status === 'completed').sort((a, b) => (b.checkIn || '').localeCompare(a.checkIn || ''))[0]
         || mine[0];
       if (!target) { alert('Chưa có ca hôm nay để tăng ca. Hãy check-in ca trước.'); setOtSubmitting(false); return; }
-      const res: any = await api.shiftOvertime(target.id, 'request', { hours: h, reason: otReason.trim() });
+      const res: any = await api.shiftOvertime(target.id, 'request', { reason: otReason.trim() });
       alert(res?.reopened
-        ? `Đã MỞ LẠI ca + xin tăng ca ${h}h. Bạn bán tiếp bình thường, cuối ca kết ca lại. Cửa hàng trưởng duyệt trả tiền OT sau.`
-        : `Đã xin tăng ca ${h}h. Cứ bán tiếp, cuối ca kết ca 1 lần. Cửa hàng trưởng duyệt trả tiền OT sau.`);
-      setOtOpen(false); setOtHours(''); setOtReason('');
+        ? 'Đã MỞ LẠI ca + ghi nhận tăng ca. Bạn bán tiếp bình thường, cuối ca kết ca lại. Giờ OT tự tính theo giờ làm thực tế; cửa hàng trưởng duyệt trả tiền sau.'
+        : 'Đã ghi nhận tăng ca. Cứ bán tiếp, cuối ca kết ca 1 lần. Giờ OT tự tính theo giờ làm thực tế; cửa hàng trưởng duyệt trả tiền sau.');
+      setOtOpen(false); setOtReason('');
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Không gửi được yêu cầu tăng ca');
     } finally {
@@ -1121,21 +1119,11 @@ function POSInterfaceInner() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
             <h3 className="text-lg font-black text-gray-900 mb-1">➕ Xin tăng ca</h3>
-            <p className="text-xs text-gray-500 mb-4">Làm quá giờ tan ca (VD thiếu người). Cửa hàng trưởng duyệt thì mới tính lương. Cứ bán bình thường tới cuối rồi kết ca 1 lần.</p>
-            <label className="text-xs font-bold text-gray-600 mb-1 block">Số giờ làm thêm</label>
-            <div className="flex gap-2 mb-3">
-              {[1, 2, 3].map((h) => (
-                <button key={h} type="button" onClick={() => setOtHours(String(h))}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border ${otHours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'}`}>
-                  +{h}h
-                </button>
-              ))}
-              <input type="number" min="0" step="0.5" value={otHours} onChange={(e) => setOtHours(e.target.value)}
-                placeholder="giờ" className="w-20 border border-gray-300 rounded-xl px-2 py-2.5 text-sm text-center" />
-            </div>
-            <label className="text-xs font-bold text-gray-600 mb-1 block">Lý do</label>
-            <input value={otReason} onChange={(e) => setOtReason(e.target.value)}
-              placeholder="VD: thiếu người, ở lại phụ ca sau..."
+            <p className="text-xs text-gray-500 mb-4">Làm quá giờ tan ca (VD thiếu người). Cứ bán bình thường tới cuối rồi kết ca 1 lần — <b>giờ OT tự tính theo giờ làm thực tế</b>, cửa hàng trưởng duyệt trả tiền sau.</p>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Nội dung / lý do tăng ca</label>
+            <textarea value={otReason} onChange={(e) => setOtReason(e.target.value)}
+              placeholder="VD: thiếu người ca chiều, ở lại phụ pha chế..."
+              rows={2}
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm mb-4" />
             <div className="flex gap-2">
               <button type="button" onClick={() => setOtOpen(false)} disabled={otSubmitting}

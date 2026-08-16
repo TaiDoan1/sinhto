@@ -543,7 +543,7 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                   </span>
                   {s.branch && <span className="text-xs text-gray-400 ml-2">({branchLabel(s.branch)})</span>}
                   <div className="text-sm text-orange-700 font-bold mt-0.5">
-                    +{s.overtimeHours}h làm thêm{s.overtimeReason ? ` — ${s.overtimeReason}` : ''}
+                    {s.overtimeHours ? `+${s.overtimeHours}h làm thêm` : 'Làm thêm (giờ tính khi kết ca)'}{s.overtimeReason ? ` — ${s.overtimeReason}` : ''}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">

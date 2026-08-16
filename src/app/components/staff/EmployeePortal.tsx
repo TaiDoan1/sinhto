@@ -232,13 +232,11 @@ export function EmployeePortal() {
 
   const submitOvertime = async () => {
     if (!otShift) return;
-    const h = Number(otHours);
-    if (!(h > 0)) { alert('Nhập số giờ làm thêm (VD 2)'); return; }
     setOtSubmitting(true);
     try {
-      await api.shiftOvertime(otShift.id, 'request', { hours: h, reason: otReason.trim() });
+      await api.shiftOvertime(otShift.id, 'request', { reason: otReason.trim() });
       await refreshShifts();
-      setOtShift(null); setOtHours(''); setOtReason('');
+      setOtShift(null); setOtReason('');
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Không gửi được yêu cầu làm thêm giờ');
     } finally {
@@ -576,12 +574,12 @@ export function EmployeePortal() {
                       {/* Làm thêm giờ (OT) */}
                       {s.overtimeStatus === 'pending' && (
                         <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-semibold text-center">
-                          ⏳ Đã xin làm thêm {s.overtimeHours}h — chờ cửa hàng trưởng duyệt
+                          ⏳ Đã ghi nhận tăng ca{s.overtimeHours ? ` ${s.overtimeHours}h` : ' (giờ tính khi kết ca)'} — chờ cửa hàng trưởng duyệt
                         </div>
                       )}
                       {s.overtimeStatus === 'approved' && (
                         <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 font-semibold text-center">
-                          ✅ Đã duyệt làm thêm {s.overtimeHours}h
+                          ✅ Đã duyệt làm thêm{s.overtimeHours ? ` ${s.overtimeHours}h` : ''}
                         </div>
                       )}
                       {s.overtimeStatus === 'rejected' && (
@@ -890,21 +888,11 @@ export function EmployeePortal() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
             <h3 className="text-lg font-black text-gray-900 mb-1">Xin làm thêm giờ</h3>
-            <p className="text-xs text-gray-500 mb-4">Ca {otShift.startTime}–{otShift.endTime}{otShift.branch ? ` · ${branchLabel(otShift.branch) || otShift.branch}` : ''}. Cửa hàng trưởng duyệt thì mới tính lương.</p>
-            <label className="text-xs font-bold text-gray-600 mb-1 block">Số giờ làm thêm</label>
-            <div className="flex gap-2 mb-3">
-              {[1, 2, 3].map((h) => (
-                <button key={h} type="button" onClick={() => setOtHours(String(h))}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border ${otHours === String(h) ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-300'}`}>
-                  +{h}h
-                </button>
-              ))}
-              <input type="number" min="0" step="0.5" value={otHours} onChange={(e) => setOtHours(e.target.value)}
-                placeholder="giờ" className="w-20 border border-gray-300 rounded-xl px-2 py-2.5 text-sm text-center" />
-            </div>
-            <label className="text-xs font-bold text-gray-600 mb-1 block">Lý do</label>
-            <input value={otReason} onChange={(e) => setOtReason(e.target.value)}
-              placeholder="VD: thiếu người, ở lại phụ ca chiều..."
+            <p className="text-xs text-gray-500 mb-4">Ca {otShift.startTime}–{otShift.endTime}{otShift.branch ? ` · ${branchLabel(otShift.branch) || otShift.branch}` : ''}. <b>Giờ OT tự tính theo giờ làm thực tế</b> (kết ca − giờ ca), cửa hàng trưởng duyệt trả tiền sau.</p>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Nội dung / lý do tăng ca</label>
+            <textarea value={otReason} onChange={(e) => setOtReason(e.target.value)}
+              placeholder="VD: thiếu người ca chiều, ở lại phụ pha chế..."
+              rows={2}
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm mb-4" />
             <div className="flex gap-2">
               <button type="button" onClick={() => setOtShift(null)} disabled={otSubmitting}

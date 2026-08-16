@@ -1411,9 +1411,21 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
     if (startCash != null) updated.startCash = Number(startCash) || 0;
     if (endCashActual != null) updated.endCashActual = Number(endCashActual) || 0;
 
+    // Tự tính GIỜ OT khi kết ca: nếu nhân viên có xin tăng ca (overtimeStatus pending/approved),
+    // OT = tổng giờ làm thực tế (kết ca − vào ca) − giờ ca theo lịch, làm tròn 0.5h, không âm.
+    if (action === 'out' && !isPhotoOnly && (row.overtimeStatus === 'pending' || row.overtimeStatus === 'approved') && row.checkIn && updated.checkOut) {
+      const actualH = (new Date(updated.checkOut).getTime() - new Date(row.checkIn).getTime()) / 3600000;
+      const [sh, sm] = String(row.startTime || '0:0').split(':').map(Number);
+      const [eh, em] = String(row.endTime || '0:0').split(':').map(Number);
+      let schedH = (eh + (em || 0) / 60) - (sh + (sm || 0) / 60);
+      if (schedH <= 0) schedH += 24;
+      const ot = Math.max(0, actualH - schedH);
+      updated.overtimeHours = Math.round(ot * 2) / 2; // làm tròn 0.5h
+    }
+
     const finishUpdate = () => {
       db.run(
-        `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ?, closingOrderCount = ?, closingRevenue = ?, startCash = ?, endCashActual = ? WHERE id = ?`,
+        `UPDATE shifts SET checkIn = ?, checkOut = ?, status = ?, checkInPhoto = ?, checkOutPhoto = ?, closingOrderCount = ?, closingRevenue = ?, startCash = ?, endCashActual = ?, overtimeHours = ? WHERE id = ?`,
         [
           updated.checkIn || '',
           updated.checkOut || '',
@@ -1424,6 +1436,7 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
           updated.closingRevenue ?? null,
           updated.startCash ?? row.startCash ?? 0,
           updated.endCashActual ?? row.endCashActual ?? 0,
+          updated.overtimeHours ?? row.overtimeHours ?? 0,
           id,
         ],
         function(err2) {
@@ -1469,14 +1482,13 @@ app.patch('/api/shifts/:id/overtime', (req, res) => {
     let reopen = false;
 
     if (action === 'request') {
-      const h = Number(hours);
-      if (!(h > 0)) return res.status(400).json({ error: 'Số giờ làm thêm không hợp lệ' });
-      overtimeHours = h;
+      // KHÔNG nhập số giờ — OT sẽ tự tính theo giờ làm thực tế lúc kết ca (giờ kết ca − giờ ca lịch).
+      overtimeHours = 0;
       overtimeReason = (reason || '').toString().slice(0, 300);
       overtimeStatus = 'pending';
       if (row.status === 'completed') reopen = true; // ca lỡ kết rồi → mở lại cho làm tiếp
     } else if (action === 'approve') {
-      if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh số giờ
+      if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh số giờ nếu cần
       overtimeStatus = 'approved';
     } else if (action === 'reject') {
       overtimeStatus = 'rejected';

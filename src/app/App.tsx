@@ -33,6 +33,7 @@ const OrderNotificationSettings = lazyNamed(() => import("./components/admin/Ord
 const LoyaltyManagement = lazyNamed(() => import("./components/admin/LoyaltyManagement"), "LoyaltyManagement");
 const StoreManagerApp = lazyNamed(() => import("./components/admin/StoreManagerApp"), "StoreManagerApp");
 const HrApp = lazyNamed(() => import("./components/admin/HrApp"), "HrApp");
+const StoreManagerAttendance = lazyNamed(() => import("./components/admin/StoreManagerAttendance"), "StoreManagerAttendance");
 const CustomerCareManagement = lazyNamed(() => import("./components/admin/CustomerCareManagement"), "CustomerCareManagement");
 const CustomerManagement = lazyNamed(() => import("./components/customer-management/CustomerManagement"), "CustomerManagement");
 const BackupData = lazyNamed(() => import("./components/admin/BackupData"), "BackupData");
@@ -129,6 +130,8 @@ function AdminShell() {
         return <RevenueAnalytics />;
       case "hr":
         return <HRManagement />;
+      case "attendance":
+        return <StoreManagerAttendance />;
       case "inventory":
         return <InventoryDashboard />;
       case "stock":

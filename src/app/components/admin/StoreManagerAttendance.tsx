@@ -164,11 +164,16 @@ export function StoreManagerAttendance() {
           ? [...days.entries()]
               .map(([date, list]) => {
                 const sorted = [...list].sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''));
+                // Giờ OT ĐÃ DUYỆT của ngày (phút) — cộng vào giờ tính lương.
+                const otMins = sorted.reduce((s, x) => s + (x.overtimeStatus === 'approved' ? (Number(x.overtimeHours) || 0) * 60 : 0), 0);
+                const schedMins = sorted.reduce((s, x) => s + x.schedMins, 0);
                 return {
                   date,
                   shifts: sorted,
                   actualMins: sorted.reduce((s, x) => s + x.actualMins, 0),
-                  schedMins: sorted.reduce((s, x) => s + x.schedMins, 0),
+                  schedMins,
+                  otMins,
+                  payMins: schedMins + otMins, // giờ tính lương = giờ ca lịch + OT đã duyệt
                 };
               })
               .sort((a, b) => a.date.localeCompare(b.date))
@@ -178,7 +183,9 @@ export function StoreManagerAttendance() {
         const payrollDays = dayList.filter((d) => d.schedMins > 0).length;
         const totalActual = dayList.reduce((s, d) => s + d.actualMins, 0);
         const totalSched = dayList.reduce((s, d) => s + d.schedMins, 0);
-        return { emp: e, dayCount, payrollDays, dayList, totalActual, totalSched };
+        const totalOt = dayList.reduce((s, d) => s + d.otMins, 0);
+        const totalPay = totalSched + totalOt; // giờ tính lương (đã gồm OT duyệt)
+        return { emp: e, dayCount, payrollDays, dayList, totalActual, totalSched, totalOt, totalPay };
       })
       .sort((a, b) => (b.dayCount - a.dayCount) || (a.emp.fullName || '').localeCompare(b.emp.fullName || ''));
   }, [employees, byEmp, branchFilter, search]);
@@ -186,7 +193,8 @@ export function StoreManagerAttendance() {
   const totalDays = rows.reduce((s, r) => s + r.dayCount, 0);
   const totalPayrollDays = rows.reduce((s, r) => s + r.payrollDays, 0);
   const totalActualAll = rows.reduce((s, r) => s + r.totalActual, 0);
-  const totalSchedAll = rows.reduce((s, r) => s + r.totalSched, 0);
+  const totalPayAll = rows.reduce((s, r) => s + r.totalPay, 0); // giờ tính lương toàn bộ (gồm OT duyệt)
+  const totalOtAll = rows.reduce((s, r) => s + r.totalOt, 0);
 
   const fmtDay = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 
@@ -229,8 +237,8 @@ export function StoreManagerAttendance() {
 
       <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-sm text-emerald-800 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span>{fmtDay(range.lo)}–{fmtDay(range.hi)} · {rows.length} NV · {totalDays} ngày công</span>
-        <span className="text-sky-700">Thực tế: {fmtDuration(totalActualAll)}</span>
-        <span className="text-emerald-700">Tính lương: {fmtDuration(totalSchedAll)} ({totalPayrollDays} ngày)</span>
+        <span className="text-emerald-700">Tính lương: {fmtDuration(totalPayAll)} ({totalPayrollDays} ngày){totalOtAll > 0 ? ` · gồm +${(totalOtAll / 60).toFixed(1).replace(/\.0$/, '')}h OT` : ''}</span>
+        <span className="text-gray-500">Thực tế: {fmtDuration(totalActualAll)}</span>
       </div>
 
       <p className="text-[11px] text-gray-400 px-1 -mt-1">
@@ -249,7 +257,7 @@ export function StoreManagerAttendance() {
         <p className="text-center text-gray-400 py-10 text-sm">Không có nhân viên phù hợp.</p>
       ) : (
         <div className="space-y-2">
-          {rows.map(({ emp, dayCount, payrollDays, dayList, totalActual, totalSched }) => {
+          {rows.map(({ emp, dayCount, payrollDays, dayList, totalActual, totalPay, totalOt }) => {
             const hasPendingOt = dayList.some((d) => d.shifts.some((sh) => sh.overtimeStatus === 'pending'));
             return (
               <div key={emp.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -270,8 +278,8 @@ export function StoreManagerAttendance() {
                     </div>
                     <div className="text-center rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2.5 py-1 min-w-[78px]">
                       <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
-                      <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(totalSched)}</div>
-                      <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{payrollDays} ngày</div>
+                      <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(totalPay)}</div>
+                      <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{payrollDays} ngày{totalOt > 0 ? ` · +${(totalOt / 60).toFixed(1).replace(/\.0$/, '')}h OT` : ''}</div>
                     </div>
                   </div>
                 </button>
@@ -302,7 +310,7 @@ export function StoreManagerAttendance() {
                 <div className="flex gap-2 mt-2.5">
                   <div className="flex-1 text-center rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
-                    <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(dr.totalSched)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày</span></div>
+                    <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(dr.totalPay)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày{otApprovedHours > 0 ? ` · +${otApprovedHours}h OT` : ''}</span></div>
                   </div>
                   <div className="flex-1 text-center rounded-lg bg-orange-50 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-orange-600/80 leading-tight">Giờ OT</div>
@@ -332,7 +340,7 @@ export function StoreManagerAttendance() {
                         </span>
                         <span className="flex gap-3 shrink-0 font-bold text-xs">
                           <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
-                          <span className="text-emerald-700 w-12 text-right">{fmtDuration(d.schedMins)}</span>
+                          <span className="text-emerald-700 w-14 text-right">{fmtDuration(d.payMins)}{d.otMins > 0 ? <span className="text-orange-500 text-[10px]"> (OT)</span> : null}</span>
                         </span>
                       </div>
                       {d.shifts.map((sh, i) => {

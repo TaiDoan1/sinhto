@@ -264,13 +264,13 @@ export function StoreManagerAttendance() {
                     </div>
                   </div>
                   <div className="flex items-stretch gap-1.5 shrink-0">
-                    <div className="text-center rounded-lg bg-sky-50 px-2.5 py-1 min-w-[74px]">
-                      <div className="text-[10px] font-bold uppercase text-sky-600/80 leading-tight">Thực tế</div>
-                      <div className="text-sm font-black text-sky-700">{fmtDuration(totalActual)}</div>
+                    <div className="text-center rounded-lg bg-gray-50 px-2.5 py-1 min-w-[64px]">
+                      <div className="text-[10px] font-semibold uppercase text-gray-400 leading-tight">Thực tế</div>
+                      <div className="text-xs font-bold text-gray-500">{fmtDuration(totalActual)}</div>
                     </div>
-                    <div className="text-center rounded-lg bg-emerald-50 px-2.5 py-1 min-w-[74px]">
+                    <div className="text-center rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2.5 py-1 min-w-[78px]">
                       <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
-                      <div className="text-sm font-black text-emerald-700">{fmtDuration(totalSched)}</div>
+                      <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(totalSched)}</div>
                       <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{payrollDays} ngày</div>
                     </div>
                   </div>
@@ -300,17 +300,18 @@ export function StoreManagerAttendance() {
                   <p className="text-xs text-gray-500">{branchLabel(dr.emp.branch) || dr.emp.branch || 'Chưa gán CN'} · {fmtDay(range.lo)}–{fmtDay(range.hi)}</p>
                 </div>
                 <div className="flex gap-2 mt-2.5">
-                  <div className="flex-1 text-center rounded-lg bg-sky-50 px-2 py-1.5">
-                    <div className="text-[10px] font-bold uppercase text-sky-600/80 leading-tight">Thực tế</div>
-                    <div className="text-sm font-black text-sky-700">{fmtDuration(dr.totalActual)}</div>
-                  </div>
-                  <div className="flex-1 text-center rounded-lg bg-emerald-50 px-2 py-1.5">
+                  <div className="flex-1 text-center rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
-                    <div className="text-sm font-black text-emerald-700">{fmtDuration(dr.totalSched)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày</span></div>
+                    <div className="text-base font-black text-emerald-700 leading-tight">{fmtDuration(dr.totalSched)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày</span></div>
                   </div>
                   <div className="flex-1 text-center rounded-lg bg-orange-50 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-orange-600/80 leading-tight">Giờ OT</div>
-                    <div className="text-sm font-black text-orange-600">{otApprovedHours > 0 ? `+${otApprovedHours}h` : '0h'}</div>
+                    <div className="text-base font-black text-orange-600 leading-tight">{otApprovedHours > 0 ? `+${otApprovedHours}h` : '0h'}</div>
+                  </div>
+                  <div className="flex-1 text-center rounded-lg bg-gray-50 px-2 py-1.5">
+                    <div className="text-[10px] font-semibold uppercase text-gray-400 leading-tight">Thực tế</div>
+                    <div className="text-sm font-bold text-gray-500 leading-tight">{fmtDuration(dr.totalActual)}</div>
+                    <div className="text-[9px] text-gray-400 leading-tight">tham khảo</div>
                   </div>
                 </div>
               </div>

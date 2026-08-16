@@ -284,6 +284,9 @@ export function StoreManagerAttendance() {
       {detailEmpId && (() => {
         const dr = rows.find((r) => r.emp.id === detailEmpId);
         if (!dr) return null;
+        // Tổng giờ OT ĐÃ DUYỆT của nhân viên trong kỳ (chỉ cộng ca đã duyệt).
+        const otApprovedHours = dr.dayList.reduce((t, d) =>
+          t + d.shifts.reduce((s, sh) => s + (sh.overtimeStatus === 'approved' ? (Number(sh.overtimeHours) || 0) : 0), 0), 0);
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <button type="button" className="absolute inset-0 bg-black/50" onClick={() => setDetailEmpId(null)} aria-label="Đóng" />
@@ -303,6 +306,10 @@ export function StoreManagerAttendance() {
                   <div className="flex-1 text-center rounded-lg bg-emerald-50 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
                     <div className="text-sm font-black text-emerald-700">{fmtDuration(dr.totalSched)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày</span></div>
+                  </div>
+                  <div className="flex-1 text-center rounded-lg bg-orange-50 px-2 py-1.5">
+                    <div className="text-[10px] font-bold uppercase text-orange-600/80 leading-tight">Giờ OT</div>
+                    <div className="text-sm font-black text-orange-600">{otApprovedHours > 0 ? `+${otApprovedHours}h` : '0h'}</div>
                   </div>
                 </div>
               </div>

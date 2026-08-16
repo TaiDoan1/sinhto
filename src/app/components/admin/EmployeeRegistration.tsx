@@ -19,6 +19,9 @@ export interface Employee {
   baseSalary: number;
   payType?: 'monthly' | 'hourly';
   hourlyRate?: number;
+  /** Lịch sử mức lương theo giờ: mỗi mốc áp dụng từ effectiveFrom (YYYY-MM-DD). Ca tính theo
+   *  mốc gần nhất có effectiveFrom ≤ ngày ca. Trống = dùng hourlyRate cho mọi ca (như cũ). */
+  salaryHistory?: { effectiveFrom: string; hourlyRate: number }[];
   startDate: string;
   photo?: string;
   username: string;

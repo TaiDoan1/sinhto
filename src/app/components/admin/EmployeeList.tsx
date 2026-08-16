@@ -33,8 +33,46 @@ export function EmployeeList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [editForm, setEditForm] = useState<Employee | null>(null);
+  // Form thêm 1 mốc lương mới (tăng/giảm lương từ 1 ngày cụ thể) trong modal sửa nhân viên
+  const [newRate, setNewRate] = useState('');
+  const [newRateDate, setNewRateDate] = useState('');
   const { subscribe } = useSSE();
   const { showSuccess, showError } = useToast();
+
+  const localToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  // Mức lương áp dụng HÔM NAY theo danh sách mốc (mốc gần nhất có effectiveFrom ≤ hôm nay)
+  const effectiveRateToday = (hist: { effectiveFrom: string; hourlyRate: number }[], fallback: number) => {
+    const sorted = [...hist].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    const today = localToday();
+    let rate = fallback;
+    for (const h of sorted) if (h.effectiveFrom <= today) rate = h.hourlyRate;
+    return rate;
+  };
+  const addSalaryMilestone = () => {
+    if (!editForm) return;
+    const rate = Number(newRate);
+    const date = newRateDate;
+    if (!(rate > 0) || !date) { showError('Nhập mức lương mới và ngày áp dụng'); return; }
+    let hist = [...(editForm.salaryHistory || [])];
+    // Lần đầu thêm mốc: chốt mức HIỆN TẠI thành mốc gốc (hiệu lực từ ngày vào làm) để các ca
+    // trước ngày tăng lương vẫn giữ đúng mức cũ.
+    if (hist.length === 0 && (editForm.hourlyRate || 0) > 0) {
+      hist.push({ effectiveFrom: (editForm.startDate || '2000-01-01').slice(0, 10), hourlyRate: editForm.hourlyRate || 0 });
+    }
+    hist = hist.filter((h) => h.effectiveFrom !== date); // trùng ngày → ghi đè
+    hist.push({ effectiveFrom: date, hourlyRate: rate });
+    hist.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    setEditForm({ ...editForm, salaryHistory: hist, hourlyRate: effectiveRateToday(hist, editForm.hourlyRate || rate) });
+    setNewRate(''); setNewRateDate('');
+  };
+  const removeSalaryMilestone = (idx: number) => {
+    if (!editForm) return;
+    const hist = (editForm.salaryHistory || []).filter((_, i) => i !== idx);
+    setEditForm({ ...editForm, salaryHistory: hist, hourlyRate: hist.length ? effectiveRateToday(hist, editForm.hourlyRate || 0) : (editForm.hourlyRate || 0) });
+  };
 
   useEffect(() => {
     api.fetchEmployees()
@@ -220,7 +258,7 @@ export function EmployeeList() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => setEditForm({ ...emp })}
+                          onClick={() => { setNewRate(''); setNewRateDate(''); setEditForm({ ...emp }); }}
                           className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
                           title="Sửa"
                         >
@@ -412,15 +450,74 @@ export function EmployeeList() {
                 </label>
               )}
               {!isStoreManager && (editForm.payType === 'hourly' ? (
-                <label>
-                  <span className="text-xs font-semibold text-gray-500">Lương theo giờ (VNĐ/giờ)</span>
-                  <input
-                    type="number"
-                    value={editForm.hourlyRate || ''}
-                    onChange={e => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
-                  />
-                </label>
+                <div className="sm:col-span-2 space-y-3 border border-gray-200 rounded-xl p-3 bg-gray-50">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-gray-500">Mức lương theo giờ HIỆN TẠI (VNĐ/giờ)</span>
+                    <input
+                      type="number"
+                      value={editForm.hourlyRate || ''}
+                      onChange={e => setEditForm({ ...editForm, hourlyRate: Number(e.target.value) })}
+                      className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                    />
+                    {(editForm.salaryHistory?.length || 0) > 0 && (
+                      <span className="block text-[11px] text-gray-400 mt-1">Mức áp dụng hôm nay — tự cập nhật theo mốc gần nhất bên dưới.</span>
+                    )}
+                  </label>
+
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 mb-1.5">📈 Lịch sử điều chỉnh lương <span className="font-normal text-gray-400">(lương tính theo NGÀY của từng ca)</span></div>
+                    {(editForm.salaryHistory || []).length === 0 ? (
+                      <div className="text-[11px] text-gray-400 italic">Chưa có mốc nào — mọi ca tính theo mức hiện tại. Thêm mốc để tăng/giảm lương từ một ngày cụ thể mà KHÔNG ảnh hưởng các ca trước đó.</div>
+                    ) : (
+                      <ul className="space-y-1">
+                        {[...(editForm.salaryHistory || [])]
+                          .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+                          .map((h) => (
+                            <li key={h.effectiveFrom} className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm">
+                              <span>Từ <b>{new Date(h.effectiveFrom).toLocaleDateString('vi-VN')}</b>: <b className="text-emerald-700">{h.hourlyRate.toLocaleString('vi-VN')}đ/giờ</b></span>
+                              <button
+                                type="button"
+                                onClick={() => removeSalaryMilestone((editForm.salaryHistory || []).indexOf(h))}
+                                className="text-red-500 hover:text-red-600 p-1"
+                                title="Xoá mốc"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-gray-200">
+                    <label className="flex-1 min-w-[110px]">
+                      <span className="text-[11px] font-semibold text-gray-500">Mức mới (đ/giờ)</span>
+                      <input
+                        type="number"
+                        value={newRate}
+                        onChange={e => setNewRate(e.target.value)}
+                        placeholder="VD 27000"
+                        className="mt-1 w-full px-2.5 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <label className="flex-1 min-w-[110px]">
+                      <span className="text-[11px] font-semibold text-gray-500">Áp dụng từ ngày</span>
+                      <input
+                        type="date"
+                        value={newRateDate}
+                        onChange={e => setNewRateDate(e.target.value)}
+                        className="mt-1 w-full px-2.5 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addSalaryMilestone}
+                      className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 whitespace-nowrap"
+                    >
+                      ＋ Thêm mốc
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <label>
                   <span className="text-xs font-semibold text-gray-500">Lương cơ bản (VNĐ/tháng)</span>

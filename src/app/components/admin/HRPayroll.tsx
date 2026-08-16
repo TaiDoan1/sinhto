@@ -247,6 +247,25 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     const sumHours = (shiftList: Shift[]) =>
       shiftList.reduce((total, shift) => (shift.checkIn ? total + scheduledHoursOf(shift) : total), 0);
 
+    // Mức lương/giờ áp dụng cho MỘT ngày cụ thể: lấy mốc gần nhất trong salaryHistory có
+    // effectiveFrom ≤ ngày đó. Ca trước mốc đầu tiên dùng chính mốc đầu tiên. Không có lịch sử
+    // → dùng hourlyRate hiện tại cho mọi ca (giữ nguyên hành vi cũ). Nhờ vậy tăng lương từ ngày
+    // X không làm tính lại sai các ca trước X.
+    const hourlyRateForDate = (emp: Employee, dateStr: string) => {
+      const hist = (emp.salaryHistory || [])
+        .filter((h) => h && h.effectiveFrom && Number.isFinite(h.hourlyRate))
+        .slice()
+        .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+      if (!hist.length) return emp.hourlyRate || 0;
+      const day = (dateStr || '').slice(0, 10);
+      let rate = hist[0].hourlyRate;
+      for (const h of hist) {
+        if (h.effectiveFrom <= day) rate = h.hourlyRate;
+        else break;
+      }
+      return rate;
+    };
+
     // Kỳ lương đang xem — theo tháng (prefix "YYYY-MM") hoặc theo tuần (khoảng ngày Thứ 2 - CN thật).
     const inPeriod = (dateStr: string) => {
       if (!dateStr) return false;
@@ -291,15 +310,28 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
         ).length;
 
         const isHourly = emp.payType === 'hourly';
-        const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
-        const otPay = Math.round(overtimeHours * hourlyRate);
+        const monthlyHourly = (emp.baseSalary || 0) / salarySettings.standardWorkHours;
+        // Mức lương/giờ của TỪNG ca: theo giờ → tra lịch sử mức lương theo ngày ca; theo tháng
+        // → quy đổi từ lương cơ bản. Nhờ đó ca trước/sau ngày tăng lương tính đúng mức riêng.
+        const rateForShift = (s: Shift) => (isHourly ? hourlyRateForDate(emp, s.date) : monthlyHourly);
+
+        // OT: mỗi ca đã DUYỆT tính theo mức lương của NGÀY ca đó (không dùng 1 mức chung).
+        const otPay = Math.round(
+          employeeShifts.reduce(
+            (t, s: any) => (s.checkIn && s.overtimeStatus === 'approved'
+              ? t + (Number(s.overtimeHours) || 0) * rateForShift(s)
+              : t),
+            0
+          )
+        );
         const comboBonus = comboSales * salarySettings.comboBonus;
 
         // Lương không chia theo % chi nhánh — nhân viên làm ở chi nhánh nào (chính hay hỗ trợ)
         // đều tính công đầy đủ theo giờ trên lịch (trừ đi trễ). Lọc theo chi nhánh chỉ để
         // xem giờ làm/số ca tại đúng nơi đó, không cắt bớt lương thực nhận của nhân viên.
+        // Lương giờ cộng theo TỪNG ca × mức lương của ngày ca đó → tăng lương giữa kỳ vẫn đúng.
         const regularPay = isHourly
-          ? hoursWorked * hourlyRate
+          ? employeeShifts.reduce((t, s) => (s.checkIn ? t + scheduledHoursOf(s) * hourlyRateForDate(emp, s.date) : t), 0)
           : (emp.baseSalary || 0);
         const totalSalary = regularPay + otPay + comboBonus;
 

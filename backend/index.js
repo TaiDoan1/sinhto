@@ -1086,6 +1086,13 @@ function parseEmployeeRow(row) {
   } else if (!Array.isArray(employee.secondaryBranches)) {
     employee.secondaryBranches = [];
   }
+  // Lịch sử mức lương theo giờ (mỗi mốc { effectiveFrom, hourlyRate }) — dùng để tính lương
+  // đúng theo NGÀY của từng ca (tăng lương từ ngày X không làm sai các ca trước đó).
+  if (typeof employee.salaryHistory === 'string') {
+    try { employee.salaryHistory = JSON.parse(employee.salaryHistory || '[]'); } catch { employee.salaryHistory = []; }
+  } else if (!Array.isArray(employee.salaryHistory)) {
+    employee.salaryHistory = [];
+  }
   return employee;
 }
 
@@ -1217,14 +1224,15 @@ app.post('/api/employees', (req, res) => {
     };
 
     const secondaryBranches = JSON.stringify(Array.isArray(e.secondaryBranches) ? e.secondaryBranches : []);
+    const salaryHistory = JSON.stringify(Array.isArray(e.salaryHistory) ? e.salaryHistory : []);
 
     checkCode(() => {
       db.run(
-        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData, payType, hourlyRate, secondaryBranches) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches],
+        `INSERT INTO employees (id, fullName, employeeId, email, phone, idNumber, dateOfBirth, address, branch, position, baseSalary, startDate, username, password, photo, customData, payType, hourlyRate, secondaryBranches, salaryHistory) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, storedPassword, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches, salaryHistory],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
-          const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [] });
+          const created = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [], salaryHistory: e.salaryHistory || [] });
           broadcast('EMPLOYEE_CREATED', created);
           res.status(201).json(created);
         }
@@ -1260,15 +1268,16 @@ app.put('/api/employees/:id', (req, res) => {
       };
 
       const secondaryBranches = JSON.stringify(Array.isArray(e.secondaryBranches) ? e.secondaryBranches : []);
+      const salaryHistory = JSON.stringify(Array.isArray(e.salaryHistory) ? e.salaryHistory : []);
 
       checkCode(() => {
         db.run(
-          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ?, payType = ?, hourlyRate = ?, secondaryBranches = ? WHERE id = ?`,
-          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches, id],
+          `UPDATE employees SET fullName = ?, employeeId = ?, email = ?, phone = ?, idNumber = ?, dateOfBirth = ?, address = ?, branch = ?, position = ?, baseSalary = ?, startDate = ?, username = ?, password = ?, photo = ?, customData = ?, payType = ?, hourlyRate = ?, secondaryBranches = ?, salaryHistory = ? WHERE id = ?`,
+          [e.fullName, e.employeeId, e.email, e.phone, e.idNumber, e.dateOfBirth, e.address, e.branch, e.position, e.baseSalary, e.startDate, username, passwordToSave, e.photo || '', customData, e.payType || 'monthly', e.hourlyRate || null, secondaryBranches, salaryHistory, id],
           function(err) {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy nhân viên' });
-            const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [] });
+            const updated = parseEmployeeRow({ ...e, id, username, customData: e.customData || {}, secondaryBranches: e.secondaryBranches || [], salaryHistory: e.salaryHistory || [] });
             broadcast('EMPLOYEE_UPDATED', updated);
             res.json(updated);
           }

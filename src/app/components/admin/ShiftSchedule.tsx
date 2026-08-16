@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
@@ -225,6 +225,32 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
       await api.saveShift({ ...shift, isPinned: !shift.isPinned });
     } catch (err) {
       console.error('Failed to toggle pin:', err);
+    }
+  };
+
+  // CHT/Admin thêm giờ tăng ca (OT) cho 1 ca ngay trên LỊCH.
+  const [otModalShift, setOtModalShift] = useState<Shift | null>(null);
+  const [otModalHours, setOtModalHours] = useState('');
+  const [otModalReason, setOtModalReason] = useState('');
+  const [otModalSaving, setOtModalSaving] = useState(false);
+  const openOtModal = (shift: Shift) => {
+    setOtModalShift(shift);
+    setOtModalHours((shift as any).overtimeHours ? String((shift as any).overtimeHours) : '');
+    setOtModalReason((shift as any).overtimeReason || '');
+  };
+  const saveOtModal = async () => {
+    if (!otModalShift) return;
+    const h = Number(otModalHours);
+    if (!(h > 0)) { alert('Nhập số giờ OT (VD 2)'); return; }
+    setOtModalSaving(true);
+    try {
+      const updated = await api.shiftOvertime(otModalShift.id, 'approve', { hours: h, reason: otModalReason.trim() || 'Cửa hàng trưởng thêm' });
+      setShifts(prev => prev.map(s => s.id === otModalShift.id ? { ...s, ...updated } : s));
+      setOtModalShift(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thêm được giờ OT');
+    } finally {
+      setOtModalSaving(false);
     }
   };
 
@@ -619,8 +645,20 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                               {shift.isSubstitute && shift.originalEmployeeName && (
                                 <span className="block text-[11px] opacity-90">Thay: {shift.originalEmployeeName}</span>
                               )}
+                              {(shift as any).overtimeStatus === 'approved' && (shift as any).overtimeHours > 0 && (
+                                <span className="block text-[11px] font-bold opacity-95">⏰ OT +{(shift as any).overtimeHours}h</span>
+                              )}
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
+                              {shift.shiftType !== 'off' && (
+                                <button
+                                  onClick={() => openOtModal(shift)}
+                                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded"
+                                  title="Thêm giờ tăng ca (OT)"
+                                >
+                                  <Clock className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleTogglePin(shift.id)}
                                 className={`p-1.5 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
@@ -804,6 +842,15 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                               </span>
                               {!readOnly && (
                                 <div className="flex gap-1">
+                                  {shift.shiftType !== 'off' && (
+                                    <button
+                                      onClick={() => openOtModal(shift)}
+                                      className="p-1 bg-white/20 hover:bg-white/30 rounded"
+                                      title="Thêm giờ tăng ca (OT)"
+                                    >
+                                      <Clock className="w-3 h-3" />
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => handleTogglePin(shift.id)}
                                     className={`p-1 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
@@ -831,6 +878,9 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                             <div className="text-xs font-semibold">
                               {shift.shiftType === 'off' ? 'Nghỉ' : `${shift.startTime} - ${shift.endTime}`}
                             </div>
+                            {(shift as any).overtimeStatus === 'approved' && (shift as any).overtimeHours > 0 && (
+                              <div className="mt-0.5 text-[10px] font-bold bg-orange-500/90 rounded px-1.5 py-0.5 inline-block">⏰ OT +{(shift as any).overtimeHours}h</div>
+                            )}
                             {shift.shiftType === 'off' && shift.reason && (
                               <div className="text-[10px] opacity-90 mt-0.5 line-clamp-2">{shift.reason}</div>
                             )}
@@ -989,6 +1039,33 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
       })()}
 
       {/* Substitute Modal */}
+      {otModalShift && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5">
+            <h3 className="text-lg font-black text-gray-900 mb-1">⏰ Thêm giờ tăng ca</h3>
+            <p className="text-xs text-gray-500 mb-4">{otModalShift.employeeName} · {parseLocalDateStr(otModalShift.date).toLocaleDateString('vi-VN')} · ca {otModalShift.startTime}–{otModalShift.endTime}. Duyệt luôn — cộng vào lương.</p>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Số giờ OT</label>
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3].map((h) => (
+                <button key={h} type="button" onClick={() => setOtModalHours(String(h))}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold border ${otModalHours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'}`}>+{h}h</button>
+              ))}
+              <input type="number" min="0" step="0.5" value={otModalHours} onChange={(e) => setOtModalHours(e.target.value)}
+                placeholder="giờ" className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm text-center" />
+            </div>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Lý do (tuỳ chọn)</label>
+            <input value={otModalReason} onChange={(e) => setOtModalReason(e.target.value)}
+              placeholder="VD: quán đông, ở lại phụ..." className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm mb-4" />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setOtModalShift(null)} disabled={otModalSaving}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold">Huỷ</button>
+              <button type="button" onClick={saveOtModal} disabled={otModalSaving}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-black disabled:opacity-60">{otModalSaving ? 'Đang lưu...' : 'Lưu OT'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {substituteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">

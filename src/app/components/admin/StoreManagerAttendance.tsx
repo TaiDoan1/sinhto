@@ -326,7 +326,7 @@ export function StoreManagerAttendance() {
               <div className="overflow-y-auto">
                 <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 text-[10px] font-bold uppercase text-gray-400 sticky top-0">
                   <span>Ngày · ca (vào–ra thực tế / lịch)</span>
-                  <span className="flex gap-3"><span className="text-sky-600">Thực tế</span><span className="text-emerald-600">Lương</span></span>
+                  <span className="flex gap-2"><span className="text-sky-600 w-11 text-right">Thực tế</span><span className="text-emerald-600 w-11 text-right">Lương</span><span className="text-orange-500 w-10 text-right">OT</span></span>
                 </div>
                 <div className="divide-y divide-gray-50">
                   {dr.dayList.length === 0 ? (
@@ -338,9 +338,10 @@ export function StoreManagerAttendance() {
                           {new Date(d.date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                           {d.shifts.length > 1 && <span className="ml-1.5 text-[11px] font-medium text-gray-400">({d.shifts.length} ca)</span>}
                         </span>
-                        <span className="flex gap-3 shrink-0 font-bold text-xs">
-                          <span className="text-sky-700 w-12 text-right">{fmtDuration(d.actualMins)}</span>
-                          <span className="text-emerald-700 w-14 text-right">{fmtDuration(d.payMins)}{d.otMins > 0 ? <span className="text-orange-500 text-[10px]"> (OT)</span> : null}</span>
+                        <span className="flex gap-2 shrink-0 font-bold text-xs">
+                          <span className="text-sky-700 w-11 text-right">{fmtDuration(d.actualMins)}</span>
+                          <span className="text-emerald-700 w-11 text-right">{fmtDuration(d.schedMins)}</span>
+                          <span className="text-orange-500 w-10 text-right">{d.otMins > 0 ? `+${fmtDuration(d.otMins)}` : '—'}</span>
                         </span>
                       </div>
                       {d.shifts.map((sh, i) => {
@@ -358,9 +359,10 @@ export function StoreManagerAttendance() {
                                 <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
                               </span>
                               {d.shifts.length > 1 && (
-                                <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
-                                  <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
-                                  <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
+                                <span className="flex gap-2 shrink-0 text-[11px] font-semibold">
+                                  <span className="text-sky-600 w-11 text-right">{fmtDuration(sh.actualMins)}</span>
+                                  <span className="text-emerald-600 w-11 text-right">{fmtDuration(sh.schedMins)}</span>
+                                  <span className="text-orange-500 w-10 text-right">{otApproved && sh.overtimeHours ? `+${sh.overtimeHours}h` : '—'}</span>
                                 </span>
                               )}
                             </div>

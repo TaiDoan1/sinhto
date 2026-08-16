@@ -84,6 +84,7 @@ export function StoreManagerAttendance() {
   const [loading, setLoading] = useState(true);
   const [detailEmpId, setDetailEmpId] = useState<string | null>(null); // nhân viên đang mở popup chi tiết
   const [otHoursEdit, setOtHoursEdit] = useState<Record<string, string>>({});
+  const [otOpen, setOtOpen] = useState<Record<string, boolean>>({}); // chip OT nào đang xổ chi tiết
 
   // Khoảng ngày dùng để lấy/lọc dữ liệu (tự đảo nếu nhập từ > đến)
   const range = useMemo(() => (from <= to ? { lo: from, hi: to } : { lo: to, hi: from }), [from, to]);
@@ -355,24 +356,34 @@ export function StoreManagerAttendance() {
                               )}
                             </div>
                             {hasOt && (
-                              <div className={`mt-1 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border ${otApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
-                                <span className="text-[11px] font-bold text-orange-700">
-                                  ⏰ OT{otApproved ? ' (đã duyệt)' : ' (chờ duyệt)'}{sh.overtimeReason ? `: ${sh.overtimeReason}` : ''}
-                                </span>
-                                <div className="flex items-center gap-1 ml-auto">
-                                  <input type="number" min="0" step="0.5" value={otVal}
-                                    onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
-                                    placeholder="giờ" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-xs text-center" />
-                                  <span className="text-[10px] text-gray-500">giờ</span>
-                                  <button onClick={() => handleReviewOt({ id: sh.id }, 'approve')}
-                                    className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg">
-                                    {otApproved ? 'Cập nhật' : 'Duyệt'}
-                                  </button>
-                                  <button onClick={() => handleReviewOt({ id: sh.id }, 'reject')}
-                                    className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg">
-                                    {otApproved ? 'Bỏ' : 'Từ chối'}
-                                  </button>
-                                </div>
+                              <div className="mt-1">
+                                {/* Chip OT nhỏ — bấm mới xổ chi tiết duyệt/sửa giờ */}
+                                <button type="button" onClick={() => setOtOpen((p) => ({ ...p, [sh.id || '']: !p[sh.id || ''] }))}
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${otApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                  ⏰ OT{otApproved ? (sh.overtimeHours ? ` +${sh.overtimeHours}h ✓` : ' ✓') : ' (chờ duyệt)'}
+                                  <span className="opacity-60">{otOpen[sh.id || ''] ? '▲' : '▼'}</span>
+                                </button>
+                                {otOpen[sh.id || ''] && (
+                                  <div className={`mt-1 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border ${otApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
+                                    {sh.overtimeReason && <span className="text-[11px] text-gray-600 w-full">Lý do: {sh.overtimeReason}</span>}
+                                    <div className="flex items-center gap-1">
+                                      <input type="number" min="0" step="0.5" value={otVal}
+                                        onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
+                                        placeholder="giờ" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-xs text-center" />
+                                      <span className="text-[10px] text-gray-500">giờ OT</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-auto">
+                                      <button onClick={() => handleReviewOt({ id: sh.id }, 'approve')}
+                                        className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg">
+                                        {otApproved ? 'Cập nhật' : 'Duyệt'}
+                                      </button>
+                                      <button onClick={() => handleReviewOt({ id: sh.id }, 'reject')}
+                                        className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg">
+                                        {otApproved ? 'Bỏ' : 'Từ chối'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

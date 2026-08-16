@@ -1450,6 +1450,49 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
   });
 });
 
+// Làm thêm giờ (OT): nhân viên XIN (request) → cửa hàng trưởng DUYỆT (approve) / TỪ CHỐI (reject).
+// Chỉ giờ OT đã DUYỆT mới được cộng vào lương (xem HRPayroll).
+app.patch('/api/shifts/:id/overtime', (req, res) => {
+  const { id } = req.params;
+  const { action, hours, reason } = req.body || {};
+  db.get("SELECT * FROM shifts WHERE id = ?", [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
+
+    let overtimeHours = row.overtimeHours || 0;
+    let overtimeStatus = row.overtimeStatus || '';
+    let overtimeReason = row.overtimeReason || '';
+
+    if (action === 'request') {
+      const h = Number(hours);
+      if (!(h > 0)) return res.status(400).json({ error: 'Số giờ làm thêm không hợp lệ' });
+      overtimeHours = h;
+      overtimeReason = (reason || '').toString().slice(0, 300);
+      overtimeStatus = 'pending';
+    } else if (action === 'approve') {
+      if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh số giờ
+      overtimeStatus = 'approved';
+    } else if (action === 'reject') {
+      overtimeStatus = 'rejected';
+    } else if (action === 'cancel') {
+      overtimeHours = 0; overtimeStatus = ''; overtimeReason = '';
+    } else {
+      return res.status(400).json({ error: 'action không hợp lệ' });
+    }
+
+    db.run(
+      `UPDATE shifts SET overtimeHours = ?, overtimeStatus = ?, overtimeReason = ? WHERE id = ?`,
+      [overtimeHours, overtimeStatus, overtimeReason, id],
+      function(err2) {
+        if (err2) return res.status(500).json({ error: err2.message });
+        const updated = { ...row, overtimeHours, overtimeStatus, overtimeReason };
+        broadcast('SHIFT_UPDATED', updated);
+        res.json(updated);
+      }
+    );
+  });
+});
+
 // Sửa lại ca bị ghi sai giờ (lỗi tự check-in nhầm ca) + gán lại các đơn "mồ côi" (chưa thuộc
 // ca nào) bán trong khoảng giờ của ca này tại đúng chi nhánh, rồi tính lại snapshot doanh thu.
 // Chỉ gán đơn có shiftId rỗng để KHÔNG cướp đơn của ca khác.

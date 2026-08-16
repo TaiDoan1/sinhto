@@ -371,6 +371,9 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "startCash" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "endCashActual" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeHours" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeStatus" TEXT DEFAULT ''`).catch(() => {});
+  await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeReason" TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shift_cash_movements (
       id TEXT PRIMARY KEY,

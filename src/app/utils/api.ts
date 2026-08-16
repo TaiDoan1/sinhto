@@ -713,6 +713,24 @@ export async function redeemPoints(id: string, points: number) {
   return res.json();
 }
 
+// Làm thêm giờ (OT): action 'request' (NV) | 'approve' | 'reject' (CHT) | 'cancel'.
+export async function shiftOvertime(
+  id: string,
+  action: 'request' | 'approve' | 'reject' | 'cancel',
+  extra?: { hours?: number; reason?: string }
+) {
+  const res = await fetch(`${BASE_URL}/shifts/${id}/overtime`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Không cập nhật được làm thêm giờ');
+  }
+  return res.json();
+}
+
 async function parseApiError(res: Response, fallback: string): Promise<never> {
   const text = await res.text();
   let message = fallback;

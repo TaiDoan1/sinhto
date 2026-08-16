@@ -275,8 +275,11 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
 
         const hoursWorked = sumHours(employeeShifts);
         const substituteShifts = employeeShifts.filter((s) => s.isSubstitute).length;
-        // Không tính OT — công đã tính theo giờ lịch trừ đi giờ đi trễ, không có giờ vượt ca.
-        const overtimeHours = 0;
+        // Giờ làm thêm (OT) đã được cửa hàng trưởng DUYỆT — cộng vào lương. Chỉ tính ca đã check-in.
+        const overtimeHours = employeeShifts.reduce(
+          (t, s: any) => (s.checkIn && s.overtimeStatus === 'approved' ? t + (Number(s.overtimeHours) || 0) : t),
+          0
+        );
 
         // Thưởng combo tính theo kỳ lương đang xem (dựa vào lúc combo được chốt/tạo) — nếu không
         // lọc theo kỳ, thưởng combo cũ sẽ cộng dồn mãi mãi vào mọi kỳ lương sau này.
@@ -289,7 +292,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
 
         const isHourly = emp.payType === 'hourly';
         const hourlyRate = isHourly ? (emp.hourlyRate || 0) : (emp.baseSalary || 0) / salarySettings.standardWorkHours;
-        const otPay = 0;
+        const otPay = Math.round(overtimeHours * hourlyRate);
         const comboBonus = comboSales * salarySettings.comboBonus;
 
         // Lương không chia theo % chi nhánh — nhân viên làm ở chi nhánh nào (chính hay hỗ trợ)

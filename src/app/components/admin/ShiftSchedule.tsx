@@ -403,6 +403,16 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     ) || null;
 
   const pendingShifts = shifts.filter(s => s.status === 'pending');
+  const pendingOtShifts = shifts.filter((s: any) => s.overtimeStatus === 'pending');
+
+  const handleReviewOt = async (shift: Shift, action: 'approve' | 'reject') => {
+    try {
+      const updated = await api.shiftOvertime(shift.id, action);
+      setShifts(prev => prev.map(s => s.id === shift.id ? { ...s, ...updated } : s)); // cập nhật ngay, không chờ SSE
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Lỗi duyệt làm thêm giờ');
+    }
+  };
 
   const handleApproveShift = async (shift: Shift) => {
     try {
@@ -513,6 +523,34 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                   >
                     Từ chối
                   </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!readOnly && pendingOtShifts.length > 0 && (
+        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <h3 className="font-bold text-orange-800 mb-3">⏰ Yêu cầu làm thêm giờ ({pendingOtShifts.length})</h3>
+          <div className="space-y-2">
+            {pendingOtShifts.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between rounded-lg px-4 py-3 border bg-white border-orange-100">
+                <div>
+                  <span className="font-semibold text-gray-800">{s.employeeName}</span>
+                  <span className="text-gray-500 text-sm ml-2">
+                    {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · ca {s.startTime}–{s.endTime}
+                  </span>
+                  {s.branch && <span className="text-xs text-gray-400 ml-2">({branchLabel(s.branch)})</span>}
+                  <div className="text-sm text-orange-700 font-bold mt-0.5">
+                    +{s.overtimeHours}h làm thêm{s.overtimeReason ? ` — ${s.overtimeReason}` : ''}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => handleReviewOt(s, 'approve')}
+                    className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg">Duyệt</button>
+                  <button onClick={() => handleReviewOt(s, 'reject')}
+                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg">Từ chối</button>
                 </div>
               </div>
             ))}

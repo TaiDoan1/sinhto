@@ -48,6 +48,10 @@ export interface WorkShift {
   checkOutPhoto?: string;
   requestedBy?: 'admin' | 'employee';
   reason?: string;
+  /** Làm thêm giờ (OT): số giờ + trạng thái duyệt + lý do. Chỉ 'approved' mới tính lương. */
+  overtimeHours?: number;
+  overtimeStatus?: '' | 'pending' | 'approved' | 'rejected';
+  overtimeReason?: string;
 }
 
 export const OFF_SHIFT_TYPE = 'off';

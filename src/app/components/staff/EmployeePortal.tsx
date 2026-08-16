@@ -51,6 +51,10 @@ export function EmployeePortal() {
   const [requesting, setRequesting] = useState(false);
   const [cameraMode, setCameraMode] = useState<'in' | 'out' | null>(null);
   const [cameraShift, setCameraShift] = useState<WorkShift | null>(null); // ca đang chụp ảnh chấm công
+  const [otShift, setOtShift] = useState<WorkShift | null>(null); // ca đang xin làm thêm giờ
+  const [otHours, setOtHours] = useState('');
+  const [otReason, setOtReason] = useState('');
+  const [otSubmitting, setOtSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [shiftSummary, setShiftSummary] = useState<{ count: number; total: number } | null>(null);
   const [viewingImage, setViewingImage] = useState<{ src: string; title: string; timestamp?: string } | null>(null);
@@ -223,6 +227,22 @@ export function EmployeePortal() {
       alert('Chấm công thất bại. Vui lòng thử lại.');
       setCameraMode(null);
       setCameraShift(null);
+    }
+  };
+
+  const submitOvertime = async () => {
+    if (!otShift) return;
+    const h = Number(otHours);
+    if (!(h > 0)) { alert('Nhập số giờ làm thêm (VD 2)'); return; }
+    setOtSubmitting(true);
+    try {
+      await api.shiftOvertime(otShift.id, 'request', { hours: h, reason: otReason.trim() });
+      await refreshShifts();
+      setOtShift(null); setOtHours(''); setOtReason('');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không gửi được yêu cầu làm thêm giờ');
+    } finally {
+      setOtSubmitting(false);
     }
   };
 
@@ -553,6 +573,31 @@ export function EmployeePortal() {
                         </div>
                       )}
 
+                      {/* Làm thêm giờ (OT) */}
+                      {s.overtimeStatus === 'pending' && (
+                        <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-semibold text-center">
+                          ⏳ Đã xin làm thêm {s.overtimeHours}h — chờ cửa hàng trưởng duyệt
+                        </div>
+                      )}
+                      {s.overtimeStatus === 'approved' && (
+                        <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 font-semibold text-center">
+                          ✅ Đã duyệt làm thêm {s.overtimeHours}h
+                        </div>
+                      )}
+                      {s.overtimeStatus === 'rejected' && (
+                        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-semibold text-center">
+                          ❌ Yêu cầu làm thêm giờ bị từ chối
+                        </div>
+                      )}
+                      {s.checkIn && (!s.overtimeStatus || s.overtimeStatus === 'rejected') && (
+                        <button
+                          onClick={() => { setOtShift(s); setOtHours(''); setOtReason(''); }}
+                          className="w-full bg-white border-2 border-amber-500 text-amber-700 active:bg-amber-50 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 min-h-[48px]"
+                        >
+                          ➕ Xin làm thêm giờ
+                        </button>
+                      )}
+
                       {s.status === 'completed' ? (
                         <button
                           onClick={() => handlePrintClosedShiftBill(s)}
@@ -839,6 +884,38 @@ export function EmployeePortal() {
           onCapture={handleAttendanceCapture}
           onCancel={() => { setCameraMode(null); setCameraShift(null); }}
         />
+      )}
+
+      {otShift && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
+            <h3 className="text-lg font-black text-gray-900 mb-1">Xin làm thêm giờ</h3>
+            <p className="text-xs text-gray-500 mb-4">Ca {otShift.startTime}–{otShift.endTime}{otShift.branch ? ` · ${branchLabel(otShift.branch) || otShift.branch}` : ''}. Cửa hàng trưởng duyệt thì mới tính lương.</p>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Số giờ làm thêm</label>
+            <div className="flex gap-2 mb-3">
+              {[1, 2, 3].map((h) => (
+                <button key={h} type="button" onClick={() => setOtHours(String(h))}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border ${otHours === String(h) ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-300'}`}>
+                  +{h}h
+                </button>
+              ))}
+              <input type="number" min="0" step="0.5" value={otHours} onChange={(e) => setOtHours(e.target.value)}
+                placeholder="giờ" className="w-20 border border-gray-300 rounded-xl px-2 py-2.5 text-sm text-center" />
+            </div>
+            <label className="text-xs font-bold text-gray-600 mb-1 block">Lý do</label>
+            <input value={otReason} onChange={(e) => setOtReason(e.target.value)}
+              placeholder="VD: thiếu người, ở lại phụ ca chiều..."
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm mb-4" />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setOtShift(null)} disabled={otSubmitting}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold">Huỷ</button>
+              <button type="button" onClick={submitOvertime} disabled={otSubmitting}
+                className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-black disabled:opacity-60">
+                {otSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {shiftSummary && (

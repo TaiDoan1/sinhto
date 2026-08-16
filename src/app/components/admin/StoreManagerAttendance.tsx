@@ -56,12 +56,16 @@ function fmtDuration(mins: number) {
 }
 
 interface DayShift {
+  id?: string;
   checkIn?: string;
   checkOut?: string;
   startTime?: string;
   endTime?: string;
   actualMins: number;
   schedMins: number;
+  overtimeHours?: number;
+  overtimeStatus?: string;
+  overtimeReason?: string;
 }
 
 /** Bảng chấm công cho Cửa hàng trưởng: chọn khoảng ngày (hoặc cả tháng) → mỗi nhân viên có 2 loại
@@ -132,12 +136,16 @@ export function StoreManagerAttendance() {
       const days = m.get(s.employeeId)!;
       const list = days.get(s.date) || [];
       list.push({
+        id: s.id,
         checkIn: s.checkIn,
         checkOut: s.checkOut,
         startTime: s.startTime,
         endTime: s.endTime,
         actualMins: workMinutes(s.checkIn, s.checkOut),
         schedMins: scheduledMinutes(s.startTime, s.endTime),
+        overtimeHours: (s as any).overtimeHours,
+        overtimeStatus: (s as any).overtimeStatus,
+        overtimeReason: (s as any).overtimeReason,
       });
       days.set(s.date, list);
     });
@@ -228,45 +236,9 @@ export function StoreManagerAttendance() {
         <b>Thực tế</b> = theo giờ check-in/out thật. <b>Tính lương</b> = theo giờ ca trên lịch (không tính OT, không trừ đi sớm/đi trễ).
       </p>
 
-      {otShifts.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <h3 className="font-bold text-orange-800 mb-1">⏰ Duyệt làm thêm giờ (OT) — {otShifts.length} yêu cầu</h3>
-          <p className="text-[11px] text-orange-700/80 mb-3">Chỉ ca được <b>duyệt</b> mới cộng tiền OT vào lương. Sửa số giờ ở ô rồi bấm Duyệt/Cập nhật.</p>
-          <div className="space-y-2">
-            {otShifts.map((s: any) => {
-              const approved = s.overtimeStatus === 'approved';
-              const hoursVal = otHoursEdit[s.id] ?? (s.overtimeHours ? String(s.overtimeHours) : '');
-              return (
-                <div key={s.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3 border ${approved ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-orange-100'}`}>
-                  <div className="min-w-0">
-                    <span className="font-semibold text-gray-800">{s.employeeName}</span>
-                    <span className="text-gray-500 text-sm ml-2">{fmtDay(s.date)} · ca {s.startTime}–{s.endTime}</span>
-                    {s.branch && <span className="text-xs text-gray-400 ml-2">({branchLabel(s.branch) || s.branch})</span>}
-                    {approved && <span className="ml-2 text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">ĐÃ DUYỆT</span>}
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {s.overtimeReason || 'Không ghi lý do'}{!s.checkOut && !approved ? ' · (chờ nhân viên kết ca để chốt giờ)' : ''}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1">
-                      <input type="number" min="0" step="0.5" value={hoursVal}
-                        onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                        placeholder="giờ" className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center" />
-                      <span className="text-xs text-gray-500">giờ OT</span>
-                    </div>
-                    <button onClick={() => handleReviewOt(s, 'approve')}
-                      className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg">
-                      {approved ? 'Cập nhật' : 'Duyệt'}
-                    </button>
-                    <button onClick={() => handleReviewOt(s, 'reject')}
-                      className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg">
-                      {approved ? 'Bỏ duyệt' : 'Từ chối'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {otShifts.filter((s: any) => s.overtimeStatus === 'pending').length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 text-sm text-orange-800 font-semibold flex items-center gap-2">
+          ⏰ Có {otShifts.filter((s: any) => s.overtimeStatus === 'pending').length} ca xin làm thêm giờ chờ duyệt — mở chi tiết nhân viên bên dưới để <b>duyệt / sửa giờ theo đúng ngày</b>.
         </div>
       )}
 
@@ -324,23 +296,52 @@ export function StoreManagerAttendance() {
                             </span>
                           </div>
                           {/* Từng ca trong ngày */}
-                          {d.shifts.map((sh, i) => (
-                            <div key={i} className="flex items-center justify-between gap-2 mt-1 pl-2">
-                              <span className="text-xs text-gray-500 min-w-0">
-                                {d.shifts.length > 1 && <span className="text-gray-400">Ca {i + 1}: </span>}
-                                <span className="text-emerald-700 font-medium">{hhmm(sh.checkIn)}</span>
-                                {' → '}
-                                <span className={sh.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(sh.checkOut)}</span>
-                                <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
-                              </span>
-                              {d.shifts.length > 1 && (
-                                <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
-                                  <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
-                                  <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
+                          {d.shifts.map((sh, i) => {
+                            const otVal = otHoursEdit[sh.id || ''] ?? (sh.overtimeHours ? String(sh.overtimeHours) : '');
+                            const otApproved = sh.overtimeStatus === 'approved';
+                            const hasOt = sh.overtimeStatus === 'pending' || otApproved;
+                            return (
+                            <div key={i} className="mt-1 pl-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-gray-500 min-w-0">
+                                  {d.shifts.length > 1 && <span className="text-gray-400">Ca {i + 1}: </span>}
+                                  <span className="text-emerald-700 font-medium">{hhmm(sh.checkIn)}</span>
+                                  {' → '}
+                                  <span className={sh.checkOut ? 'text-gray-600' : 'text-amber-600'}>{hhmm(sh.checkOut)}</span>
+                                  <span className="ml-2 text-gray-400">Lịch: {sh.startTime && sh.endTime ? `${sh.startTime}–${sh.endTime}` : '—'}</span>
                                 </span>
+                                {d.shifts.length > 1 && (
+                                  <span className="flex gap-3 shrink-0 text-[11px] font-semibold">
+                                    <span className="text-sky-600 w-12 text-right">{fmtDuration(sh.actualMins)}</span>
+                                    <span className="text-emerald-600 w-12 text-right">{fmtDuration(sh.schedMins)}</span>
+                                  </span>
+                                )}
+                              </div>
+                              {/* Làm thêm giờ (OT) của ĐÚNG ca/ngày này — duyệt & sửa giờ ngay đây */}
+                              {hasOt && (
+                                <div className={`mt-1 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border ${otApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
+                                  <span className="text-[11px] font-bold text-orange-700">
+                                    ⏰ OT{otApproved ? ' (đã duyệt)' : ' (chờ duyệt)'}{sh.overtimeReason ? `: ${sh.overtimeReason}` : ''}
+                                  </span>
+                                  <div className="flex items-center gap-1 ml-auto">
+                                    <input type="number" min="0" step="0.5" value={otVal}
+                                      onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
+                                      placeholder="giờ" className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-xs text-center" />
+                                    <span className="text-[10px] text-gray-500">giờ</span>
+                                    <button onClick={() => handleReviewOt({ id: sh.id }, 'approve')}
+                                      className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg">
+                                      {otApproved ? 'Cập nhật' : 'Duyệt'}
+                                    </button>
+                                    <button onClick={() => handleReviewOt({ id: sh.id }, 'reject')}
+                                      className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg">
+                                      {otApproved ? 'Bỏ' : 'Từ chối'}
+                                    </button>
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ))}
                     </div>

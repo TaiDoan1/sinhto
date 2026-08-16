@@ -222,36 +222,6 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     }
   };
 
-  // ── Duyệt / sửa giờ làm thêm (OT) NGAY TẠI TRANG LƯƠNG ─────────────────────────────────────
-  const [otHoursEdit, setOtHoursEdit] = useState<Record<string, string>>({});
-  const shiftInPeriod = (dateStr: string) => {
-    if (!dateStr) return false;
-    const day = dateStr.slice(0, 10);
-    if (payrollPeriodType === 'week') { const { start, end } = weekRange(payrollWeek); return day >= start && day <= end; }
-    if (payrollPeriodType === 'custom') {
-      const start = payrollCustomStart <= payrollCustomEnd ? payrollCustomStart : payrollCustomEnd;
-      const end = payrollCustomStart <= payrollCustomEnd ? payrollCustomEnd : payrollCustomStart;
-      return day >= start && day <= end;
-    }
-    return day.startsWith(payrollMonth);
-  };
-  const otShifts = shifts.filter((s: any) =>
-    (s.overtimeStatus === 'pending' || s.overtimeStatus === 'approved') &&
-    shiftInPeriod(s.date) &&
-    (payrollBranchFilter === 'ALL' || s.branch === payrollBranchFilter)
-  );
-  const handleReviewOt = async (shift: any, action: 'approve' | 'reject') => {
-    try {
-      const edited = otHoursEdit[shift.id];
-      const hours = edited !== undefined && edited !== '' ? Number(edited) : undefined;
-      const updated = await api.shiftOvertime(shift.id, action, action === 'approve' && hours !== undefined ? { hours } : undefined);
-      setShifts((prev) => prev.map((s) => (s.id === shift.id ? { ...s, ...updated } : s))); // cập nhật ngay → payroll tính lại
-      setOtHoursEdit((prev) => { const n = { ...prev }; delete n[shift.id]; return n; });
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Lỗi duyệt làm thêm giờ');
-    }
-  };
-
   const calculatePayroll = () => {
     // Lọc theo chi nhánh chỉ để XEM giờ làm/số ca tại đúng nơi đó (nhân viên chạy nhiều chi nhánh
     // vẫn hiện đủ). Công luôn tính theo check-in/check-out thực tế, không phân biệt chi nhánh nào.
@@ -723,53 +693,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
           </div>
         </div>
 
-        {otShifts.length > 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <h3 className="font-bold text-orange-800 mb-1">⏰ Duyệt làm thêm giờ (OT) — kỳ này ({otShifts.length})</h3>
-            <p className="text-[11px] text-orange-700/80 mb-3">Chỉ ca được <b>duyệt</b> mới cộng tiền OT vào lương. Sửa số giờ ở ô rồi bấm Duyệt/Cập nhật.</p>
-            <div className="space-y-2">
-              {otShifts.map((s: any) => {
-                const approved = s.overtimeStatus === 'approved';
-                const hoursVal = otHoursEdit[s.id] ?? (s.overtimeHours ? String(s.overtimeHours) : '');
-                return (
-                  <div key={s.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3 border ${approved ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-orange-100'}`}>
-                    <div className="min-w-0">
-                      <span className="font-semibold text-gray-800">{s.employeeName}</span>
-                      <span className="text-gray-500 text-sm ml-2">
-                        {parseLocalDateStr(s.date).toLocaleDateString('vi-VN')} · ca {s.startTime}–{s.endTime}
-                      </span>
-                      {s.branch && <span className="text-xs text-gray-400 ml-2">({branchLabel(s.branch) || s.branch})</span>}
-                      {approved && <span className="ml-2 text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">ĐÃ DUYỆT</span>}
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {s.overtimeReason || 'Không ghi lý do'}{!s.checkOut && !approved ? ' · (chờ nhân viên kết ca để chốt giờ)' : ''}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number" min="0" step="0.5"
-                          value={hoursVal}
-                          onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                          placeholder="giờ"
-                          className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center"
-                        />
-                        <span className="text-xs text-gray-500">giờ OT</span>
-                      </div>
-                      <button onClick={() => handleReviewOt(s, 'approve')}
-                        className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg">
-                        {approved ? 'Cập nhật' : 'Duyệt'}
-                      </button>
-                      <button onClick={() => handleReviewOt(s, 'reject')}
-                        className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-semibold rounded-lg">
-                        {approved ? 'Bỏ duyệt' : 'Từ chối'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Duyệt làm thêm giờ (OT) đã chuyển sang màn Chấm Công. Bảng lương chỉ CỘNG giờ OT đã duyệt. */}
 
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="overflow-x-auto">

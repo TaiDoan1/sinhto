@@ -288,22 +288,22 @@ export function StoreManagerAttendance() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <button type="button" className="absolute inset-0 bg-black/50" onClick={() => setDetailEmpId(null)} aria-label="Đóng" />
             <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
-                <div className="min-w-0">
+              <div className="relative px-4 sm:px-5 py-4 border-b border-gray-100">
+                <button type="button" onClick={() => setDetailEmpId(null)}
+                  className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-xl leading-none">✕</button>
+                <div className="pr-9">
                   <h3 className="font-black text-gray-900 text-lg truncate">{dr.emp.fullName}</h3>
                   <p className="text-xs text-gray-500">{branchLabel(dr.emp.branch) || dr.emp.branch || 'Chưa gán CN'} · {fmtDay(range.lo)}–{fmtDay(range.hi)}</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-center rounded-lg bg-sky-50 px-2.5 py-1">
+                <div className="flex gap-2 mt-2.5">
+                  <div className="flex-1 text-center rounded-lg bg-sky-50 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-sky-600/80 leading-tight">Thực tế</div>
                     <div className="text-sm font-black text-sky-700">{fmtDuration(dr.totalActual)}</div>
                   </div>
-                  <div className="text-center rounded-lg bg-emerald-50 px-2.5 py-1">
+                  <div className="flex-1 text-center rounded-lg bg-emerald-50 px-2 py-1.5">
                     <div className="text-[10px] font-bold uppercase text-emerald-600/80 leading-tight">Tính lương</div>
-                    <div className="text-sm font-black text-emerald-700">{fmtDuration(dr.totalSched)}</div>
-                    <div className="text-[10px] font-bold text-emerald-600/90 leading-tight">{dr.payrollDays} ngày</div>
+                    <div className="text-sm font-black text-emerald-700">{fmtDuration(dr.totalSched)} <span className="text-[10px] font-bold text-emerald-600/90">· {dr.payrollDays} ngày</span></div>
                   </div>
-                  <button type="button" onClick={() => setDetailEmpId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-xl">✕</button>
                 </div>
               </div>
               <div className="overflow-y-auto">

@@ -96,6 +96,20 @@ export function StoreManagerAttendance() {
     (branchFilter === 'ALL' || (s.branch || '') === branchFilter)
   ), [shifts, branchFilter]);
 
+  // Cửa hàng trưởng CHỦ ĐỘNG thêm giờ OT cho 1 ca (kể cả ca chưa xin) — duyệt luôn.
+  const addOtByManager = async (shiftId: string) => {
+    const h = Number(otHoursEdit[shiftId]);
+    if (!(h > 0)) { alert('Nhập số giờ OT (VD 2)'); return; }
+    try {
+      const updated = await api.shiftOvertime(shiftId, 'approve', { hours: h, reason: 'Cửa hàng trưởng thêm' });
+      setShifts((prev) => prev.map((s) => (s.id === shiftId ? { ...s, ...updated } : s)));
+      setOtOpen((p) => ({ ...p, [shiftId]: false }));
+      setOtHoursEdit((p) => { const n = { ...p }; delete n[shiftId]; return n; });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thêm được giờ OT');
+    }
+  };
+
   const handleReviewOt = async (shift: any, action: 'approve' | 'reject') => {
     try {
       const edited = otHoursEdit[shift.id];
@@ -417,6 +431,30 @@ export function StoreManagerAttendance() {
                                   </div>
                                   );
                                 })()}
+                              </div>
+                            )}
+                            {!hasOt && (
+                              <div className="mt-1">
+                                {!otOpen[sh.id || ''] ? (
+                                  <button type="button" onClick={() => setOtOpen((p) => ({ ...p, [sh.id || '']: true }))}
+                                    className="text-[10px] font-semibold text-orange-500 hover:text-orange-600">＋ Thêm giờ OT</button>
+                                ) : (
+                                  <div className="flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 border bg-orange-50 border-orange-200">
+                                    <span className="text-[11px] font-bold text-orange-700 w-full">Thêm giờ OT cho ca này (CHT chủ động)</span>
+                                    <div className="flex items-center gap-1">
+                                      <input type="number" min="0" step="0.5" value={otHoursEdit[sh.id || ''] ?? ''}
+                                        onChange={(e) => setOtHoursEdit((prev) => ({ ...prev, [sh.id || '']: e.target.value }))}
+                                        placeholder="giờ" className="w-14 rounded-lg px-2 py-1 text-xs text-center border border-emerald-400 bg-white" />
+                                      <span className="text-[10px] text-gray-500">giờ OT</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-auto">
+                                      <button onClick={() => addOtByManager(sh.id || '')}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">Lưu OT</button>
+                                      <button onClick={() => { setOtOpen((p) => ({ ...p, [sh.id || '']: false })); setOtHoursEdit((prev) => { const n = { ...prev }; delete n[sh.id || '']; return n; }); }}
+                                        className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg">Huỷ</button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

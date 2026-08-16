@@ -1488,7 +1488,8 @@ app.patch('/api/shifts/:id/overtime', (req, res) => {
       overtimeStatus = 'pending';
       if (row.status === 'completed') reopen = true; // ca lỡ kết rồi → mở lại cho làm tiếp
     } else if (action === 'approve') {
-      if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh số giờ nếu cần
+      if (hours !== undefined && Number(hours) > 0) overtimeHours = Number(hours); // CHT có thể chỉnh/nhập số giờ
+      if (reason !== undefined) overtimeReason = (reason || '').toString().slice(0, 300); // CHT chủ động thêm OT → ghi lý do
       overtimeStatus = 'approved';
     } else if (action === 'reject') {
       overtimeStatus = 'rejected';

@@ -88,6 +88,34 @@ export function reorderByDrop(
   return order;
 }
 
+/** Kéo-thả VÀO 1 nhóm: chuyển `dragged` sang `groupKey` + đặt vị trí (trước `beforeName`, hoặc
+ *  cuối nhóm nếu beforeName = null). Trả về layout mới (đổi cả assignments lẫn order). */
+export function dropIntoGroup(
+  dragged: string,
+  groupKey: ToppingGroupKey,
+  beforeName: string | null,
+  list: { name: string }[],
+  layout: ToppingLayout
+): ToppingLayout {
+  if (!dragged) return layout;
+  const assignments = { ...layout.assignments, [dragged]: groupKey };
+  const order = normalizedOrder(layout.order, list.map((t) => t.name));
+  const from = order.indexOf(dragged);
+  if (from >= 0) order.splice(from, 1);
+  if (beforeName && beforeName !== dragged) {
+    const to = order.indexOf(beforeName);
+    order.splice(to < 0 ? order.length : to, 0, dragged);
+  } else {
+    // Thả vào vùng trống của nhóm → đặt ngay sau item cuối cùng đang thuộc nhóm đó
+    let lastIdx = -1;
+    order.forEach((n, i) => {
+      if (n !== dragged && (assignments[n] || 'single') === groupKey) lastIdx = i;
+    });
+    order.splice(lastIdx + 1, 0, dragged);
+  }
+  return { assignments, order };
+}
+
 export function useToppingLayout() {
   const { subscribe } = useSSE();
   const [layout, setLayout] = useState<ToppingLayout>(EMPTY);

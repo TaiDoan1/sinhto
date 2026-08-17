@@ -10,7 +10,7 @@ import {
 } from '../../config/images';
 import { DEFAULT_MENU_PRICE_TABLE } from '../../config/menuPricing';
 import { DEFAULT_TOPPINGS } from '../../config/menuToppings';
-import { useToppingLayout, groupToppings, reorderByDrop, TOPPING_GROUPS, type ToppingGroupKey } from '../../hooks/useToppingLayout';
+import { useToppingLayout, groupToppings, dropIntoGroup, TOPPING_GROUPS, type ToppingGroupKey } from '../../hooks/useToppingLayout';
 
 interface Product {
   id: string;
@@ -311,11 +311,18 @@ export function ProductManagement() {
                         {group.emoji} {group.label} <span className="font-normal text-gray-400">({group.items.length})</span>
                       </div>
                       <div
-                        className="grid grid-cols-1 gap-2 min-h-[8px]"
-                        onDragOver={(e) => e.preventDefault()}
+                        className="grid grid-cols-1 gap-2 min-h-[44px] rounded-xl border-2 border-dashed border-transparent [&.drop-hot]:border-orange-400 [&.drop-hot]:bg-orange-50/40 p-1 transition-colors"
+                        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drop-hot'); }}
+                        onDragLeave={(e) => e.currentTarget.classList.remove('drop-hot')}
+                        onDrop={(e) => {
+                          e.currentTarget.classList.remove('drop-hot');
+                          // Thả vào vùng trống của nhóm (không trúng item nào) → chuyển sang cuối nhóm này
+                          if (dragName) saveToppingLayout(dropIntoGroup(dragName, group.key, null, toppingItems, toppingLayout));
+                          setDragName(null);
+                        }}
                       >
                         {group.items.length === 0 && (
-                          <div className="text-xs text-gray-300 italic py-2 px-1">Chưa có topping trong nhóm này</div>
+                          <div className="text-xs text-gray-300 italic py-2 px-1 pointer-events-none">Kéo topping thả vào đây</div>
                         )}
                         {group.items.map(topping => (
                           <div
@@ -323,9 +330,11 @@ export function ProductManagement() {
                             draggable
                             onDragStart={() => setDragName(topping.name)}
                             onDragOver={(e) => e.preventDefault()}
-                            onDrop={() => {
+                            onDrop={(e) => {
+                              e.stopPropagation(); // đừng để nổi lên container (tránh xử lý 2 lần)
                               if (dragName && dragName !== topping.name) {
-                                saveToppingLayout({ ...toppingLayout, order: reorderByDrop(dragName, topping.name, toppingItems, toppingLayout) });
+                                // Thả TRÚNG 1 item → chuyển sang nhóm của item đó + đặt ngay trước nó
+                                saveToppingLayout(dropIntoGroup(dragName, group.key, topping.name, toppingItems, toppingLayout));
                               }
                               setDragName(null);
                             }}

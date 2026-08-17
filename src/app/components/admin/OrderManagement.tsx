@@ -8,9 +8,10 @@ import { RefundOrderModal } from '../pos/RefundOrderModal';
 
 export function OrderManagement() {
   const { orders, history } = useOrders();
-  const { branchLabel } = useBranches();
+  const { branchLabel, activeBranches } = useBranches();
   const { adminUser } = useAdmin();
   const [filter, setFilter] = useState<'all' | 'delayed' | 'waiting'>('all');
+  const [branchFilter, setBranchFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
@@ -61,6 +62,7 @@ export function OrderManagement() {
   const filteredOrders = allOrders.filter(order => {
     const category = categorizeOrder(order);
 
+    if (branchFilter !== 'ALL' && order.branchId !== branchFilter) return false;
     if (filter === 'delayed' && category !== 'delayed') return false;
     if (filter === 'waiting' && category !== 'waiting') return false;
 
@@ -79,7 +81,7 @@ export function OrderManagement() {
     return true;
   });
 
-  const { pageItems, ...pager } = usePagination(filteredOrders, 20, `${filter}|${searchTerm}`);
+  const { pageItems, ...pager } = usePagination(filteredOrders, 20, `${filter}|${branchFilter}|${searchTerm}`);
 
   const delayedCount = allOrders.filter(o => categorizeOrder(o) === 'delayed').length;
   const waitingCount = allOrders.filter(o => categorizeOrder(o) === 'waiting').length;
@@ -167,6 +169,16 @@ export function OrderManagement() {
               className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-emerald-600 focus:outline-none"
             />
           </div>
+          <select
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-emerald-600 focus:outline-none font-semibold text-gray-700 bg-white"
+          >
+            <option value="ALL">Tất cả chi nhánh</option>
+            {activeBranches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
           <div className="flex gap-2">
             <button
               onClick={() => setFilter('all')}

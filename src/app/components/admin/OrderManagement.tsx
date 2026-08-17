@@ -1,15 +1,27 @@
-import { Clock, AlertCircle, CheckCircle, Package, Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useOrders } from '../../contexts/OrderContext';
+import { Clock, AlertCircle, CheckCircle, Package, Search, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useOrders, type Order } from '../../contexts/OrderContext';
 import { useBranches } from '../../contexts/BranchContext';
+import { useAdmin } from '../../contexts/AdminContext';
 import { usePagination, Pager } from '../common/Pagination';
+import { RefundOrderModal } from '../pos/RefundOrderModal';
 
 export function OrderManagement() {
-  const { orders } = useOrders();
+  const { orders, history } = useOrders();
   const { branchLabel } = useBranches();
+  const { adminUser } = useAdmin();
   const [filter, setFilter] = useState<'all' | 'delayed' | 'waiting'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [refundingOrder, setRefundingOrder] = useState<Order | null>(null);
+
+  // Gộp đơn đang hoạt động + đơn đã hoàn thành (history) để admin thấy & hoàn tiền được đơn đã
+  // thanh toán. Dedup theo id, mới nhất lên đầu.
+  const allOrders = useMemo(() => {
+    const map = new Map<string, Order>();
+    [...orders, ...history].forEach((o) => map.set(o.id, o));
+    return [...map.values()].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  }, [orders, history]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -46,7 +58,7 @@ export function OrderManagement() {
     return 'normal';
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = allOrders.filter(order => {
     const category = categorizeOrder(order);
 
     if (filter === 'delayed' && category !== 'delayed') return false;
@@ -69,8 +81,8 @@ export function OrderManagement() {
 
   const { pageItems, ...pager } = usePagination(filteredOrders, 20, `${filter}|${searchTerm}`);
 
-  const delayedCount = orders.filter(o => categorizeOrder(o) === 'delayed').length;
-  const waitingCount = orders.filter(o => categorizeOrder(o) === 'waiting').length;
+  const delayedCount = allOrders.filter(o => categorizeOrder(o) === 'delayed').length;
+  const waitingCount = allOrders.filter(o => categorizeOrder(o) === 'waiting').length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -103,7 +115,7 @@ export function OrderManagement() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-600 mb-1">Tổng đơn hàng</div>
-              <div className="text-3xl font-bold text-gray-800">{orders.length}</div>
+              <div className="text-3xl font-bold text-gray-800">{allOrders.length}</div>
             </div>
             <Package className="w-12 h-12 text-emerald-600 opacity-50" />
           </div>
@@ -114,7 +126,7 @@ export function OrderManagement() {
             <div>
               <div className="text-sm text-gray-600 mb-1">Hoàn thành</div>
               <div className="text-3xl font-bold text-gray-800">
-                {orders.filter(o => o.status === 'completed').length}
+                {allOrders.filter(o => o.status === 'completed').length}
               </div>
             </div>
             <CheckCircle className="w-12 h-12 text-green-500 opacity-50" />
@@ -222,12 +234,15 @@ export function OrderManagement() {
                 <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                   Tổng tiền
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  Thao tác
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400">
                     <Package className="w-16 h-16 mx-auto mb-3 opacity-30" />
                     <p>Không tìm thấy đơn hàng nào</p>
                   </td>
@@ -305,6 +320,20 @@ export function OrderManagement() {
                       <td className="px-6 py-4 whitespace-nowrap font-bold text-emerald-700">
                         {order.total.toLocaleString('vi-VN')}đ
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {order.status === 'completed' && (order.items || []).length > 0 ? (
+                          <button
+                            onClick={() => setRefundingOrder(order)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg text-xs font-bold transition-colors"
+                            title="Hoàn tiền / bỏ món khỏi đơn"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Hoàn tiền
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -314,6 +343,14 @@ export function OrderManagement() {
           <Pager {...pager} onPage={pager.setPage} unit="đơn" className="px-4" />
         </div>
       </div>
+
+      {refundingOrder && (
+        <RefundOrderModal
+          order={refundingOrder}
+          refundBy={adminUser?.fullName ? `Admin - ${adminUser.fullName}` : 'Admin'}
+          onClose={() => setRefundingOrder(null)}
+        />
+      )}
     </div>
   );
 }

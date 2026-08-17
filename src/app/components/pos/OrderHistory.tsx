@@ -4,6 +4,8 @@ import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { RefundOrderModal } from './RefundOrderModal';
 import type { Order } from '../../contexts/OrderContext';
 import { usePagination, Pager } from '../common/Pagination';
+import { usePos } from '../../contexts/PosContext';
+import { useInventory } from '../../contexts/InventoryContext';
 
 const sourceColors = {
   counter: 'bg-green-500',
@@ -24,6 +26,8 @@ const isComboOrder = (order: Order) =>
 
 export function OrderHistory({ branchId }: { branchId: string }) {
   const { history, orders } = useBranchOrders(branchId);
+  const { session } = usePos();
+  const { recordWaste } = useInventory();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState<'today' | 'week' | 'all'>('today');
   const [tab, setTab] = useState<'all' | 'combo'>('all');
@@ -96,9 +100,15 @@ export function OrderHistory({ branchId }: { branchId: string }) {
 
   const totalRevenue = filteredHistory.reduce((sum, order) => sum + order.total, 0);
 
-  const handleRefundConfirm = () => {
-    // Refund is handled by the modal's inventory tracking
-    // We don't remove from history, just log the refund
+  // Sau khi hoàn tiền: món đã bị bỏ khỏi đơn + trừ doanh thu ở server (tự cập nhật qua SSE
+  // ORDER_UPDATED). Tại đây chỉ ghi nhận tổn thất tồn kho cho các món đã hoàn (đơn đã làm rồi).
+  const handleRefunded = (
+    result: { refundAmount: number },
+    refundedItems: any[]
+  ) => {
+    if (refundingOrder && refundedItems.length) {
+      recordWaste(refundingOrder.id, refundedItems, 'Hoàn tiền', session?.employeeName || 'POS');
+    }
   };
 
   return (
@@ -296,8 +306,10 @@ export function OrderHistory({ branchId }: { branchId: string }) {
       {refundingOrder && (
         <RefundOrderModal
           order={refundingOrder}
+          refundBy={session?.employeeName || 'POS'}
+          requirePin
           onClose={() => setRefundingOrder(null)}
-          onConfirm={handleRefundConfirm}
+          onRefunded={handleRefunded}
         />
       )}
     </div>

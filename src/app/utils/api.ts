@@ -123,6 +123,22 @@ export async function updateOrderStatus(orderId: string, status: string, extra?:
   return res.json();
 }
 
+/** Hoàn tiền theo từng món: gửi danh sách vị trí món cần hoàn (index trong order.items).
+ *  Backend bỏ món, giảm tổng tiền, ghi audit và trừ doanh thu ca. Trả { order, refundAmount }. */
+export async function refundOrderItems(orderId: string, itemIndexes: number[], reason: string, refundBy: string) {
+  const res = await fetch(`${BASE_URL}/orders/${encodeURIComponent(orderId)}/refund-items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemIndexes, reason, refundBy })
+  });
+  if (!res.ok) {
+    let msg = 'Hoàn tiền thất bại';
+    try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 export async function fetchInventory(branchId?: string) {
   const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
   const res = await fetch(`${BASE_URL}/inventory${qs}`);

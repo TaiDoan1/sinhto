@@ -693,6 +693,97 @@ app.patch('/api/orders/:id', (req, res) => {
   }
 });
 
+// Hoàn tiền THEO TỪNG MÓN trên đơn đã thanh toán: bỏ (các) món khỏi đơn, giảm tổng tiền đúng
+// phần đã hoàn, ghi audit vào order_refunds, và trừ doanh thu ca đã kết ca (closingRevenue).
+// Dùng cho cả POS (nhân viên/CHT, có PIN ở client) lẫn Admin. Đơn có thể nằm ở orders hoặc
+// orders_archive (đơn đã kết ca) — tìm ở cả hai như PATCH.
+app.post('/api/orders/:id/refund-items', (req, res) => {
+  const { id } = req.params;
+  const { itemIndexes, reason, refundBy } = req.body || {};
+  if (!Array.isArray(itemIndexes) || itemIndexes.length === 0) {
+    return res.status(400).json({ error: 'Chưa chọn món cần hoàn' });
+  }
+
+  db.get('SELECT * FROM orders WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row) return doRefund('orders', row);
+    db.get('SELECT * FROM orders_archive WHERE id = ?', [id], (aErr, aRow) => {
+      if (!aErr && aRow) return doRefund('orders_archive', aRow);
+      return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    });
+  });
+
+  function doRefund(tableName, row) {
+    let items;
+    try { items = JSON.parse(row.items) || []; } catch { items = []; }
+    const idxSet = new Set(itemIndexes.map(Number));
+    const lineTotal = (it) => (Number(it && it.price) || 0) * (Number(it && it.quantity) || 1);
+
+    const refundedItems = [];
+    const remainingItems = [];
+    items.forEach((it, i) => {
+      if (idxSet.has(i)) refundedItems.push(it);
+      else remainingItems.push(it);
+    });
+    if (refundedItems.length === 0) {
+      return res.status(400).json({ error: 'Món cần hoàn không hợp lệ' });
+    }
+
+    const refundAmount = refundedItems.reduce((s, it) => s + lineTotal(it), 0);
+    const newTotal = Math.max(0, (Number(row.total) || 0) - refundAmount);
+    const refundId = `RF-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const refundAt = new Date().toISOString();
+
+    db.run(
+      `UPDATE ${tableName} SET items = ?, total = ? WHERE id = ?`,
+      [JSON.stringify(remainingItems), newTotal, id],
+      function (upErr) {
+        if (upErr) return res.status(500).json({ error: upErr.message });
+
+        db.run(
+          `INSERT INTO order_refunds (id, orderId, orderNumber, branchId, shiftId, items, amount, reason, refundBy, refundAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [refundId, id, row.orderNumber || null, row.branchId || '', row.shiftId || '', JSON.stringify(refundedItems), refundAmount, (reason || '').toString().slice(0, 300), (refundBy || '').toString().slice(0, 120), refundAt],
+          () => {
+            const finishAndRespond = () => {
+              db.get(`SELECT * FROM ${tableName} WHERE id = ?`, [id], (fErr, updatedRow) => {
+                if (fErr || !updatedRow) return res.status(500).json({ error: 'Không đọc lại được đơn' });
+                let parsedItems = [];
+                try { parsedItems = JSON.parse(updatedRow.items); } catch { parsedItems = []; }
+                const finalOrder = {
+                  ...updatedRow,
+                  items: parsedItems,
+                  stockDeducted: !!updatedRow.stockDeducted,
+                  time: updatedRow.time ? new Date(updatedRow.time) : undefined,
+                };
+                broadcast('ORDER_UPDATED', finalOrder);
+                res.json({ order: finalOrder, refundAmount, refundId });
+              });
+            };
+
+            // Trừ doanh thu ca đã kết ca (snapshot closingRevenue). Ca chưa kết ca không có
+            // snapshot → doanh thu tự tính lại từ tổng đơn nên không cần đụng.
+            if (row.shiftId) {
+              db.get('SELECT * FROM shifts WHERE id = ?', [row.shiftId], (sErr, shift) => {
+                if (!sErr && shift && shift.closingRevenue != null) {
+                  const newRev = Math.max(0, (Number(shift.closingRevenue) || 0) - refundAmount);
+                  db.run('UPDATE shifts SET closingRevenue = ? WHERE id = ?', [newRev, row.shiftId], () => {
+                    broadcast('SHIFT_UPDATED', { ...shift, closingRevenue: newRev });
+                    finishAndRespond();
+                  });
+                } else {
+                  finishAndRespond();
+                }
+              });
+            } else {
+              finishAndRespond();
+            }
+          }
+        );
+      }
+    );
+  }
+});
+
 // --- INVENTORY API ---
 
 app.get('/api/inventory', async (req, res) => {

@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS orders (
   customerPhone TEXT, deliveryAddress TEXT, shipperName TEXT, shipperId TEXT, paymentMethod TEXT, stockDeducted INTEGER,
   salesStaffId TEXT DEFAULT '', salesStaffName TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS order_refunds (
+  id TEXT PRIMARY KEY, orderId TEXT, orderNumber INTEGER, branchId TEXT, shiftId TEXT,
+  items TEXT, amount INTEGER, reason TEXT, refundBy TEXT, refundAt TEXT
+);
 CREATE TABLE IF NOT EXISTS wholesale_accounts (
   id TEXT PRIMARY KEY, customerName TEXT, customerPhone TEXT, packageName TEXT, totalCups INTEGER,
   remainingCups INTEGER, durationMonths INTEGER, purchasedAt TEXT, expiresAt TEXT, preferredProduct TEXT,

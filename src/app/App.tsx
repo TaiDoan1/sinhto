@@ -37,6 +37,7 @@ const StoreManagerAttendance = lazyNamed(() => import("./components/admin/StoreM
 const CustomerCareManagement = lazyNamed(() => import("./components/admin/CustomerCareManagement"), "CustomerCareManagement");
 const CustomerManagement = lazyNamed(() => import("./components/customer-management/CustomerManagement"), "CustomerManagement");
 const BackupData = lazyNamed(() => import("./components/admin/BackupData"), "BackupData");
+const OrderManagement = lazyNamed(() => import("./components/admin/OrderManagement"), "OrderManagement");
 import { OrderProvider } from "./contexts/OrderContext";
 import { ComboProvider } from "./contexts/ComboContext";
 import { InventoryProvider } from "./contexts/InventoryContext";
@@ -128,6 +129,8 @@ function AdminShell() {
         return <BranchOverview />;
       case "analytics":
         return <RevenueAnalytics />;
+      case "orders":
+        return <OrderManagement />;
       case "hr":
         return <HRManagement />;
       case "attendance":

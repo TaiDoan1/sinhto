@@ -56,6 +56,19 @@ CREATE TABLE IF NOT EXISTS orders (
   "shiftId" TEXT
 );
 
+CREATE TABLE IF NOT EXISTS order_refunds (
+  id TEXT PRIMARY KEY,
+  "orderId" TEXT,
+  "orderNumber" INTEGER,
+  "branchId" TEXT,
+  "shiftId" TEXT,
+  items TEXT,
+  amount INTEGER,
+  reason TEXT,
+  "refundBy" TEXT,
+  "refundAt" TEXT
+);
+
 CREATE TABLE IF NOT EXISTS wholesale_accounts (
   id TEXT PRIMARY KEY,
   "customerName" TEXT,

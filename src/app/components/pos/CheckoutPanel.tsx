@@ -1,4 +1,4 @@
-import { Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog, StickyNote } from 'lucide-react';
+import { Trash2, Printer, QrCode, Wallet, Smartphone, CheckCircle2, ArrowLeft, UserCog, StickyNote, Plus, Minus } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useOrders } from '../../contexts/OrderContext';
 import { usePos } from '../../contexts/PosContext';
@@ -27,13 +27,14 @@ interface CheckoutPanelProps {
   branchId: string;
   currentShifts?: Shift[];
   onRemoveItem: (index: number) => void;
+  onUpdateQuantity?: (index: number, delta: number) => void;
   onClearCart: () => void;
   onAddItem: (item: CartItem) => void;
   /** Chế độ bán COMBO: đánh dấu đơn là combo (vào lịch sử + kết ca hiện combo) + chọn giao/tại quầy. */
   comboMode?: boolean;
 }
 
-export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem, onClearCart, onAddItem, comboMode = false }: CheckoutPanelProps) {
+export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem, onUpdateQuantity, onClearCart, onAddItem, comboMode = false }: CheckoutPanelProps) {
   const { addOrder } = useOrders();
   const { session } = usePos();
   const staffName = session?.employeeName || 'POS - Nhân viên quầy';
@@ -505,7 +506,29 @@ export function CheckoutPanel({ cart, branchId, currentShifts = [], onRemoveItem
                   )}
                 </div>
                 <div className="flex justify-between items-center border-t border-gray-200 pt-1.5 mt-1">
-                  <span className="pos-cart-qty text-gray-700">SL: {item.quantity}</span>
+                  {checkoutStep === 'cart' && onUpdateQuantity ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => (item.quantity <= 1 ? onRemoveItem(idx) : onUpdateQuantity(idx, -1))}
+                        className="w-8 h-8 rounded-lg bg-white border border-gray-300 flex items-center justify-center text-gray-700 active:bg-gray-100"
+                        title={item.quantity <= 1 ? 'Bỏ ly này' : 'Bớt 1 ly'}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="pos-cart-qty text-gray-800 font-black min-w-[24px] text-center">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateQuantity(idx, 1)}
+                        className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white active:bg-emerald-700"
+                        title="Thêm 1 ly"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="pos-cart-qty text-gray-700">SL: {item.quantity}</span>
+                  )}
                   <span className="pos-cart-price">
                     {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                   </span>

@@ -563,10 +563,32 @@ function POSInterfaceInner() {
     }
   };
 
-  const handleAddToCart = (item: CartItem) => {
-    setCart([...cart, item]);
+  // 2 ly "trùng nhau" = cùng sản phẩm, size, protein, giá, topping (kể cả combo topping) → gộp
+  // thành 1 dòng và cộng dồn số lượng thay vì tạo dòng mới, để nhấn +/- cho gọn.
+  const sameCartItem = (a: CartItem, b: CartItem) =>
+    a.productId === b.productId &&
+    (a.size || '') === (b.size || '') &&
+    (a.protein || 0) === (b.protein || 0) &&
+    a.price === b.price &&
+    !!(a as any).isCombo === !!(b as any).isCombo &&
+    !!a.isCustomCombo === !!b.isCustomCombo &&
+    JSON.stringify(a.toppings || []) === JSON.stringify(b.toppings || []);
+  const mergeIntoCart = (list: CartItem[], item: CartItem) => {
+    const idx = list.findIndex((it) => sameCartItem(it, item));
+    if (idx >= 0) {
+      const next = [...list];
+      next[idx] = { ...next[idx], quantity: next[idx].quantity + (item.quantity || 1) };
+      return next;
+    }
+    return [...list, item];
   };
-  const handleAddToComboCart = (item: CartItem) => setComboCart((prev) => [...prev, item]);
+  const changeQty = (list: CartItem[], index: number, delta: number) =>
+    list.map((it, i) => (i === index ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
+
+  const handleAddToCart = (item: CartItem) => setCart((prev) => mergeIntoCart(prev, item));
+  const handleUpdateQuantity = (index: number, delta: number) => setCart((prev) => changeQty(prev, index, delta));
+  const handleAddToComboCart = (item: CartItem) => setComboCart((prev) => mergeIntoCart(prev, item));
+  const handleUpdateComboQuantity = (index: number, delta: number) => setComboCart((prev) => changeQty(prev, index, delta));
   const handleRemoveComboItem = (index: number) => setComboCart((prev) => prev.filter((_, i) => i !== index));
   const handleClearComboCart = () => setComboCart([]);
 
@@ -973,6 +995,7 @@ function POSInterfaceInner() {
               branchId={branchId}
               currentShifts={currentShifts}
               onRemoveItem={handleRemoveItem}
+              onUpdateQuantity={handleUpdateQuantity}
               onClearCart={handleClearCart}
               onAddItem={handleAddToCart}
             />
@@ -986,6 +1009,7 @@ function POSInterfaceInner() {
               branchId={branchId}
               currentShifts={currentShifts}
               onRemoveItem={handleRemoveComboItem}
+              onUpdateQuantity={handleUpdateComboQuantity}
               onClearCart={handleClearComboCart}
               onAddItem={handleAddToComboCart}
             />
@@ -1146,6 +1170,7 @@ function POSInterfaceInner() {
             currentShifts={currentShifts}
             onClose={() => setShowMobileCheckout(false)}
             onRemoveItem={handleRemoveComboItem}
+            onUpdateQuantity={handleUpdateComboQuantity}
             onClearCart={handleClearComboCart}
             onAddItem={handleAddToComboCart}
           />
@@ -1156,6 +1181,7 @@ function POSInterfaceInner() {
             currentShifts={currentShifts}
             onClose={() => setShowMobileCheckout(false)}
             onRemoveItem={handleRemoveItem}
+            onUpdateQuantity={handleUpdateQuantity}
             onClearCart={handleClearCart}
             onAddItem={handleAddToCart}
           />

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Edit2, Trash2, Plus, X, Settings, List, Coffee, Globe, Upload, CheckCircle2, Clock, QrCode } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Settings, List, Coffee, Globe, Upload, CheckCircle2, Clock, QrCode, GripVertical } from 'lucide-react';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
 import {
@@ -9,6 +9,8 @@ import {
   normalizeImageUrl,
 } from '../../config/images';
 import { DEFAULT_MENU_PRICE_TABLE } from '../../config/menuPricing';
+import { DEFAULT_TOPPINGS } from '../../config/menuToppings';
+import { useToppingLayout, groupToppings, reorderByDrop, TOPPING_GROUPS, type ToppingGroupKey } from '../../hooks/useToppingLayout';
 
 interface Product {
   id: string;
@@ -35,6 +37,8 @@ export function ProductManagement() {
     basePrice: 0
   });
   const [comboToppings, setComboToppings] = useState<any[]>([]);
+  const { layout: toppingLayout, save: saveToppingLayout } = useToppingLayout();
+  const [dragName, setDragName] = useState<string | null>(null);
   const [paymentQrImageUrl, setPaymentQrImageUrl] = useState<string>('');
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success'>('idle');
@@ -287,25 +291,76 @@ export function ProductManagement() {
       {/* Combos management tab */}
       {activeSubTab === 'toppings' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Section 1: Single Toppings */}
+          {/* Section 1: Topping Lẻ — phân nhóm + kéo-thả sắp xếp (hiển thị trên máy POS theo thứ tự này) */}
           <div className="space-y-4">
-            <h3 className="font-black text-gray-800 border-b pb-2 text-base">Topping Lẻ</h3>
-            <div className="grid grid-cols-1 gap-2">
-              {products.filter(p => p.category === 'toppings').map(topping => (
-                <div key={topping.id} className="flex justify-between items-center bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                  <div>
-                    <span className="text-sm font-bold text-gray-800">{topping.name}</span>
-                    <span className="text-xs text-gray-500 block mt-0.5">Mã: {topping.id}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-emerald-700">
-                      {topping.basePrice <= 0 ? 'Miễn phí' : `${topping.basePrice.toLocaleString()}đ`}
-                    </span>
-                    <button onClick={() => handleDeleteProduct(topping.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 className="w-4.5 h-4.5" /></button>
-                  </div>
-                </div>
-              ))}
+            <div className="border-b pb-2">
+              <h3 className="font-black text-gray-800 text-base">Topping Lẻ — phân nhóm & sắp xếp</h3>
+              <p className="text-xs text-gray-500 mt-1">Chọn nhóm cho từng topping và <b>kéo thả ⣿ để đổi thứ tự</b>. Máy POS sẽ hiện đúng theo nhóm + thứ tự này.</p>
             </div>
+            {(() => {
+              const productToppings = products.filter(p => p.category === 'toppings');
+              const toppingItems: { name: string; price: number; productId?: string }[] = productToppings.length
+                ? productToppings.map(p => ({ name: p.name, price: p.basePrice, productId: p.id }))
+                : DEFAULT_TOPPINGS.map(t => ({ name: t.name, price: t.price }));
+              const grouped = groupToppings(toppingItems, toppingLayout);
+              return (
+                <div className="space-y-4">
+                  {grouped.map(group => (
+                    <div key={group.key}>
+                      <div className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+                        {group.emoji} {group.label} <span className="font-normal text-gray-400">({group.items.length})</span>
+                      </div>
+                      <div
+                        className="grid grid-cols-1 gap-2 min-h-[8px]"
+                        onDragOver={(e) => e.preventDefault()}
+                      >
+                        {group.items.length === 0 && (
+                          <div className="text-xs text-gray-300 italic py-2 px-1">Chưa có topping trong nhóm này</div>
+                        )}
+                        {group.items.map(topping => (
+                          <div
+                            key={topping.name}
+                            draggable
+                            onDragStart={() => setDragName(topping.name)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => {
+                              if (dragName && dragName !== topping.name) {
+                                saveToppingLayout({ ...toppingLayout, order: reorderByDrop(dragName, topping.name, toppingItems, toppingLayout) });
+                              }
+                              setDragName(null);
+                            }}
+                            className={`flex items-center gap-2 bg-gray-50 p-3 rounded-xl border transition-colors ${dragName === topping.name ? 'border-orange-400 opacity-60' : 'border-gray-100'}`}
+                          >
+                            <GripVertical className="w-4 h-4 text-gray-400 shrink-0 cursor-grab" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-bold text-gray-800 block truncate">{topping.name}</span>
+                              <span className="text-xs font-semibold text-emerald-700">
+                                {topping.price <= 0 ? 'Miễn phí' : `${topping.price.toLocaleString()}đ`}
+                              </span>
+                            </div>
+                            <select
+                              value={toppingLayout.assignments[topping.name] || 'single'}
+                              onChange={(e) => saveToppingLayout({
+                                ...toppingLayout,
+                                assignments: { ...toppingLayout.assignments, [topping.name]: e.target.value as ToppingGroupKey },
+                              })}
+                              className="text-xs font-semibold border border-gray-300 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-emerald-500 shrink-0"
+                            >
+                              {TOPPING_GROUPS.map(g => (
+                                <option key={g.key} value={g.key}>{g.emoji} {g.label}</option>
+                              ))}
+                            </select>
+                            {topping.productId && (
+                              <button onClick={() => handleDeleteProduct(topping.productId!)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg shrink-0"><Trash2 className="w-4 h-4" /></button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Section 2: Combo Toppings */}

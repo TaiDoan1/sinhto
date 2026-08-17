@@ -1,10 +1,11 @@
-import { X, Check, ArrowLeft } from 'lucide-react';
+import { X, Check, ArrowLeft, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useMenu } from '../../contexts/MenuContext';
 import { useMenuPricing } from '../../hooks/useMenuPricing';
 import { DEFAULT_MENU_PRICE_TABLE, resolveCupPrice } from '../../config/menuPricing';
 import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
 import { useInventory } from '../../contexts/InventoryContext';
+import { useToppingLayout, groupToppings, moveWithinGroup } from '../../hooks/useToppingLayout';
 
 interface ModifierModalProps {
   product: {
@@ -86,6 +87,8 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
   const [selectedProtein] = useState<number>(initialProtein);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
+  const [arrangeMode, setArrangeMode] = useState(false);
+  const { layout: toppingLayout, save: saveToppingLayout } = useToppingLayout();
   const { products } = useMenu();
   const { priceTable: dynamicPriceTable, comboToppings: comboListFromApi } = useMenuPricing();
   const dynamicToppings = products
@@ -254,33 +257,84 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
           </div>
         </div>
 
-        {/* Row 2: Toppings Lẻ */}
+        {/* Row 2: Toppings Lẻ — chia theo NHÓM (Trái cây / Ngọt / Lẻ). Bật "Sắp xếp" để hiện nút ▲▼. */}
         <div className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
-          <h3 className="text-base font-black text-gray-800 mb-1.5 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
-          <p className="text-sm text-gray-500 mb-3 font-medium">Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây</p>
-          <div className="pos-topping-list rounded-lg border border-gray-100 overflow-hidden bg-white">
-            {toppingsList.map(topping => {
-              const isSelected = selectedToppings.includes(topping.name);
-              return (
-                <button
-                  key={topping.name}
-                  onClick={() => toggleTopping(topping.name)}
-                  className={`pos-topping-row w-full flex items-center justify-between gap-3 font-medium text-left ${
-                    isSelected ? t.toppingSelected : 'bg-white text-gray-850'
-                  }`}
-                >
-                  <span className="pos-topping-name font-black leading-tight truncate">{topping.name}</span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <span className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
-                      {formatToppingPrice(topping.price)}
-                    </span>
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
-                      {isSelected && <Check className="w-4 h-4 text-white" />}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex items-center justify-between mb-1.5 gap-2">
+            <h3 className="text-base font-black text-gray-800 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
+            <button
+              onClick={() => setArrangeMode(v => !v)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                arrangeMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'
+              }`}
+              title="Bật/tắt chế độ sắp xếp thứ tự topping"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" /> {arrangeMode ? 'Xong' : 'Sắp xếp'}
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mb-3 font-medium">
+            {arrangeMode ? 'Dùng nút ▲▼ để đổi thứ tự topping trong từng nhóm.' : 'Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây'}
+          </p>
+
+          <div className="space-y-3">
+            {groupToppings(toppingsList, toppingLayout)
+              .filter(g => g.items.length > 0)
+              .map(group => (
+                <div key={group.key}>
+                  <div className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1 px-0.5">
+                    {group.emoji} {group.label}
+                  </div>
+                  <div className="pos-topping-list rounded-lg border border-gray-100 overflow-hidden bg-white">
+                    {group.items.map((topping, i) => {
+                      const isSelected = selectedToppings.includes(topping.name);
+                      return (
+                        <div
+                          key={topping.name}
+                          className={`pos-topping-row w-full flex items-center justify-between gap-2 font-medium ${
+                            isSelected ? t.toppingSelected : 'bg-white text-gray-850'
+                          }`}
+                        >
+                          <button
+                            onClick={() => toggleTopping(topping.name)}
+                            className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                          >
+                            <span className="pos-topping-name font-black leading-tight truncate">{topping.name}</span>
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
+                                {formatToppingPrice(topping.price)}
+                              </span>
+                              {!arrangeMode && (
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                  {isSelected && <Check className="w-4 h-4 text-white" />}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                          {arrangeMode && (
+                            <span className="flex items-center gap-1 shrink-0 pr-1">
+                              <button
+                                onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'up', toppingsList, toppingLayout) })}
+                                disabled={i === 0}
+                                className={`w-7 h-7 rounded flex items-center justify-center ${i === 0 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                title="Lên"
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'down', toppingsList, toppingLayout) })}
+                                disabled={i === group.items.length - 1}
+                                className={`w-7 h-7 rounded flex items-center justify-center ${i === group.items.length - 1 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                title="Xuống"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </div>

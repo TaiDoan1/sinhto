@@ -5,7 +5,7 @@ import { useMenuPricing } from '../../hooks/useMenuPricing';
 import { DEFAULT_MENU_PRICE_TABLE, resolveCupPrice } from '../../config/menuPricing';
 import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, formatToppingPrice } from '../../config/menuToppings';
 import { useInventory } from '../../contexts/InventoryContext';
-import { useToppingLayout, groupToppings, moveWithinGroup } from '../../hooks/useToppingLayout';
+import { useToppingLayout, groupToppings, moveWithinGroup, orderedSections } from '../../hooks/useToppingLayout';
 
 interface ModifierModalProps {
   product: {
@@ -217,126 +217,123 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
       {/* Main Configurations Grid */}
       <div className="pos-modifier-body flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
 
-        {/* Row 1: Combo Topping */}
-        <div className={`pos-modifier-section bg-gradient-to-br rounded-lg border ${t.comboSection}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-wider ${t.comboTitle}`}>🌟 1. Combo Topping (Siêu tiết kiệm)</h3>
-              <p className={`text-xs font-medium mt-0.5 ${t.comboSubtitle}`}>Nhấp chọn Combo để áp dụng nhanh bộ topping ưu đãi</p>
-            </div>
-            <span className={`text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge ${t.comboBadge}`}>SIÊU RẺ</span>
-          </div>
-          <div className="pos-combo-list rounded-lg border border-gray-100 overflow-hidden bg-white">
-            {comboList.map(combo => {
-              const isSelected = selectedCombos.includes(combo.id);
-              return (
-                <button
-                  key={combo.id}
-                  onClick={() => toggleCombo(combo.id)}
-                  className={`pos-combo-row w-full flex items-center gap-3 text-left ${
-                    isSelected ? t.comboCardSelected : 'bg-white'
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className={`pos-combo-name font-black leading-tight truncate ${isSelected ? t.comboNameSelected : 'text-gray-950'}`}>{combo.name}</p>
-                    <p className="text-xs text-gray-500 font-bold truncate">{combo.items}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`font-black ${t.comboPrice}`}>{(combo.price).toLocaleString()}đ</span>
-                    <span className="text-xs text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
-                    <span className="text-[10px] bg-rose-50 text-rose-600 font-black px-1.5 py-0.5 rounded whitespace-nowrap">
-                      -{(combo.save || 0) / 1000}k
-                    </span>
-                  </div>
-                  <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? t.comboCheckBg : 'bg-gray-100'}`}>
-                    {isSelected && <Check className="w-4 h-4 text-white" />}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* Thanh bật/tắt sắp xếp topping lẻ (áp dụng cho các nhóm Trái cây/Ngọt/Lẻ) */}
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-xs text-gray-500 font-medium">
+            {arrangeMode ? 'Dùng ▲▼ để đổi thứ tự topping trong từng nhóm.' : 'Chọn topping cho ly. Thứ tự nhóm cài ở Admin.'}
+          </p>
+          <button
+            onClick={() => setArrangeMode(v => !v)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors shrink-0 ${
+              arrangeMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'
+            }`}
+            title="Bật/tắt chế độ sắp xếp thứ tự topping"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" /> {arrangeMode ? 'Xong' : 'Sắp xếp'}
+          </button>
         </div>
 
-        {/* Row 2: Toppings Lẻ — chia theo NHÓM (Trái cây / Ngọt / Lẻ). Bật "Sắp xếp" để hiện nút ▲▼. */}
-        <div className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-1.5 gap-2">
-            <h3 className="text-base font-black text-gray-800 uppercase tracking-wider">🍬 2. Chọn Topping Lẻ (Tự chọn thêm)</h3>
-            <button
-              onClick={() => setArrangeMode(v => !v)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                arrangeMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300'
-              }`}
-              title="Bật/tắt chế độ sắp xếp thứ tự topping"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5" /> {arrangeMode ? 'Xong' : 'Sắp xếp'}
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 mb-3 font-medium">
-            {arrangeMode ? 'Dùng nút ▲▼ để đổi thứ tự topping trong từng nhóm.' : 'Bấm để thêm hoặc bỏ nhanh các loại topping dưới đây'}
-          </p>
-
-          <div className="space-y-3">
-            {groupToppings(toppingsList, toppingLayout)
-              .filter(g => g.items.length > 0)
-              .map(group => (
-                <div key={group.key}>
-                  <div className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1 px-0.5">
-                    {group.emoji} {group.label}
+        {/* Các nhóm hiển thị theo ĐÚNG THỨ TỰ đã đặt ở Admin (Combo / Trái cây / Ngọt / Lẻ) */}
+        {orderedSections(toppingLayout).map(section => {
+          // Khu Combo Topping
+          if (section.key === 'combo') {
+            if (!comboList.length) return null;
+            return (
+              <div key="combo" className={`pos-modifier-section bg-gradient-to-br rounded-lg border ${t.comboSection}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className={`text-sm font-black uppercase tracking-wider ${t.comboTitle}`}>🌟 Combo Topping (Siêu tiết kiệm)</h3>
+                    <p className={`text-xs font-medium mt-0.5 ${t.comboSubtitle}`}>Nhấp chọn Combo để áp dụng nhanh bộ topping ưu đãi</p>
                   </div>
-                  <div className="pos-topping-list rounded-lg border border-gray-100 overflow-hidden bg-white">
-                    {group.items.map((topping, i) => {
-                      const isSelected = selectedToppings.includes(topping.name);
-                      return (
-                        <div
-                          key={topping.name}
-                          className={`pos-topping-row w-full flex items-center justify-between gap-2 font-medium ${
-                            isSelected ? t.toppingSelected : 'bg-white text-gray-850'
-                          }`}
-                        >
-                          <button
-                            onClick={() => toggleTopping(topping.name)}
-                            className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
-                          >
-                            <span className="pos-topping-name font-black leading-tight truncate">{topping.name}</span>
-                            <span className="flex items-center gap-2 shrink-0">
-                              <span className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
-                                {formatToppingPrice(topping.price)}
-                              </span>
-                              {!arrangeMode && (
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
-                                  {isSelected && <Check className="w-4 h-4 text-white" />}
-                                </span>
-                              )}
-                            </span>
-                          </button>
-                          {arrangeMode && (
-                            <span className="flex items-center gap-1 shrink-0 pr-1">
-                              <button
-                                onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'up', toppingsList, toppingLayout) })}
-                                disabled={i === 0}
-                                className={`w-7 h-7 rounded flex items-center justify-center ${i === 0 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                                title="Lên"
-                              >
-                                <ChevronUp className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'down', toppingsList, toppingLayout) })}
-                                disabled={i === group.items.length - 1}
-                                className={`w-7 h-7 rounded flex items-center justify-center ${i === group.items.length - 1 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                                title="Xuống"
-                              >
-                                <ChevronDown className="w-4 h-4" />
-                              </button>
+                  <span className={`text-white font-black text-xs px-3 py-1 rounded-full pos-combo-badge ${t.comboBadge}`}>SIÊU RẺ</span>
+                </div>
+                <div className="pos-combo-list rounded-lg border border-gray-100 overflow-hidden bg-white">
+                  {comboList.map(combo => {
+                    const isSelected = selectedCombos.includes(combo.id);
+                    return (
+                      <button
+                        key={combo.id}
+                        onClick={() => toggleCombo(combo.id)}
+                        className={`pos-combo-row w-full flex items-center gap-3 text-left ${isSelected ? t.comboCardSelected : 'bg-white'}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className={`pos-combo-name font-black leading-tight truncate ${isSelected ? t.comboNameSelected : 'text-gray-950'}`}>{combo.name}</p>
+                          <p className="text-xs text-gray-500 font-bold truncate">{combo.items}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`font-black ${t.comboPrice}`}>{(combo.price).toLocaleString()}đ</span>
+                          <span className="text-xs text-gray-400 line-through">{(combo.originalPrice).toLocaleString()}đ</span>
+                          <span className="text-[10px] bg-rose-50 text-rose-600 font-black px-1.5 py-0.5 rounded whitespace-nowrap">
+                            -{(combo.save || 0) / 1000}k
+                          </span>
+                        </div>
+                        <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? t.comboCheckBg : 'bg-gray-100'}`}>
+                          {isSelected && <Check className="w-4 h-4 text-white" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+          // Khu topping lẻ theo nhóm (Trái cây / Ngọt / Lẻ)
+          const group = groupToppings(toppingsList, toppingLayout).find(g => g.key === section.key);
+          if (!group || group.items.length === 0) return null;
+          return (
+            <div key={section.key} className="pos-modifier-section bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-2">{group.emoji} {group.label}</h3>
+              <div className="pos-topping-list rounded-lg border border-gray-100 overflow-hidden bg-white">
+                {group.items.map((topping, i) => {
+                  const isSelected = selectedToppings.includes(topping.name);
+                  return (
+                    <div
+                      key={topping.name}
+                      className={`pos-topping-row w-full flex items-center justify-between gap-2 font-medium ${isSelected ? t.toppingSelected : 'bg-white text-gray-850'}`}
+                    >
+                      <button
+                        onClick={() => toggleTopping(topping.name)}
+                        className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                      >
+                        <span className="pos-topping-name font-black leading-tight truncate">{topping.name}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <span className={`pos-topping-price leading-tight font-extrabold ${isSelected ? 'text-white/90' : t.toppingPrice}`}>
+                            {formatToppingPrice(topping.price)}
+                          </span>
+                          {!arrangeMode && (
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
+                              {isSelected && <Check className="w-4 h-4 text-white" />}
                             </span>
                           )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
+                        </span>
+                      </button>
+                      {arrangeMode && (
+                        <span className="flex items-center gap-1 shrink-0 pr-1">
+                          <button
+                            onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'up', toppingsList, toppingLayout) })}
+                            disabled={i === 0}
+                            className={`w-7 h-7 rounded flex items-center justify-center ${i === 0 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                            title="Lên"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => saveToppingLayout({ ...toppingLayout, order: moveWithinGroup(topping.name, 'down', toppingsList, toppingLayout) })}
+                            disabled={i === group.items.length - 1}
+                            className={`w-7 h-7 rounded flex items-center justify-center ${i === group.items.length - 1 ? 'opacity-30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                            title="Xuống"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Action Footer */}

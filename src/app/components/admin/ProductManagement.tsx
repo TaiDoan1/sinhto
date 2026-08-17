@@ -10,7 +10,7 @@ import {
 } from '../../config/images';
 import { DEFAULT_MENU_PRICE_TABLE } from '../../config/menuPricing';
 import { DEFAULT_TOPPINGS } from '../../config/menuToppings';
-import { useToppingLayout, groupToppings, dropIntoGroup, TOPPING_GROUPS, type ToppingGroupKey } from '../../hooks/useToppingLayout';
+import { useToppingLayout, groupToppings, dropIntoGroup, orderedSections, moveSection, ALL_SECTIONS, TOPPING_GROUPS, type ToppingGroupKey } from '../../hooks/useToppingLayout';
 
 interface Product {
   id: string;
@@ -296,6 +296,26 @@ export function ProductManagement() {
             <div className="border-b pb-2">
               <h3 className="font-black text-gray-800 text-base">Topping Lẻ — phân nhóm & sắp xếp</h3>
               <p className="text-xs text-gray-500 mt-1">Chọn nhóm cho từng topping và <b>kéo thả ⣿ để đổi thứ tự</b>. Máy POS sẽ hiện đúng theo nhóm + thứ tự này.</p>
+            </div>
+
+            {/* Thứ tự hiển thị NHÓM trên máy POS: chọn số 1/2/3/4 cho mỗi nhóm */}
+            <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3">
+              <div className="text-xs font-black text-gray-600 uppercase tracking-wider mb-2">🔢 Thứ tự hiện nhóm trên máy POS</div>
+              <div className="space-y-1.5">
+                {orderedSections(toppingLayout).map((section, idx) => (
+                  <div key={section.key} className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-3 py-2">
+                    <select
+                      value={idx + 1}
+                      onChange={(e) => saveToppingLayout({ ...toppingLayout, groupOrder: moveSection(toppingLayout, section.key, Number(e.target.value) - 1) })}
+                      className="text-sm font-black border border-gray-300 rounded-lg px-2 py-1 bg-white outline-none focus:border-emerald-500"
+                    >
+                      {ALL_SECTIONS.map((_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
+                    </select>
+                    <span className="text-sm font-bold text-gray-800">{section.emoji} {section.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2">Nhóm chọn số <b>1</b> hiện đầu tiên, số <b>2</b> hiện tiếp theo... trên máy POS.</p>
             </div>
             {(() => {
               const productToppings = products.filter(p => p.category === 'toppings');

@@ -6,6 +6,8 @@ import { useSSE } from '../contexts/SSEContext';
 // hiển thị. Lưu vào 1 setting duy nhất (key theo TÊN topping) nên chạy cho cả topping mặc định
 // lẫn topping là sản phẩm, không cần đổi schema DB. (Combo topping là khu riêng, không nằm ở đây.)
 export type ToppingGroupKey = 'fruit' | 'sweet' | 'single';
+/** Section = nhóm hiển thị trên POS, GỒM cả 'combo' (khu combo topping). Dùng để xếp thứ tự nhóm. */
+export type SectionKey = 'combo' | ToppingGroupKey;
 
 export const TOPPING_GROUPS: { key: ToppingGroupKey; label: string; emoji: string }[] = [
   { key: 'fruit', label: 'Trái cây', emoji: '🍓' },
@@ -13,9 +15,43 @@ export const TOPPING_GROUPS: { key: ToppingGroupKey; label: string; emoji: strin
   { key: 'single', label: 'Lẻ', emoji: '🍬' },
 ];
 
+/** 4 nhóm hiển thị trên POS (theo thứ tự mặc định). */
+export const ALL_SECTIONS: { key: SectionKey; label: string; emoji: string }[] = [
+  { key: 'combo', label: 'Combo Topping', emoji: '🌟' },
+  { key: 'fruit', label: 'Trái cây', emoji: '🍓' },
+  { key: 'sweet', label: 'Ngọt', emoji: '🍯' },
+  { key: 'single', label: 'Lẻ', emoji: '🍬' },
+];
+const DEFAULT_SECTION_ORDER: SectionKey[] = ['combo', 'fruit', 'sweet', 'single'];
+
 export interface ToppingLayout {
   assignments: Record<string, ToppingGroupKey>;
   order: string[];
+  /** Thứ tự hiển thị các nhóm trên POS (nhóm số 1 hiện đầu tiên). Trống = mặc định. */
+  groupOrder?: SectionKey[];
+}
+
+/** Trả 4 nhóm theo đúng thứ tự người dùng đã đặt (groupOrder), thiếu thì dùng mặc định. */
+export function orderedSections(layout: ToppingLayout): { key: SectionKey; label: string; emoji: string }[] {
+  const go = Array.isArray(layout.groupOrder) && layout.groupOrder.length ? layout.groupOrder : DEFAULT_SECTION_ORDER;
+  const rank = (k: SectionKey) => {
+    const i = go.indexOf(k);
+    return i < 0 ? 999 : i;
+  };
+  return [...ALL_SECTIONS].sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+/** Di chuyển 1 nhóm tới vị trí `toPos` (0-based) trong groupOrder; trả về mảng groupOrder mới. */
+export function moveSection(layout: ToppingLayout, key: SectionKey, toPos: number): SectionKey[] {
+  const base = Array.isArray(layout.groupOrder) && layout.groupOrder.length
+    ? [...layout.groupOrder]
+    : [...DEFAULT_SECTION_ORDER];
+  // đảm bảo đủ 4 nhóm
+  ALL_SECTIONS.forEach((s) => { if (!base.includes(s.key)) base.push(s.key); });
+  const from = base.indexOf(key);
+  if (from >= 0) base.splice(from, 1);
+  base.splice(Math.max(0, Math.min(toPos, base.length)), 0, key);
+  return base;
 }
 
 const SETTING_KEY = 'posToppingLayout';
@@ -113,7 +149,7 @@ export function dropIntoGroup(
     });
     order.splice(lastIdx + 1, 0, dragged);
   }
-  return { assignments, order };
+  return { ...layout, assignments, order };
 }
 
 export function useToppingLayout() {
@@ -127,7 +163,11 @@ export function useToppingLayout() {
       .fetchSetting(SETTING_KEY)
       .then((v: any) => {
         if (alive && v && typeof v === 'object') {
-          setLayout({ assignments: v.assignments || {}, order: Array.isArray(v.order) ? v.order : [] });
+          setLayout({
+            assignments: v.assignments || {},
+            order: Array.isArray(v.order) ? v.order : [],
+            groupOrder: Array.isArray(v.groupOrder) ? v.groupOrder : undefined,
+          });
         }
       })
       .catch(() => { /* chưa có setting → dùng mặc định (tất cả nhóm Lẻ) */ })
@@ -138,6 +178,7 @@ export function useToppingLayout() {
         setLayout({
           assignments: data.value.assignments || {},
           order: Array.isArray(data.value.order) ? data.value.order : [],
+          groupOrder: Array.isArray(data.value.groupOrder) ? data.value.groupOrder : undefined,
         });
       }
     });

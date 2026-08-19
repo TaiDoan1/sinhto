@@ -1442,24 +1442,49 @@ function findConflictingShift(employeeId, date, startTime, endTime, excludeShift
 app.post('/api/shifts', (req, res) => {
   const s = normalizeShift(req.body);
   const id = s.id || `SHIFT-${Date.now()}`;
-  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, null, (checkErr, conflict) => {
-    if (checkErr) return res.status(500).json({ error: checkErr.message });
-    if (conflict) {
-      return res.status(409).json({
-        error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
+  // CHỐNG TRÙNG CA (fix lịch hiện đúp): nếu đã có 1 ca GIỐNG HỆT (cùng nhân viên/ngày/giờ vào/
+  // giờ ra/chi nhánh) và chưa bị từ chối/huỷ thì KHÔNG đẻ thêm dòng mới. Nếu ca cũ đang 'pending'
+  // (đơn xin lịch) mà giờ được xếp/duyệt chính thức → nâng trạng thái ca ĐÓ, giữ nguyên dữ liệu đã
+  // làm (checkIn/đơn), thay vì tạo ca thứ 2 trống trơn nằm đè lên.
+  db.get(
+    "SELECT * FROM shifts WHERE employeeId = ? AND date = ? AND startTime = ? AND endTime = ? AND COALESCE(branch,'') = ? AND status NOT IN ('rejected','cancelled') ORDER BY (checkIn IS NOT NULL AND checkIn != '') DESC LIMIT 1",
+    [s.employeeId, s.date, s.startTime, s.endTime, s.branch || ''],
+    (dupErr, dup) => {
+      if (dupErr) return res.status(500).json({ error: dupErr.message });
+      if (dup) {
+        const incomingStatus = s.status || 'scheduled';
+        if (dup.status === 'pending' && incomingStatus !== 'pending') {
+          return db.run('UPDATE shifts SET status = ? WHERE id = ?', [incomingStatus, dup.id], (uErr) => {
+            if (uErr) return res.status(500).json({ error: uErr.message });
+            const updated = { ...dup, status: incomingStatus };
+            broadcast('SHIFT_UPDATED', updated);
+            return res.status(200).json(updated);
+          });
+        }
+        // Đã có ca y hệt → trả lại ca cũ (idempotent), không tạo trùng.
+        return res.status(200).json(dup);
+      }
+
+      findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, null, (checkErr, conflict) => {
+        if (checkErr) return res.status(500).json({ error: checkErr.message });
+        if (conflict) {
+          return res.status(409).json({
+            error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
+          });
+        }
+        db.run(
+          `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', s.reason || ''],
+          function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const created = { ...s, id };
+            broadcast('SHIFT_CREATED', created);
+            res.status(201).json(created);
+          }
+        );
       });
     }
-    db.run(
-      `INSERT INTO shifts (id, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status || 'scheduled', s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', s.reason || ''],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const created = { ...s, id };
-        broadcast('SHIFT_CREATED', created);
-        res.status(201).json(created);
-      }
-    );
-  });
+  );
 });
 
 app.put('/api/shifts/:id', (req, res) => {

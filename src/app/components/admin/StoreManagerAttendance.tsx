@@ -179,12 +179,22 @@ export function StoreManagerAttendance() {
           ? [...days.entries()]
               .map(([date, list]) => {
                 const sorted = [...list].sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''));
+                // Gộp ca TRÙNG HỆT trong ngày (cùng giờ vào–ra) → chỉ tính 1, giữ ca có giờ làm
+                // thực tế nhiều hơn. Tránh cộng đôi giờ công khi DB lỡ có ca bị nhân đôi.
+                const bySlot = new Map<string, typeof sorted[number]>();
+                for (const x of sorted) {
+                  const key = `${x.startTime}|${x.endTime}`;
+                  const cur = bySlot.get(key);
+                  const rich = (v: typeof x) => (v.checkOut ? 100000 : 0) + (Number(v.actualMins) || 0);
+                  if (!cur || rich(x) > rich(cur)) bySlot.set(key, x);
+                }
+                const deduped = [...bySlot.values()];
                 // Giờ OT ĐÃ DUYỆT của ngày (phút) — cộng vào giờ tính lương.
-                const otMins = sorted.reduce((s, x) => s + (x.overtimeStatus === 'approved' ? (Number(x.overtimeHours) || 0) * 60 : 0), 0);
-                const schedMins = sorted.reduce((s, x) => s + x.schedMins, 0);
+                const otMins = deduped.reduce((s, x) => s + (x.overtimeStatus === 'approved' ? (Number(x.overtimeHours) || 0) * 60 : 0), 0);
+                const schedMins = deduped.reduce((s, x) => s + x.schedMins, 0);
                 return {
                   date,
-                  shifts: sorted,
+                  shifts: deduped,
                   actualMins: sorted.reduce((s, x) => s + x.actualMins, 0),
                   schedMins,
                   otMins,

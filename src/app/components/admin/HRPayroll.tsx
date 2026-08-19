@@ -282,14 +282,28 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
       return day.startsWith(payrollMonth);
     };
 
+    // Gộp ca TRÙNG HỆT (cùng ngày/giờ vào/giờ ra/chi nhánh) → chỉ tính 1 lần, giữ ca "đầy" nhất
+    // (có check-in/đơn). Tránh cộng đôi giờ công khi DB lỡ có ca bị nhân đôi.
+    const shiftRichness = (s: any) =>
+      (s.checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number(s.closingOrderCount) || 0);
+    const dedupeShifts = (list: Shift[]) => {
+      const best = new Map<string, Shift>();
+      for (const s of list) {
+        const key = `${s.date}|${s.startTime}|${s.endTime}|${(s as any).branch || ''}`;
+        const cur = best.get(key);
+        if (!cur || shiftRichness(s) > shiftRichness(cur)) best.set(key, s);
+      }
+      return [...best.values()];
+    };
+
     const records: EmployeeRecord[] = relevantEmployees
       .map((emp) => {
-        const employeeShifts = shifts.filter(
+        const employeeShifts = dedupeShifts(shifts.filter(
           (s) =>
             s.employeeId === emp.id &&
             (!byBranch || s.branch === payrollBranchFilter) &&
             inPeriod(s.date)
-        );
+        ));
         if (byBranch && employeeShifts.length === 0) return null; // gán CN nhưng chưa có ca nào ở đây — chưa phát sinh chi phí
 
         const hoursWorked = sumHours(employeeShifts);

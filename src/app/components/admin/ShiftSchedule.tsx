@@ -389,14 +389,32 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     }
   };
 
+  // Điểm "độ đầy" của 1 ca — dùng để khi có 2 ca TRÙNG HỆT (cùng giờ vào/ra/chi nhánh) thì GIỮ ca
+  // đã thực sự làm (có check-in, có đơn, đang/đã chạy) và ẩn ca trùng trống trơn.
+  const shiftRichness = (s: Shift) =>
+    ((s as any).checkIn ? 1000 : 0) +
+    (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) +
+    (Number((s as any).closingOrderCount) || 0);
+
+  // Gộp các ca TRÙNG HỆT nhau (1 người không thể có 2 ca cùng giờ cùng chi nhánh) → chỉ hiện 1.
+  const dedupeSameSlot = (list: Shift[]) => {
+    const best = new Map<string, Shift>();
+    for (const s of list) {
+      const key = `${s.startTime}|${s.endTime}|${s.branch || ''}`;
+      const cur = best.get(key);
+      if (!cur || shiftRichness(s) > shiftRichness(cur)) best.set(key, s);
+    }
+    return [...best.values()];
+  };
+
   const getShiftsForCell = (employeeId: string, date: string) =>
-    shifts
-      .filter(s =>
+    dedupeSameSlot(
+      shifts.filter(s =>
         s.employeeId === employeeId && s.date === date &&
         (shiftBranch ? s.branch === shiftBranch : true) &&
         s.status !== 'pending' && s.status !== 'rejected'
       )
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    ).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   // Lịch của nhân viên tại các chi nhánh KHÁC — chỉ để xem (không sửa được ở đây), giúp
   // admin thấy ngay nhân viên hỗ trợ đã bận ngày nào bên chi nhánh kia mà không cần đổi

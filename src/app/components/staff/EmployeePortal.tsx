@@ -231,11 +231,16 @@ export function EmployeePortal() {
       if (cameraMode === 'in') {
         await checkIn(shift.id, photoUrl);
       } else {
-        const shiftOrders = [...orders, ...history].filter(o => o.shiftId === shift.id);
-        const count = shiftOrders.length;
-        const total = shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+        // Nếu ca đã kết ca trước đó (vd kết trên máy POS) thì lần này CHỈ bổ sung ảnh check-out —
+        // không hiện lại bảng tổng kết ca.
+        const wasOpen = !shift.checkOut;
         await checkOut(shift.id, photoUrl);
-        setShiftSummary({ count, total });
+        if (wasOpen) {
+          const shiftOrders = [...orders, ...history].filter(o => o.shiftId === shift.id);
+          const count = shiftOrders.length;
+          const total = shiftOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+          setShiftSummary({ count, total });
+        }
       }
       setCameraMode(null);
       setCameraShift(null);
@@ -604,9 +609,26 @@ export function EmployeePortal() {
                         </button>
                       )}
                       {s.checkIn && s.checkOut && (
-                        <div className="flex items-center justify-center gap-2 text-green-600 font-semibold py-1">
-                          <CheckCircle className="w-5 h-5" /> Đã hoàn thành ca này
-                        </div>
+                        <>
+                          <div className="flex items-center justify-center gap-2 text-green-600 font-semibold py-1">
+                            <CheckCircle className="w-5 h-5" /> Đã hoàn thành ca này
+                          </div>
+                          {/* Ca có thể đã được KẾT CA TRÊN MÁY POS (không chụp ảnh) → vẫn bắt nhân
+                              viên chụp ảnh check-out trên điện thoại để có ảnh xác nhận. */}
+                          {!s.checkOutPhoto && (
+                            <div className="space-y-1.5">
+                              <button
+                                onClick={() => { setCameraShift(s); setCameraMode('out'); }}
+                                className="w-full bg-emerald-600 active:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 min-h-[56px]"
+                              >
+                                <Camera className="w-5 h-5" /> Chụp ảnh Check-out
+                              </button>
+                              <p className="text-xs text-amber-700 text-center font-semibold">
+                                ⚠️ Ca đã kết trên máy POS — bạn vẫn cần chụp ảnh check-out để xác nhận.
+                              </p>
+                            </div>
+                          )}
+                        </>
                       )}
 
                       {/* Làm thêm giờ (OT) */}

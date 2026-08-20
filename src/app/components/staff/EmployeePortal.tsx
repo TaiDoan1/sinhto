@@ -75,6 +75,9 @@ export function EmployeePortal() {
   const [closingShiftOrders, setClosingShiftOrders] = useState<any[] | null>(null);
   const [closingBillTemplate, setClosingBillTemplate] = useState<ShiftClosingBillTemplate>(DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE);
   const [closingActualCashInput, setClosingActualCashInput] = useState('');
+  const [closingCheckoutPhoto, setClosingCheckoutPhoto] = useState(''); // ảnh check-out chụp lúc kết ca
+  const [closingCameraOpen, setClosingCameraOpen] = useState(false);
+  const [closingPhotoUploading, setClosingPhotoUploading] = useState(false);
   const [closingSubmitting, setClosingSubmitting] = useState(false);
   const [findingShiftToClose, setFindingShiftToClose] = useState(false);
   const [showBillPreview, setShowBillPreview] = useState(false);
@@ -142,9 +145,22 @@ export function EmployeePortal() {
   // khi tất cả ca trong ngày đều đã xong — để nhân viên vẫn chụp được ảnh bổ sung.
   // TẤT CẢ ca hôm nay (không gộp còn 1) — nhân viên có thể làm 2 ca/2 chi nhánh trong ngày, mỗi ca
   // cần check-in/check-out/kết ca RIÊNG. Trước đây chỉ lấy 1 ca nên ca kia bị kẹt (không tan ca được).
-  const todayShiftList = myShifts
-    .filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  // Gộp ca TRÙNG HỆT (cùng giờ vào–ra/chi nhánh) → chỉ hiện 1, giữ ca "đầy" nhất (đã check-in/
+  // đang hoặc đã chạy). Tránh app hiện đúp khi DB lỡ có ca bị nhân đôi.
+  const dedupeSameSlot = (list: WorkShift[]) => {
+    const rich = (s: WorkShift) =>
+      ((s as any).checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number((s as any).closingOrderCount) || 0);
+    const best = new Map<string, WorkShift>();
+    for (const s of list) {
+      const key = `${s.startTime}|${s.endTime}|${(s as any).branch || ''}`;
+      const cur = best.get(key);
+      if (!cur || rich(s) > rich(cur)) best.set(key, s);
+    }
+    return [...best.values()];
+  };
+  const todayShiftList = dedupeSameSlot(
+    myShifts.filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
+  ).sort((a, b) => a.startTime.localeCompare(b.startTime));
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));
 
   // Lịch cả chi nhánh — gộp theo ngày để hiện dạng "ngày -> danh sách ai làm ca nào", chỉ lấy từ
@@ -285,6 +301,7 @@ export function EmployeePortal() {
   // Tìm ca đang mở (in_progress) của chính mình để kết ca — không giới hạn theo chi nhánh vì
   // nhân viên có thể hỗ trợ chi nhánh khác chi nhánh mặc định của họ.
   const handleOpenEndShift = async (shift?: WorkShift) => {
+    setClosingCheckoutPhoto(''); // reset ảnh check-out mỗi lần mở kết ca
     // Nếu truyền đúng ca (từ thẻ ca cụ thể) → kết đúng ca đó. Không truyền → tìm ca in_progress đầu tiên.
     if (shift) {
       setClosingShift(shift);
@@ -318,15 +335,36 @@ export function EmployeePortal() {
       })()
     : null;
 
+  // Chụp ảnh check-out ngay trong luồng kết ca (bắt buộc, giống check-in) — trước đây kết ca không
+  // kèm ảnh nên ca hoàn thành mà thiếu ảnh check-out.
+  const handleClosingPhotoCapture = async (file: File) => {
+    setClosingPhotoUploading(true);
+    try {
+      const url = await api.uploadImage(file);
+      setClosingCheckoutPhoto(url);
+      setClosingCameraOpen(false);
+    } catch {
+      alert('Tải ảnh thất bại. Vui lòng chụp lại.');
+    } finally {
+      setClosingPhotoUploading(false);
+    }
+  };
+
   const handleConfirmEndShift = async () => {
     if (!closingShift || !closingSummary) return;
     if (closingActualCashInput.trim() === '' || Number.isNaN(Number(closingActualCashInput))) {
       alert('Vui lòng nhập số tiền mặt thực tế đếm được.');
       return;
     }
+    // Bắt buộc có ảnh check-out (trừ khi ca đã có ảnh từ trước) — để luôn có ảnh xác nhận tan ca.
+    const photoToSend = closingCheckoutPhoto || (closingShift as any).checkOutPhoto || '';
+    if (!photoToSend) {
+      alert('Vui lòng chụp ảnh check-out trước khi kết ca.');
+      return;
+    }
     setClosingSubmitting(true);
     try {
-      await api.shiftCheckIn(closingShift.id, 'out', undefined, { endCashActual: Number(closingActualCashInput) });
+      await api.shiftCheckIn(closingShift.id, 'out', closingCheckoutPhoto || undefined, { endCashActual: Number(closingActualCashInput) });
       // Bill online — hiện ngay trên màn hình thay vì bắt buộc in giấy, đỡ tốn giấy như yêu cầu.
       const finalSummary = { ...closingSummary, endCashActual: Number(closingActualCashInput) };
       setClosedSummary(finalSummary);
@@ -883,6 +921,13 @@ export function EmployeePortal() {
           onCancel={() => { setCameraMode(null); setCameraShift(null); }}
         />
       )}
+      {closingCameraOpen && (
+        <AttendanceCamera
+          label="Chụp ảnh Check-out (kết ca)"
+          onCapture={handleClosingPhotoCapture}
+          onCancel={() => setClosingCameraOpen(false)}
+        />
+      )}
 
       {otShift && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
@@ -1120,6 +1165,31 @@ export function EmployeePortal() {
               </div>
             )}
 
+            {/* Ảnh check-out BẮT BUỘC (giống check-in) */}
+            <div className="text-left mt-4">
+              <p className="text-xs font-semibold text-gray-700 mb-1.5">📸 Ảnh check-out <span className="text-red-500">*</span></p>
+              {closingCheckoutPhoto || (closingShift as any).checkOutPhoto ? (
+                <div className="relative">
+                  <img src={closingCheckoutPhoto || (closingShift as any).checkOutPhoto} alt="Check-out" className="w-full max-h-48 object-cover rounded-xl border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => { setClosingCheckoutPhoto(''); setClosingCameraOpen(true); }}
+                    className="absolute bottom-2 right-2 bg-white/90 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1"
+                  >
+                    <Camera className="w-3.5 h-3.5" /> Chụp lại
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setClosingCameraOpen(true)}
+                  className="w-full border-2 border-dashed border-emerald-400 text-emerald-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-5 h-5" /> Chụp ảnh check-out
+                </button>
+              )}
+            </div>
+
             <p className="text-[11px] text-gray-400 text-center mt-4">
               Bấm "Xác nhận kết ca" bên dưới — bill sẽ hiện ngay trên màn hình, không cần in giấy.
             </p>
@@ -1134,11 +1204,11 @@ export function EmployeePortal() {
               </button>
               <button
                 type="button"
-                disabled={closingSubmitting}
+                disabled={closingSubmitting || closingPhotoUploading}
                 onClick={handleConfirmEndShift}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white py-3 rounded-xl font-bold"
               >
-                {closingSubmitting ? 'Đang kết ca...' : 'Xác nhận kết ca'}
+                {closingSubmitting ? 'Đang kết ca...' : closingPhotoUploading ? 'Đang tải ảnh...' : 'Xác nhận kết ca'}
               </button>
             </div>
           </div>

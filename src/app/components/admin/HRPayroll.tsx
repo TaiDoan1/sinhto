@@ -285,6 +285,7 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
     // Gộp ca TRÙNG HỆT (cùng ngày/giờ vào/giờ ra/chi nhánh) → chỉ tính 1 lần, giữ ca "đầy" nhất
     // (có check-in/đơn). Tránh cộng đôi giờ công khi DB lỡ có ca bị nhân đôi.
     const shiftRichness = (s: any) =>
+      (s.checkInPhoto ? 2000 : 0) + (s.checkOutPhoto ? 500 : 0) +
       (s.checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number(s.closingOrderCount) || 0);
     const dedupeShifts = (list: Shift[]) => {
       const best = new Map<string, Shift>();

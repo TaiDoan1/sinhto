@@ -155,6 +155,7 @@ export function StoreManagerAttendance() {
         id: s.id,
         checkIn: s.checkIn,
         checkOut: s.checkOut,
+        checkInPhoto: (s as any).checkInPhoto,
         startTime: s.startTime,
         endTime: s.endTime,
         actualMins: workMinutes(s.checkIn, s.checkOut),
@@ -185,7 +186,7 @@ export function StoreManagerAttendance() {
                 for (const x of sorted) {
                   const key = `${x.startTime}|${x.endTime}`;
                   const cur = bySlot.get(key);
-                  const rich = (v: typeof x) => (v.checkOut ? 100000 : 0) + (Number(v.actualMins) || 0);
+                  const rich = (v: typeof x) => ((v as any).checkInPhoto ? 1000000 : 0) + (v.checkOut ? 100000 : 0) + (Number(v.actualMins) || 0);
                   if (!cur || rich(x) > rich(cur)) bySlot.set(key, x);
                 }
                 const deduped = [...bySlot.values()];

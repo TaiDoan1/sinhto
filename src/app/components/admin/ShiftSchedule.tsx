@@ -392,6 +392,8 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   // Điểm "độ đầy" của 1 ca — dùng để khi có 2 ca TRÙNG HỆT (cùng giờ vào/ra/chi nhánh) thì GIỮ ca
   // đã thực sự làm (có check-in, có đơn, đang/đã chạy) và ẩn ca trùng trống trơn.
   const shiftRichness = (s: Shift) =>
+    ((s as any).checkInPhoto ? 2000 : 0) + // ưu tiên ca có ẢNH check-in thật (từ điện thoại) → giữ đúng giờ vào ca
+    ((s as any).checkOutPhoto ? 500 : 0) +
     ((s as any).checkIn ? 1000 : 0) +
     (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) +
     (Number((s as any).closingOrderCount) || 0);

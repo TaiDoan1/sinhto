@@ -128,9 +128,23 @@ export function PosProvider({ children }: { children: ReactNode }) {
 
       if (!shiftToCheckIn) return;
 
-      // Chỉ tự check-in nếu CHƯA có ca nào đang mở (tránh tạo 2 ca in_progress chồng nhau khi
-      // ca trước chưa kết ca).
+      // TUYỆT ĐỐI không tự check-in ĐÈ khi nhân viên ĐÃ check-in ca này (hoặc 1 ca trùng giờ) từ
+      // trước — ví dụ đã check-in bằng ĐIỆN THOẠI sớm hơn. Nếu không, mở POS sẽ lấy GIỜ ĐĂNG NHẬP
+      // POS ghi đè lên giờ vào ca thật. Kiểm tra trên MỌI ca hôm nay (kể cả dòng trùng/chi nhánh
+      // khác), không chỉ ca đúng chi nhánh máy.
+      const overlaps = (a, b) => {
+        let a1 = toMinutes(a.startTime), a2 = toMinutes(a.endTime); if (a2 <= a1) a2 += 1440;
+        let b1 = toMinutes(b.startTime), b2 = toMinutes(b.endTime); if (b2 <= b1) b2 += 1440;
+        return a1 < b2 && b1 < a2;
+      };
+      const alreadyCheckedIn =
+        !!shiftToCheckIn.checkIn ||
+        notDone.some((s) => s.checkIn && overlaps(s, shiftToCheckIn));
+
+      // Chỉ tự check-in nếu CHƯA check-in & CHƯA có ca nào đang mở (tránh tạo 2 ca in_progress
+      // chồng nhau khi ca trước chưa kết ca).
       if (
+        !alreadyCheckedIn &&
         shiftToCheckIn.status !== 'in_progress' &&
         !forBranch.some((s) => s.status === 'in_progress')
       ) {

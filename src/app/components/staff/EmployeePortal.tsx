@@ -149,6 +149,8 @@ export function EmployeePortal() {
   // đang hoặc đã chạy). Tránh app hiện đúp khi DB lỡ có ca bị nhân đôi.
   const dedupeSameSlot = (list: WorkShift[]) => {
     const rich = (s: WorkShift) =>
+      ((s as any).checkInPhoto ? 2000 : 0) + // ưu tiên ca có ẢNH check-in (check-in thật từ điện thoại) → giữ đúng giờ vào ca
+      ((s as any).checkOutPhoto ? 500 : 0) +
       ((s as any).checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number((s as any).closingOrderCount) || 0);
     const best = new Map<string, WorkShift>();
     for (const s of list) {

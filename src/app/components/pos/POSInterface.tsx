@@ -56,6 +56,7 @@ import {
 } from '../../utils/posPrint';
 import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
+import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode } from '../../hooks/usePosOrderNotificationText';
 
 type PosTab = 'products' | 'combosale' | 'orders' | 'combos' | 'schedule' | 'warehouse' | 'history' | 'admin' | 'macro';
@@ -556,7 +557,7 @@ function POSInterfaceInner() {
         }
         return currentHour >= startHour && currentHour < endHour;
       });
-      setCurrentShifts(todayShifts);
+      setCurrentShifts(dedupeShiftsBySlot(todayShifts));
     } catch (err) {
       console.error('Failed to load shifts for POS:', err);
       setCurrentShifts([]);

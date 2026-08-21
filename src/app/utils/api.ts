@@ -652,6 +652,17 @@ export async function saveShift(shift: any) {
   return res.json();
 }
 
+/** Dọn ca trùng hệt trong ngày/chi nhánh — giữ ca đầy nhất, xóa ca trùng rỗng (0 đơn). */
+export async function dedupeShifts(params: { date?: string; branch?: string }): Promise<{ removed: number }> {
+  const res = await fetch(`${BASE_URL}/shifts/dedupe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error('Không dọn được ca trùng');
+  return res.json();
+}
+
 export async function deleteShift(id: string) {
   const res = await fetch(`${BASE_URL}/shifts/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete shift');

@@ -5,6 +5,7 @@ import { useBranches } from '../../contexts/BranchContext';
 import type { WorkShift } from '../../types/employee';
 import type { Employee } from './EmployeeRegistration';
 import { usePagination, Pager } from '../common/Pagination';
+import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 
 interface CheckInRecord {
   id: string;
@@ -50,8 +51,7 @@ export function StoreManagerCheckinHistory() {
   // Dựng bản ghi check-in từ ca làm (giống hệt logic Admin trong HRPayroll)
   const checkinRecords = useMemo<CheckInRecord[]>(() => {
     if (employees.length === 0) return [];
-    return shifts
-      .filter((s) => s.checkIn)
+    return dedupeShiftsBySlot(shifts.filter((s) => s.checkIn))
       .map((s) => {
         const emp = employees.find((e) => e.id === s.employeeId);
         const checkInDate = new Date(s.checkIn!);

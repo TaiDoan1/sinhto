@@ -1511,6 +1511,55 @@ app.put('/api/shifts/:id', (req, res) => {
   });
 });
 
+// Dọn ca TRÙNG HỆT (cùng nhân viên/ngày/giờ vào–ra/chi nhánh): giữ ca "đầy" nhất (có ảnh
+// check-in / có đơn), XÓA các ca trùng RỖNG (không đơn) còn lại. An toàn: KHÔNG bao giờ xóa ca
+// có đơn hàng (closingOrderCount > 0 hoặc có đơn gán vào ca). Trả về số ca đã dọn.
+app.post('/api/shifts/dedupe', (req, res) => {
+  const { date, branch } = req.body || {};
+  const clauses = ["status NOT IN ('rejected','cancelled')"];
+  const params = [];
+  if (date) { clauses.push('date = ?'); params.push(date); }
+  if (branch) { clauses.push("COALESCE(branch,'') = ?"); params.push(branch); }
+  const sql = `SELECT * FROM shifts WHERE ${clauses.join(' AND ')}`;
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const groups = new Map();
+    for (const s of rows || []) {
+      const key = `${s.employeeId}|${s.date}|${s.startTime}|${s.endTime}|${s.branch || ''}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(s);
+    }
+    const rich = (s) =>
+      (s.checkInPhoto ? 2000 : 0) + (s.checkOutPhoto ? 500 : 0) + (s.checkIn ? 1000 : 0) +
+      (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number(s.closingOrderCount) || 0);
+    const toDelete = [];
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const keep = [...list].sort((a, b) => rich(b) - rich(a))[0];
+      for (const s of list) {
+        if (s.id === keep.id) continue;
+        if (Number(s.closingOrderCount) > 0) continue; // an toàn: không xóa ca có đơn
+        toDelete.push(s);
+      }
+    }
+    if (toDelete.length === 0) return res.json({ removed: 0 });
+    // Kiểm tra thêm: bỏ qua ca có đơn thực tế gán vào (dù snapshot = 0), để không mất liên kết đơn.
+    const ids = toDelete.map((s) => s.id);
+    const ph = ids.map(() => '?').join(',');
+    db.all(`SELECT DISTINCT shiftId FROM orders WHERE shiftId IN (${ph})`, ids, (oErr, orows) => {
+      const withOrders = new Set((oErr ? [] : orows || []).map((r) => r.shiftId));
+      const finalDel = toDelete.filter((s) => !withOrders.has(s.id));
+      if (finalDel.length === 0) return res.json({ removed: 0 });
+      const dph = finalDel.map(() => '?').join(',');
+      db.run(`DELETE FROM shifts WHERE id IN (${dph})`, finalDel.map((s) => s.id), function (dErr) {
+        if (dErr) return res.status(500).json({ error: dErr.message });
+        finalDel.forEach((s) => broadcast('SHIFT_DELETED', { id: s.id }));
+        res.json({ removed: finalDel.length });
+      });
+    });
+  });
+});
+
 app.patch('/api/shifts/:id/checkin', (req, res) => {
   const { id } = req.params;
   const { action, photo, startCash, endCashActual } = req.body;

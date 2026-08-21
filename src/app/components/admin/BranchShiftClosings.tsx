@@ -6,6 +6,7 @@ import { useOrders } from '../../contexts/OrderContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { buildShiftClosingReceiptData, printShiftClosingReceipt, DEFAULT_SHIFT_CLOSING_BILL_TEMPLATE } from '../../utils/posPrint';
+import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { getModeFromPath } from '../../utils/appMode';
 
 function formatItemLine(item: any) {
@@ -90,6 +91,21 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       .fetchShifts({ branch: branchId, date })
       .then((data: ShiftRow[]) => setShifts(data))
       .catch((err) => console.error('Failed to load shifts:', err));
+  };
+
+  const [dedupingShifts, setDedupingShifts] = useState(false);
+  const handleDedupeShifts = async () => {
+    if (!confirm('Dọn ca trùng trong ngày này? Sẽ xóa các ca bị nhân đôi RỖNG (0 đơn), giữ lại ca có đơn/ảnh.')) return;
+    setDedupingShifts(true);
+    try {
+      const { removed } = await api.dedupeShifts({ date, branch: branchId });
+      showSuccess(removed > 0 ? `Đã dọn ${removed} ca trùng.` : 'Không có ca trùng nào để dọn.');
+      load();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Không dọn được ca trùng');
+    } finally {
+      setDedupingShifts(false);
+    }
   };
 
   // Mở lại ca đã kết (nhân viên lỡ bấm kết ca khi còn đang làm) — đưa status về 'in_progress'
@@ -232,7 +248,8 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   //  - Ca NGHỈ (shiftType 'off'): không hiện thành thẻ kết ca, chỉ gom xuống mục "Nghỉ" cho gọn.
   const isCancelled = (s: ShiftRow) => s.status === 'rejected' || s.status === 'cancelled';
   const isOff = (s: ShiftRow) => s.shiftType === 'off';
-  const working = sorted.filter((s) => !isOff(s) && !isCancelled(s));
+  // Gộp ca TRÙNG HỆT (dữ liệu cũ lỡ có ca đúp) → chỉ hiện 1 ca đầy nhất (giữ ca có ảnh/đơn).
+  const working = dedupeShiftsBySlot(sorted.filter((s) => !isOff(s) && !isCancelled(s)));
   const offList = sorted.filter((s) => isOff(s) && !isCancelled(s));
   const dayTotal = working.reduce((sum, s) => sum + getStat(s).total, 0);
   const closedCount = working.filter((s) => s.status === 'completed').length;
@@ -246,14 +263,25 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
             {closedCount}/{working.length} đã kết ca • Tổng doanh thu: {dayTotal.toLocaleString('vi-VN')}đ
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="outline-none text-sm font-semibold text-gray-700"
-          />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDedupeShifts}
+            disabled={dedupingShifts}
+            className="flex items-center gap-1.5 bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60 rounded-lg px-3 py-2 text-sm font-bold"
+            title="Xóa ca bị nhân đôi rỗng (0 đơn), giữ ca có đơn"
+          >
+            🧹 {dedupingShifts ? 'Đang dọn...' : 'Dọn ca trùng'}
+          </button>
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="outline-none text-sm font-semibold text-gray-700"
+            />
+          </div>
         </div>
       </div>
 

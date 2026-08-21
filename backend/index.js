@@ -1511,77 +1511,38 @@ app.put('/api/shifts/:id', (req, res) => {
   });
 });
 
-// GỘP ca TRÙNG HỆT (cùng nhân viên/ngày/giờ vào–ra/chi nhánh) về ĐÚNG 1 ca: dồn hết ĐƠN HÀNG +
-// TIỀN MẶT (chi/thu) + ẢNH + lấy GIỜ VÀO sớm nhất / GIỜ RA muộn nhất về ca sống sót, tính lại
-// snapshot doanh thu, rồi xoá các dòng thừa. KHÔNG mất đơn / không double / gộp đủ dữ liệu bị chia.
+// TÍNH LẠI SNAPSHOT ca theo ĐƠN KHÔNG TRÙNG ID (an toàn, idempotent): sửa closingOrderCount/
+// closingRevenue = số đơn THỰC (đếm distinct id, gộp orders + orders_archive) của TỪNG ca. KHÔNG
+// dồn đơn, KHÔNG xoá ca, KHÔNG đụng giờ — chỉ chữa số liệu bị đếm trùng. (Doanh thu tổng lấy từ
+// báo cáo Doanh Thu, đếm mỗi đơn 1 lần, là chuẩn nhất.)
 app.post('/api/shifts/dedupe', (req, res) => {
   const { date, branch } = req.body || {};
   const dbAll = (sql, p = []) => new Promise((resolve, reject) => db.all(sql, p, (e, r) => (e ? reject(e) : resolve(r || []))));
   const dbRun = (sql, p = []) => new Promise((resolve, reject) => db.run(sql, p, function (e) { e ? reject(e) : resolve(this); }));
-  const dbRunSafe = (sql, p = []) => dbRun(sql, p).catch(() => null); // bảng/cột có thể thiếu (archive) → bỏ qua
 
   (async () => {
-    const clauses = ["status NOT IN ('rejected','cancelled')"];
+    const clauses = ["status = 'completed'"];
     const params = [];
     if (date) { clauses.push('date = ?'); params.push(date); }
     if (branch) { clauses.push("COALESCE(branch,'') = ?"); params.push(branch); }
     const rows = await dbAll(`SELECT * FROM shifts WHERE ${clauses.join(' AND ')}`, params);
 
-    const groups = new Map();
+    let fixed = 0;
     for (const s of rows) {
-      const key = `${s.employeeId}|${s.date}|${s.startTime}|${s.endTime}|${s.branch || ''}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(s);
-    }
-
-    let mergedGroups = 0, removed = 0;
-    for (const list of groups.values()) {
-      if (list.length < 2) continue;
-      // Ca sống sót: ưu tiên có ảnh check-in → nhiều đơn snapshot → đang làm.
-      const rank = (s) => (s.checkInPhoto ? 100000 : 0) + (Number(s.closingOrderCount) || 0) + (s.status === 'in_progress' ? 1 : 0);
-      const survivor = [...list].sort((a, b) => rank(b) - rank(a))[0];
-      const others = list.filter((s) => s.id !== survivor.id);
-
-      // 1) Dồn đơn hàng + tiền mặt của các ca thừa về ca sống sót.
-      for (const o of others) {
-        await dbRunSafe('UPDATE orders SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
-        await dbRunSafe('UPDATE orders_archive SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
-        await dbRunSafe('UPDATE shift_cash_movements SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
+      const o1 = await dbAll('SELECT id, total FROM orders WHERE shiftId = ?', [s.id]);
+      let o2 = [];
+      try { o2 = await dbAll('SELECT id, total FROM orders_archive WHERE shiftId = ?', [s.id]); } catch { o2 = []; }
+      const seen = new Map();
+      for (const o of [...o1, ...o2]) if (!seen.has(o.id)) seen.set(o.id, Number(o.total) || 0);
+      const cnt = seen.size;
+      const rev = [...seen.values()].reduce((a, b) => a + b, 0);
+      if ((Number(s.closingOrderCount) || 0) !== cnt || (Number(s.closingRevenue) || 0) !== rev) {
+        await dbRun('UPDATE shifts SET closingOrderCount = ?, closingRevenue = ? WHERE id = ?', [cnt, rev, s.id]);
+        broadcast('SHIFT_UPDATED', { ...s, closingOrderCount: cnt, closingRevenue: rev });
+        fixed++;
       }
-
-      // 2) Gộp field: giờ VÀO sớm nhất hợp lệ, giờ RA muộn nhất, ảnh bất kỳ, đã hoàn thành nếu có.
-      const checkIns = list.map((s) => s.checkIn).filter(Boolean).sort();
-      const checkOuts = list.map((s) => s.checkOut).filter(Boolean).sort();
-      const checkIn = checkIns[0] || '';
-      const checkOut = checkOuts[checkOuts.length - 1] || '';
-      const checkInPhoto = list.map((s) => s.checkInPhoto).find(Boolean) || '';
-      const checkOutPhoto = list.map((s) => s.checkOutPhoto).find(Boolean) || '';
-      const status = list.some((s) => s.status === 'completed') ? 'completed'
-        : (list.some((s) => s.status === 'in_progress') ? 'in_progress' : survivor.status);
-      const startCash = Math.max(...list.map((s) => Number(s.startCash) || 0));
-      const endCashActual = Math.max(...list.map((s) => Number(s.endCashActual) || 0));
-      const overtimeHours = Math.max(...list.map((s) => Number(s.overtimeHours) || 0));
-      const overtimeStatus = list.map((s) => s.overtimeStatus).find((v) => v === 'approved' || v === 'pending') || survivor.overtimeStatus || '';
-
-      // 3) Tính lại snapshot doanh thu từ đơn giờ đã dồn hết về ca sống sót.
-      const oc = await dbAll('SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?', [survivor.id]);
-      let arcCnt = 0, arcRev = 0;
-      try { const ar = await dbAll('SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders_archive WHERE shiftId = ?', [survivor.id]); arcCnt = ar[0]?.cnt || 0; arcRev = ar[0]?.rev || 0; } catch { /* archive có thể thiếu */ }
-      const closingOrderCount = (oc[0]?.cnt || 0) + arcCnt;
-      const closingRevenue = (oc[0]?.rev || 0) + arcRev;
-
-      await dbRun(
-        'UPDATE shifts SET checkIn=?, checkOut=?, checkInPhoto=?, checkOutPhoto=?, status=?, startCash=?, endCashActual=?, closingOrderCount=?, closingRevenue=?, overtimeHours=?, overtimeStatus=? WHERE id=?',
-        [checkIn, checkOut, checkInPhoto, checkOutPhoto, status, startCash, endCashActual, closingOrderCount, closingRevenue, overtimeHours, overtimeStatus, survivor.id]
-      );
-
-      // 4) Xoá các dòng thừa (đơn/tiền đã dồn hết sang survivor).
-      for (const o of others) { await dbRun('DELETE FROM shifts WHERE id = ?', [o.id]); broadcast('SHIFT_DELETED', { id: o.id }); removed++; }
-      broadcast('SHIFT_UPDATED', { ...survivor, checkIn, checkOut, checkInPhoto, checkOutPhoto, status, startCash, endCashActual, closingOrderCount, closingRevenue, overtimeHours, overtimeStatus });
-      mergedGroups++;
     }
-
-    res.json({ removed, mergedGroups });
+    res.json({ fixed, removed: 0 });
   })().catch((e) => res.status(500).json({ error: e.message }));
 });
 

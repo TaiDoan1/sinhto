@@ -93,38 +93,16 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       .catch((err) => console.error('Failed to load shifts:', err));
   };
 
-  // TỰ ĐỘNG gộp ca trùng khi vào màn (không cần bấm tay): nếu phát hiện 2 ca cùng slot thì gộp về 1
-  // — dồn đơn/tiền/ảnh, lấy giờ đúng. Chỉ chạy 1 lần cho mỗi ngày/chi nhánh để tránh lặp.
-  const autoMergedRef = useRef('');
-  useEffect(() => {
-    const tag = `${branchId}|${date}`;
-    if (autoMergedRef.current === tag || shifts.length === 0) return;
-    const seen = new Set<string>();
-    let hasDup = false;
-    for (const s of shifts) {
-      if (s.status === 'rejected' || s.status === 'cancelled') continue;
-      const k = `${s.employeeId}|${s.startTime}|${s.endTime}|${s.branch || ''}`;
-      if (seen.has(k)) { hasDup = true; break; }
-      seen.add(k);
-    }
-    if (!hasDup) return;
-    autoMergedRef.current = tag; // đánh dấu đã tự gộp cho ngày/CN này
-    api.dedupeShifts({ date, branch: branchId })
-      .then(({ removed }) => { if (removed > 0) load(); })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shifts, date, branchId]);
-
   const [dedupingShifts, setDedupingShifts] = useState(false);
   const handleDedupeShifts = async () => {
-    if (!confirm('Gộp ca trùng trong ngày này? Các ca bị nhân đôi sẽ được GỘP về 1 ca — dồn hết đơn hàng + tiền mặt + ảnh, lấy giờ vào sớm nhất/giờ ra muộn nhất. Không mất đơn.')) return;
+    if (!confirm('Tính lại số đơn/doanh thu của các ca trong ngày (theo đơn KHÔNG trùng)? Chỉ sửa lại con số bị đếm trùng — KHÔNG đụng vào đơn hàng, tiền, hay giờ ca.')) return;
     setDedupingShifts(true);
     try {
-      const { removed } = await api.dedupeShifts({ date, branch: branchId });
-      showSuccess(removed > 0 ? `Đã gộp ${removed} ca trùng về 1.` : 'Không có ca trùng nào.');
+      const { fixed } = await api.dedupeShifts({ date, branch: branchId }) as any;
+      showSuccess(fixed > 0 ? `Đã tính lại số liệu cho ${fixed} ca.` : 'Số liệu các ca đã đúng.');
       load();
     } catch (e) {
-      showError(e instanceof Error ? e.message : 'Không gộp được ca trùng');
+      showError(e instanceof Error ? e.message : 'Không tính lại được số liệu');
     } finally {
       setDedupingShifts(false);
     }
@@ -293,7 +271,7 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
             className="flex items-center gap-1.5 bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60 rounded-lg px-3 py-2 text-sm font-bold"
             title="Xóa ca bị nhân đôi rỗng (0 đơn), giữ ca có đơn"
           >
-            🧹 {dedupingShifts ? 'Đang gộp...' : 'Gộp ca trùng'}
+            🧮 {dedupingShifts ? 'Đang tính...' : 'Tính lại số liệu'}
           </button>
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
             <Calendar className="w-4 h-4 text-gray-400" />

@@ -697,7 +697,7 @@ export function EmployeePortal() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <h3 className="font-bold text-gray-800 mb-3">Lịch sử chấm công gần đây</h3>
               <div className="space-y-3">
-                {myShifts.filter(s => s.checkIn).slice(0, 10).map(s => (
+                {dedupeShiftsBySlot(myShifts.filter(s => s.checkIn)).slice(0, 10).map(s => (
                   <div key={s.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <div>

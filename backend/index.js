@@ -1511,60 +1511,78 @@ app.put('/api/shifts/:id', (req, res) => {
   });
 });
 
-// Dọn ca TRÙNG HỆT (cùng nhân viên/ngày/giờ vào–ra/chi nhánh): giữ ca "đầy" nhất (có ảnh
-// check-in / có đơn), XÓA các ca trùng RỖNG (không đơn) còn lại. An toàn: KHÔNG bao giờ xóa ca
-// có đơn hàng (closingOrderCount > 0 hoặc có đơn gán vào ca). Trả về số ca đã dọn.
+// GỘP ca TRÙNG HỆT (cùng nhân viên/ngày/giờ vào–ra/chi nhánh) về ĐÚNG 1 ca: dồn hết ĐƠN HÀNG +
+// TIỀN MẶT (chi/thu) + ẢNH + lấy GIỜ VÀO sớm nhất / GIỜ RA muộn nhất về ca sống sót, tính lại
+// snapshot doanh thu, rồi xoá các dòng thừa. KHÔNG mất đơn / không double / gộp đủ dữ liệu bị chia.
 app.post('/api/shifts/dedupe', (req, res) => {
   const { date, branch } = req.body || {};
-  const clauses = ["status NOT IN ('rejected','cancelled')"];
-  const params = [];
-  if (date) { clauses.push('date = ?'); params.push(date); }
-  if (branch) { clauses.push("COALESCE(branch,'') = ?"); params.push(branch); }
-  const sql = `SELECT * FROM shifts WHERE ${clauses.join(' AND ')}`;
-  db.all(sql, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+  const dbAll = (sql, p = []) => new Promise((resolve, reject) => db.all(sql, p, (e, r) => (e ? reject(e) : resolve(r || []))));
+  const dbRun = (sql, p = []) => new Promise((resolve, reject) => db.run(sql, p, function (e) { e ? reject(e) : resolve(this); }));
+  const dbRunSafe = (sql, p = []) => dbRun(sql, p).catch(() => null); // bảng/cột có thể thiếu (archive) → bỏ qua
+
+  (async () => {
+    const clauses = ["status NOT IN ('rejected','cancelled')"];
+    const params = [];
+    if (date) { clauses.push('date = ?'); params.push(date); }
+    if (branch) { clauses.push("COALESCE(branch,'') = ?"); params.push(branch); }
+    const rows = await dbAll(`SELECT * FROM shifts WHERE ${clauses.join(' AND ')}`, params);
+
     const groups = new Map();
-    for (const s of rows || []) {
+    for (const s of rows) {
       const key = `${s.employeeId}|${s.date}|${s.startTime}|${s.endTime}|${s.branch || ''}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(s);
     }
-    const rich = (s) =>
-      (s.checkInPhoto ? 2000 : 0) + (s.checkOutPhoto ? 500 : 0) + (s.checkIn ? 1000 : 0) +
-      (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number(s.closingOrderCount) || 0);
-    const toDelete = [];
+
+    let mergedGroups = 0, removed = 0;
     for (const list of groups.values()) {
       if (list.length < 2) continue;
-      const keep = [...list].sort((a, b) => rich(b) - rich(a))[0];
-      for (const s of list) {
-        if (s.id === keep.id) continue;
-        if (s.status === 'in_progress') continue;        // an toàn: KHÔNG xoá ca ĐANG LÀM (đang chứa đơn)
-        if (Number(s.closingOrderCount) > 0) continue;   // an toàn: không xóa ca có đơn (snapshot)
-        if (s.checkInPhoto || s.checkOutPhoto) continue;  // an toàn: không xoá ca đã có ảnh chấm công
-        toDelete.push(s);
+      // Ca sống sót: ưu tiên có ảnh check-in → nhiều đơn snapshot → đang làm.
+      const rank = (s) => (s.checkInPhoto ? 100000 : 0) + (Number(s.closingOrderCount) || 0) + (s.status === 'in_progress' ? 1 : 0);
+      const survivor = [...list].sort((a, b) => rank(b) - rank(a))[0];
+      const others = list.filter((s) => s.id !== survivor.id);
+
+      // 1) Dồn đơn hàng + tiền mặt của các ca thừa về ca sống sót.
+      for (const o of others) {
+        await dbRunSafe('UPDATE orders SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
+        await dbRunSafe('UPDATE orders_archive SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
+        await dbRunSafe('UPDATE shift_cash_movements SET shiftId = ? WHERE shiftId = ?', [survivor.id, o.id]);
       }
+
+      // 2) Gộp field: giờ VÀO sớm nhất hợp lệ, giờ RA muộn nhất, ảnh bất kỳ, đã hoàn thành nếu có.
+      const checkIns = list.map((s) => s.checkIn).filter(Boolean).sort();
+      const checkOuts = list.map((s) => s.checkOut).filter(Boolean).sort();
+      const checkIn = checkIns[0] || '';
+      const checkOut = checkOuts[checkOuts.length - 1] || '';
+      const checkInPhoto = list.map((s) => s.checkInPhoto).find(Boolean) || '';
+      const checkOutPhoto = list.map((s) => s.checkOutPhoto).find(Boolean) || '';
+      const status = list.some((s) => s.status === 'completed') ? 'completed'
+        : (list.some((s) => s.status === 'in_progress') ? 'in_progress' : survivor.status);
+      const startCash = Math.max(...list.map((s) => Number(s.startCash) || 0));
+      const endCashActual = Math.max(...list.map((s) => Number(s.endCashActual) || 0));
+      const overtimeHours = Math.max(...list.map((s) => Number(s.overtimeHours) || 0));
+      const overtimeStatus = list.map((s) => s.overtimeStatus).find((v) => v === 'approved' || v === 'pending') || survivor.overtimeStatus || '';
+
+      // 3) Tính lại snapshot doanh thu từ đơn giờ đã dồn hết về ca sống sót.
+      const oc = await dbAll('SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?', [survivor.id]);
+      let arcCnt = 0, arcRev = 0;
+      try { const ar = await dbAll('SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders_archive WHERE shiftId = ?', [survivor.id]); arcCnt = ar[0]?.cnt || 0; arcRev = ar[0]?.rev || 0; } catch { /* archive có thể thiếu */ }
+      const closingOrderCount = (oc[0]?.cnt || 0) + arcCnt;
+      const closingRevenue = (oc[0]?.rev || 0) + arcRev;
+
+      await dbRun(
+        'UPDATE shifts SET checkIn=?, checkOut=?, checkInPhoto=?, checkOutPhoto=?, status=?, startCash=?, endCashActual=?, closingOrderCount=?, closingRevenue=?, overtimeHours=?, overtimeStatus=? WHERE id=?',
+        [checkIn, checkOut, checkInPhoto, checkOutPhoto, status, startCash, endCashActual, closingOrderCount, closingRevenue, overtimeHours, overtimeStatus, survivor.id]
+      );
+
+      // 4) Xoá các dòng thừa (đơn/tiền đã dồn hết sang survivor).
+      for (const o of others) { await dbRun('DELETE FROM shifts WHERE id = ?', [o.id]); broadcast('SHIFT_DELETED', { id: o.id }); removed++; }
+      broadcast('SHIFT_UPDATED', { ...survivor, checkIn, checkOut, checkInPhoto, checkOutPhoto, status, startCash, endCashActual, closingOrderCount, closingRevenue, overtimeHours, overtimeStatus });
+      mergedGroups++;
     }
-    if (toDelete.length === 0) return res.json({ removed: 0 });
-    // Kiểm tra thêm: bỏ qua ca có đơn thực tế gán vào (kể cả đơn đã kết ca → orders_archive), để
-    // KHÔNG BAO GIỜ làm mất liên kết đơn hàng.
-    const ids = toDelete.map((s) => s.id);
-    const ph = ids.map(() => '?').join(',');
-    db.all(`SELECT DISTINCT shiftId FROM orders WHERE shiftId IN (${ph})`, ids, (oErr, orows) => {
-      const withOrders = new Set((oErr ? [] : orows || []).map((r) => r.shiftId));
-      const checkArchive = (cb) => db.all(`SELECT DISTINCT shiftId FROM orders_archive WHERE shiftId IN (${ph})`, ids,
-        (aErr, arows) => { (aErr ? [] : arows || []).forEach((r) => withOrders.add(r.shiftId)); cb(); });
-      checkArchive(() => {
-        const finalDel = toDelete.filter((s) => !withOrders.has(s.id));
-        if (finalDel.length === 0) return res.json({ removed: 0 });
-        const dph = finalDel.map(() => '?').join(',');
-        db.run(`DELETE FROM shifts WHERE id IN (${dph})`, finalDel.map((s) => s.id), function (dErr) {
-          if (dErr) return res.status(500).json({ error: dErr.message });
-          finalDel.forEach((s) => broadcast('SHIFT_DELETED', { id: s.id }));
-          res.json({ removed: finalDel.length });
-        });
-      });
-    });
-  });
+
+    res.json({ removed, mergedGroups });
+  })().catch((e) => res.status(500).json({ error: e.message }));
 });
 
 app.patch('/api/shifts/:id/checkin', (req, res) => {

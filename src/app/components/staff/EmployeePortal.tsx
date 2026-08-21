@@ -9,6 +9,7 @@ import { AttendanceCamera } from './AttendanceCamera';
 import { ImageViewer } from './ImageViewer';
 import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
+import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 import type { WorkShift } from '../../types/employee';
 import {
@@ -145,22 +146,8 @@ export function EmployeePortal() {
   // khi tất cả ca trong ngày đều đã xong — để nhân viên vẫn chụp được ảnh bổ sung.
   // TẤT CẢ ca hôm nay (không gộp còn 1) — nhân viên có thể làm 2 ca/2 chi nhánh trong ngày, mỗi ca
   // cần check-in/check-out/kết ca RIÊNG. Trước đây chỉ lấy 1 ca nên ca kia bị kẹt (không tan ca được).
-  // Gộp ca TRÙNG HỆT (cùng giờ vào–ra/chi nhánh) → chỉ hiện 1, giữ ca "đầy" nhất (đã check-in/
-  // đang hoặc đã chạy). Tránh app hiện đúp khi DB lỡ có ca bị nhân đôi.
-  const dedupeSameSlot = (list: WorkShift[]) => {
-    const rich = (s: WorkShift) =>
-      ((s as any).checkInPhoto ? 2000 : 0) + // ưu tiên ca có ẢNH check-in (check-in thật từ điện thoại) → giữ đúng giờ vào ca
-      ((s as any).checkOutPhoto ? 500 : 0) +
-      ((s as any).checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number((s as any).closingOrderCount) || 0);
-    const best = new Map<string, WorkShift>();
-    for (const s of list) {
-      const key = `${s.startTime}|${s.endTime}|${(s as any).branch || ''}`;
-      const cur = best.get(key);
-      if (!cur || rich(s) > rich(cur)) best.set(key, s);
-    }
-    return [...best.values()];
-  };
-  const todayShiftList = dedupeSameSlot(
+  // Gộp ca TRÙNG HỆT → CHỈ ẩn ca rỗng thật sự, không bao giờ giấu ca có đơn/ảnh/đang chạy.
+  const todayShiftList = dedupeShiftsBySlot(
     myShifts.filter(s => s.date === todayStr() && ['scheduled', 'approved', 'in_progress', 'completed'].includes(s.status))
   ).sort((a, b) => a.startTime.localeCompare(b.startTime));
   const upcomingShifts = myShifts.filter(s => s.date >= todayStr()).sort((a, b) => a.date.localeCompare(b.date));

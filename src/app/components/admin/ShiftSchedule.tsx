@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
+import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useOrders } from '../../contexts/OrderContext';
@@ -389,28 +390,9 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     }
   };
 
-  // Điểm "độ đầy" của 1 ca — dùng để khi có 2 ca TRÙNG HỆT (cùng giờ vào/ra/chi nhánh) thì GIỮ ca
-  // đã thực sự làm (có check-in, có đơn, đang/đã chạy) và ẩn ca trùng trống trơn.
-  const shiftRichness = (s: Shift) =>
-    ((s as any).checkInPhoto ? 2000 : 0) + // ưu tiên ca có ẢNH check-in thật (từ điện thoại) → giữ đúng giờ vào ca
-    ((s as any).checkOutPhoto ? 500 : 0) +
-    ((s as any).checkIn ? 1000 : 0) +
-    (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) +
-    (Number((s as any).closingOrderCount) || 0);
-
-  // Gộp các ca TRÙNG HỆT nhau (1 người không thể có 2 ca cùng giờ cùng chi nhánh) → chỉ hiện 1.
-  const dedupeSameSlot = (list: Shift[]) => {
-    const best = new Map<string, Shift>();
-    for (const s of list) {
-      const key = `${s.startTime}|${s.endTime}|${s.branch || ''}`;
-      const cur = best.get(key);
-      if (!cur || shiftRichness(s) > shiftRichness(cur)) best.set(key, s);
-    }
-    return [...best.values()];
-  };
-
+  // Gộp ca TRÙNG HỆT khi hiển thị — CHỈ ẩn ca rỗng thật sự, không bao giờ giấu ca có đơn/ảnh/đang chạy.
   const getShiftsForCell = (employeeId: string, date: string) =>
-    dedupeSameSlot(
+    dedupeShiftsBySlot(
       shifts.filter(s =>
         s.employeeId === employeeId && s.date === date &&
         (shiftBranch ? s.branch === shiftBranch : true) &&

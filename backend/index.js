@@ -1538,23 +1538,30 @@ app.post('/api/shifts/dedupe', (req, res) => {
       const keep = [...list].sort((a, b) => rich(b) - rich(a))[0];
       for (const s of list) {
         if (s.id === keep.id) continue;
-        if (Number(s.closingOrderCount) > 0) continue; // an toàn: không xóa ca có đơn
+        if (s.status === 'in_progress') continue;        // an toàn: KHÔNG xoá ca ĐANG LÀM (đang chứa đơn)
+        if (Number(s.closingOrderCount) > 0) continue;   // an toàn: không xóa ca có đơn (snapshot)
+        if (s.checkInPhoto || s.checkOutPhoto) continue;  // an toàn: không xoá ca đã có ảnh chấm công
         toDelete.push(s);
       }
     }
     if (toDelete.length === 0) return res.json({ removed: 0 });
-    // Kiểm tra thêm: bỏ qua ca có đơn thực tế gán vào (dù snapshot = 0), để không mất liên kết đơn.
+    // Kiểm tra thêm: bỏ qua ca có đơn thực tế gán vào (kể cả đơn đã kết ca → orders_archive), để
+    // KHÔNG BAO GIỜ làm mất liên kết đơn hàng.
     const ids = toDelete.map((s) => s.id);
     const ph = ids.map(() => '?').join(',');
     db.all(`SELECT DISTINCT shiftId FROM orders WHERE shiftId IN (${ph})`, ids, (oErr, orows) => {
       const withOrders = new Set((oErr ? [] : orows || []).map((r) => r.shiftId));
-      const finalDel = toDelete.filter((s) => !withOrders.has(s.id));
-      if (finalDel.length === 0) return res.json({ removed: 0 });
-      const dph = finalDel.map(() => '?').join(',');
-      db.run(`DELETE FROM shifts WHERE id IN (${dph})`, finalDel.map((s) => s.id), function (dErr) {
-        if (dErr) return res.status(500).json({ error: dErr.message });
-        finalDel.forEach((s) => broadcast('SHIFT_DELETED', { id: s.id }));
-        res.json({ removed: finalDel.length });
+      const checkArchive = (cb) => db.all(`SELECT DISTINCT shiftId FROM orders_archive WHERE shiftId IN (${ph})`, ids,
+        (aErr, arows) => { (aErr ? [] : arows || []).forEach((r) => withOrders.add(r.shiftId)); cb(); });
+      checkArchive(() => {
+        const finalDel = toDelete.filter((s) => !withOrders.has(s.id));
+        if (finalDel.length === 0) return res.json({ removed: 0 });
+        const dph = finalDel.map(() => '?').join(',');
+        db.run(`DELETE FROM shifts WHERE id IN (${dph})`, finalDel.map((s) => s.id), function (dErr) {
+          if (dErr) return res.status(500).json({ error: dErr.message });
+          finalDel.forEach((s) => broadcast('SHIFT_DELETED', { id: s.id }));
+          res.json({ removed: finalDel.length });
+        });
       });
     });
   });

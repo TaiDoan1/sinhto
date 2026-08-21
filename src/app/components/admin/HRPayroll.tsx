@@ -4,6 +4,7 @@ import type { Employee } from './EmployeeRegistration';
 import type { Shift } from './ShiftSchedule';
 import { useBranches } from '../../contexts/BranchContext';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
+import { dedupeShiftsStrict } from '../../utils/shiftDedup';
 
 function currentMonthStr() {
   return localDateStr().slice(0, 7); // "YYYY-MM"
@@ -282,20 +283,8 @@ export function HRPayroll({ hideSettingsTabs = false }: HRPayrollProps = {}) {
       return day.startsWith(payrollMonth);
     };
 
-    // Gộp ca TRÙNG HỆT (cùng ngày/giờ vào/giờ ra/chi nhánh) → chỉ tính 1 lần, giữ ca "đầy" nhất
-    // (có check-in/đơn). Tránh cộng đôi giờ công khi DB lỡ có ca bị nhân đôi.
-    const shiftRichness = (s: any) =>
-      (s.checkInPhoto ? 2000 : 0) + (s.checkOutPhoto ? 500 : 0) +
-      (s.checkIn ? 1000 : 0) + (s.status === 'in_progress' || s.status === 'completed' ? 100 : 0) + (Number(s.closingOrderCount) || 0);
-    const dedupeShifts = (list: Shift[]) => {
-      const best = new Map<string, Shift>();
-      for (const s of list) {
-        const key = `${s.date}|${s.startTime}|${s.endTime}|${(s as any).branch || ''}`;
-        const cur = best.get(key);
-        if (!cur || shiftRichness(s) > shiftRichness(cur)) best.set(key, s);
-      }
-      return [...best.values()];
-    };
+    // Gộp ca TRÙNG HỆT → tính giờ 1 lần (giữ ca đầy nhất), tránh cộng đôi giờ công.
+    const dedupeShifts = (list: Shift[]) => dedupeShiftsStrict(list);
 
     const records: EmployeeRecord[] = relevantEmployees
       .map((emp) => {

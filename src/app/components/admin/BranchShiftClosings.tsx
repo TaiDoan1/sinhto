@@ -93,6 +93,19 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
       .catch((err) => console.error('Failed to load shifts:', err));
   };
 
+  // TỰ ĐỘNG tính lại số liệu (theo đơn KHÔNG trùng id) khi mở màn — AN TOÀN: chỉ sửa con số
+  // closingOrderCount/closingRevenue bị đếm trùng, KHÔNG đụng đơn/tiền/giờ/ca. Chạy 1 lần/ngày/CN.
+  const recalcedRef = useRef('');
+  useEffect(() => {
+    const tag = `${branchId}|${date}`;
+    if (recalcedRef.current === tag) return;
+    recalcedRef.current = tag;
+    api.dedupeShifts({ date, branch: branchId })
+      .then((r: any) => { if (r && r.fixed > 0) load(); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, branchId]);
+
   const [dedupingShifts, setDedupingShifts] = useState(false);
   const handleDedupeShifts = async () => {
     if (!confirm('Tính lại số đơn/doanh thu của các ca trong ngày (theo đơn KHÔNG trùng)? Chỉ sửa lại con số bị đếm trùng — KHÔNG đụng vào đơn hàng, tiền, hay giờ ca.')) return;

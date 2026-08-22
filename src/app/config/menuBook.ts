@@ -161,7 +161,7 @@ export const DEFAULT_MENU_BOOK: MenuBookData = {
   sizesTitle: 'BẢNG GIÁ LY LẺ',
   sizesNote: 'Mặt mía MIỄN PHÍ kèm mỗi ly',
   sizes: [
-    { name: 'FLAGSHIP', ml: '700', desc: 'Dành gym chuyên nghiệp', descEn: 'Pro Athletes', color: '#e0701f', rows: [ { label: '60g protein', price: '139K' }, { label: '90g protein', price: '155K' } ] },
+    { name: 'FLAGSHIP', ml: '700', desc: 'Dành gym chuyên nghiệp', descEn: 'Pro Athletes', color: '#e0701f', rows: [ { label: '60g protein', price: '139K' }, { label: '90g protein', price: '179K' } ] },
     { name: 'SIGNATURE', ml: '500', desc: 'Thay bữa sáng', descEn: 'Meal Replacement', color: '#2f7d4f', rows: [ { label: '40g protein', price: '99K' }, { label: '60g protein', price: '115K' } ] },
     { name: 'STANDARD', ml: '360', desc: 'Giảm mỡ · Tone dáng', descEn: 'Fat Loss · Tone', color: '#d1442f', rows: [ { label: '20g protein', price: '55K' }, { label: '40g protein', price: '79K' } ] },
     { name: 'TRY FIRST', ml: '250', desc: 'Thử lần đầu', descEn: 'Sampling', color: '#2f6fb0', rows: [ { label: '20g protein', price: '39K' } ] },
@@ -169,9 +169,9 @@ export const DEFAULT_MENU_BOOK: MenuBookData = {
   savingsTitle: 'COMBO TIẾT KIỆM',
   savingsNote: 'Giao tươi mỗi sáng, freeship',
   savings: [
-    { title: 'COMBO TUẦN', titleEn: 'Weekly · 7 days', discount: '-10%', color: '#2f7d4f', gift: 'Không quà tặng', giftEn: 'No gift', rows: [ { label: 'Fat Loss', price: '498K' }, { label: 'Muscle Build', price: '725K' }, { label: 'Elite Mass', price: '977K' } ] },
-    { title: 'COMBO THÁNG', titleEn: 'Monthly · 30 days', discount: '-15%', color: '#c68a1a', gift: 'Quà tặng 150K', giftEn: 'Gift set worth 150K', rows: [ { label: 'Fat Loss', price: '2,015K' }, { label: 'Muscle Build', price: '2,933K' }, { label: 'Elite Mass', price: '3,953K' } ] },
-    { title: 'COMBO QUÝ', titleEn: 'Quarterly · 90 days', discount: '-20%', color: '#6b3f8c', gift: 'VIP quà 350K', giftEn: 'VIP gift 350K', rows: [ { label: 'Fat Loss', price: '5,720K' }, { label: 'Muscle Build', price: '8,330K' }, { label: 'Elite Mass', price: '11,230K' } ] },
+    { title: 'COMBO 7 NGÀY', titleEn: 'Weekly · 7 days', discount: '-8%', color: '#2f7d4f', gift: 'Không quà tặng', giftEn: 'No gift', rows: [ { label: 'Fat Burn Pro', price: '638K' }, { label: 'Muscle Build', price: '741K' }, { label: 'Elite Mass', price: '1,152K' } ] },
+    { title: 'COMBO 30 NGÀY', titleEn: 'Monthly · 30 days', discount: '-15%', color: '#c68a1a', gift: 'Không quà tặng', giftEn: 'No gift', rows: [ { label: 'Fat Burn Pro', price: '2,525K' }, { label: 'Muscle Build', price: '2,933K' }, { label: 'Elite Mass', price: '4,564K' } ] },
+    { title: 'COMBO 90 NGÀY', titleEn: 'Quarterly · 90 days', discount: '-22%', color: '#6b3f8c', gift: 'Không quà tặng', giftEn: 'No gift', rows: [ { label: 'Fat Burn Pro', price: '6,950K' }, { label: 'Muscle Build', price: '8,073K' }, { label: 'Elite Mass', price: '12,565K' } ] },
   ],
   branches: [
     { district: 'QUẬN 1', address: '68/375 Trần Quang Khải', ward: 'P. Tân Định', note: 'Online', noteEn: 'Delivery only' },

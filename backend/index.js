@@ -1490,8 +1490,11 @@ app.post('/api/shifts', (req, res) => {
 app.put('/api/shifts/:id', (req, res) => {
   const { id } = req.params;
   const s = normalizeShift(req.body);
-  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, id, (checkErr, conflict) => {
-    if (checkErr) return res.status(500).json({ error: checkErr.message });
+  // TỪ CHỐI / HỦY / đơn chờ / ca nghỉ: KHÔNG kiểm tra trùng giờ — các trạng thái này gỡ ca khỏi
+  // lịch làm nên không thể "trùng" với ca khác. (Trước đây từ chối 1 đơn xin lịch trùng khung giờ
+  // với ca đã xếp bị 409 → không từ chối được.) Chỉ kiểm tra trùng khi lưu ca ở trạng thái ĐANG DÙNG.
+  const skipConflict = ['rejected', 'cancelled', 'pending'].includes(s.status) || s.shiftType === 'off';
+  const proceed = (conflict) => {
     if (conflict) {
       return res.status(409).json({
         error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
@@ -1508,6 +1511,12 @@ app.put('/api/shifts/:id', (req, res) => {
         res.json(updated);
       }
     );
+  };
+
+  if (skipConflict) return proceed(null);
+  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, id, (checkErr, conflict) => {
+    if (checkErr) return res.status(500).json({ error: checkErr.message });
+    proceed(conflict);
   });
 });
 

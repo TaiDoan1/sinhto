@@ -3019,7 +3019,70 @@ app.get('/api/customer-care/assignments', (req, res) => {
   sql += ' ORDER BY assignedAt DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows.map(parseAssignmentRow));
+    const assignments = rows.map(parseAssignmentRow);
+    // Lồng thêm KHÁCH CŨ (shared_customer_leads) mà CSKH này được phép thấy — hiện chung danh
+    // sách khách của CSKH (dạng khách lẻ). Admin (không truyền careStaffId) không cần lồng vào đây.
+    if (!careStaffId) return res.json(assignments);
+    db.all('SELECT * FROM shared_customer_leads', [], (lErr, leadRows) => {
+      if (lErr) return res.json(assignments); // lỗi đọc leads → vẫn trả assignments
+      const leads = (leadRows || [])
+        .filter((l) => { try { return (JSON.parse(l.visibleStaffIds || '[]')).includes(careStaffId); } catch { return false; } })
+        .map((l) => ({
+          id: 'LEAD-' + l.id,
+          customerPhone: l.customerPhone,
+          customerName: l.customerName || '',
+          careStaffId,
+          careStaffName: '',
+          assignedAt: l.createdAt,
+          assignedBy: l.createdBy || 'admin',
+          notes: l.note || '',
+          customerType: 'retail',
+          pipelineStage: 'nurturing',
+          tags: [],
+        }));
+      res.json([...leads, ...assignments]);
+    });
+  });
+});
+
+// KHÁCH CŨ dùng chung: admin nhập hàng loạt + tích nhiều CSKH được thấy.
+app.post('/api/customer-care/leads/bulk', (req, res) => {
+  const { customers, staffIds } = req.body || {};
+  if (!Array.isArray(customers) || customers.length === 0) return res.status(400).json({ error: 'Chưa có khách hàng nào' });
+  if (!Array.isArray(staffIds) || staffIds.length === 0) return res.status(400).json({ error: 'Chưa chọn CSKH nào được thấy' });
+  const now = new Date().toISOString();
+  const vis = JSON.stringify(staffIds);
+  const rows = customers
+    .map((c) => ({ phone: (c.phone || '').toString().trim(), name: (c.name || '').toString().trim(), note: (c.note || '').toString().trim() }))
+    .filter((c) => c.phone || c.name);
+  if (rows.length === 0) return res.status(400).json({ error: 'Danh sách khách rỗng' });
+  const stmt = 'INSERT INTO shared_customer_leads (id, customerPhone, customerName, note, visibleStaffIds, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)';
+  let done = 0, added = 0, hadErr = null;
+  rows.forEach((c, i) => {
+    const id = `LD-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`;
+    db.run(stmt, [id, c.phone, c.name, c.note, vis, 'admin', now], (e) => {
+      if (e) hadErr = e; else added++;
+      if (++done === rows.length) {
+        if (hadErr) return res.status(500).json({ error: hadErr.message });
+        broadcast('CARE_LEADS_UPDATED', { added });
+        res.json({ added });
+      }
+    });
+  });
+});
+
+app.get('/api/customer-care/leads', (req, res) => {
+  db.all('SELECT * FROM shared_customer_leads ORDER BY createdAt DESC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json((rows || []).map((l) => ({ ...l, visibleStaffIds: (() => { try { return JSON.parse(l.visibleStaffIds || '[]'); } catch { return []; } })() })));
+  });
+});
+
+app.delete('/api/customer-care/leads/:id', (req, res) => {
+  db.run('DELETE FROM shared_customer_leads WHERE id = ?', [req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    broadcast('CARE_LEADS_UPDATED', { deleted: req.params.id });
+    res.json({ success: true });
   });
 });
 

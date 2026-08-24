@@ -29,6 +29,38 @@ export function CustomerCareManagement() {
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [assignForm, setAssignForm] = useState({ phone: '', name: '', staffId: '', notes: '' });
 
+  // Nhập khách cũ HÀNG LOẠT + tích nhiều CSKH được thấy
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkStaffIds, setBulkStaffIds] = useState<string[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Mỗi dòng: "SĐT, Tên, ghi chú" (hoặc cách nhau bởi tab). Tách linh hoạt dấu phẩy/tab.
+  const parseBulkCustomers = (text: string) =>
+    text.split('\n').map((line) => {
+      const parts = line.split(/[,\t]/).map((s) => s.trim());
+      const phone = (parts.find((p) => /\d{6,}/.test(p)) || parts[0] || '').trim();
+      const name = (parts.find((p) => p && p !== phone) || '').trim();
+      const note = parts.slice(2).join(', ');
+      return { phone, name, note };
+    }).filter((c) => c.phone || c.name);
+
+  const handleBulkImport = async () => {
+    const customers = parseBulkCustomers(bulkText);
+    if (customers.length === 0) { alert('Chưa nhập khách nào (mỗi dòng 1 khách: SĐT, Tên)'); return; }
+    if (bulkStaffIds.length === 0) { alert('Chưa tích CSKH nào được thấy'); return; }
+    setBulkSaving(true);
+    try {
+      const { added } = await api.bulkAddCustomerLeads(customers, bulkStaffIds);
+      alert(`Đã thêm ${added} khách cũ cho ${bulkStaffIds.length} CSKH.`);
+      setBulkText(''); setBulkStaffIds([]); setShowBulkForm(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Nhập khách cũ thất bại');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const [transferTarget, setTransferTarget] = useState<CustomerCareAssignment | null>(null);
   const [transferStaffId, setTransferStaffId] = useState('');
 
@@ -174,15 +206,87 @@ export function CustomerCareManagement() {
             Quản lý nhân viên chăm sóc khách hàng — phân bổ khách, theo dõi combo và chuyển nhượng
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAssignForm(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"
-        >
-          <UserPlus className="w-4 h-4" />
-          Phân bổ khách
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowBulkForm(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-50"
+          >
+            <Users className="w-4 h-4" />
+            Nhập khách cũ (hàng loạt)
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAssignForm(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"
+          >
+            <UserPlus className="w-4 h-4" />
+            Phân bổ khách
+          </button>
+        </div>
       </div>
+
+      {showBulkForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+              <h3 className="font-bold text-lg">Nhập khách cũ hàng loạt</h3>
+              <button type="button" onClick={() => setShowBulkForm(false)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-1">Danh sách khách — mỗi dòng 1 khách</label>
+                <p className="text-xs text-gray-500 mb-2">Định dạng: <b>SĐT, Tên, ghi chú</b> (cách nhau bởi dấu phẩy hoặc tab). Có thể dán từ Excel/Sheet.</p>
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  rows={7}
+                  placeholder={'0901234567, Nguyễn Văn A, khách quen\n0912345678, Trần Thị B'}
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 font-mono"
+                />
+                <p className="text-xs text-gray-400 mt-1">Nhận diện: {parseBulkCustomers(bulkText).length} khách</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-semibold text-gray-700">CSKH được thấy các khách này <span className="text-red-500">*</span></label>
+                  <button
+                    type="button"
+                    onClick={() => setBulkStaffIds(bulkStaffIds.length === csStaff.length ? [] : csStaff.map((s) => s.id))}
+                    className="text-xs font-bold text-emerald-700 hover:underline"
+                  >
+                    {bulkStaffIds.length === csStaff.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto border border-gray-100 rounded-xl p-2">
+                  {csStaff.length === 0 && <div className="text-xs text-gray-400 italic p-2">Chưa có nhân viên CSKH</div>}
+                  {csStaff.map((s) => {
+                    const checked = bulkStaffIds.includes(s.id);
+                    return (
+                      <button
+                        type="button"
+                        key={s.id}
+                        onClick={() => setBulkStaffIds((prev) => checked ? prev.filter((x) => x !== s.id) : [...prev, s.id])}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm ${checked ? 'bg-emerald-50 border border-emerald-300' : 'bg-gray-50 border border-transparent hover:bg-gray-100'}`}
+                      >
+                        <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300'}`}>{checked && '✓'}</span>
+                        <span className="font-medium text-gray-800">{s.fullName}</span>
+                        <span className="text-xs text-gray-400 ml-auto">{POSITION_LABELS[s.position] || s.position}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Đã chọn {bulkStaffIds.length} CSKH</p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-3 shrink-0">
+              <button type="button" onClick={() => setShowBulkForm(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold">Hủy</button>
+              <button type="button" onClick={handleBulkImport} disabled={bulkSaving} className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-2.5 rounded-xl font-bold">
+                {bulkSaving ? 'Đang nhập...' : 'Nhập & phân bổ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Team KPI */}
       {teamStats.length > 0 && (

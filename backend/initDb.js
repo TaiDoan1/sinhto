@@ -254,6 +254,16 @@ CREATE TABLE IF NOT EXISTS customer_care_assignments (
   "salesRefCode" TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS shared_customer_leads (
+  id TEXT PRIMARY KEY,
+  "customerPhone" TEXT,
+  "customerName" TEXT,
+  note TEXT DEFAULT '',
+  "visibleStaffIds" TEXT DEFAULT '[]',
+  "createdBy" TEXT DEFAULT '',
+  "createdAt" TEXT
+);
+
 CREATE TABLE IF NOT EXISTS sales_leads (
   id TEXT PRIMARY KEY,
   "fbName" TEXT,

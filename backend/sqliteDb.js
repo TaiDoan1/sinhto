@@ -393,6 +393,12 @@ async function init() {
     "CREATE INDEX IF NOT EXISTS idx_combosub_care ON combo_subscriptions(careStaffId)",
     "CREATE INDEX IF NOT EXISTS idx_leads_care ON sales_leads(careStaffId)",
     "CREATE INDEX IF NOT EXISTS idx_care_staff ON customer_care_assignments(careStaffId)",
+    // Danh sách KHÁCH CŨ do admin nhập & phân bổ cho NHIỀU CSKH cùng thấy (tách riêng, KHÔNG đụng
+    // hệ thống combo/hoa hồng của customer_care_assignments). visibleStaffIds = JSON mảng id CSKH.
+    `CREATE TABLE IF NOT EXISTS shared_customer_leads (
+      id TEXT PRIMARY KEY, customerPhone TEXT, customerName TEXT, note TEXT DEFAULT '',
+      visibleStaffIds TEXT DEFAULT '[]', createdBy TEXT DEFAULT '', createdAt TEXT
+    )`,
     "CREATE INDEX IF NOT EXISTS idx_salesact_care ON sales_activities(careStaffId)",
     "CREATE INDEX IF NOT EXISTS idx_fbmsg_conv ON fb_messages(conversationId, createdAt)",
   ];

@@ -1092,6 +1092,27 @@ export async function fetchCareAssignments(careStaffId?: string) {
   return res.json();
 }
 
+// KHÁCH CŨ dùng chung — admin nhập hàng loạt + tích nhiều CSKH được thấy.
+export async function bulkAddCustomerLeads(customers: { phone: string; name: string; note?: string }[], staffIds: string[]) {
+  const res = await fetch(`${BASE_URL}/customer-care/leads/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customers, staffIds }),
+  });
+  if (!res.ok) { let m = 'Nhập khách cũ thất bại'; try { const j = await res.json(); if (j?.error) m = j.error; } catch { /* */ } throw new Error(m); }
+  return res.json() as Promise<{ added: number }>;
+}
+export async function fetchCustomerLeads(): Promise<{ id: string; customerPhone: string; customerName: string; note: string; visibleStaffIds: string[]; createdAt: string }[]> {
+  const res = await fetch(`${BASE_URL}/customer-care/leads`);
+  if (!res.ok) return [];
+  return res.json();
+}
+export async function deleteCustomerLead(id: string) {
+  const res = await fetch(`${BASE_URL}/customer-care/leads/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Xóa khách cũ thất bại');
+  return res.json();
+}
+
 export async function assignCustomerCare(data: {
   customerPhone: string;
   customerName: string;

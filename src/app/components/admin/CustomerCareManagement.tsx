@@ -29,6 +29,10 @@ export function CustomerCareManagement() {
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [assignForm, setAssignForm] = useState({ phone: '', name: '', staffId: '', notes: '' });
 
+  // Danh sách KHÁCH CŨ dùng chung (do admin nhập)
+  const [leads, setLeads] = useState<{ id: string; customerPhone: string; customerName: string; note: string; visibleStaffIds: string[]; createdAt: string }[]>([]);
+  const reloadLeads = async () => { try { setLeads(await api.fetchCustomerLeads()); } catch { /* */ } };
+
   // Nhập khách cũ HÀNG LOẠT + tích nhiều CSKH được thấy
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -54,6 +58,7 @@ export function CustomerCareManagement() {
       const { added } = await api.bulkAddCustomerLeads(customers, bulkStaffIds);
       alert(`Đã thêm ${added} khách cũ cho ${bulkStaffIds.length} CSKH.`);
       setBulkText(''); setBulkStaffIds([]); setShowBulkForm(false);
+      reloadLeads();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Nhập khách cũ thất bại');
     } finally {
@@ -84,6 +89,7 @@ export function CustomerCareManagement() {
       if (empsResult.status === 'fulfilled') setEmployees(empsResult.value);
       if (assignsResult.status === 'fulfilled') setAssignments(assignsResult.value);
       if (statsResult.status === 'fulfilled') setTeamStats(statsResult.value);
+      reloadLeads();
       try {
         await refreshCombos();
       } catch (err) {
@@ -287,6 +293,39 @@ export function CustomerCareManagement() {
           </div>
         </div>
       )}
+
+      {/* Danh sách KHÁCH CŨ dùng chung (admin nhập) */}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2"><Users className="w-4 h-4 text-emerald-600" /> Khách cũ dùng chung ({leads.length})</h3>
+          <span className="text-xs text-gray-500">CSKH được tích sẽ thấy khách trong app (mục "Khách lẻ")</span>
+        </div>
+        {leads.length === 0 ? (
+          <div className="p-6 text-center text-sm text-gray-400">Chưa có khách cũ nào. Bấm "Nhập khách cũ (hàng loạt)" để thêm.</div>
+        ) : (
+          <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+            {leads.map((l) => {
+              const names = (l.visibleStaffIds || []).map((sid) => csStaff.find((s) => s.id === sid)?.fullName).filter(Boolean);
+              return (
+                <div key={l.id} className="px-5 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-800 text-sm">{l.customerName || '(chưa có tên)'} <span className="text-gray-400 font-normal">· {l.customerPhone}</span></div>
+                    {l.note && <div className="text-xs text-gray-500 truncate">{l.note}</div>}
+                    <div className="text-[11px] text-emerald-700 mt-0.5">👁 {names.length ? names.join(', ') : `${(l.visibleStaffIds || []).length} CSKH`}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => { if (confirm('Xóa khách cũ này khỏi danh sách?')) { try { await api.deleteCustomerLead(l.id); reloadLeads(); } catch { alert('Xóa thất bại'); } } }}
+                    className="text-red-500 hover:bg-red-50 p-2 rounded-lg shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Team KPI */}
       {teamStats.length > 0 && (

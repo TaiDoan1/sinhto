@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Phone, User, Package, LogOut, CheckCircle2, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, X, MessageCircle, CalendarDays,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, X, MessageCircle, CalendarDays, Megaphone,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -23,12 +23,13 @@ import { lookupMacroFull } from '../../utils/macroData';
 import { DeliveryAlerts } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
+import { BulkMessageTab } from './BulkMessageTab';
 import { useSSE } from '../../contexts/SSEContext';
 import { useToast } from '../../contexts/ToastContext';
 import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages' | 'bulkSend';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -494,6 +495,7 @@ export function OnlineSalesPortal() {
     { id: 'customers', label: 'Quản lý khách', icon: Users, badge: myCombos.filter((c) => c.status === 'active').length || undefined },
     { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
+    { id: 'bulkSend', label: 'Gửi hàng loạt', icon: Megaphone },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell },
   ];
 
@@ -695,60 +697,25 @@ export function OnlineSalesPortal() {
                 {filterSearch(retailCustomers).length === 0 ? (
                   <EmptyState icon={Store} title="Chưa có khách lẻ" subtitle="Khách mua lẻ qua link của bạn sẽ hiện ở đây" />
                 ) : (
-                  <div className="grid md:grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100">
                     {filterSearch(retailCustomers).map((a) => (
-                      <CustomerRow key={a.id} assignment={a} onClick={() => setSelectedAssignment(a)} />
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => setSelectedAssignment(a)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50/40"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                          {(a.customerName || 'K').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 truncate">{a.customerName || 'Khách hàng'}</p>
+                          <p className="text-xs text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" /> {a.customerPhone}</p>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 )}
-
-                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 border-b border-gray-100 font-bold text-gray-700">
-                    Lịch sử đơn lẻ ({filterOrdersSearch(retailOrders).length})
-                  </div>
-                  {filterOrdersSearch(retailOrders).length === 0 ? (
-                    <p className="p-5 text-sm text-gray-400">Chưa có đơn lẻ nào được ghi nhận</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-xs text-gray-500 uppercase border-b bg-gray-50">
-                            <th className="px-4 py-2.5">Ngày</th>
-                            <th className="px-4 py-2.5">Khách hàng</th>
-                            <th className="px-4 py-2.5">SĐT</th>
-                            <th className="px-4 py-2.5 min-w-[180px]">Địa chỉ</th>
-                            <th className="px-4 py-2.5 min-w-[220px]">Ly lẻ</th>
-                            <th className="px-4 py-2.5 text-right">Phí ship</th>
-                            <th className="px-4 py-2.5 text-right">Giá</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {filterOrdersSearch(retailOrders).map((o) => (
-                            <tr
-                              key={o.id}
-                              onClick={() => setSelectedOrder(o)}
-                              className="hover:bg-indigo-50/30 align-top cursor-pointer"
-                            >
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-600">
-                                {new Date(o.time).toLocaleDateString('vi-VN')}
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-gray-900">{o.customerName || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{o.customerPhone || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600">{o.deliveryAddress || '—'}</td>
-                              <td className="px-4 py-3 text-gray-600">{describeOrderItems(o) || '—'}</td>
-                              <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
-                                {o.shipFee ? `${o.shipFee.toLocaleString('vi-VN')}đ` : '—'}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-indigo-700 whitespace-nowrap">
-                                {o.total.toLocaleString('vi-VN')}đ
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -765,6 +732,10 @@ export function OnlineSalesPortal() {
 
             {view === 'fbMessages' && (
               <FbMessagesTab staffId={activeEmployee.id} staffName={activeEmployee.fullName} />
+            )}
+
+            {view === 'bulkSend' && (
+              <BulkMessageTab staffId={activeEmployee.id} staffName={activeEmployee.fullName} />
             )}
 
             {view === 'alerts' && <DeliveryAlerts />}

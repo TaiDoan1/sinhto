@@ -227,6 +227,21 @@ export function ComboDetailDrawer({
     }
   };
 
+  // Tạm hoãn 1 buổi: đánh dấu buổi này "Đã hoãn" (không trừ ly) + tự tạo buổi mới vào ngày hôm sau
+  const postponeSlot = async (log: DeliveryLogDetail) => {
+    if (!confirm(`Tạm hoãn buổi giao ngày ${new Date(log.deliveryDate).toLocaleDateString('vi-VN')}?\nBuổi này sẽ KHÔNG bị trừ ly và tự dời sang ngày hôm sau.`)) return;
+    const note = prompt('Lý do hoãn (không bắt buộc):', '') || '';
+    setSlotBusy(true);
+    try {
+      await api.postponeDeliveryLog(log.id, { note });
+      await loadLogs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Không hoãn được buổi này');
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+
   const addSlot = async () => {
     const lastDate = deliveryLogs.length ? deliveryLogs[deliveryLogs.length - 1].deliveryDate : new Date().toISOString();
     const next = new Date(lastDate);
@@ -472,10 +487,16 @@ export function ComboDetailDrawer({
                         )}
                       </div>
                       {editable && (
-                        <button type="button" onClick={() => startEditSlot(log)}
-                          className="self-start mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg px-2.5 py-1">
-                          ✏️ Đổi ngày/giờ giao
-                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <button type="button" onClick={() => startEditSlot(log)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg px-2.5 py-1">
+                            ✏️ Đổi ngày/giờ giao
+                          </button>
+                          <button type="button" disabled={slotBusy} onClick={() => postponeSlot(log)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-700 bg-orange-50 border border-orange-300 hover:bg-orange-100 rounded-lg px-2.5 py-1 disabled:opacity-40">
+                            ⏸ Tạm hoãn
+                          </button>
+                        </div>
                       )}
                     </div>
                   );

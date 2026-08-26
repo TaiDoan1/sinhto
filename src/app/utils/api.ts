@@ -1309,6 +1309,85 @@ export async function backfillFbConversations(): Promise<{ conversations: number
   return res.json();
 }
 
+// --- Nhắn tin hàng loạt (bulk campaign) — CSKH ---
+export interface BulkRecipient {
+  id: string;
+  psid: string;
+  customerName: string;
+  linkedCustomerPhone?: string | null;
+  lastMessageAt: string;
+  lastInboundAt?: string | null;
+  createdAt: string;
+  assignedStaffId?: string | null;
+  tags: string[];
+  within24h: boolean;
+}
+
+export interface BulkCampaign {
+  id: string;
+  createdBy: string;
+  createdByName: string;
+  messages: string[];
+  imageUrl: string;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  status: 'sending' | 'done' | 'error';
+  createdAt: string;
+  finishedAt?: string | null;
+}
+
+export interface BulkCampaignRecipient {
+  id: string;
+  campaignId: string;
+  conversationId: string;
+  psid: string;
+  customerName: string;
+  messageUsed: string;
+  status: 'sent' | 'failed' | 'pending';
+  error?: string | null;
+  sentAt: string;
+}
+
+export async function fetchBulkRecipients(): Promise<BulkRecipient[]> {
+  const res = await fetch(`${BASE_URL}/bulk-messages/recipients`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch bulk recipients');
+  return res.json();
+}
+
+export async function sendBulkMessages(payload: {
+  messages: string[];
+  imageUrl?: string;
+  conversationIds: string[];
+  staffId: string;
+  staffName: string;
+}): Promise<{ campaignId: string; total: number }> {
+  const res = await fetch(`${BASE_URL}/bulk-messages/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Gửi tin hàng loạt thất bại');
+  }
+  return res.json();
+}
+
+export async function fetchBulkCampaigns(): Promise<BulkCampaign[]> {
+  const res = await fetch(`${BASE_URL}/bulk-messages/campaigns`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch bulk campaigns');
+  return res.json();
+}
+
+export async function fetchBulkCampaign(id: string): Promise<BulkCampaign & { recipients: BulkCampaignRecipient[] }> {
+  const res = await fetch(`${BASE_URL}/bulk-messages/campaigns/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch bulk campaign');
+  return res.json();
+}
+
 // --- Tin trả lời lưu sẵn (saved replies) — CSKH ---
 export interface SavedReply {
   id: string;

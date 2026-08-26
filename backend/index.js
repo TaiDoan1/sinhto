@@ -14,6 +14,7 @@ const { registerOnlineSalesRoutes, logSalesActivity } = require('./onlineSalesAp
 const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForCombo, applyPosComboCommission } = require('./comboDeliveryApi');
 const { registerCskhRoutes } = require('./cskhApi');
 const { registerFacebookRoutes } = require('./facebookApi');
+const { registerBulkMessageRoutes } = require('./bulkMessageApi');
 const { registerGiftCampaignRoutes } = require('./giftCampaignsApi');
 const { registerSavedRepliesRoutes } = require('./savedRepliesApi');
 const {
@@ -128,15 +129,17 @@ const upload = multer({
 // SSE Clients for real-time notifications
 let clients = [];
 
+// GIỮ NGUYÊN dấu tiếng Việt — trước đây normStr bỏ dấu (removeDiacritics) khiến tên nhân viên/
+// khách/sản phẩm/đơn hiển thị không dấu. Nay chỉ chuẩn hoá về chuỗi (không đụng dấu).
 function normStr(v) {
-  return v == null ? v : removeDiacritics(String(v));
+  return v == null ? v : String(v);
 }
 
 function normalizeEmployee(e) {
   const out = { ...e };
   out.fullName = normStr(out.fullName);
   out.address = normStr(out.address);
-  if (out.customData && typeof out.customData === 'object') out.customData = deepConvert(out.customData);
+  // customData giữ nguyên (KHÔNG bỏ dấu) — trước đây deepConvert làm mất dấu tiếng Việt.
   return out;
 }
 
@@ -3157,6 +3160,7 @@ async function start() {
     registerComboDeliveryRoutes(app, db, { parseComboRow, broadcast });
     registerCskhRoutes(app, db, { broadcast });
     registerFacebookRoutes(app, db, { broadcast });
+    registerBulkMessageRoutes(app, db, { broadcast });
     registerGiftCampaignRoutes(app, db, { broadcast });
     registerSavedRepliesRoutes(app, db, { broadcast });
     registerBackupRoutes(app, db);

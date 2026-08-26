@@ -419,4 +419,4 @@ function registerFacebookRoutes(app, db, { broadcast }) {
   }
 }
 
-module.exports = { registerFacebookRoutes };
+module.exports = { registerFacebookRoutes, sendToMessenger, insertMessage };

@@ -700,7 +700,7 @@ export async function fetchCustomerByPhone(phone: string) {
   return res.json();
 }
 
-export async function createCustomer(data: { name: string; phone: string }) {
+export async function createCustomer(data: { name: string; phone: string; address?: string }) {
   const res = await fetch(`${BASE_URL}/customers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -710,7 +710,7 @@ export async function createCustomer(data: { name: string; phone: string }) {
   return res.json();
 }
 
-export async function updateCustomer(id: string, data: { name?: string; phone?: string; points?: number }) {
+export async function updateCustomer(id: string, data: { name?: string; phone?: string; points?: number; address?: string }) {
   const res = await fetch(`${BASE_URL}/customers/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

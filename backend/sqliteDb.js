@@ -287,6 +287,7 @@ async function init() {
     "ALTER TABLE shifts ADD COLUMN overtimeHours REAL DEFAULT 0",
     "ALTER TABLE shifts ADD COLUMN overtimeStatus TEXT DEFAULT ''",
     "ALTER TABLE shifts ADD COLUMN overtimeReason TEXT DEFAULT ''",
+    "ALTER TABLE customers ADD COLUMN address TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN customerType TEXT DEFAULT 'combo'",
     "ALTER TABLE customer_care_assignments ADD COLUMN fbName TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN pipelineStage TEXT DEFAULT 'nurturing'",

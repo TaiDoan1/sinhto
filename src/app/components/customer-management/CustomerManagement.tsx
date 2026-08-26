@@ -5,7 +5,7 @@ import { isOnlineSalesPosition } from '../../types/employee';
 import { usePagination, Pager } from '../common/Pagination';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 
-interface Customer { id: string; name: string; phone: string; points: number; createdAt?: string }
+interface Customer { id: string; name: string; phone: string; points: number; address?: string; createdAt?: string }
 interface Assignment { customerPhone: string; customerName?: string; careStaffId: string; careStaffName?: string; notes?: string }
 interface Combo { id: string; customerPhone?: string; customerName?: string; careStaffId?: string; status: string; planName?: string; deliveredCups?: number; totalCups?: number }
 interface StaffLite { id: string; fullName: string; position: string }
@@ -118,25 +118,26 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
   const totalActiveCombos = rows.reduce((s, r) => s + r.activeCombos, 0);
 
   // ---- Actions ----
-  const openNew = () => { setEditing({ id: '', name: '', phone: '', points: 0 }); setIsNew(true); };
+  const openNew = () => { setEditing({ id: '', name: '', phone: '', points: 0, address: '' }); setIsNew(true); };
   const openEdit = (c: Customer) => { setEditing({ ...c }); setIsNew(false); };
 
   const saveCustomer = async () => {
     if (!editing) return;
     const name = editing.name.trim();
     const phone = editing.phone.trim();
+    const address = (editing.address || '').trim();
     if (!name || !phone) { alert('Nhập tên và số điện thoại'); return; }
     setSaving(true);
     try {
       if (isNew || !editing.id) {
-        const created = await api.createCustomer({ name, phone });
+        const created = await api.createCustomer({ name, phone, address });
         // CSKH tạo khách mới → tự gán cho chính mình
         if (scope === 'cskh' && staffId) {
           await api.assignCustomerCare({ customerPhone: phone, customerName: name, careStaffId: staffId, careStaffName: staffName || '', assignedBy: actor });
         }
         void created;
       } else {
-        await api.updateCustomer(editing.id, { name, phone });
+        await api.updateCustomer(editing.id, { name, phone, address });
       }
       setEditing(null);
       load();
@@ -228,6 +229,7 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
                       {activeCombos > 0 && <span className="text-indigo-600 font-semibold inline-flex items-center gap-0.5"><Package className="w-3 h-3" />{activeCombos} combo</span>}
                       <span className="text-amber-600 font-semibold inline-flex items-center gap-0.5"><Star className="w-3 h-3" />{c.points}đ</span>
                     </p>
+                    {c.address && <p className="text-xs text-gray-400 truncate mt-0.5">📍 {c.address}</p>}
                   </div>
                 </button>
                 <div className="hidden sm:block text-right shrink-0 min-w-[120px]">
@@ -281,6 +283,12 @@ function CustomerEditModal({ editing, isNew, saving, onChange, onClose, onSave }
             <span className="text-xs font-semibold text-gray-500">Số điện thoại</span>
             <input value={editing.phone} onChange={(e) => onChange({ ...editing, phone: e.target.value })}
               className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500 font-mono" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-500">Địa chỉ</span>
+            <textarea value={editing.address || ''} onChange={(e) => onChange({ ...editing, address: e.target.value })}
+              rows={2} placeholder="Số nhà, đường, phường/quận..."
+              className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500" />
           </label>
         </div>
         <div className="flex gap-2 mt-5">

@@ -551,6 +551,7 @@ async function initSchemaAndSeeds(pool) {
 
   // Add platform column to customer_care_assignments (Facebook, Zalo, etc.)
   await pool.query(`ALTER TABLE customer_care_assignments ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'facebook'`).catch(() => {});
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''`).catch(() => {});
 
   // CSKH check-in/out tracking
   await pool.query(`

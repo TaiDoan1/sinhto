@@ -164,7 +164,7 @@ function normalizeShift(s) {
 
 function normalizeCustomer(c) {
   const phone = normalizePhoneVN(c.phone) || String(c.phone || '').trim().replace(/\s/g, '');
-  return { ...c, name: normStr(c.name), phone };
+  return { ...c, name: normStr(c.name), address: normStr(c.address || ''), phone };
 }
 
 function normalizeInventoryItem(item) {
@@ -2145,11 +2145,11 @@ app.post('/api/customers', (req, res) => {
   const createdAt = new Date().toISOString();
 
   db.run(
-    "INSERT INTO customers (id, name, phone, points, createdAt) VALUES (?, ?, ?, ?, ?)",
-    [id, c.name, c.phone, points, createdAt],
+    "INSERT INTO customers (id, name, phone, points, createdAt, address) VALUES (?, ?, ?, ?, ?, ?)",
+    [id, c.name, c.phone, points, createdAt, c.address || ''],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      const created = { id, name: c.name, phone: c.phone, points, createdAt };
+      const created = { id, name: c.name, phone: c.phone, points, createdAt, address: c.address || '' };
       broadcast('CUSTOMER_CREATED', created);
       res.status(201).json(created);
     }
@@ -2158,8 +2158,8 @@ app.post('/api/customers', (req, res) => {
 
 app.patch('/api/customers/:id', (req, res) => {
   const { id } = req.params;
-  const { name, phone, points } = req.body;
-  
+  const { name, phone, points, address } = req.body;
+
   db.get("SELECT * FROM customers WHERE id = ?", [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Customer not found' });
@@ -2167,13 +2167,14 @@ app.patch('/api/customers/:id', (req, res) => {
     const newName = name !== undefined ? normStr(name) : row.name;
     const newPhone = phone !== undefined ? phone : row.phone;
     const newPoints = points !== undefined ? points : row.points;
+    const newAddress = address !== undefined ? normStr(address) : (row.address || '');
 
     db.run(
-      "UPDATE customers SET name = ?, phone = ?, points = ? WHERE id = ?",
-      [newName, newPhone, newPoints, id],
+      "UPDATE customers SET name = ?, phone = ?, points = ?, address = ? WHERE id = ?",
+      [newName, newPhone, newPoints, newAddress, id],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        const updated = { id, name: newName, phone: newPhone, points: newPoints, createdAt: row.createdAt };
+        const updated = { id, name: newName, phone: newPhone, points: newPoints, address: newAddress, createdAt: row.createdAt };
         broadcast('CUSTOMER_UPDATED', updated);
         res.json(updated);
       }

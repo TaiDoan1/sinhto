@@ -18,7 +18,7 @@ import { useBranches } from '../../contexts/BranchContext';
 import * as api from '../../utils/api';
 import { usePagination, Pager } from '../common/Pagination';
 
-type Tab = 'today' | 'done' | 'all';
+type Tab = 'today' | 'done' | 'postponed' | 'all';
 
 export function ComboShipBoard() {
   const { activeBranches } = useBranches();
@@ -32,6 +32,7 @@ export function ComboShipBoard() {
   const [postponingId, setPostponingId] = useState<string | null>(null);
   // Buổi giao HÔM NAY của từng combo (địa chỉ + vị/size/protein riêng nếu CSKH đã sửa) — theo comboId
   const [todayLogs, setTodayLogs] = useState<Record<string, any>>({});
+  const [postponedTodayIds, setPostponedTodayIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +55,11 @@ export function ComboShipBoard() {
         setTodayLogs(m);
       })
       .catch(() => setTodayLogs({}));
+    // Các combo bị HOÃN GIAO hôm nay → để hiện nhóm "Đã hoãn" (biết là đã dời sang ngày khác).
+    api
+      .fetchDeliveryLogs({ branchId, date: today, status: 'postponed' })
+      .then((rows: any[]) => setPostponedTodayIds(new Set((rows || []).map((r) => r.comboOrderId).filter(Boolean))))
+      .catch(() => setPostponedTodayIds(new Set()));
   }, [branchId, combos]);
 
   // Vị hôm nay: ưu tiên buổi CSKH đã sửa (delivery_log), không thì lấy theo lịch mặc định của combo
@@ -81,8 +87,13 @@ export function ComboShipBoard() {
     [activeCombos]
   );
 
+  const postponedToday = useMemo(
+    () => activeCombos.filter((c) => postponedTodayIds.has(c.id)),
+    [activeCombos, postponedTodayIds]
+  );
+
   const displayed =
-    tab === 'today' ? dueToday : tab === 'done' ? doneToday : activeCombos;
+    tab === 'today' ? dueToday : tab === 'done' ? doneToday : tab === 'postponed' ? postponedToday : activeCombos;
   const { pageItems: pagedDisplayed, ...shipPager } = usePagination(displayed, 15, `${tab}|${branchId}`);
 
   const handleSelectBranch = (id: string) => {
@@ -204,6 +215,7 @@ export function ComboShipBoard() {
           {([
             ['today', `Cần giao (${dueToday.length})`],
             ['done', `Đã giao (${doneToday.length})`],
+            ['postponed', `Đã hoãn (${postponedToday.length})`],
             ['all', `Tất cả (${activeCombos.length})`],
           ] as [Tab, string][]).map(([id, label]) => (
             <button
@@ -337,6 +349,12 @@ export function ComboShipBoard() {
                     onChange={(e) => setShipNotes((p) => ({ ...p, [combo.id]: e.target.value }))}
                     className="mt-3 w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
                   />
+                )}
+
+                {tab === 'postponed' && (
+                  <div className="mt-3 text-sm font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+                    ⏸ Đã hoãn giao hôm nay — buổi này đã được dời sang ngày khác (không trừ ly).
+                  </div>
                 )}
 
                 {/* Actions */}

@@ -2,16 +2,21 @@ import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 import { browserslistToTargets } from 'lightningcss'
 import browserslist from 'browserslist'
+
+// Danh sách trình duyệt CŨ cần hỗ trợ. Máy POS ở quán có máy chạy Chrome 56 (2017) — quá cũ nên
+// không hiểu ES module + cú pháp JS đời mới (?., ??, {...spread}, flat, fromEntries...) → trang trắng.
+// Dùng chung mốc này cho cả CSS (Lightning CSS hạ cấp oklch/color-mix) lẫn JS (plugin-legacy
+// transpile + polyfill core-js + tải bằng SystemJS thay cho ES module).
+const LEGACY_BROWSERS = ['Chrome >= 56', 'Edge >= 79', 'Firefox >= 68', 'Safari >= 11', 'iOS >= 11', 'Android >= 5', 'Samsung >= 6']
 
 // Máy POS Android dùng trình duyệt/WebView CŨ không hiểu màu đời mới (oklch/color-mix) mà Tailwind
 // v4 xuất ra → giao diện "mất màu"/trắng. Dùng Lightning CSS hạ cấp CSS về cú pháp trình duyệt cũ
 // hiểu được (oklch→rgb, color-mix→rgb, nesting, @property...) nhắm các mốc dưới đây. Trình duyệt
-// mới (Võ Oanh) vẫn hiển thị y hệt — chỉ khác cách viết màu bên trong, không đổi giao diện.
-const cssTargets = browserslistToTargets(
-  browserslist(['Chrome >= 87', 'Edge >= 87', 'Firefox >= 78', 'Safari >= 12.1', 'iOS >= 12.2', 'Android >= 6', 'Samsung >= 10'])
-)
+// mới vẫn hiển thị y hệt — chỉ khác cách viết màu bên trong, không đổi giao diện.
+const cssTargets = browserslistToTargets(browserslist(LEGACY_BROWSERS))
 
 
 function figmaAssetResolver() {
@@ -33,6 +38,14 @@ export default defineConfig({
     // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
+    // Hỗ trợ trình duyệt CŨ (máy POS Chrome 56): tạo thêm bản "legacy" (nomodule) chuyển mã JS về
+    // ES5-ish + chèn polyfill core-js, tải bằng SystemJS. Trình duyệt mới vẫn dùng bản module hiện
+    // đại (nhẹ hơn); chỉ máy cũ mới tải bản legacy. renderModernChunks giữ nguyên bản hiện đại.
+    legacy({
+      targets: LEGACY_BROWSERS,
+      polyfills: true,
+      modernPolyfills: true,
+    }),
   ],
   resolve: {
     alias: {

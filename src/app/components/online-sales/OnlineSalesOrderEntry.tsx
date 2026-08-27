@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
-  Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock,
+  Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock, CalendarDays,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -44,6 +44,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
   const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local) — đơn lẻ
+  const [orderDate, setOrderDate] = useState(''); // ngày khách đặt (nhập đơn cũ / back-date) — trống = hôm nay
   const [comboDeliveryTime, setComboDeliveryTime] = useState('08:00'); // giờ giao/lấy mặc định — combo
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('delivery'); // tại quầy / giao
   const [shipMethod, setShipMethod] = useState<'own' | 'external'>('own'); // shipper mình / bookship ngoài
@@ -202,6 +203,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }));
 
       const now = new Date();
+      // Nhập đơn cũ: nếu chọn ngày đặt trong quá khứ, ghi nhận đơn vào đúng ngày đó
+      // (đặt 12:00 trưa để tránh lệch ngày do múi giờ). Trống = hôm nay.
+      const backDate = orderDate ? new Date(`${orderDate}T12:00:00`) : null;
+      const orderTimeIso = backDate ? backDate.toISOString() : undefined;
+      const paidTime = backDate || now;
       const shipFeeValue = Number(shipFee) || 0;
       const ok = addOrder(
         {
@@ -217,7 +223,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           customerPhone: customer.phone.trim(),
           deliveryAddress: customer.address.trim(),
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
-          paidAt: markPaid ? now : undefined,
+          paidAt: markPaid ? paidTime : undefined,
           deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : undefined,
           deliveryType,
           shipMethod: deliveryType === 'delivery' ? shipMethod : '',
@@ -226,7 +232,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           allergyNote: allergyNote.trim(),
           ...staffPayload(),
         },
-        { skipStockCheck: true }
+        { skipStockCheck: true, orderTime: orderTimeIso }
       );
       if (!ok) {
         alert('Tạo đơn thất bại. Vui lòng thử lại.');
@@ -247,6 +253,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setCart([]);
       setShipFee('');
       setDeliveryTime('');
+      setOrderDate('');
       setShipProvider('');
       setShipTrackingCode('');
       setAllergyNote('');
@@ -436,6 +443,26 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 ))}
               </select>
             </div>
+            {mode === 'retail' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" /> Ngày khách đặt (nhập đơn cũ)
+                </label>
+                <input
+                  type="date"
+                  value={orderDate}
+                  max={new Date().toLocaleDateString('sv-SE')}
+                  onChange={(e) => setOrderDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {orderDate
+                    ? `⏱ Đơn sẽ ghi nhận vào ngày ${new Date(`${orderDate}T12:00:00`).toLocaleDateString('vi-VN')} (không phải hôm nay).`
+                    : 'Để trống = hôm nay. Chọn ngày cũ khi nhập lại đơn khách đã đặt trước đó.'}
+                </p>
+              </div>
+            )}
+
             {mode === 'retail' && (
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">

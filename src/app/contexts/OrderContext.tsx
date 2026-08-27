@@ -52,7 +52,7 @@ interface OrderContextType {
   offlineQueueItems: any[];
   /** Chủ động gửi lại ngay các đơn đang kẹt (nút "Gửi lại ngay"). */
   retryOfflineQueue: () => void;
-  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }) => boolean;
+  addOrder: (order: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean; orderTime?: string }) => boolean;
   updateOrderStatus: (orderId: string, status: Order['status'], extra?: Partial<Order>) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
 }
@@ -261,8 +261,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     };
   }, [flushQueue]);
 
-  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean }): boolean => {
+  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'orderNumber'>, options?: { skipStockCheck?: boolean; orderTime?: string }): boolean => {
     const now = new Date();
+    // Cho phép nhập đơn cũ (back-date): CSKH chọn ngày khách đặt thật để báo cáo/doanh thu
+    // rơi đúng ngày đó. Không truyền thì mặc định là bây giờ.
+    const orderTime = options?.orderTime ? new Date(options.orderTime) : now;
     const tempId = `ORD-${Date.now()}`;
     const stockLines = (orderData.items || []).map((item) =>
       typeof item === 'string'
@@ -289,12 +292,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const newOrder: Partial<Order> = {
       ...orderData,
       id: tempId,
-      time: now,
-      paidAt: orderData.paidAt || now,
+      time: orderTime,
+      paidAt: orderData.paidAt || orderTime,
       status: isPureComboOrder ? 'completed' : (orderData.status || 'pending'),
       stockDeducted: false,
     };
-    if (isPureComboOrder) newOrder.completedAt = now;
+    if (isPureComboOrder) newOrder.completedAt = orderTime;
 
     if (options?.skipStockCheck) {
       // Chi nhánh nhận đơn sẽ tự trừ kho khi họ hoàn tất đơn (xem updateOrderStatus).

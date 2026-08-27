@@ -88,6 +88,13 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
     return [...byPhone.values()];
   }, [customers, combos, assignments]);
 
+  // phone -> khách cũ (bảng điểm, có sẵn tên + địa chỉ) để auto-điền khi nhập lại SĐT cũ.
+  const customersByPhone = useMemo(() => {
+    const m = new Map<string, Customer>();
+    for (const c of customers) { const k = normPhone(c.phone); if (k) m.set(k, c); }
+    return m;
+  }, [customers]);
+
   // CSKH scope: khách "của mình" = được gán CSKH cho mình HOẶC có bất kỳ combo nào mình phụ trách.
   const myComboPhones = useMemo(() => {
     const s = new Set<string>();
@@ -257,7 +264,7 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
         </div>
       )}
 
-      {editing && <CustomerEditModal editing={editing} isNew={isNew} saving={saving} onChange={setEditing} onClose={() => setEditing(null)} onSave={saveCustomer} />}
+      {editing && <CustomerEditModal editing={editing} isNew={isNew} saving={saving} existingByPhone={customersByPhone} onChange={setEditing} onClose={() => setEditing(null)} onSave={saveCustomer} />}
       {assigning && <AssignModal assigning={assigning} staff={staff} saving={saving} onClose={() => setAssigning(null)} onAssign={doAssign} />}
       {detail && <CustomerDetailDrawer customer={detail} combos={combos.filter((c) => normPhone(c.customerPhone) === normPhone(detail.phone))} owner={ownerByPhone.get(normPhone(detail.phone))} scope={scope} staffId={staffId} staffName={staffName} onClose={() => setDetail(null)} />}
     </div>
@@ -265,7 +272,40 @@ export function CustomerManagement({ scope, staffId, staffName }: Props) {
 }
 
 // ---------- Modals ----------
-function CustomerEditModal({ editing, isNew, saving, onChange, onClose, onSave }: any) {
+function CustomerEditModal({ editing, isNew, saving, existingByPhone, onChange, onClose, onSave }: any) {
+  const [matched, setMatched] = useState<Customer | null>(null);
+
+  // Khi THÊM khách: gõ SĐT của khách cũ (đã có trong hệ thống) → tự điền TÊN + ĐỊA CHỈ cũ.
+  // Tra tại chỗ trong danh sách đã tải trước (tức thì); nếu không có thì hỏi server (khách
+  // loyalty cũ chưa nằm trong danh sách). Chỉ điền vào ô đang trống, không ghi đè khi đang gõ.
+  useEffect(() => {
+    if (!isNew) { setMatched(null); return; }
+    const key = normPhone(editing.phone);
+    if (key.length < 8) { setMatched(null); return; }
+
+    const applyFound = (c: Customer) => {
+      setMatched(c);
+      onChange((prev: Customer) => ({
+        ...prev,
+        name: (prev.name || '').trim() ? prev.name : (c.name || ''),
+        address: (prev.address || '').trim() ? prev.address : (c.address || ''),
+      }));
+    };
+
+    const local = existingByPhone?.get(key);
+    if (local) { applyFound(local); return; }
+
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const c = await api.fetchCustomerByPhone(key);
+        if (cancelled) return;
+        if (c) applyFound(c); else setMatched(null);
+      } catch { if (!cancelled) setMatched(null); }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [editing.phone, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl">
@@ -284,6 +324,13 @@ function CustomerEditModal({ editing, isNew, saving, onChange, onClose, onSave }
             <input value={editing.phone} onChange={(e) => onChange({ ...editing, phone: e.target.value })}
               className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500 font-mono" />
           </label>
+          {isNew && matched && (
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
+              <span className="font-bold">📇 Khách cũ</span> — đã tự điền thông tin:
+              <div className="mt-0.5 font-semibold text-emerald-900">{matched.name}</div>
+              <div className="text-emerald-700">📍 {(matched.address || '').trim() || 'Chưa có địa chỉ cũ'}</div>
+            </div>
+          )}
           <label className="block">
             <span className="text-xs font-semibold text-gray-500">Địa chỉ</span>
             <textarea value={editing.address || ''} onChange={(e) => onChange({ ...editing, address: e.target.value })}

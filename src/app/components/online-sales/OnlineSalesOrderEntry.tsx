@@ -522,9 +522,12 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                     <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)} placeholder="Đơn vị ship (Grab/Ahamove...) — áp dụng hằng ngày" className="w-full px-3 py-2 rounded-xl border text-sm" />
                   )
                 )}
-                {mode === 'retail' && (
-                  <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder="Phí ship (VNĐ)" className="w-full px-3 py-2 rounded-xl border text-sm" />
-                )}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">
+                    {mode === 'combo' ? 'Phí ship mỗi buổi (nếu có)' : 'Phí ship (nếu có)'}
+                  </label>
+                  <input value={shipFee} onChange={(e) => setShipFee(e.target.value)} type="number" min={0} placeholder="0" className="w-full px-3 py-2 rounded-xl border text-sm" />
+                </div>
               </div>
             )}
             {mode === 'combo' && (
@@ -635,23 +638,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
               ))}
             </div>
             {mode === 'retail' && (
-              <>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship (nếu có)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={shipFee}
-                    onChange={(e) => setShipFee(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border text-sm"
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
-                  Khách đã thanh toán trước (chi nhánh không cần thu tiền)
-                </label>
-              </>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
+                Khách đã thanh toán trước (chi nhánh không cần thu tiền)
+              </label>
             )}
             {mode === 'combo' && (
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -724,19 +714,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">Chưa chọn gói combo — bấm nút bên dưới để thiết lập.</p>
-              )}
-              {deliveryType === 'delivery' && (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1 block">Phí ship mỗi buổi (nếu có)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={shipFee}
-                    onChange={(e) => setShipFee(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border text-sm"
-                  />
-                </div>
               )}
               {previousCombos.length > 0 && (
                 <div>

@@ -80,8 +80,9 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   // Step 2: Chọn Vị 7 Ngày
   // Step 3: Chọn Topping
   // Step 4: Xác Nhận & Đặt
-  // Có sẵn thông tin khách (CSKH truyền vào) → vào thẳng bước 1, KHÔNG render bước nhập khách.
-  const hasPreset = !!(presetCustomer && (presetCustomer.phone || presetCustomer.name) && !initialData);
+  // CSKH mở (luôn truyền prop presetCustomer, kể cả rỗng) → thông tin khách lấy từ panel ngoài,
+  // hộp combo LUÔN vào thẳng bước 1, KHÔNG bao giờ hiện bước nhập SĐT nữa (kể cả khi chưa có SĐT).
+  const hasPreset = presetCustomer !== undefined && !initialData;
   const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(hasPreset ? 1 : 0);
 
   // Customer State

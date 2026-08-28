@@ -15,7 +15,7 @@ const BADGES: { key: GrabBadge; label: string; chip: string }[] = [
 function badgeInfo(key: string) { return BADGES.find((b) => b.key === key) || BADGES[0]; }
 
 const EMPTY: Partial<GrabMenuItem> = {
-  name: '', description: '', imageUrl: '', section: '', badge: '',
+  name: '', description: '', imageUrl: '', section: '', badge: '', layout: 'grid',
   defaultSize: '360ml', defaultProtein: 40, discountPercent: 0, sortOrder: 0, active: 1,
 };
 
@@ -171,6 +171,20 @@ export function GrabMenuManager() {
                 <span className="text-xs font-semibold text-gray-500">Mục (nhóm hiển thị)</span>
                 <input list="grab-sections" value={editing.section || ''} onChange={(e) => setEditing({ ...editing, section: e.target.value })} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-emerald-500" placeholder="VD: Signature Protein Shake Smoothie" />
                 <datalist id="grab-sections">{sections.map((s) => <option key={s} value={s} />)}</datalist>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-gray-500">Kiểu hiển thị trên app</span>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setEditing({ ...editing, layout: 'grid' })}
+                    className={`py-2 rounded-lg text-sm font-semibold border ${(editing.layout || 'grid') === 'grid' ? 'bg-emerald-600 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    ▦ Lưới 2 cột
+                  </button>
+                  <button type="button" onClick={() => setEditing({ ...editing, layout: 'list' })}
+                    className={`py-2 rounded-lg text-sm font-semibold border ${editing.layout === 'list' ? 'bg-emerald-600 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    ☰ Danh sách
+                  </button>
+                </div>
               </label>
 
               <div className="grid grid-cols-2 gap-3">

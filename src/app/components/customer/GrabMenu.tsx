@@ -57,6 +57,34 @@ function DishCard({ name, desc, priceLabel, oldPriceLabel, badge, discountPercen
   );
 }
 
+// Thẻ món kiểu lưới 2 cột GrabFood: ảnh trên (nút + góc phải, ruy-băng nhãn/giảm giá đáy ảnh),
+// tên + giá bên dưới.
+function GridCard({ name, priceLabel, oldPriceLabel, badge, discountPercent, image, onClick }: {
+  name: string; priceLabel: string; oldPriceLabel?: string;
+  badge?: string; discountPercent?: number; image: string; onClick: () => void;
+}) {
+  const b = badge ? BADGE_LABEL[badge] : null;
+  const ribbon = discountPercent ? { label: `Giảm ${discountPercent}%`, bg: '#e8740c' } : (b ? { label: b.label, bg: '#00b14f' } : null);
+  return (
+    <button onClick={onClick} className="text-left">
+      <div className="relative rounded-2xl overflow-hidden bg-zinc-100 aspect-square">
+        {isImg(image) ? <img src={image} alt={name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-5xl">{image || '🥤'}</div>}
+        <span className="absolute top-2 right-2 w-9 h-9 rounded-full text-white flex items-center justify-center shadow-md" style={{ background: '#00b14f' }}>
+          <Plus className="w-5 h-5" strokeWidth={2.75} />
+        </span>
+        {ribbon && (
+          <span className="absolute bottom-0 left-0 right-0 py-1.5 text-center text-white text-[11px] font-bold" style={{ background: ribbon.bg }}>{ribbon.label}</span>
+        )}
+      </div>
+      <h4 className="mt-2 font-bold text-zinc-900 text-[14px] leading-snug line-clamp-2">{name}</h4>
+      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+        <span className="font-black text-[15px]" style={{ color: discountPercent ? '#e8740c' : '#18181b' }}>{priceLabel}</span>
+        {oldPriceLabel && <span className="text-[12px] text-zinc-400 line-through">{oldPriceLabel}</span>}
+      </div>
+    </button>
+  );
+}
+
 export function GrabMenu({ onProductClick, onSelectCombo, search, onSearchChange }: Props) {
   const { priceTable } = useMenuPricing();
   const { subscribe } = useSSE();
@@ -111,21 +139,39 @@ export function GrabMenu({ onProductClick, onSelectCombo, search, onSearchChange
           </div>
         )}
 
-        {grouped.map(([section, list]) => (
-          <div key={section}>
-            <h3 className="text-[16px] font-black text-zinc-900 pt-4 pb-1">{section}</h3>
-            {list.map((it) => {
-              const { final, base } = priceOf(it);
-              return (
-                <DishCard key={it.id} name={it.name} desc={it.description} image={it.imageUrl}
-                  badge={it.badge} discountPercent={it.discountPercent}
-                  priceLabel={`từ ${final.toLocaleString('vi-VN')}đ`}
-                  oldPriceLabel={it.discountPercent ? `${base.toLocaleString('vi-VN')}đ` : undefined}
-                  onClick={() => onProductClick(it)} />
-              );
-            })}
-          </div>
-        ))}
+        {grouped.map(([section, list]) => {
+          const gridItems = list.filter((it) => (it.layout || 'grid') === 'grid');
+          const listItems = list.filter((it) => it.layout === 'list');
+          return (
+            <div key={section}>
+              <h3 className="text-[16px] font-black text-zinc-900 pt-4 pb-2">{section}</h3>
+              {gridItems.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {gridItems.map((it) => {
+                    const { final, base } = priceOf(it);
+                    return (
+                      <GridCard key={it.id} name={it.name} image={it.imageUrl}
+                        badge={it.badge} discountPercent={it.discountPercent}
+                        priceLabel={`${final.toLocaleString('vi-VN')}đ`}
+                        oldPriceLabel={it.discountPercent ? `${base.toLocaleString('vi-VN')}đ` : undefined}
+                        onClick={() => onProductClick(it)} />
+                    );
+                  })}
+                </div>
+              )}
+              {listItems.map((it) => {
+                const { final, base } = priceOf(it);
+                return (
+                  <DishCard key={it.id} name={it.name} desc={it.description} image={it.imageUrl}
+                    badge={it.badge} discountPercent={it.discountPercent}
+                    priceLabel={`từ ${final.toLocaleString('vi-VN')}đ`}
+                    oldPriceLabel={it.discountPercent ? `${base.toLocaleString('vi-VN')}đ` : undefined}
+                    onClick={() => onProductClick(it)} />
+                );
+              })}
+            </div>
+          );
+        })}
 
         {combos.length > 0 && (
           <div>

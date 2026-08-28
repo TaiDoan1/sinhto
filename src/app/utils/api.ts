@@ -1318,6 +1318,7 @@ export interface GrabMenuItem {
   imageUrl: string;
   section: string;
   badge: GrabBadge;
+  layout: 'grid' | 'list';
   defaultSize: string;
   defaultProtein: number;
   discountPercent: number;

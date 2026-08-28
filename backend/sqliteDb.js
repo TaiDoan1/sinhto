@@ -288,6 +288,7 @@ async function init() {
     "ALTER TABLE shifts ADD COLUMN overtimeStatus TEXT DEFAULT ''",
     "ALTER TABLE shifts ADD COLUMN overtimeReason TEXT DEFAULT ''",
     "ALTER TABLE customers ADD COLUMN address TEXT DEFAULT ''",
+    "ALTER TABLE shared_customer_leads ADD COLUMN address TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN customerType TEXT DEFAULT 'combo'",
     "ALTER TABLE customer_care_assignments ADD COLUMN fbName TEXT DEFAULT ''",
     "ALTER TABLE customer_care_assignments ADD COLUMN pipelineStage TEXT DEFAULT 'nurturing'",
@@ -397,7 +398,7 @@ async function init() {
     // Danh sách KHÁCH CŨ do admin nhập & phân bổ cho NHIỀU CSKH cùng thấy (tách riêng, KHÔNG đụng
     // hệ thống combo/hoa hồng của customer_care_assignments). visibleStaffIds = JSON mảng id CSKH.
     `CREATE TABLE IF NOT EXISTS shared_customer_leads (
-      id TEXT PRIMARY KEY, customerPhone TEXT, customerName TEXT, note TEXT DEFAULT '',
+      id TEXT PRIMARY KEY, customerPhone TEXT, customerName TEXT, address TEXT DEFAULT '', note TEXT DEFAULT '',
       visibleStaffIds TEXT DEFAULT '[]', createdBy TEXT DEFAULT '', createdAt TEXT
     )`,
     "CREATE INDEX IF NOT EXISTS idx_salesact_care ON sales_activities(careStaffId)",

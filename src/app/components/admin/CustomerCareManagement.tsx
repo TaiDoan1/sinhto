@@ -40,13 +40,17 @@ export function CustomerCareManagement() {
   const [bulkSaving, setBulkSaving] = useState(false);
 
   // Mỗi dòng: "SĐT, Tên, ghi chú" (hoặc cách nhau bởi tab). Tách linh hoạt dấu phẩy/tab.
+  // Định dạng mỗi dòng: SĐT, Tên, Địa chỉ, ghi chú (cách nhau dấu phẩy/tab). Cột địa chỉ, ghi chú
+  // là tùy chọn. Tách SĐT bằng regex nên thứ tự cột phone linh hoạt; phần còn lại: tên → địa chỉ → note.
   const parseBulkCustomers = (text: string) =>
     text.split('\n').map((line) => {
       const parts = line.split(/[,\t]/).map((s) => s.trim());
       const phone = (parts.find((p) => /\d{6,}/.test(p)) || parts[0] || '').trim();
-      const name = (parts.find((p) => p && p !== phone) || '').trim();
-      const note = parts.slice(2).join(', ');
-      return { phone, name, note };
+      const rest = parts.filter((p) => p && p !== phone);
+      const name = rest[0] || '';
+      const address = rest[1] || '';
+      const note = rest.slice(2).join(', ');
+      return { phone, name, address, note };
     }).filter((c) => c.phone || c.name);
 
   const handleBulkImport = async () => {
@@ -242,12 +246,12 @@ export function CustomerCareManagement() {
             <div className="p-5 space-y-4 overflow-y-auto">
               <div>
                 <label className="text-sm font-semibold text-gray-700 block mb-1">Danh sách khách — mỗi dòng 1 khách</label>
-                <p className="text-xs text-gray-500 mb-2">Định dạng: <b>SĐT, Tên, ghi chú</b> (cách nhau bởi dấu phẩy hoặc tab). Có thể dán từ Excel/Sheet.</p>
+                <p className="text-xs text-gray-500 mb-2">Định dạng: <b>SĐT, Tên, Địa chỉ, ghi chú</b> (cách nhau bởi dấu phẩy hoặc tab). Địa chỉ &amp; ghi chú không bắt buộc. Có thể dán từ Excel/Sheet.</p>
                 <textarea
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
                   rows={7}
-                  placeholder={'0901234567, Nguyễn Văn A, khách quen\n0912345678, Trần Thị B'}
+                  placeholder={'0901234567, Nguyễn Văn A, 12 Lê Lợi Q1, khách quen\n0912345678, Trần Thị B, 5 Hai Bà Trưng'}
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 font-mono"
                 />
                 <p className="text-xs text-gray-400 mt-1">Nhận diện: {parseBulkCustomers(bulkText).length} khách</p>
@@ -310,6 +314,7 @@ export function CustomerCareManagement() {
                 <div key={l.id} className="px-5 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-gray-800 text-sm">{l.customerName || '(chưa có tên)'} <span className="text-gray-400 font-normal">· {l.customerPhone}</span></div>
+                    {l.address && <div className="text-xs text-gray-600 truncate">📍 {l.address}</div>}
                     {l.note && <div className="text-xs text-gray-500 truncate">{l.note}</div>}
                     <div className="text-[11px] text-emerald-700 mt-0.5">👁 {names.length ? names.join(', ') : `${(l.visibleStaffIds || []).length} CSKH`}</div>
                   </div>

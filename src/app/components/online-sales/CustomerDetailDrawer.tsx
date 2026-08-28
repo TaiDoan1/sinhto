@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  X, Phone, Copy, Check, MessageCircle, Clock, ChevronRight, Loader2,
+  X, Phone, Copy, Check, MessageCircle, Clock, ChevronRight, Loader2, MapPin,
 } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { CustomerCareAssignment } from '../../types/customerCare';
@@ -104,6 +104,11 @@ export function CustomerDetailDrawer({ assignment, combos, employee, onClose, on
             <a href={`tel:${assignment.customerPhone}`} className="text-sm text-indigo-700 font-semibold flex items-center gap-1 mt-1">
               <Phone className="w-3.5 h-3.5" /> {assignment.customerPhone}
             </a>
+            {assignment.address && (
+              <p className="text-xs text-gray-600 mt-1 flex items-start gap-1">
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" /> <span className="break-words">{assignment.address}</span>
+              </p>
+            )}
             {assignment.fbName && <p className="text-xs text-gray-500 mt-0.5">FB: {assignment.fbName}</p>}
           </div>
           <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100">

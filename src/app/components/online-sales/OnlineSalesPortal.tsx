@@ -711,6 +711,7 @@ export function OnlineSalesPortal() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 truncate">{a.customerName || 'Khách hàng'}</p>
                           <p className="text-xs text-gray-500 flex items-center gap-1"><Phone className="w-3 h-3" /> {a.customerPhone}</p>
+                          {a.address && <p className="text-xs text-gray-500 flex items-start gap-1 mt-0.5"><MapPin className="w-3 h-3 mt-0.5 shrink-0 text-emerald-600" /> <span className="truncate">{a.address}</span></p>}
                         </div>
                       </button>
                     ))}

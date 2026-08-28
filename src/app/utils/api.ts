@@ -1093,7 +1093,7 @@ export async function fetchCareAssignments(careStaffId?: string) {
 }
 
 // KHÁCH CŨ dùng chung — admin nhập hàng loạt + tích nhiều CSKH được thấy.
-export async function bulkAddCustomerLeads(customers: { phone: string; name: string; note?: string }[], staffIds: string[]) {
+export async function bulkAddCustomerLeads(customers: { phone: string; name: string; address?: string; note?: string }[], staffIds: string[]) {
   const res = await fetch(`${BASE_URL}/customer-care/leads/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1102,7 +1102,7 @@ export async function bulkAddCustomerLeads(customers: { phone: string; name: str
   if (!res.ok) { let m = 'Nhập khách cũ thất bại'; try { const j = await res.json(); if (j?.error) m = j.error; } catch { /* */ } throw new Error(m); }
   return res.json() as Promise<{ added: number }>;
 }
-export async function fetchCustomerLeads(): Promise<{ id: string; customerPhone: string; customerName: string; note: string; visibleStaffIds: string[]; createdAt: string }[]> {
+export async function fetchCustomerLeads(): Promise<{ id: string; customerPhone: string; customerName: string; address?: string; note: string; visibleStaffIds: string[]; createdAt: string }[]> {
   const res = await fetch(`${BASE_URL}/customer-care/leads`);
   if (!res.ok) return [];
   return res.json();
@@ -1311,6 +1311,15 @@ export async function backfillFbConversations(): Promise<{ conversations: number
 
 // --- Menu app đặt món kiểu Grab (/dat-mon) ---
 export type GrabBadge = '' | 'bestseller' | 'loved' | 'new';
+export interface GrabOption { name: string; price: number }
+export interface GrabOptionGroup {
+  id: string;
+  title: string;
+  type: 'single' | 'multi'; // single = chọn 1 (bắt buộc); multi = tích nhiều
+  required: boolean;         // multi: cần ít nhất 1
+  max: number;              // multi: tối đa (0 = không giới hạn)
+  options: GrabOption[];
+}
 export interface GrabMenuItem {
   id: string;
   name: string;
@@ -1319,9 +1328,9 @@ export interface GrabMenuItem {
   section: string;
   badge: GrabBadge;
   layout: 'grid' | 'list';
-  defaultSize: string;
-  defaultProtein: number;
+  basePrice: number;        // giá gốc
   discountPercent: number;
+  optionGroups: GrabOptionGroup[];
   sortOrder: number;
   active: number; // 1/0
   createdAt?: string;

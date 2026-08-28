@@ -3025,28 +3025,38 @@ app.get('/api/customer-care/assignments', (req, res) => {
   sql += ' ORDER BY assignedAt DESC';
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    const assignments = rows.map(parseAssignmentRow);
-    // Lồng thêm KHÁCH CŨ (shared_customer_leads) mà CSKH này được phép thấy — hiện chung danh
-    // sách khách của CSKH (dạng khách lẻ). Admin (không truyền careStaffId) không cần lồng vào đây.
-    if (!careStaffId) return res.json(assignments);
-    db.all('SELECT * FROM shared_customer_leads', [], (lErr, leadRows) => {
-      if (lErr) return res.json(assignments); // lỗi đọc leads → vẫn trả assignments
-      const leads = (leadRows || [])
-        .filter((l) => { try { return (JSON.parse(l.visibleStaffIds || '[]')).includes(careStaffId); } catch { return false; } })
-        .map((l) => ({
-          id: 'LEAD-' + l.id,
-          customerPhone: l.customerPhone,
-          customerName: l.customerName || '',
-          careStaffId,
-          careStaffName: '',
-          assignedAt: l.createdAt,
-          assignedBy: l.createdBy || 'admin',
-          notes: l.note || '',
-          customerType: 'retail',
-          pipelineStage: 'nurturing',
-          tags: [],
-        }));
-      res.json([...leads, ...assignments]);
+    // Bản đồ SĐT -> địa chỉ từ bảng customers, để lồng địa chỉ khách vào assignment/lead (khách cũ
+    // nhập không kèm địa chỉ vẫn hiện được địa chỉ nếu SĐT đó đã có trong danh bạ khách).
+    db.all('SELECT phone, address FROM customers', [], (cErr, custRows) => {
+      const addrByPhone = {};
+      if (!cErr) for (const c of (custRows || [])) {
+        if (c.phone && c.address) addrByPhone[String(c.phone).trim()] = c.address;
+      }
+      const withAddr = (a) => ({ ...a, address: a.address || addrByPhone[String(a.customerPhone || '').trim()] || '' });
+      const assignments = rows.map(parseAssignmentRow).map(withAddr);
+      // Lồng thêm KHÁCH CŨ (shared_customer_leads) mà CSKH này được phép thấy — hiện chung danh
+      // sách khách của CSKH (dạng khách lẻ). Admin (không truyền careStaffId) không cần lồng vào đây.
+      if (!careStaffId) return res.json(assignments);
+      db.all('SELECT * FROM shared_customer_leads', [], (lErr, leadRows) => {
+        if (lErr) return res.json(assignments); // lỗi đọc leads → vẫn trả assignments
+        const leads = (leadRows || [])
+          .filter((l) => { try { return (JSON.parse(l.visibleStaffIds || '[]')).includes(careStaffId); } catch { return false; } })
+          .map((l) => withAddr({
+            id: 'LEAD-' + l.id,
+            customerPhone: l.customerPhone,
+            customerName: l.customerName || '',
+            address: l.address || '',
+            careStaffId,
+            careStaffName: '',
+            assignedAt: l.createdAt,
+            assignedBy: l.createdBy || 'admin',
+            notes: l.note || '',
+            customerType: 'retail',
+            pipelineStage: 'nurturing',
+            tags: [],
+          }));
+        res.json([...leads, ...assignments]);
+      });
     });
   });
 });
@@ -3059,14 +3069,14 @@ app.post('/api/customer-care/leads/bulk', (req, res) => {
   const now = new Date().toISOString();
   const vis = JSON.stringify(staffIds);
   const rows = customers
-    .map((c) => ({ phone: (c.phone || '').toString().trim(), name: (c.name || '').toString().trim(), note: (c.note || '').toString().trim() }))
+    .map((c) => ({ phone: (c.phone || '').toString().trim(), name: (c.name || '').toString().trim(), address: (c.address || '').toString().trim(), note: (c.note || '').toString().trim() }))
     .filter((c) => c.phone || c.name);
   if (rows.length === 0) return res.status(400).json({ error: 'Danh sách khách rỗng' });
-  const stmt = 'INSERT INTO shared_customer_leads (id, customerPhone, customerName, note, visibleStaffIds, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)';
+  const stmt = 'INSERT INTO shared_customer_leads (id, customerPhone, customerName, address, note, visibleStaffIds, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
   let done = 0, added = 0, hadErr = null;
   rows.forEach((c, i) => {
     const id = `LD-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`;
-    db.run(stmt, [id, c.phone, c.name, c.note, vis, 'admin', now], (e) => {
+    db.run(stmt, [id, c.phone, c.name, c.address, c.note, vis, 'admin', now], (e) => {
       if (e) hadErr = e; else added++;
       if (++done === rows.length) {
         if (hadErr) return res.status(500).json({ error: hadErr.message });

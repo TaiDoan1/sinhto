@@ -258,6 +258,7 @@ CREATE TABLE IF NOT EXISTS shared_customer_leads (
   id TEXT PRIMARY KEY,
   "customerPhone" TEXT,
   "customerName" TEXT,
+  address TEXT DEFAULT '',
   note TEXT DEFAULT '',
   "visibleStaffIds" TEXT DEFAULT '[]',
   "createdBy" TEXT DEFAULT '',
@@ -398,6 +399,7 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeHours" DOUBLE PRECISION DEFAULT 0`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeStatus" TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "overtimeReason" TEXT DEFAULT ''`).catch(() => {});
+  await pool.query(`ALTER TABLE shared_customer_leads ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shift_cash_movements (
       id TEXT PRIMARY KEY,

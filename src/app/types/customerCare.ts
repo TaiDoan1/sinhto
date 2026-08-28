@@ -2,6 +2,7 @@ export interface CustomerCareAssignment {
   id: string;
   customerPhone: string;
   customerName: string;
+  address?: string;
   careStaffId: string;
   careStaffName: string;
   assignedAt?: Date;

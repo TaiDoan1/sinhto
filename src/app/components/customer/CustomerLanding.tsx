@@ -961,6 +961,14 @@ export function CustomerLanding({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => { window.location.href = '/dat-mon'; }}
+              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-full text-[13px] sm:text-sm font-black text-white shadow-md hover:scale-[1.02] transition-transform"
+              style={{ background: BRAND.green }}
+            >
+              🥤 Đặt món ngay
+            </button>
+            <button
+              type="button"
               onClick={() => setShowRegChoice(true)}
               className="hidden sm:inline-flex px-4 py-2.5 rounded-full text-sm font-black text-white shadow-md hover:scale-[1.02] transition-transform"
               style={{ background: BRAND.orange }}
@@ -1042,8 +1050,16 @@ export function CustomerLanding({
                 ))}
               </div>
 
-              <div className="hidden sm:flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-2 max-w-sm mx-auto lg:mx-0 lg:max-w-none">
-              <button 
+              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-2 max-w-sm mx-auto lg:mx-0 lg:max-w-none">
+              <button
+                  type="button"
+                  onClick={() => { window.location.href = '/dat-mon'; }}
+                  className="w-full sm:w-auto px-6 sm:px-7 py-3.5 rounded-full font-black text-white flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform text-sm md:text-base"
+                  style={{ background: BRAND.green }}
+                >
+                  🥤 Đặt món ngay <ArrowRight className="w-5 h-5" />
+              </button>
+              <button
                   type="button"
                   onClick={() => scrollTo('#combos')}
                   className="w-full sm:w-auto px-6 sm:px-7 py-3.5 rounded-full font-black text-white flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform text-sm md:text-base"

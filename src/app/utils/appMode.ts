@@ -1,5 +1,6 @@
 export type AppMode =
   | "customer"
+  | "order"
   | "online-sales"
   | "staff"
   | "pos"
@@ -28,6 +29,8 @@ const PATH_MODE: { prefix: string; mode: AppMode }[] = [
   { prefix: "/shipper", mode: "shipper" },
   { prefix: "/ship-combo", mode: "combo-ship" },
   { prefix: "/giao-combo", mode: "combo-ship" },
+  { prefix: "/dat-mon", mode: "order" },
+  { prefix: "/order", mode: "order" },
   { prefix: "/customer", mode: "customer" },
 ];
 
@@ -62,6 +65,8 @@ export function pathForMode(mode: AppMode): string {
       return "/ship-combo";
     case "customer":
       return "/customer";
+    case "order":
+      return "/dat-mon";
     default:
       return "/";
   }

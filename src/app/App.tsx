@@ -22,6 +22,7 @@ const PosCustomerDisplay = lazyNamed(() => import("./components/pos/PosCustomerD
 const StaffApp = lazyNamed(() => import("./components/staff/StaffApp"), "StaffApp");
 const OnlineSalesApp = lazyNamed(() => import("./components/online-sales/OnlineSalesApp"), "OnlineSalesApp");
 const CustomerApp = lazyNamed(() => import("./components/customer/CustomerApp"), "CustomerApp");
+const GrabFoodApp = lazyNamed(() => import("./components/customer/GrabFoodApp"), "GrabFoodApp");
 const ComboShipBoard = lazyNamed(() => import("./components/combo-ship/ComboShipBoard"), "ComboShipBoard");
 const ShipperApp = lazyNamed(() => import("./components/shipper/ShipperApp"), "ShipperApp");
 const ProductManagement = lazyNamed(() => import("./components/admin/ProductManagement"), "ProductManagement");
@@ -309,6 +310,17 @@ function AppContent() {
         {devNav}
         <div className={devPad}>
           <CustomerApp />
+        </div>
+      </>
+    );
+  }
+
+  if (mode === "order") {
+    return (
+      <>
+        {devNav}
+        <div className={devPad}>
+          <GrabFoodApp />
         </div>
       </>
     );

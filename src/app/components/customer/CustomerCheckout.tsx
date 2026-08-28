@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { ArrowLeft, MapPin, Banknote, QrCode, ShieldCheck, Ticket, Landmark, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Banknote, QrCode, ShieldCheck, Ticket, Landmark, CheckCircle2, Bike, Store } from 'lucide-react';
 import { useBranches } from '../../contexts/BranchContext';
 
 interface Props {
-  total: number;
+  total: number; // tiền hàng (chưa gồm phí ship)
+  initialBranchId?: string;
+  deliveryFee: number; // phí giao hàng chủ quán cấu hình (0 nếu tự lấy)
   onClose: () => void;
-  onPlaceOrder: (form: { name: string; phone: string; address: string; paymentMethod: string; branchId?: string; promoCode?: string }) => void;
+  onPlaceOrder: (form: {
+    name: string; phone: string; address: string; paymentMethod: string;
+    branchId?: string; deliveryType: 'delivery' | 'pickup'; shipFee: number; promoCode?: string;
+  }) => void;
 }
 
 const inputStyle = {
@@ -17,14 +22,10 @@ const inputStyle = {
 
 const inputFocusClass = 'outline-none transition-all w-full px-4 py-3.5 text-sm font-medium';
 
-export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
+export function CustomerCheckout({ total, initialBranchId, deliveryFee, onClose, onPlaceOrder }: Props) {
   const { activeBranches } = useBranches();
-  const branches = activeBranches.map((b) => ({
-    id: b.id,
-    name: b.name,
-    address: b.address,
-  }));
-  const defaultBranchId = branches[0]?.id || 'CN1';
+  const branches = activeBranches.map((b) => ({ id: b.id, name: b.name, address: b.address }));
+  const defaultBranchId = initialBranchId || branches[0]?.id || 'CN1';
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -33,10 +34,16 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
     branchId: defaultBranchId,
     promoCode: '',
   });
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoMsg, setPromoMsg] = useState('');
 
   const update = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const isDelivery = deliveryType === 'delivery';
+  const shipFee = isDelivery ? (deliveryFee || 0) : 0;
+  const grandTotal = total + shipFee;
+  const selectedBranch = branches.find(b => b.id === form.branchId);
 
   const handleApplyPromo = () => {
     if (!form.promoCode.trim()) return;
@@ -45,19 +52,16 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
   };
 
   const handleSubmit = () => {
-    if (!form.name || !form.phone || !form.address) return alert('Vui lòng nhập đầy đủ thông tin giao hàng!');
-    onPlaceOrder(form);
+    if (!form.name || !form.phone) return alert('Vui lòng nhập tên và số điện thoại!');
+    if (isDelivery && !form.address) return alert('Vui lòng nhập địa chỉ giao hàng!');
+    onPlaceOrder({ ...form, deliveryType, shipFee });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
       <div
         className="w-full max-w-lg sm:rounded-[2.5rem] rounded-t-[2.5rem] overflow-hidden flex flex-col animate-slide-up"
-        style={{
-          background: '#ffffff',
-          border: '1px solid rgba(0,0,0,0.08)',
-          maxHeight: '92vh',
-        }}
+        style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.08)', maxHeight: '92vh' }}
       >
         {/* Handle (mobile) */}
         <div className="flex justify-center pt-4 pb-1 shrink-0 sm:hidden">
@@ -66,17 +70,13 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
 
         {/* Header */}
         <div className="px-5 py-4 flex items-center gap-3 shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-xl transition-all"
-            style={{ background: 'rgba(0,0,0,0.05)' }}
-          >
+          <button onClick={onClose} className="p-2.5 rounded-xl transition-all" style={{ background: 'rgba(0,0,0,0.05)' }}>
             <ArrowLeft className="w-5 h-5 text-zinc-700" />
           </button>
           <div>
             <h2 className="text-[18px] font-black text-zinc-900 leading-tight">Xác nhận đặt hàng</h2>
             <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,0,0,0.4)' }}>
-              FitBlend Fresh Smoothie Delivery
+              FitBlend Fresh Smoothie
             </p>
           </div>
         </div>
@@ -84,41 +84,40 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
         {/* Scrollable Form */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6" style={{ scrollbarWidth: 'none' }}>
 
-          {/* Thông tin giao hàng */}
+          {/* Giao hàng / Tự lấy */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.1)' }}>
-                <MapPin className="w-3.5 h-3.5" style={{ color: '#00b14f' }} />
-              </div>
               <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.5)' }}>
-                Thông tin giao hàng
+                Hình thức nhận
               </span>
             </div>
-            <div className="space-y-2.5">
-              <input
-                type="text"
-                placeholder="Họ và tên người nhận"
-                value={form.name}
-                onChange={e => update('name', e.target.value)}
-                className={inputFocusClass}
-                style={inputStyle}
-              />
-              <input
-                type="tel"
-                placeholder="Số điện thoại liên lạc"
-                value={form.phone}
-                onChange={e => update('phone', e.target.value)}
-                className={inputFocusClass}
-                style={inputStyle}
-              />
-              <input
-                type="text"
-                placeholder="Địa chỉ giao hàng chi tiết"
-                value={form.address}
-                onChange={e => update('address', e.target.value)}
-                className={inputFocusClass}
-                style={inputStyle}
-              />
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => setDeliveryType('delivery')}
+                className="flex items-center gap-3 p-4 rounded-[16px] transition-all text-left"
+                style={isDelivery
+                  ? { background: 'rgba(0,177,79,0.06)', border: '1.5px solid rgba(0,177,79,0.35)' }
+                  : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }}
+              >
+                <Bike className="w-6 h-6 shrink-0" style={{ color: isDelivery ? '#00b14f' : 'rgba(0,0,0,0.4)' }} />
+                <div>
+                  <p className="font-black text-[13px]" style={{ color: isDelivery ? '#00b14f' : 'rgba(0,0,0,0.8)' }}>Giao hàng</p>
+                  <p className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Giao tận nơi</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setDeliveryType('pickup')}
+                className="flex items-center gap-3 p-4 rounded-[16px] transition-all text-left"
+                style={!isDelivery
+                  ? { background: 'rgba(0,177,79,0.06)', border: '1.5px solid rgba(0,177,79,0.35)' }
+                  : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }}
+              >
+                <Store className="w-6 h-6 shrink-0" style={{ color: !isDelivery ? '#00b14f' : 'rgba(0,0,0,0.4)' }} />
+                <div>
+                  <p className="font-black text-[13px]" style={{ color: !isDelivery ? '#00b14f' : 'rgba(0,0,0,0.8)' }}>Tự lấy</p>
+                  <p className="text-[10px]" style={{ color: 'rgba(0,0,0,0.4)' }}>Đến quán lấy · 0đ ship</p>
+                </div>
+              </button>
             </div>
           </section>
 
@@ -129,7 +128,7 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
                 <Landmark className="w-3.5 h-3.5" style={{ color: '#00b14f' }} />
               </div>
               <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.5)' }}>
-                Chi Nhánh pha chế
+                {isDelivery ? 'Chi nhánh pha chế' : 'Chi nhánh đến lấy'}
               </span>
             </div>
             <div className="space-y-2">
@@ -140,8 +139,7 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
                   className="w-full flex items-center justify-between p-4 rounded-[14px] text-left transition-all"
                   style={form.branchId === b.id
                     ? { background: 'rgba(0,177,79,0.06)', border: '1.5px solid rgba(0,177,79,0.3)' }
-                    : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }
-                  }
+                    : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }}
                 >
                   <div>
                     <p className="font-black text-[13px]" style={{ color: form.branchId === b.id ? '#00b14f' : 'rgba(0,0,0,0.8)' }}>
@@ -149,11 +147,39 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
                     </p>
                     <p className="text-[11px] mt-0.5" style={{ color: 'rgba(0,0,0,0.4)' }}>{b.address}</p>
                   </div>
-                  {form.branchId === b.id && (
-                    <CheckCircle2 className="w-5 h-5 shrink-0 ml-2" style={{ color: '#00b14f' }} />
-                  )}
+                  {form.branchId === b.id && <CheckCircle2 className="w-5 h-5 shrink-0 ml-2" style={{ color: '#00b14f' }} />}
                 </button>
               ))}
+            </div>
+          </section>
+
+          {/* Thông tin người nhận */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,177,79,0.1)' }}>
+                <MapPin className="w-3.5 h-3.5" style={{ color: '#00b14f' }} />
+              </div>
+              <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.5)' }}>
+                {isDelivery ? 'Thông tin giao hàng' : 'Thông tin người nhận'}
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              <input type="text" placeholder="Họ và tên người nhận" value={form.name}
+                onChange={e => update('name', e.target.value)} className={inputFocusClass} style={inputStyle} />
+              <input type="tel" placeholder="Số điện thoại liên lạc" value={form.phone}
+                onChange={e => update('phone', e.target.value)} className={inputFocusClass} style={inputStyle} />
+              {isDelivery ? (
+                <input type="text" placeholder="Địa chỉ giao hàng chi tiết" value={form.address}
+                  onChange={e => update('address', e.target.value)} className={inputFocusClass} style={inputStyle} />
+              ) : (
+                <div className="flex items-start gap-2 px-4 py-3 rounded-[14px]" style={{ background: 'rgba(0,177,79,0.05)', border: '1.5px solid rgba(0,177,79,0.15)' }}>
+                  <Store className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#00b14f' }} />
+                  <p className="text-[12px] font-medium" style={{ color: 'rgba(0,0,0,0.7)' }}>
+                    Bạn đến lấy tại <b>{selectedBranch?.name || 'chi nhánh đã chọn'}</b>
+                    {selectedBranch?.address ? ` — ${selectedBranch.address}` : ''}.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
@@ -168,20 +194,12 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
               </span>
             </div>
             <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Nhập mã giảm giá..."
-                value={form.promoCode}
+              <input type="text" placeholder="Nhập mã giảm giá..." value={form.promoCode}
                 onChange={e => update('promoCode', e.target.value.toUpperCase())}
-                className={inputFocusClass + ' flex-1'}
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={handleApplyPromo}
+                className={inputFocusClass + ' flex-1'} style={inputStyle} />
+              <button type="button" onClick={handleApplyPromo}
                 className="px-5 py-3 rounded-[14px] font-black text-[12px] uppercase tracking-wider transition-all active:scale-95 shrink-0"
-                style={{ background: 'rgba(0,0,0,0.05)', color: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(0,0,0,0.1)' }}
-              >
+                style={{ background: 'rgba(0,0,0,0.05)', color: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(0,0,0,0.1)' }}>
                 Áp dụng
               </button>
             </div>
@@ -204,33 +222,23 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
             </div>
             <div className="space-y-2.5">
               {[
-                { id: 'cash',     label: 'Tiền mặt (COD)',          desc: 'Thanh toán khi nhận hàng',       icon: <Banknote className="w-5 h-5" />,  accent: '#00b14f' },
-                { id: 'transfer', label: 'Chuyển khoản QR',          desc: 'Quét mã – giao dịch tức thì',   icon: <QrCode className="w-5 h-5" />,   accent: '#2563eb' },
+                { id: 'cash',     label: 'Tiền mặt (COD)',  desc: 'Thanh toán khi nhận hàng',   icon: <Banknote className="w-5 h-5" />, accent: '#00b14f' },
+                { id: 'transfer', label: 'Chuyển khoản QR',  desc: 'Quét mã – giao dịch tức thì', icon: <QrCode className="w-5 h-5" />,   accent: '#2563eb' },
               ].map(pm => (
-                <button
-                  key={pm.id}
-                  onClick={() => update('paymentMethod', pm.id)}
+                <button key={pm.id} onClick={() => update('paymentMethod', pm.id)}
                   className="w-full flex items-center gap-4 p-4 rounded-[16px] transition-all text-left"
                   style={form.paymentMethod === pm.id
                     ? { background: `rgba(${pm.id === 'cash' ? '0,177,79' : '37,99,235'},0.06)`, border: `1.5px solid rgba(${pm.id === 'cash' ? '0,177,79' : '37,99,235'},0.3)` }
-                    : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }
-                  }
-                >
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: form.paymentMethod === pm.id ? `rgba(${pm.id === 'cash' ? '0,177,79' : '37,99,235'},0.1)` : 'rgba(0,0,0,0.05)', color: form.paymentMethod === pm.id ? pm.accent : 'rgba(0,0,0,0.4)' }}
-                  >
+                    : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: form.paymentMethod === pm.id ? `rgba(${pm.id === 'cash' ? '0,177,79' : '37,99,235'},0.1)` : 'rgba(0,0,0,0.05)', color: form.paymentMethod === pm.id ? pm.accent : 'rgba(0,0,0,0.4)' }}>
                     {pm.icon}
                   </div>
                   <div className="flex-1">
-                    <p className="font-black text-[13px]" style={{ color: form.paymentMethod === pm.id ? pm.accent : 'rgba(0,0,0,0.8)' }}>
-                      {pm.label}
-                    </p>
+                    <p className="font-black text-[13px]" style={{ color: form.paymentMethod === pm.id ? pm.accent : 'rgba(0,0,0,0.8)' }}>{pm.label}</p>
                     <p className="text-[11px] mt-0.5" style={{ color: 'rgba(0,0,0,0.4)' }}>{pm.desc}</p>
                   </div>
-                  {form.paymentMethod === pm.id && (
-                    <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: pm.accent }} />
-                  )}
+                  {form.paymentMethod === pm.id && <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: pm.accent }} />}
                 </button>
               ))}
             </div>
@@ -239,36 +247,38 @@ export function CustomerCheckout({ total, onClose, onPlaceOrder }: Props) {
         </div>
 
         {/* Footer CTA */}
-        <div className="px-5 py-5 shrink-0" style={{ borderTop: '1px solid rgba(0,0,0,0.06)', background: '#f9f9fb' }}>
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.5)' }}>Tổng số tiền cần trả</p>
-              <p className="text-[30px] font-black leading-none" style={{ color: '#00b14f' }}>
-                {total.toLocaleString('vi-VN')}đ
-              </p>
+        <div className="px-5 py-4 shrink-0" style={{ borderTop: '1px solid rgba(0,0,0,0.06)', background: '#f9f9fb' }}>
+          {/* Chi tiết tiền */}
+          <div className="space-y-1.5 mb-3 text-[13px]">
+            <div className="flex justify-between" style={{ color: 'rgba(0,0,0,0.6)' }}>
+              <span>Tiền hàng</span>
+              <span className="font-semibold">{total.toLocaleString('vi-VN')}đ</span>
             </div>
-            <span className="text-[11px] font-black px-3 py-1.5 rounded-xl"
-              style={{ background: 'rgba(0,177,79,0.06)', color: '#00b14f', border: '1px solid rgba(0,177,79,0.15)' }}>
-              Freeship trọn đời
-            </span>
+            <div className="flex justify-between" style={{ color: 'rgba(0,0,0,0.6)' }}>
+              <span>Phí giao hàng {isDelivery ? '' : '(tự lấy)'}</span>
+              <span className="font-semibold" style={{ color: shipFee ? 'inherit' : '#00b14f' }}>
+                {shipFee ? `${shipFee.toLocaleString('vi-VN')}đ` : 'Miễn phí'}
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center mb-4 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: 'rgba(0,0,0,0.5)' }}>Tổng cộng</p>
+            <p className="text-[28px] font-black leading-none" style={{ color: '#00b14f' }}>
+              {grandTotal.toLocaleString('vi-VN')}đ
+            </p>
           </div>
 
-          <button
-            onClick={handleSubmit}
+          <button onClick={handleSubmit}
             className="w-full py-4 rounded-[18px] font-black text-[16px] flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: '#00b14f', color: '#fff', boxShadow: '0 8px 32px rgba(0,177,79,0.25)' }}
-          >
+            style={{ background: '#00b14f', color: '#fff', boxShadow: '0 8px 32px rgba(0,177,79,0.25)' }}>
             <ShieldCheck className="w-5 h-5" strokeWidth={2.5} />
-            XÁC NHẬN ĐẶT ĐƠN HÀNG
+            {isDelivery ? 'XÁC NHẬN ĐẶT GIAO' : 'XÁC NHẬN ĐẶT (TỰ LẤY)'}
           </button>
         </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes slide-up {
-          from { transform: translateY(60px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
+        @keyframes slide-up { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .animate-slide-up { animation: slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
         input::placeholder { color: rgba(0,0,0,0.35); }
         select option { background: #ffffff; color: #111; }

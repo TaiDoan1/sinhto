@@ -16,6 +16,7 @@ const HRManagement = lazyNamed(() => import("./components/admin/HRManagement"), 
 const InventoryDashboard = lazyNamed(() => import("./components/admin/InventoryDashboard"), "InventoryDashboard");
 const CrossBranchInventory = lazyNamed(() => import("./components/admin/CrossBranchInventory"), "CrossBranchInventory");
 const ShiftClosingBillSettings = lazyNamed(() => import("./components/admin/ShiftClosingBillSettings"), "ShiftClosingBillSettings");
+const CustomerAppSettings = lazyNamed(() => import("./components/admin/CustomerAppSettings"), "CustomerAppSettings");
 const POSInterface = lazyNamed(() => import("./components/pos/POSInterface"), "POSInterface");
 const PosCustomerDisplay = lazyNamed(() => import("./components/pos/PosCustomerDisplay"), "PosCustomerDisplay");
 const StaffApp = lazyNamed(() => import("./components/staff/StaffApp"), "StaffApp");
@@ -161,6 +162,8 @@ function AdminShell() {
         return <OrderNotificationSettings />;
       case "online-sales":
         return <CustomerCareManagement />;
+      case "customer-app":
+        return <CustomerAppSettings />;
       case "customer-management":
         return <CustomerManagement scope="admin" />;
       case "backup":

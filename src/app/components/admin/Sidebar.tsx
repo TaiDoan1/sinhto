@@ -1,4 +1,4 @@
-import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe, Truck, Warehouse, Receipt, Layers, Gift, Volume2, BookOpen, DatabaseBackup, Wallet, CalendarCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Users, Package, Settings, LogOut, ShoppingBag, Coffee, Award, Globe, Truck, Warehouse, Receipt, Layers, Gift, Volume2, BookOpen, DatabaseBackup, Wallet, CalendarCheck, ClipboardList, Smartphone } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 
 interface SidebarProps {
@@ -32,6 +32,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     { id: 'combo-ship', label: 'Giao Combo Hôm Nay', icon: Truck },
     { id: 'combo-commission', label: 'Hoa Hồng CSKH', icon: Wallet },
     { id: 'online-sales', label: 'Chăm Sóc Khách Hàng', icon: Globe },
+    { id: 'customer-app', label: 'App Khách (Đặt Món)', icon: Smartphone },
     { id: 'customer-management', label: 'Quản Lý Khách Hàng', icon: Users },
     { id: 'loyalty', label: 'Tích Điểm KH', icon: Award },
     { id: 'gift-campaigns', label: 'Khuyến Mãi Tặng Quà', icon: Gift },

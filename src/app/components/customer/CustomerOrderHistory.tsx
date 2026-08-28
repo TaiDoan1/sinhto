@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, AlertTriangle, ChevronRight, Pause, Play, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, History, Package, Banknote, QrCode, Search, Crown, DropletIcon, AlertTriangle, Calendar, MapPin, Store } from 'lucide-react';
 import { getWholesaleAccounts, type WholesaleAccount } from './CustomerApp';
 import * as api from '../../utils/api';
 import { usePagination, Pager } from '../common/Pagination';
@@ -8,6 +8,48 @@ import { usePagination, Pager } from '../common/Pagination';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function normPhone(p?: string) { return (p || '').replace(/\D/g, ''); }
+
+// Các bước trạng thái đơn (giống Grab: theo dõi realtime)
+const STATUS_FLOW = ['pending', 'preparing', 'ready', 'delivering', 'completed'] as const;
+const STATUS_STEP_LABEL: Record<string, string> = {
+  pending: 'Đã đặt', preparing: 'Đang pha', ready: 'Chờ giao', delivering: 'Đang giao', completed: 'Hoàn tất',
+};
+function statusInfo(s: string) {
+  switch (s) {
+    case 'completed': return { label: '✓ Hoàn tất', bg: 'rgba(0,177,79,0.08)', color: '#00b14f' };
+    case 'delivering': return { label: '🛵 Đang giao', bg: 'rgba(37,99,235,0.1)', color: '#2563eb' };
+    case 'ready': return { label: '📦 Chờ giao / lấy', bg: 'rgba(124,58,237,0.12)', color: '#7c3aed' };
+    case 'preparing': return { label: '⏳ Đang pha', bg: 'rgba(251,191,36,0.14)', color: '#b45309' };
+    default: return { label: '🔄 Đã đặt', bg: 'rgba(249,115,22,0.12)', color: '#ea580c' };
+  }
+}
+
+// Thanh tiến trình trạng thái đơn (khách tự lấy thì bỏ bước "Đang giao").
+function StatusTimeline({ status, pickup }: { status: string; pickup?: boolean }) {
+  const steps = STATUS_FLOW.filter((s) => !(pickup && s === 'delivering'));
+  const curIdx = steps.indexOf((status || 'pending') as typeof STATUS_FLOW[number]);
+  return (
+    <div className="flex items-center gap-1 px-4 py-3" style={{ background: 'rgba(0,0,0,0.015)' }}>
+      {steps.map((s, i) => {
+        const done = i <= curIdx;
+        return (
+          <div key={s} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full flex items-center">
+              <div className="h-1 flex-1 rounded-full" style={{ background: i === 0 ? 'transparent' : (i <= curIdx ? '#00b14f' : 'rgba(0,0,0,0.1)') }} />
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: done ? '#00b14f' : 'rgba(0,0,0,0.15)', boxShadow: i === curIdx ? '0 0 0 3px rgba(0,177,79,0.2)' : 'none' }} />
+              <div className="h-1 flex-1 rounded-full" style={{ background: i === steps.length - 1 ? 'transparent' : (i < curIdx ? '#00b14f' : 'rgba(0,0,0,0.1)') }} />
+            </div>
+            <span className="text-[9px] font-bold text-center leading-tight" style={{ color: done ? '#00b14f' : 'rgba(0,0,0,0.35)' }}>
+              {STATUS_STEP_LABEL[s]}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function WholesaleCard({ account }: { account: WholesaleAccount }) {
@@ -286,6 +328,27 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
   const { pageItems: pagedResults, ...resultsPager } = usePagination(results, 15, phone);
   const { pageItems: pagedComboResults, ...comboResPager } = usePagination(comboResults, 15, comboPhone);
 
+  // Theo dõi realtime: khi đơn của SĐT đang tra đổi trạng thái (quán/shipper cập nhật), tự cập nhật
+  // ngay trên màn khách — không cần bấm tra lại (giống Grab theo dõi đơn).
+  useEffect(() => {
+    if (!isOpen) return;
+    const es = new EventSource('/api/events');
+    es.onmessage = (event) => {
+      try {
+        const { type, data } = JSON.parse(event.data);
+        if ((type === 'ORDER_UPDATED' || type === 'ORDER_CREATED') && data) {
+          setResults((prev) => {
+            const idx = prev.findIndex((o) => o.id === data.id);
+            if (idx >= 0) { const next = [...prev]; next[idx] = { ...next[idx], ...data }; return next; }
+            if (searched && phone && normPhone(data.customerPhone) === normPhone(phone)) return [data, ...prev];
+            return prev;
+          });
+        }
+      } catch { /* bỏ qua event lỗi */ }
+    };
+    return () => es.close();
+  }, [isOpen, phone, searched]);
+
   const handleSearch = async () => {
     if (!phone) return;
     try {
@@ -441,16 +504,24 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                           {new Date(order.time).toLocaleString('vi-VN')}
                         </p>
                       </div>
-                      <span
-                        className="px-3 py-1 rounded-full text-[11px] font-black"
-                        style={{
-                          background: order.status === 'completed' ? 'rgba(0,177,79,0.08)' : order.status === 'preparing' ? 'rgba(251,191,36,0.12)' : 'rgba(249,115,22,0.12)',
-                          color: order.status === 'completed' ? '#00b14f' : order.status === 'preparing' ? '#b45309' : '#ea580c',
-                        }}
-                      >
-                        {order.status === 'completed' ? '✓ Hoàn thành' : order.status === 'preparing' ? '⏳ Đang pha' : '🔄 Đang xử lý'}
+                      <span className="px-3 py-1 rounded-full text-[11px] font-black"
+                        style={{ background: statusInfo(order.status).bg, color: statusInfo(order.status).color }}>
+                        {statusInfo(order.status).label}
                       </span>
                     </div>
+
+                    {/* Thanh theo dõi trạng thái realtime */}
+                    {order.status !== 'completed' && (
+                      <StatusTimeline status={order.status} pickup={order.deliveryType === 'pickup'} />
+                    )}
+
+                    {/* Hình thức nhận */}
+                    <div className="px-4 pt-3 flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: 'rgba(0,0,0,0.55)' }}>
+                      {order.deliveryType === 'pickup'
+                        ? <><Store className="w-3.5 h-3.5" style={{ color: '#00b14f' }} /> Tự lấy tại quán</>
+                        : <><MapPin className="w-3.5 h-3.5" style={{ color: '#00b14f' }} /> Giao: {order.deliveryAddress || '—'}</>}
+                    </div>
+
                     <div className="px-4 py-3 space-y-2">
                       {order.items.map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-[13px]">
@@ -463,8 +534,9 @@ export function CustomerOrderHistory({ isOpen, onClose }: Props) {
                       <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(0,0,0,0.5)' }}>
                         {order.paymentMethod === 'cash' ? <Banknote className="w-3.5 h-3.5" /> : <QrCode className="w-3.5 h-3.5" />}
                         {order.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}
+                        {order.shipFee ? <span style={{ color: 'rgba(0,0,0,0.35)' }}>· ship {order.shipFee.toLocaleString('vi-VN')}đ</span> : null}
                       </div>
-                      <span className="font-black text-zinc-900">{order.total.toLocaleString('vi-VN')}đ</span>
+                      <span className="font-black text-zinc-900">{((order.total || 0) + (order.shipFee || 0)).toLocaleString('vi-VN')}đ</span>
                     </div>
                   </div>
                 ))

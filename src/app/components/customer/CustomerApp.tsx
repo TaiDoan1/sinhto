@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ShoppingCart, ChevronRight, Package, X } from 'lucide-react';
+import { ShoppingCart, ChevronRight, Package, X, MapPin, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { useBranches } from '../../contexts/BranchContext';
 import { useCombos } from '../../contexts/ComboContext';
 import { CustomerCartPanel, type CartItem } from './CustomerCartPanel';
 import { CustomerCheckout } from './CustomerCheckout';
@@ -252,8 +253,26 @@ export function CustomerApp() {
   const { addOrder } = useOrders();
   const { addCombo } = useCombos();
   const { resolveCode, addReferral } = useAffiliate();
+  const { activeBranches } = useBranches();
   const activeReferralCode = localStorage.getItem('activeReferralCode');
   const referringPT = activeReferralCode ? resolveCode(activeReferralCode) : null;
+
+  // Chi nhánh khách chọn (giống Grab: chọn cửa hàng ngay đầu). Mặc định = chi nhánh đầu tiên.
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+  // Phí giao hàng do chủ quán cấu hình (setting 'customerDeliveryFee'); mặc định 15.000đ.
+  const [deliveryFee, setDeliveryFee] = useState(15000);
+  const selectedBranch = activeBranches.find((b) => b.id === selectedBranchId);
+
+  useEffect(() => {
+    if (!selectedBranchId && activeBranches.length) setSelectedBranchId(activeBranches[0].id);
+  }, [activeBranches, selectedBranchId]);
+
+  useEffect(() => {
+    api.fetchSetting('customerDeliveryFee')
+      .then((v) => { const n = Number(v); if (!Number.isNaN(n)) setDeliveryFee(n); })
+      .catch(() => {}); // chưa cấu hình (404) → giữ mặc định
+  }, []);
 
   // Sync wholesale accounts on mount & via SSE
   useEffect(() => {
@@ -313,13 +332,20 @@ export function CustomerApp() {
 
   const removeItem = (id: string) => setCart(prev => prev.filter(i => i.cartItemId !== id));
 
-  const placeOrder = async (form: { name: string; phone: string; address: string; paymentMethod: string }) => {
+  const placeOrder = async (form: {
+    name: string; phone: string; address: string; paymentMethod: string;
+    branchId?: string; deliveryType?: 'delivery' | 'pickup'; shipFee?: number;
+  }) => {
     const orderId = `ORD-${Date.now()}`;
+    // Dùng ĐÚNG chi nhánh khách chọn (trước đây ép cứng 'CN1' — bỏ qua lựa chọn của khách).
+    const branchId = form.branchId || selectedBranchId || 'CN1';
+    const deliveryType = form.deliveryType || 'delivery';
+    const shipFee = form.shipFee || 0;
     await addOrder({
       customerName: form.name, customerPhone: form.phone, deliveryAddress: form.address,
-      items: cart, total: cartTotal, status: 'pending',
+      items: cart, total: cartTotal, shipFee, status: 'pending',
       paymentMethod: form.paymentMethod as 'cash' | 'transfer', source: 'mobile',
-      branchId: 'CN1', staff: 'Online', paidAt: new Date(),
+      branchId, deliveryType, staff: 'Online', paidAt: new Date(),
     });
 
     for (const item of cart) {
@@ -345,7 +371,7 @@ export function CustomerApp() {
             customerPhone: form.phone,
             deliveryAddress: form.address,
             totalPrice: item.price,
-            branchId: 'CN1',
+            branchId,
             staff: 'Online',
             status: 'pending',
             planName: raw.name || item.name,
@@ -430,6 +456,25 @@ export function CustomerApp() {
           </button>
         </div>
       </header>
+
+      {/* Branch bar (giống Grab: chọn cửa hàng nổi bật ngay đầu) */}
+      <button
+        onClick={() => setBranchPickerOpen(true)}
+        className="flex-shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-2.5 border-b border-zinc-100 text-left active:bg-zinc-50 transition-colors"
+        style={{ background: '#ffffff' }}
+      >
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(0,177,79,0.1)' }}>
+          <MapPin className="w-4 h-4" style={{ color: '#00b14f' }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,0,0,0.4)' }}>Chi nhánh</p>
+          <p className="text-[13px] font-black text-zinc-900 truncate leading-tight">
+            {selectedBranch ? selectedBranch.name : 'Chọn chi nhánh'}
+            {selectedBranch?.address ? <span className="font-medium text-zinc-400"> · {selectedBranch.address}</span> : ''}
+          </p>
+        </div>
+        <ChevronDown className="w-5 h-5 shrink-0" style={{ color: 'rgba(0,0,0,0.35)' }} />
+      </button>
 
       {/* Tab switcher */}
       <div className="flex-shrink-0 px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2 border-b border-zinc-100" style={{ background: '#ffffff' }}>
@@ -588,7 +633,13 @@ export function CustomerApp() {
 
       {/* Checkout */}
       {isCheckoutOpen && (
-        <CustomerCheckout total={cartTotal} onClose={() => setIsCheckoutOpen(false)} onPlaceOrder={placeOrder} />
+        <CustomerCheckout
+          total={cartTotal}
+          initialBranchId={selectedBranchId}
+          deliveryFee={deliveryFee}
+          onClose={() => setIsCheckoutOpen(false)}
+          onPlaceOrder={placeOrder}
+        />
       )}
 
       {/* Order History (with wholesale lookup tab) */}
@@ -601,6 +652,47 @@ export function CustomerApp() {
           onClose={() => setActivePlanId(null)}
           onAddToCart={handleAddToCart}
         />
+      )}
+
+      {/* Branch Picker (bottom sheet giống Grab) */}
+      {branchPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setBranchPickerOpen(false)}>
+          <div className="w-full max-w-lg sm:rounded-[2rem] rounded-t-[2rem] overflow-hidden bg-white animate-slide-up" style={{ maxHeight: '80vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center pt-4 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(0,0,0,0.1)' }} />
+            </div>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <h2 className="text-[17px] font-black text-zinc-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5" style={{ color: '#00b14f' }} /> Chọn chi nhánh
+              </h2>
+              <button onClick={() => setBranchPickerOpen(false)} className="p-2 rounded-xl" style={{ background: 'rgba(0,0,0,0.05)' }}>
+                <X className="w-5 h-5" style={{ color: 'rgba(0,0,0,0.4)' }} />
+              </button>
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: '60vh', scrollbarWidth: 'none' }}>
+              {activeBranches.length === 0 && (
+                <p className="text-center text-sm text-zinc-400 py-8">Chưa có chi nhánh.</p>
+              )}
+              {activeBranches.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => { setSelectedBranchId(b.id); setBranchPickerOpen(false); }}
+                  className="w-full flex items-center justify-between p-4 rounded-[16px] text-left transition-all"
+                  style={selectedBranchId === b.id
+                    ? { background: 'rgba(0,177,79,0.06)', border: '1.5px solid rgba(0,177,79,0.35)' }
+                    : { background: '#f9f9fb', border: '1.5px solid rgba(0,0,0,0.05)' }}
+                >
+                  <div className="min-w-0">
+                    <p className="font-black text-[14px]" style={{ color: selectedBranchId === b.id ? '#00b14f' : 'rgba(0,0,0,0.85)' }}>{b.name}</p>
+                    <p className="text-[12px] mt-0.5 truncate" style={{ color: 'rgba(0,0,0,0.45)' }}>{b.address}</p>
+                  </div>
+                  {selectedBranchId === b.id && <CheckCircle2 className="w-5 h-5 shrink-0 ml-2" style={{ color: '#00b14f' }} />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <style dangerouslySetInnerHTML={{ __html: `@keyframes slide-up { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } .animate-slide-up { animation: slide-up 0.3s cubic-bezier(0.32,0.72,0,1) forwards; }` }} />
+        </div>
       )}
 
       {/* Wholesale Packages Modal */}

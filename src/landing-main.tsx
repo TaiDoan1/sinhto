@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles/index.css";
 import { CustomerApp } from "./app/components/customer/CustomerApp";
+import { GrabFoodApp } from "./app/components/customer/GrabFoodApp";
 import { SplashScreen } from "./app/components/SplashScreen";
 import { captureSalesRefFromUrl } from "./app/utils/salesRef";
 import { ToastProvider } from "./app/contexts/ToastContext";
@@ -20,6 +21,10 @@ import { BranchProvider } from "./app/contexts/BranchContext";
 
 function LandingRoot() {
   const [showSplash, setShowSplash] = useState(true);
+  // Bundle landing không dùng router của App.tsx, nên tự nhận path ở đây:
+  // /dat-mon (và /order) → app đặt món kiểu Grab; còn lại → landing/CustomerApp.
+  // GrabFoodApp là app KHÁCH (không kéo theo code quản lý) nên an toàn để trong bundle landing.
+  const isOrderPath = /^\/(dat-mon|order)(\/|$)/.test(window.location.pathname);
 
   useEffect(() => {
     // Bắt mã giới thiệu (?ref= / ?pt=) — lưu nguyên mã, server sẽ giải mã khi tạo đơn.
@@ -41,7 +46,7 @@ function LandingRoot() {
                     <LoyaltyProvider>
                       <EmployeeProvider>
                         <BranchProvider>
-                          <CustomerApp />
+                          {isOrderPath ? <GrabFoodApp /> : <CustomerApp />}
                         </BranchProvider>
                       </EmployeeProvider>
                     </LoyaltyProvider>

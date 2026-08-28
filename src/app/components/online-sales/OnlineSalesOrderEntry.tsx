@@ -83,7 +83,15 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         if (cancelled) return;
         setFoundCustomer(c || null);
         if (c) {
-          setCustomer((prev) => prev.name.trim() ? prev : { ...prev, name: c.name || prev.name });
+          // Tự điền tên + địa chỉ khách cũ, nhưng KHÔNG đè nếu CSKH đã gõ sẵn.
+          // Địa chỉ ưu tiên: danh bạ khách → nếu trống thì lấy từ combo gần nhất của SĐT này.
+          const comboAddr = combos.find((k) => k.customerPhone === normalized || k.customerPhone === customer.phone.trim())?.deliveryAddress || '';
+          const bestAddr = (c.address || comboAddr || '').trim();
+          setCustomer((prev) => ({
+            ...prev,
+            name: prev.name.trim() ? prev.name : (c.name || prev.name),
+            address: prev.address.trim() ? prev.address : (bestAddr || prev.address),
+          }));
         }
       } catch {
         if (!cancelled) setFoundCustomer(null);
@@ -239,6 +247,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         return;
       }
 
+      // Lưu địa chỉ mới nhất vào danh bạ khách (xử lý khách đổi địa chỉ) — lần sau tự điền địa chỉ mới.
+      if (customer.address.trim()) {
+        api.upsertCustomerAddress(customer.phone.trim(), customer.name.trim(), customer.address.trim());
+      }
       await logActivity('converted', `Nhập đơn lẻ — ${cartTotal.toLocaleString('vi-VN')}đ (${orderItems.length} món)${shipFeeValue ? ` + ship ${shipFeeValue.toLocaleString('vi-VN')}đ` : ''}`);
       await api.patchAssignmentProfile(customer.phone.trim(), {
         customerName: customer.name.trim(),
@@ -314,6 +326,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         await api.claimComboSubscription(created.id, employee.id, employee.fullName);
       }
 
+      // Lưu địa chỉ mới nhất vào danh bạ khách (trừ khi khách tự lấy tại quầy).
+      if (deliveryType !== 'pickup' && customer.address.trim()) {
+        api.upsertCustomerAddress(customer.phone.trim(), customer.name.trim(), customer.address.trim());
+      }
       await logActivity('claim', `Nhập đơn combo — ${pendingCombo.name} · ${pendingCombo.price.toLocaleString('vi-VN')}đ`);
       await api.patchAssignmentProfile(customer.phone.trim(), {
         customerName: customer.name.trim(),

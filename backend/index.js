@@ -2131,12 +2131,46 @@ app.get('/api/customers', (req, res) => {
   });
 });
 
+// Địa chỉ giao GẦN NHẤT của 1 SĐT lấy từ combo/đơn lẻ — dùng để tự điền khi danh bạ khách chưa
+// lưu địa chỉ (khách cũ mua combo/đơn lẻ trước đây). Ưu tiên bản ghi mới nhất theo thời gian.
+function findLatestAddressByPhone(rawPhone, cb) {
+  const normalized = normalizePhoneVN(rawPhone);
+  if (!normalized || normalized.length < 9) return cb(null, '');
+  const candidates = [];
+  db.all(
+    `SELECT customerPhone, deliveryAddress AS addr, createdAt AS ts FROM combo_subscriptions
+     WHERE deliveryAddress IS NOT NULL AND TRIM(deliveryAddress) != ''`,
+    [],
+    (e1, comboRows) => {
+      if (!e1) for (const r of (comboRows || [])) {
+        if (r.addr && phonesMatch(normalized, r.customerPhone)) candidates.push({ addr: r.addr, ts: r.ts || '' });
+      }
+      db.all(
+        `SELECT customerPhone, deliveryAddress AS addr, time AS ts FROM orders
+         WHERE deliveryAddress IS NOT NULL AND TRIM(deliveryAddress) != ''`,
+        [],
+        (e2, orderRows) => {
+          if (!e2) for (const r of (orderRows || [])) {
+            if (r.addr && phonesMatch(normalized, r.customerPhone)) candidates.push({ addr: r.addr, ts: r.ts || '' });
+          }
+          candidates.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+          cb(null, candidates.length ? candidates[0].addr : '');
+        }
+      );
+    }
+  );
+}
+
 app.get('/api/customers/:phone', (req, res) => {
   const phone = decodeURIComponent(req.params.phone);
   findCustomerByPhone(phone, (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Customer not found' });
-    res.json(row);
+    // Danh bạ chưa có địa chỉ → lấy địa chỉ giao gần nhất từ combo/đơn lẻ.
+    if (row.address && String(row.address).trim()) return res.json(row);
+    findLatestAddressByPhone(phone, (e, addr) => {
+      res.json(addr ? { ...row, address: addr } : row);
+    });
   });
 });
 
@@ -2181,6 +2215,42 @@ app.patch('/api/customers/:id', (req, res) => {
         res.json(updated);
       }
     );
+  });
+});
+
+// Cập nhật (hoặc tạo mới) địa chỉ khách theo SĐT — gọi khi lưu đơn để danh bạ luôn có địa chỉ mới
+// nhất (xử lý trường hợp khách đổi địa chỉ). KHÔNG xoá địa chỉ cũ bằng chuỗi rỗng.
+app.post('/api/customers/upsert-address', (req, res) => {
+  const { phone, name, address } = req.body || {};
+  const addr = normStr((address || '').toString().trim());
+  if (!phone || !addr) return res.json({ ok: false, skipped: true });
+  findInCustomersTable(phone, (err, existing) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (existing) {
+      db.run(
+        "UPDATE customers SET address = ?, name = CASE WHEN (name IS NULL OR TRIM(name) = '') THEN ? ELSE name END WHERE id = ?",
+        [addr, normStr(name || existing.name || ''), existing.id],
+        (uErr) => {
+          if (uErr) return res.status(500).json({ error: uErr.message });
+          const updated = { ...existing, address: addr };
+          broadcast('CUSTOMER_UPDATED', updated);
+          res.json({ ok: true, customer: updated });
+        }
+      );
+    } else {
+      const id = `CUST-${Date.now()}`;
+      const createdAt = new Date().toISOString();
+      db.run(
+        "INSERT INTO customers (id, name, phone, points, createdAt, address) VALUES (?, ?, ?, 0, ?, ?)",
+        [id, normStr(name || ''), normalizePhoneVN(phone) || phone, createdAt, addr],
+        (iErr) => {
+          if (iErr) return res.status(500).json({ error: iErr.message });
+          const created = { id, name: normStr(name || ''), phone: normalizePhoneVN(phone) || phone, points: 0, createdAt, address: addr };
+          broadcast('CUSTOMER_CREATED', created);
+          res.json({ ok: true, customer: created });
+        }
+      );
+    }
   });
 });
 

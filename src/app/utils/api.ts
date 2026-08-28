@@ -700,6 +700,18 @@ export async function fetchCustomerByPhone(phone: string) {
   return res.json();
 }
 
+// Cập nhật/tạo địa chỉ khách theo SĐT khi lưu đơn (để danh bạ luôn giữ địa chỉ mới nhất).
+export async function upsertCustomerAddress(phone: string, name: string, address: string) {
+  try {
+    const res = await fetch(`${BASE_URL}/customers/upsert-address`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, name, address }),
+    });
+    return res.ok ? res.json() : null;
+  } catch { return null; }
+}
+
 export async function createCustomer(data: { name: string; phone: string; address?: string }) {
   const res = await fetch(`${BASE_URL}/customers`, {
     method: 'POST',

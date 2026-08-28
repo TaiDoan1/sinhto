@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
@@ -11,6 +11,8 @@ interface CustomComboBuilderProps {
   onClose: () => void;
   initialData?: any;
   isPOS?: boolean;
+  // Thông tin khách đã nhập sẵn ở màn ngoài (CSKH) → bỏ bước "Xác nhận khách" trong builder.
+  presetCustomer?: { name?: string; phone?: string };
 }
 
 const PLAN_DATA = {
@@ -72,7 +74,7 @@ const DAYS_OF_WEEK = [
   'Chủ Nhật'
 ];
 
-export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }: CustomComboBuilderProps) {
+export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, presetCustomer }: CustomComboBuilderProps) {
   // Step 0: Customer Info
   // Step 1: Chọn Gói & Ngày Start
   // Step 2: Chọn Vị 7 Ngày
@@ -130,9 +132,23 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS }:
     }
   }, [initialData]);
 
-  // POS: pre-fill from loyalty customer already set at checkout
+  // CSKH: thông tin khách đã nhập ở màn ngoài → điền sẵn & bỏ luôn bước "Xác nhận khách".
+  // Chỉ chạy 1 lần lúc mở (ref chặn) để không ép về bước 1 khi người dùng đã sang bước sau.
+  const didInitPreset = useRef(false);
   useEffect(() => {
-    if (isPOS && activeCustomer && !initialData) {
+    if (didInitPreset.current || initialData) return;
+    if (presetCustomer && (presetCustomer.phone || presetCustomer.name)) {
+      didInitPreset.current = true;
+      setCustomerName(presetCustomer.name || '');
+      setCustomerPhone(presetCustomer.phone || '');
+      setCustomerType('existing');
+      setStep(1);
+    }
+  }, [presetCustomer, initialData]);
+
+  // POS: pre-fill from loyalty customer already set at checkout (bỏ qua nếu đã có presetCustomer)
+  useEffect(() => {
+    if (isPOS && activeCustomer && !initialData && !presetCustomer) {
       setCustomerName(activeCustomer.name);
       setCustomerPhone(activeCustomer.phone);
       setStep(1);

@@ -821,6 +821,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden h-[95dvh] flex flex-col">
             <CustomComboBuilder
               isPOS
+              presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
               onClose={() => setShowComboBuilder(false)}
               onAddToCart={(combo) => {
                 const raw = combo.rawComboData || combo;

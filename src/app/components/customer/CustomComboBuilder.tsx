@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
@@ -80,12 +80,14 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   // Step 2: Chọn Vị 7 Ngày
   // Step 3: Chọn Topping
   // Step 4: Xác Nhận & Đặt
-  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(0);
+  // Có sẵn thông tin khách (CSKH truyền vào) → vào thẳng bước 1, KHÔNG render bước nhập khách.
+  const hasPreset = !!(presetCustomer && (presetCustomer.phone || presetCustomer.name) && !initialData);
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(hasPreset ? 1 : 0);
 
   // Customer State
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerType, setCustomerType] = useState<'new' | 'existing' | null>(null);
+  const [customerName, setCustomerName] = useState(hasPreset ? (presetCustomer?.name || '') : '');
+  const [customerPhone, setCustomerPhone] = useState(hasPreset ? (presetCustomer?.phone || '') : '');
+  const [customerType, setCustomerType] = useState<'new' | 'existing' | null>(hasPreset ? 'existing' : null);
   const [isSearching, setIsSearching] = useState(false);
   const { combos } = useCombos();
   const { lookupByPhone, registerCustomer, activeCustomer, setActiveCustomer } = useLoyalty();
@@ -132,19 +134,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
     }
   }, [initialData]);
 
-  // CSKH: thông tin khách đã nhập ở màn ngoài → điền sẵn & bỏ luôn bước "Xác nhận khách".
-  // Chỉ chạy 1 lần lúc mở (ref chặn) để không ép về bước 1 khi người dùng đã sang bước sau.
-  const didInitPreset = useRef(false);
-  useEffect(() => {
-    if (didInitPreset.current || initialData) return;
-    if (presetCustomer && (presetCustomer.phone || presetCustomer.name)) {
-      didInitPreset.current = true;
-      setCustomerName(presetCustomer.name || '');
-      setCustomerPhone(presetCustomer.phone || '');
-      setCustomerType('existing');
-      setStep(1);
-    }
-  }, [presetCustomer, initialData]);
+  // (Thông tin khách từ CSKH đã được nạp sẵn ngay lúc khởi tạo state ở trên — bỏ hẳn bước nhập khách.)
 
   // POS: pre-fill from loyalty customer already set at checkout (bỏ qua nếu đã có presetCustomer)
   useEffect(() => {

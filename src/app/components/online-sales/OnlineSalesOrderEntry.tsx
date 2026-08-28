@@ -703,6 +703,37 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             </>
           ) : (
             <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4">
+              {showComboBuilder ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900">Thiết lập combo</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowComboBuilder(false)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="h-[600px] rounded-xl overflow-hidden border border-gray-100">
+                    <CustomComboBuilder
+                      isPOS
+                      presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
+                      onClose={() => setShowComboBuilder(false)}
+                      onAddToCart={(combo) => {
+                        const raw = combo.rawComboData || combo;
+                        setPendingCombo({
+                          name: combo.name || `Combo ${raw.duration || 'tuần'}`,
+                          price: raw.finalPrice || combo.price || combo.totalPrice || 0,
+                          raw,
+                        });
+                        setShowComboBuilder(false);
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+              <>
               <h3 className="font-bold text-gray-900">Đăng ký combo cho khách</h3>
               {pendingCombo ? (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start justify-between gap-3">
@@ -761,6 +792,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                   </button>
                 )}
               </div>
+              </>
+              )}
             </div>
           )}
         </div>
@@ -793,26 +826,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         </div>
       )}
 
-      {showComboBuilder && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 bg-black/60">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden h-[95dvh] flex flex-col">
-            <CustomComboBuilder
-              isPOS
-              presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
-              onClose={() => setShowComboBuilder(false)}
-              onAddToCart={(combo) => {
-                const raw = combo.rawComboData || combo;
-                setPendingCombo({
-                  name: combo.name || `Combo ${raw.duration || 'tuần'}`,
-                  price: raw.finalPrice || combo.price || combo.totalPrice || 0,
-                  raw,
-                });
-                setShowComboBuilder(false);
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

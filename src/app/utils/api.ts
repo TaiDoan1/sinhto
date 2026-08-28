@@ -1309,6 +1309,52 @@ export async function backfillFbConversations(): Promise<{ conversations: number
   return res.json();
 }
 
+// --- Menu app đặt món kiểu Grab (/dat-mon) ---
+export type GrabBadge = '' | 'bestseller' | 'loved' | 'new';
+export interface GrabMenuItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  section: string;
+  badge: GrabBadge;
+  defaultSize: string;
+  defaultProtein: number;
+  discountPercent: number;
+  sortOrder: number;
+  active: number; // 1/0
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function fetchGrabMenu(all = false): Promise<GrabMenuItem[]> {
+  const res = await fetch(`${BASE_URL}/grab-menu${all ? '?all=1' : ''}`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to fetch grab menu');
+  return res.json();
+}
+
+export async function createGrabMenuItem(data: Partial<GrabMenuItem>): Promise<GrabMenuItem> {
+  const res = await fetch(`${BASE_URL}/grab-menu`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Tạo món thất bại'); }
+  return res.json();
+}
+
+export async function updateGrabMenuItem(id: string, updates: Partial<GrabMenuItem>): Promise<GrabMenuItem> {
+  const res = await fetch(`${BASE_URL}/grab-menu/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error('Cập nhật món thất bại');
+  return res.json();
+}
+
+export async function deleteGrabMenuItem(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/grab-menu/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Xóa món thất bại');
+}
+
 // --- Nhắn tin hàng loạt (bulk campaign) — CSKH ---
 export interface BulkRecipient {
   id: string;

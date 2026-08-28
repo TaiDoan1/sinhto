@@ -14,8 +14,8 @@ import { CustomerModifierModal } from './CustomerModifierModal';
 import { SubscriptionCustomizerModal } from './SubscriptionCustomizerModal';
 import { WholesalePackagesModal } from './WholesalePackagesModal';
 import { GrabMenu } from './GrabMenu';
-import type { CustomerProduct } from './CustomerProductGrid';
-import { PLANS, type PlanId, registerWholesaleAccount, getWholesaleAccounts } from './CustomerApp';
+import type { GrabMenuItem } from '../../utils/api';
+import { type PlanId, registerWholesaleAccount } from './CustomerApp';
 
 export function GrabFoodApp() {
   const { addOrder } = useOrders();
@@ -35,7 +35,7 @@ export function GrabFoodApp() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
-  const [selectedRetailProduct, setSelectedRetailProduct] = useState<CustomerProduct | null>(null);
+  const [selectedItem, setSelectedItem] = useState<GrabMenuItem | null>(null);
   const [activePlanId, setActivePlanId] = useState<PlanId | null>(null);
   const [showWholesaleModal, setShowWholesaleModal] = useState(false);
 
@@ -172,7 +172,7 @@ export function GrabFoodApp() {
         <GrabMenu
           search={search}
           onSearchChange={setSearch}
-          onProductClick={(p) => setSelectedRetailProduct(p)}
+          onProductClick={(it) => setSelectedItem(it)}
           onSelectCombo={(id) => setActivePlanId(id)}
         />
       </div>
@@ -204,17 +204,20 @@ export function GrabFoodApp() {
 
       <CustomerOrderHistory isOpen={isOrdersOpen} onClose={() => setIsOrdersOpen(false)} />
 
-      {selectedRetailProduct && (
+      {selectedItem && (
         <CustomerModifierModal
-          product={selectedRetailProduct}
-          onClose={() => setSelectedRetailProduct(null)}
+          product={{ id: selectedItem.id, name: selectedItem.name, basePrice: 0, image: selectedItem.imageUrl, description: selectedItem.description }}
+          initialSize={selectedItem.defaultSize}
+          initialProtein={selectedItem.defaultProtein}
+          discountPercent={selectedItem.discountPercent}
+          onClose={() => setSelectedItem(null)}
           onAdd={(item) => {
             handleAddToCart({
               productId: item.id, productName: item.name, name: item.name,
               size: item.size, protein: item.protein, toppings: item.toppings,
               price: item.price, quantity: 1, isCustomCombo: false,
             });
-            setSelectedRetailProduct(null);
+            setSelectedItem(null);
           }}
         />
       )}

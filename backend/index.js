@@ -15,6 +15,7 @@ const { registerComboDeliveryRoutes, afterComboClaimed, generateDeliveryLogsForC
 const { registerCskhRoutes } = require('./cskhApi');
 const { registerFacebookRoutes } = require('./facebookApi');
 const { registerBulkMessageRoutes } = require('./bulkMessageApi');
+const { registerGrabMenuRoutes } = require('./grabMenuApi');
 const { registerGiftCampaignRoutes } = require('./giftCampaignsApi');
 const { registerSavedRepliesRoutes } = require('./savedRepliesApi');
 const {
@@ -65,6 +66,7 @@ const PUBLIC_API = [
   { method: 'GET', re: /^\/api\/products\/?$/ },
   { method: 'GET', re: /^\/api\/branches(\/[^/]+)?\/?$/ },
   { method: 'GET', re: /^\/api\/settings\/[^/]+\/?$/ },
+  { method: 'GET', re: /^\/api\/grab-menu\/?$/ }, // menu app đặt món cho khách (chỉ đọc, active)
   { method: 'POST', re: /^\/api\/orders\/?$/ },
   { method: 'GET', re: /^\/api\/orders\/by-phone\/[^/]+\/?$/ },
   { method: 'POST', re: /^\/api\/combo-subscriptions\/?$/ },
@@ -3162,6 +3164,7 @@ async function start() {
     registerCskhRoutes(app, db, { broadcast });
     registerFacebookRoutes(app, db, { broadcast });
     registerBulkMessageRoutes(app, db, { broadcast });
+    registerGrabMenuRoutes(app, db, { broadcast });
     registerGiftCampaignRoutes(app, db, { broadcast });
     registerSavedRepliesRoutes(app, db, { broadcast });
     registerBackupRoutes(app, db);

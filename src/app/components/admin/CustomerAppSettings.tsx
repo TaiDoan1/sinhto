@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Bike, Save, Loader2, CheckCircle, Smartphone } from 'lucide-react';
+import { Bike, Save, Loader2, CheckCircle, Smartphone, UtensilsCrossed, DollarSign } from 'lucide-react';
 import * as api from '../../utils/api';
+import { GrabMenuManager } from './GrabMenuManager';
 
 const FEE_KEY = 'customerDeliveryFee';
 const DEFAULT_FEE = 15000;
@@ -8,6 +9,7 @@ const DEFAULT_FEE = 15000;
 // Cấu hình App Khách (web đặt món giống Grab). Hiện chỉ có phí giao hàng —
 // khách "Tự lấy" luôn miễn phí, chỉ đơn "Giao hàng" mới tính phí này.
 export function CustomerAppSettings() {
+  const [tab, setTab] = useState<'menu' | 'fee'>('menu');
   const [fee, setFee] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,7 +41,7 @@ export function CustomerAppSettings() {
   const feeNum = Math.max(0, Math.round(Number(fee) || 0));
 
   return (
-    <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-5">
+    <div className={`${tab === 'menu' ? 'max-w-3xl' : 'max-w-xl'} mx-auto p-4 sm:p-6 space-y-5`}>
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
           <Smartphone className="w-5 h-5 text-emerald-700" />
@@ -50,7 +52,19 @@ export function CustomerAppSettings() {
         </div>
       </div>
 
-      {loading ? (
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button onClick={() => setTab('menu')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold ${tab === 'menu' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          <UtensilsCrossed className="w-4 h-4" /> Menu món
+        </button>
+        <button onClick={() => setTab('fee')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold ${tab === 'fee' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          <DollarSign className="w-4 h-4" /> Phí giao hàng
+        </button>
+      </div>
+
+      {tab === 'menu' && <GrabMenuManager />}
+
+      {tab === 'fee' && (loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-emerald-600" /></div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
@@ -106,7 +120,7 @@ export function CustomerAppSettings() {
             {saved ? 'Đã lưu' : 'Lưu phí giao hàng'}
           </button>
         </div>
-      )}
+      ))}
     </div>
   );
 }

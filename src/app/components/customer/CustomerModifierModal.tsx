@@ -8,6 +8,9 @@ import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, formatToppingPrice } from '..
 
 interface Props {
   product: { id: string; name: string; basePrice: number; image: string; description?: string };
+  initialSize?: string;
+  initialProtein?: number;
+  discountPercent?: number; // giảm giá % (menu Grab), áp vào giá cuối
   onClose: () => void;
   onAdd: (item: any) => void;
 }
@@ -27,9 +30,9 @@ const sizeLabels: Record<string, string> = {
   '700ml': 'Siêu',
 };
 
-export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
-  const [size, setSize] = useState('360ml');
-  const [protein, setProtein] = useState(40);
+export function CustomerModifierModal({ product, initialSize, initialProtein, discountPercent = 0, onClose, onAdd }: Props) {
+  const [size, setSize] = useState(initialSize || '360ml');
+  const [protein, setProtein] = useState(initialProtein || 40);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombos, setSelectedCombos] = useState<string[]>([]);
   const [toppingTab, setToppingTab] = useState<'single' | 'combo'>('single');
@@ -72,6 +75,9 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
     return tablePrice + toppingsExtra + comboExtra;
   };
 
+  // Giá cuối sau khi áp giảm giá % của món (menu Grab).
+  const finalPrice = () => (discountPercent > 0 ? Math.round(calcPrice() * (1 - discountPercent / 100)) : calcPrice());
+
   const handleSizeChange = (newSize: string) => {
     setSize(newSize);
     const available = proteinLevels[newSize] || proteinLevelsBySize[newSize] || [20];
@@ -99,7 +105,7 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
       size,
       protein,
       toppings: finalToppingsList,
-      price: calcPrice(),
+      price: finalPrice(),
     });
   };
 
@@ -220,8 +226,9 @@ export function CustomerModifierModal({ product, onClose, onAdd }: Props) {
 
         <div className="p-6 border-t bg-gray-50 shrink-0">
           <button onClick={handleAddToCart}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-emerald-200 transition-all active:scale-95">
-            Thêm vào giỏ • {calcPrice().toLocaleString('vi-VN')}đ
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+            <span>Thêm vào giỏ • {finalPrice().toLocaleString('vi-VN')}đ</span>
+            {discountPercent > 0 && <span className="text-white/70 text-sm line-through font-bold">{calcPrice().toLocaleString('vi-VN')}đ</span>}
           </button>
         </div>
       </div>

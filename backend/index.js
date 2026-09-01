@@ -1565,9 +1565,12 @@ app.post('/api/shifts/dedupe', (req, res) => {
 
     let fixed = 0;
     for (const s of rows) {
-      const o1 = await dbAll('SELECT id, total FROM orders WHERE shiftId = ?', [s.id]);
+      // Chỉ đếm đơn cùng chi nhánh với ca (nếu ca có chi nhánh) — loại đơn chi nhánh khác dính shiftId.
+      const bCond = s.branch ? " AND (branchId = ? OR branchId IS NULL OR branchId = '')" : "";
+      const bP = s.branch ? [s.id, s.branch] : [s.id];
+      const o1 = await dbAll(`SELECT id, total FROM orders WHERE shiftId = ?${bCond}`, bP);
       let o2 = [];
-      try { o2 = await dbAll('SELECT id, total FROM orders_archive WHERE shiftId = ?', [s.id]); } catch { o2 = []; }
+      try { o2 = await dbAll(`SELECT id, total FROM orders_archive WHERE shiftId = ?${bCond}`, bP); } catch { o2 = []; }
       const seen = new Map();
       for (const o of [...o1, ...o2]) if (!seen.has(o.id)) seen.set(o.id, Number(o.total) || 0);
       const cnt = seen.size;
@@ -1644,9 +1647,13 @@ app.patch('/api/shifts/:id/checkin', (req, res) => {
     };
 
     if (action === 'out' && !isPhotoOnly) {
+      // Chỉ tính đơn cùng chi nhánh với ca (nếu ca có chi nhánh) — tránh gộp đơn bán ở chi nhánh
+      // khác dính cùng shiftId (nhân viên làm 2 chi nhánh/ngày).
+      const branchCond = row.branch ? " AND (branchId = ? OR branchId IS NULL OR branchId = '')" : "";
+      const snapParams = row.branch ? [id, row.branch] : [id];
       db.get(
-        "SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?",
-        [id],
+        `SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?${branchCond}`,
+        snapParams,
         (snapErr, snapRow) => {
           updated.closingOrderCount = snapErr ? 0 : (snapRow?.cnt || 0);
           updated.closingRevenue = snapErr ? 0 : (snapRow?.rev || 0);
@@ -1748,10 +1755,12 @@ app.post('/api/shifts/:id/reconcile', (req, res) => {
           if (updErr) return res.status(500).json({ error: updErr.message });
           const reassigned = this.changes || 0;
 
-          // 2) Tính lại snapshot từ toàn bộ đơn thuộc ca
+          // 2) Tính lại snapshot từ đơn thuộc ca (chỉ đơn cùng chi nhánh với ca nếu ca có chi nhánh)
+          const snapCond = branch ? " AND (branchId = ? OR branchId IS NULL OR branchId = '')" : "";
+          const snapP = branch ? [id, branch] : [id];
           db.get(
-            'SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?',
-            [id],
+            `SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE shiftId = ?${snapCond}`,
+            snapP,
             (snapErr, snapRow) => {
               if (snapErr) return res.status(500).json({ error: snapErr.message });
               const closingOrderCount = snapRow?.cnt || 0;

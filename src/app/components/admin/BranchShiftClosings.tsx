@@ -154,27 +154,31 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribe, branchId, date]);
 
+  // 1 đơn chỉ thuộc về ca khi shiftId khớp VÀ chi nhánh của đơn khớp chi nhánh của ca — để đơn bán
+  // ở chi nhánh này không bị kéo qua kết ca chi nhánh khác (VD nhân viên làm 2 chi nhánh/ngày, ca
+  // bị đổi chi nhánh nhưng đơn cũ vẫn giữ branchId nơi bán). branchId trống (đơn cũ) thì bỏ qua chặn.
+  const orderBelongsToShift = (o: any, shift: ShiftRow) =>
+    o.shiftId === shift.id && (!o.branchId || !shift.branch || o.branchId === shift.branch);
+
   // So live cho ca dang lam / ca cu chua co snapshot da chot
-  const liveStats = useMemo(() => {
-    const map = new Map<string, { count: number; total: number }>();
+  const getLiveStat = (shift: ShiftRow) => {
+    let count = 0, total = 0;
     for (const o of [...orders, ...history]) {
-      if (!o.shiftId) continue;
-      const stat = map.get(o.shiftId) || { count: 0, total: 0 };
-      stat.count += 1;
-      stat.total += o.total || 0;
-      map.set(o.shiftId, stat);
+      if (!orderBelongsToShift(o, shift)) continue;
+      count += 1;
+      total += o.total || 0;
     }
-    return map;
-  }, [orders, history]);
+    return { count, total };
+  };
 
   const getStat = (shift: ShiftRow) => {
     if (shift.status === 'completed' && shift.closingOrderCount != null) {
       return { count: shift.closingOrderCount, total: shift.closingRevenue || 0 };
     }
-    return liveStats.get(shift.id) || { count: 0, total: 0 };
+    return getLiveStat(shift);
   };
 
-  const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => o.shiftId === shift.id);
+  const getShiftOrders = (shift: ShiftRow) => allOrders.filter((o) => orderBelongsToShift(o, shift));
 
   // ISO (UTC) -> giá trị input datetime-local theo giờ máy (VN)
   const isoToLocalInput = (iso?: string) => {

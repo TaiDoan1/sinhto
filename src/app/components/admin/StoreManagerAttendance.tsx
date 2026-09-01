@@ -57,6 +57,7 @@ function fmtDuration(mins: number) {
 
 interface DayShift {
   id?: string;
+  branch?: string;
   checkIn?: string;
   checkOut?: string;
   startTime?: string;
@@ -144,15 +145,19 @@ export function StoreManagerAttendance() {
   };
 
   // Gộp ca theo nhân viên → theo ngày → DANH SÁCH TỪNG CA (giữ riêng để ngày nhiều ca hiện đúng).
+  // Lọc theo chi nhánh THỰC của CA (s.branch), KHÔNG theo chi nhánh nhà của nhân viên — nhờ vậy
+  // người làm ở chi nhánh khác (vd hỗ trợ) hiện đúng tại chi nhánh đã làm, không bị gán nhầm.
   const byEmp = useMemo(() => {
     const m = new Map<string, Map<string, DayShift[]>>();
     shifts.forEach((s) => {
       if (!s.employeeId || !s.checkIn) return; // chỉ tính ca có check-in
+      if (branchFilter !== 'ALL' && (s.branch || '') !== branchFilter) return; // chỉ ca tại chi nhánh đang xem
       if (!m.has(s.employeeId)) m.set(s.employeeId, new Map());
       const days = m.get(s.employeeId)!;
       const list = days.get(s.date) || [];
       list.push({
         id: s.id,
+        branch: s.branch,
         checkIn: s.checkIn,
         checkOut: s.checkOut,
         checkInPhoto: (s as any).checkInPhoto,
@@ -167,12 +172,14 @@ export function StoreManagerAttendance() {
       days.set(s.date, list);
     });
     return m;
-  }, [shifts]);
+  }, [shifts, branchFilter]);
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     return employees
-      .filter((e) => branchFilter === 'ALL' || (e.branch || '') === branchFilter)
+      // Hiện nhân viên CÓ ca (đã lọc theo chi nhánh thực của ca ở byEmp) — không lọc theo chi nhánh
+      // nhà của nhân viên nữa, để người làm chi nhánh khác vẫn hiện đúng nơi đã làm.
+      .filter((e) => byEmp.has(e.id))
       .filter((e) => !term || (e.fullName || '').toLowerCase().includes(term) || (e.employeeId || '').toLowerCase().includes(term))
       .map((e) => {
         const days = byEmp.get(e.id);

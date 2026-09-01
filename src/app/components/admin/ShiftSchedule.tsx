@@ -182,11 +182,19 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
+    // Ở chế độ "Tất cả chi nhánh" không biết ca thuộc chi nhánh nào → nếu để mặc định chi nhánh
+    // nhà của nhân viên sẽ gán SAI cho người làm hỗ trợ chi nhánh khác. Bắt buộc chọn 1 chi nhánh
+    // cụ thể trước khi thêm ca, để chi nhánh của ca luôn đúng.
+    if (!shiftBranch) {
+      alert('Vui lòng chọn 1 chi nhánh cụ thể (không phải "Tất cả chi nhánh") trước khi thêm ca — để ca được gán đúng chi nhánh.');
+      return;
+    }
+
     const newShift: Shift = {
       id: Date.now().toString(),
       employeeId: employee.id,
       employeeName: employee.fullName,
-      branch: shiftBranch || employee.branch,
+      branch: shiftBranch,
       date,
       startTime,
       endTime,

@@ -39,6 +39,9 @@ function dbAll(db, sql, params = []) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+// Chiến dịch đang chạy nền bị YÊU CẦU DỪNG (in-memory, cùng process với vòng lặp gửi). Vòng lặp
+// kiểm tra Set này mỗi vòng để ngưng gửi các tin còn lại ngay lập tức.
+const cancelledCampaigns = new Set();
 function parseJsonArray(raw) {
   try {
     const t = JSON.parse(raw || '[]');
@@ -172,6 +175,7 @@ async function runCampaign(db, campaignId, recipients, messages, fullImageUrl, b
   let failedCount = 0;
 
   for (let i = 0; i < recipients.length; i++) {
+    if (cancelledCampaigns.has(campaignId)) break; // DỪNG: ngưng gửi các tin còn lại
     const conv = recipients[i];
     const text = assignments[i];
     const recipId = `BULKR-${Date.now()}-${i}`;
@@ -203,7 +207,10 @@ async function runCampaign(db, campaignId, recipients, messages, fullImageUrl, b
   }
 
   const finishedAt = new Date().toISOString();
-  const status = failedCount === recipients.length && recipients.length > 0 ? 'error' : 'done';
+  const wasCancelled = cancelledCampaigns.delete(campaignId);
+  const status = wasCancelled
+    ? 'cancelled'
+    : (failedCount === recipients.length && recipients.length > 0 ? 'error' : 'done');
   await dbRun(db, `UPDATE bulk_campaigns SET status = ?, finishedAt = ? WHERE id = ?`, [status, finishedAt, campaignId]).catch(() => {});
   broadcast?.('BULK_CAMPAIGN_PROGRESS', { campaignId, sentCount, failedCount, total: recipients.length, done: true, status });
 }
@@ -264,6 +271,22 @@ function registerBulkMessageRoutes(app, db, { broadcast }) {
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // DỪNG GẤP 1 chiến dịch đang gửi: đánh dấu hủy (vòng lặp nền sẽ ngưng gửi tin còn lại ngay vòng
+  // kế tiếp) + set trạng thái 'cancelled'. Tin đã gửi rồi thì không thu hồi được.
+  app.post('/api/bulk-messages/:id/cancel', async (req, res) => {
+    const { id } = req.params;
+    cancelledCampaigns.add(id);
+    try {
+      await dbRun(
+        db,
+        `UPDATE bulk_campaigns SET status = 'cancelled', finishedAt = ? WHERE id = ? AND status = 'sending'`,
+        [new Date().toISOString(), id]
+      );
+    } catch (e) { /* vẫn báo hủy — vòng lặp sẽ tự dừng nhờ cancelledCampaigns */ }
+    broadcast?.('BULK_CAMPAIGN_PROGRESS', { campaignId: id, done: true, status: 'cancelled' });
+    res.json({ ok: true, cancelled: true });
   });
 
   // Lịch sử chiến dịch (mới nhất trước)

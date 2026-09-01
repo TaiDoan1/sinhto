@@ -1443,6 +1443,16 @@ export async function sendBulkMessages(payload: {
   return res.json();
 }
 
+// DỪNG GẤP 1 chiến dịch đang gửi (ngưng gửi các tin còn lại).
+export async function cancelBulkCampaign(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${BASE_URL}/bulk-messages/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Không dừng được chiến dịch');
+  }
+  return res.json();
+}
+
 export async function fetchBulkCampaigns(): Promise<BulkCampaign[]> {
   const res = await fetch(`${BASE_URL}/bulk-messages/campaigns`);
   if (res.status === 404) return [];

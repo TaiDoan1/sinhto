@@ -68,6 +68,8 @@ export function BulkMessageTab({ staffId, staffName }: Props) {
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; done: boolean } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeCampaignIdRef = useRef<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   // Lịch sử
   const [campaigns, setCampaigns] = useState<BulkCampaign[]>([]);
@@ -150,6 +152,7 @@ export function BulkMessageTab({ staffId, staffName }: Props) {
   };
 
   const pollCampaign = (campaignId: string) => {
+    activeCampaignIdRef.current = campaignId;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
@@ -159,12 +162,29 @@ export function BulkMessageTab({ staffId, staffName }: Props) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           setSending(false);
+          setCancelling(false);
+          activeCampaignIdRef.current = null;
           loadCampaigns();
         }
       } catch {
         /* thử lại ở nhịp sau */
       }
     }, 1500);
+  };
+
+  // DỪNG GẤP: ngưng gửi các tin còn lại (tin đã gửi không thu hồi được).
+  const handleCancelSend = async () => {
+    const id = activeCampaignIdRef.current;
+    if (!id) return;
+    if (!window.confirm('DỪNG gửi ngay bây giờ?\nCác tin CHƯA gửi sẽ không gửi nữa. (Tin đã gửi rồi không thu hồi được.)')) return;
+    setCancelling(true);
+    try {
+      await api.cancelBulkCampaign(id);
+      // poll (1.5s) sẽ thấy trạng thái 'cancelled' và tự kết thúc; ở đây chỉ báo đã yêu cầu dừng.
+    } catch (e: any) {
+      alert(e.message || 'Không dừng được — thử lại.');
+      setCancelling(false);
+    }
   };
 
   const handleSend = async () => {
@@ -468,6 +488,16 @@ export function BulkMessageTab({ staffId, staffName }: Props) {
                 <span className="text-emerald-600 font-semibold">✓ {progress.sent} thành công</span>
                 {progress.failed > 0 && <span className="text-red-500 font-semibold">✕ {progress.failed} thất bại</span>}
               </div>
+              {!progress.done && (
+                <button
+                  type="button"
+                  onClick={handleCancelSend}
+                  disabled={cancelling}
+                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white py-2.5 rounded-lg font-bold text-sm"
+                >
+                  {cancelling ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang dừng…</> : <><X className="w-4 h-4" /> DỪNG GỬI NGAY</>}
+                </button>
+              )}
               {progress.done && (
                 <button type="button" onClick={resetAfterDone} className="w-full text-sm font-semibold text-indigo-700 hover:text-indigo-900 py-1">
                   Xong — soạn chiến dịch mới

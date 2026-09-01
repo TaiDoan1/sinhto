@@ -141,12 +141,13 @@ export function PosProvider({ children }: { children: ReactNode }) {
         !!shiftToCheckIn.checkIn ||
         notDone.some((s) => s.checkIn && overlaps(s, shiftToCheckIn));
 
-      // Chỉ tự check-in nếu CHƯA check-in & CHƯA có ca nào đang mở (tránh tạo 2 ca in_progress
-      // chồng nhau khi ca trước chưa kết ca).
+      // Chỉ tự check-in nếu CHƯA check-in & KHÔNG có ca đang mở TRÙNG GIỜ với ca này (tránh 2 ca
+      // in_progress CHỒNG GIỜ). Ca đang mở KHÁC GIỜ (vd ca 1 sáng chưa kết, giờ vào ca 2 chiều)
+      // KHÔNG được chặn — nếu chặn, người làm 2 ca/ngày sẽ mất check-in ca thứ 2.
       if (
         !alreadyCheckedIn &&
         shiftToCheckIn.status !== 'in_progress' &&
-        !forBranch.some((s) => s.status === 'in_progress')
+        !forBranch.some((s) => s.status === 'in_progress' && overlaps(s, shiftToCheckIn))
       ) {
         await api.shiftCheckIn(shiftToCheckIn.id, 'in');
       }

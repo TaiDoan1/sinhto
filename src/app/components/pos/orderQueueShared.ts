@@ -6,6 +6,7 @@ export const sourceColors: Record<string, string> = {
   mobile: 'bg-sky-600',
   web: 'bg-sky-600',
   online_sales: 'bg-sky-600',
+  grab: 'bg-emerald-600',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -13,6 +14,7 @@ export const sourceLabels: Record<string, string> = {
   mobile: 'Đặt Online',
   web: 'Web',
   online_sales: 'CSKH Chốt Đơn',
+  grab: '🛵 Grab',
 };
 
 // Nhóm nguồn đơn: "off" (bán trực tiếp tại quầy) vs "online" (mobile/web/CSKH chốt đơn) —

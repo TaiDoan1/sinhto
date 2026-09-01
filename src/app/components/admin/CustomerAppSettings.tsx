@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Bike, Save, Loader2, CheckCircle, Smartphone, UtensilsCrossed, DollarSign } from 'lucide-react';
+import { Bike, Save, Loader2, CheckCircle, Smartphone, UtensilsCrossed, DollarSign, Webhook } from 'lucide-react';
 import * as api from '../../utils/api';
 import { GrabMenuManager } from './GrabMenuManager';
+import { GrabWebhookConfig } from './GrabWebhookConfig';
 
 const FEE_KEY = 'customerDeliveryFee';
 const DEFAULT_FEE = 15000;
@@ -9,7 +10,7 @@ const DEFAULT_FEE = 15000;
 // Cấu hình App Khách (web đặt món giống Grab). Hiện chỉ có phí giao hàng —
 // khách "Tự lấy" luôn miễn phí, chỉ đơn "Giao hàng" mới tính phí này.
 export function CustomerAppSettings() {
-  const [tab, setTab] = useState<'menu' | 'fee'>('menu');
+  const [tab, setTab] = useState<'menu' | 'fee' | 'webhook'>('menu');
   const [fee, setFee] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,9 +61,14 @@ export function CustomerAppSettings() {
         <button onClick={() => setTab('fee')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold ${tab === 'fee' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
           <DollarSign className="w-4 h-4" /> Phí giao hàng
         </button>
+        <button onClick={() => setTab('webhook')} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold ${tab === 'webhook' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          <Webhook className="w-4 h-4" /> Nhận đơn Grab
+        </button>
       </div>
 
       {tab === 'menu' && <GrabMenuManager />}
+
+      {tab === 'webhook' && <GrabWebhookConfig />}
 
       {tab === 'fee' && (loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-emerald-600" /></div>

@@ -1321,6 +1321,19 @@ export async function backfillFbConversations(): Promise<{ conversations: number
   return res.json();
 }
 
+// --- Webhook nhận đơn Grab (kênh ngoài) ---
+export interface GrabWebhookConfig { url: string; secret: string; header: string; samplePayload: unknown }
+export async function fetchGrabWebhookConfig(): Promise<GrabWebhookConfig> {
+  const res = await fetch(`${BASE_URL}/grab-webhook/config`);
+  if (!res.ok) throw new Error('Failed to fetch webhook config');
+  return res.json();
+}
+export async function regenGrabWebhookSecret(): Promise<{ secret: string }> {
+  const res = await fetch(`${BASE_URL}/grab-webhook/regenerate`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to regenerate secret');
+  return res.json();
+}
+
 // --- Menu app đặt món kiểu Grab (/dat-mon) ---
 export type GrabBadge = '' | 'bestseller' | 'loved' | 'new';
 export interface GrabOption { name: string; price: number }

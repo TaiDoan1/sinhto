@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock, Pencil } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
@@ -114,6 +114,11 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const [customStart, setCustomStart] = useState('08:00');
   const [customEnd, setCustomEnd] = useState('17:00');
   const [substituteModal, setSubstituteModal] = useState<{shift: Shift} | null>(null);
+  // Sửa giờ ca đã tạo (giữ nguyên check-in/ảnh chấm công — không xóa tạo lại làm mất lịch sử).
+  const [editTimeModal, setEditTimeModal] = useState<{shift: Shift} | null>(null);
+  const [editStart, setEditStart] = useState('08:00');
+  const [editEnd, setEditEnd] = useState('17:00');
+  const [editTimeSaving, setEditTimeSaving] = useState(false);
   // Ngày đang chọn ở bản chỉnh sửa trên điện thoại (0=Thứ 2 … 6=CN). Mặc định hôm nay.
   const [mobileDay, setMobileDay] = useState<number>(() => (new Date().getDay() + 6) % 7);
 
@@ -308,6 +313,37 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
       await api.saveShift(restoredShift);
     } catch (err) {
       console.error('Failed to cancel substitute:', err);
+    }
+  };
+
+  const openEditTime = (shift: Shift) => {
+    setEditStart(shift.startTime || '08:00');
+    setEditEnd(shift.endTime || '17:00');
+    setEditTimeModal({ shift });
+  };
+
+  // Sửa GIỜ ca đã tạo tại chỗ (giữ nguyên check-in/ảnh/đơn) — thay cho cách xóa+thêm lại làm mất
+  // lịch sử chấm công.
+  const handleSaveEditTime = async () => {
+    if (!editTimeModal) return;
+    const shift = editTimeModal.shift;
+    if (!editStart || !editEnd) { alert('Nhập giờ vào ca và giờ kết ca'); return; }
+    if (editStart === shift.startTime && editEnd === shift.endTime) { setEditTimeModal(null); return; }
+    const conflict = findTimeConflict(shift.employeeId, shift.date, editStart, editEnd, shift.id);
+    if (conflict) {
+      alert(`${shift.employeeName} đã có ca ${conflict.startTime}-${conflict.endTime}${conflict.branch ? ` tại ${branchLabel(conflict.branch)}` : ''} cùng ngày — không thể sửa trùng giờ.`);
+      return;
+    }
+    setEditTimeSaving(true);
+    try {
+      // Gửi FULL shift (kèm checkIn/checkOut/ảnh) → backend giữ nguyên chấm công, chỉ đổi giờ.
+      const saved = await api.saveShift({ ...shift, startTime: editStart, endTime: editEnd });
+      setShifts(prev => prev.map(s => (s.id === shift.id ? { ...s, ...saved } : s)));
+      setEditTimeModal(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Lỗi sửa giờ ca.');
+    } finally {
+      setEditTimeSaving(false);
     }
   };
 
@@ -669,6 +705,15 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                                   <Clock className="w-3.5 h-3.5" />
                                 </button>
                               )}
+                              {shift.shiftType !== 'off' && (
+                                <button
+                                  onClick={() => openEditTime(shift)}
+                                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded"
+                                  title="Sửa giờ ca (giữ check-in)"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleTogglePin(shift.id)}
                                 className={`p-1.5 rounded ${shift.isPinned ? 'bg-yellow-500' : 'bg-white/20 hover:bg-white/30'}`}
@@ -859,6 +904,15 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
                                       title="Thêm giờ tăng ca (OT)"
                                     >
                                       <Clock className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                  {shift.shiftType !== 'off' && (
+                                    <button
+                                      onClick={() => openEditTime(shift)}
+                                      className="p-1 bg-white/20 hover:bg-white/30 rounded"
+                                      title="Sửa giờ ca (giữ check-in)"
+                                    >
+                                      <Pencil className="w-3 h-3" />
                                     </button>
                                   )}
                                   <button
@@ -1123,6 +1177,45 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
             >
               Hủy
             </button>
+          </div>
+        </div>
+      )}
+
+      {editTimeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-1">Sửa giờ ca</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              {editTimeModal.shift.employeeName} · {parseLocalDateStr(editTimeModal.shift.date).toLocaleDateString('vi-VN')}
+              {editTimeModal.shift.branch ? ` · ${branchLabel(editTimeModal.shift.branch)}` : ''}
+            </p>
+            {(editTimeModal.shift.checkIn || editTimeModal.shift.checkOut) && (
+              <div className="mb-4 text-xs bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-lg px-3 py-2">
+                ✓ Ca này đã có chấm công — sửa giờ sẽ <b>giữ nguyên</b> check-in/ảnh, không mất lịch sử.
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Giờ vào ca</label>
+                <input type="time" value={editStart} onChange={(e) => setEditStart(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Giờ kết ca</label>
+                <input type="time" value={editEnd} onChange={(e) => setEditEnd(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditTimeModal(null)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200">
+                Hủy
+              </button>
+              <button onClick={handleSaveEditTime} disabled={editTimeSaving}
+                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-60">
+                {editTimeSaving ? 'Đang lưu...' : 'Lưu giờ'}
+              </button>
+            </div>
           </div>
         </div>
       )}

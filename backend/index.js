@@ -1495,33 +1495,55 @@ app.post('/api/shifts', (req, res) => {
 app.put('/api/shifts/:id', (req, res) => {
   const { id } = req.params;
   const s = normalizeShift(req.body);
-  // TỪ CHỐI / HỦY / đơn chờ / ca nghỉ: KHÔNG kiểm tra trùng giờ — các trạng thái này gỡ ca khỏi
-  // lịch làm nên không thể "trùng" với ca khác. (Trước đây từ chối 1 đơn xin lịch trùng khung giờ
-  // với ca đã xếp bị 409 → không từ chối được.) Chỉ kiểm tra trùng khi lưu ca ở trạng thái ĐANG DÙNG.
-  const skipConflict = ['rejected', 'cancelled', 'pending'].includes(s.status) || s.shiftType === 'off';
-  const proceed = (conflict) => {
-    if (conflict) {
-      return res.status(409).json({
-        error: `${s.employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
-      });
-    }
-    db.run(
-      `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ?, reason = ? WHERE id = ?`,
-      [s.employeeId, s.employeeName, s.date, s.shiftType || '', s.startTime, s.endTime, s.status, s.checkIn || '', s.checkOut || '', s.branch || '', s.requestedBy || 'admin', s.reason || '', id],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
-        const updated = { ...s, id };
-        broadcast('SHIFT_UPDATED', updated);
-        res.json(updated);
-      }
-    );
-  };
+  // Lấy ca hiện có để GIỮ dữ liệu CHẤM CÔNG khi chỉ sửa lịch: nếu request không gửi kèm
+  // checkIn/checkOut/status thì KHÔNG được xoá (trước đây sửa giờ trên lịch mà thiếu các trường
+  // này → check-in/tên rớt khỏi lịch sử chấm công). "" vẫn là giá trị hợp lệ (cố ý xoá).
+  db.get('SELECT * FROM shifts WHERE id = ?', [id], (getErr, existing) => {
+    if (getErr) return res.status(500).json({ error: getErr.message });
+    if (!existing) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
 
-  if (skipConflict) return proceed(null);
-  findConflictingShift(s.employeeId, s.date, s.startTime, s.endTime, id, (checkErr, conflict) => {
-    if (checkErr) return res.status(500).json({ error: checkErr.message });
-    proceed(conflict);
+    const pick = (v, prev) => (v !== undefined ? v : prev);
+    const employeeId = pick(s.employeeId, existing.employeeId);
+    const employeeName = pick(s.employeeName, existing.employeeName);
+    const date = pick(s.date, existing.date);
+    const shiftType = pick(s.shiftType, existing.shiftType) || '';
+    const startTime = pick(s.startTime, existing.startTime);
+    const endTime = pick(s.endTime, existing.endTime);
+    const status = pick(s.status, existing.status);
+    const checkIn = pick(s.checkIn, existing.checkIn) || '';
+    const checkOut = pick(s.checkOut, existing.checkOut) || '';
+    const branch = pick(s.branch, existing.branch) || '';
+    const requestedBy = pick(s.requestedBy, existing.requestedBy) || 'admin';
+    const reason = pick(s.reason, existing.reason) || '';
+
+    // TỪ CHỐI / HỦY / đơn chờ / ca nghỉ: KHÔNG kiểm tra trùng giờ — các trạng thái này gỡ ca khỏi
+    // lịch làm nên không thể "trùng" với ca khác. Chỉ kiểm tra trùng khi lưu ca ĐANG DÙNG.
+    const skipConflict = ['rejected', 'cancelled', 'pending'].includes(status) || shiftType === 'off';
+    const proceed = (conflict) => {
+      if (conflict) {
+        return res.status(409).json({
+          error: `${employeeName || 'Nhân viên'} đã có ca ${conflict.startTime}-${conflict.endTime} tại ${conflict.branch || 'chi nhánh khác'} cùng ngày này — không thể xếp ca trùng giờ.`,
+        });
+      }
+      db.run(
+        `UPDATE shifts SET employeeId = ?, employeeName = ?, date = ?, shiftType = ?, startTime = ?, endTime = ?, status = ?, checkIn = ?, checkOut = ?, branch = ?, requestedBy = ?, reason = ? WHERE id = ?`,
+        [employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy, reason, id],
+        function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+          if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy ca làm' });
+          // Trả về ca đã MERGE (giữ cả ảnh/snapshot/OT... không nằm trong UPDATE nên vẫn còn).
+          const updated = { ...existing, ...s, employeeId, employeeName, date, shiftType, startTime, endTime, status, checkIn, checkOut, branch, requestedBy, reason, id };
+          broadcast('SHIFT_UPDATED', updated);
+          res.json(updated);
+        }
+      );
+    };
+
+    if (skipConflict) return proceed(null);
+    findConflictingShift(employeeId, date, startTime, endTime, id, (checkErr, conflict) => {
+      if (checkErr) return res.status(500).json({ error: checkErr.message });
+      proceed(conflict);
+    });
   });
 });
 

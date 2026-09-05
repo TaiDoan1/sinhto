@@ -271,6 +271,18 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
   const dayTotal = working.reduce((sum, s) => sum + getStat(s).total, 0);
   const closedCount = working.filter((s) => s.status === 'completed').length;
 
+  // ĐƠN CHƯA GÁN CA: đơn bán ở chi nhánh này (branchId khớp) trong ngày đang xem, nhưng KHÔNG thuộc
+  // ca nào của chi nhánh này (mồ côi, hoặc dính nhầm ca chi nhánh khác — vd nhân viên đổi chi nhánh
+  // giữa ngày). Gom lại để không "mất" đơn khỏi Kết ca; gán về ca bằng nút "Sửa giờ / gán đơn".
+  const shownShiftIds = new Set(shifts.map((s) => s.id));
+  const unassignedOrders = allOrders.filter((o) => {
+    if ((o.branchId || '') !== branchId) return false;
+    const t = o.time instanceof Date ? o.time : new Date(o.time);
+    if (isNaN(t.getTime()) || t.toISOString().split('T')[0] !== date) return false;
+    return !o.shiftId || !shownShiftIds.has(o.shiftId);
+  });
+  const unassignedTotal = unassignedOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -414,6 +426,48 @@ export function BranchShiftClosings({ branchId }: BranchShiftClosingsProps) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {unassignedOrders.length > 0 && (
+        <div className="mt-4 bg-white rounded-lg shadow-md p-5 border-2 border-amber-200">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-bold text-amber-800 flex items-center gap-2">
+              ⚠️ Đơn chưa gán ca ({unassignedOrders.length})
+            </h3>
+            <span className="text-sm font-black text-amber-700">{unassignedTotal.toLocaleString('vi-VN')}đ</span>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Đơn bán ở chi nhánh này nhưng chưa thuộc ca nào (mồ côi, hoặc dính nhầm ca chi nhánh khác — vd
+            nhân viên đổi chi nhánh giữa ngày). Để gán về đúng ca: bấm <b>"Sửa giờ / gán đơn"</b> trên ca
+            tương ứng ở trên, nhập đúng khung giờ, tích <b>"Gộp cả đơn đang thuộc ca khác"</b>.
+          </p>
+          <div className="space-y-2">
+            {unassignedOrders
+              .slice()
+              .sort((a, b) => {
+                const ta = (a.time instanceof Date ? a.time : new Date(a.time)).getTime();
+                const tb = (b.time instanceof Date ? b.time : new Date(b.time)).getTime();
+                return ta - tb;
+              })
+              .map((o) => {
+                const t = o.time instanceof Date ? o.time : new Date(o.time);
+                const itemNames = (o.items || []).map((it: any) => `${it.quantity || 1}x ${it.name || it.productName || ''}`.trim()).filter(Boolean).join(', ');
+                return (
+                  <div key={o.id} className="border border-gray-200 rounded-lg p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-800 text-sm">{o.id}</div>
+                      <div className="text-xs text-gray-500">
+                        {t.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        {o.customerPhone ? ` · ${o.customerPhone}` : ''}
+                      </div>
+                      {itemNames && <div className="text-xs text-gray-600 mt-0.5 truncate">{itemNames}</div>}
+                    </div>
+                    <span className="font-black text-emerald-700 text-sm shrink-0">{(o.total || 0).toLocaleString('vi-VN')}đ</span>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
 

@@ -719,6 +719,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                     <CustomComboBuilder
                       isPOS
                       presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
+                      isCskh
                       onClose={() => setShowComboBuilder(false)}
                       onAddToCart={(combo) => {
                         const raw = combo.rawComboData || combo;

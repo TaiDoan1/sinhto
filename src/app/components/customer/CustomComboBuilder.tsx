@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Minus, Plus, Calendar, Check, ArrowLeft, ArrowRight, ShieldCheck, User, Loader2, ShoppingBag, Pencil } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { useSSE } from '../../contexts/SSEContext';
+import * as api from '../../utils/api';
 import { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS } from '../../config/menuToppings';
 import { DAY_MAP } from '../../utils/comboUtils';
 import { DeliveryDayToggle } from '../combo/DeliveryDayToggle';
@@ -13,7 +15,19 @@ interface CustomComboBuilderProps {
   isPOS?: boolean;
   // Thông tin khách đã nhập sẵn ở màn ngoài (CSKH) → bỏ bước "Xác nhận khách" trong builder.
   presetCustomer?: { name?: string; phone?: string };
+  // Màn này đang mở từ CSKH (không phải POS quán) → cho phép sửa % giảm giá theo tuần/tháng/quý,
+  // lưu thành mặc định MỚI cho các đơn CSKH sau này. TUYỆT ĐỐI không ảnh hưởng giá bên máy POS —
+  // POS luôn dùng % gốc cố định trong PLAN_DATA, không đọc setting này.
+  isCskh?: boolean;
 }
+
+// % giảm giá mặc định gốc theo từng thời hạn (khớp với giá cố định trong PLAN_DATA bên dưới).
+const DEFAULT_DURATION_PCT: Record<'weekly' | 'monthly' | 'quarterly', number> = {
+  weekly: 10,
+  monthly: 15,
+  quarterly: 20,
+};
+const DURATION_PCT_SETTING_KEY = 'cskhComboDurationDiscountPct';
 
 const PLAN_DATA = {
   'fat-loss': {
@@ -74,7 +88,7 @@ const DAYS_OF_WEEK = [
   'Chủ Nhật'
 ];
 
-export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, presetCustomer }: CustomComboBuilderProps) {
+export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, presetCustomer, isCskh }: CustomComboBuilderProps) {
   // Step 0: Customer Info
   // Step 1: Chọn Gói & Ngày Start
   // Step 2: Chọn Vị 7 Ngày
@@ -92,6 +106,28 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   const [isSearching, setIsSearching] = useState(false);
   const { combos } = useCombos();
   const { lookupByPhone, registerCustomer, activeCustomer, setActiveCustomer } = useLoyalty();
+  const { subscribe } = useSSE();
+
+  // % giảm giá theo thời hạn (Tuần/Tháng/Quý) — CHỈ CSKH mới đọc/sửa được setting này. POS luôn
+  // dùng % gốc cố định (không gọi effect load bên dưới), nên không bao giờ bị ảnh hưởng.
+  const [durationPct, setDurationPct] = useState<Record<'weekly' | 'monthly' | 'quarterly', number>>(DEFAULT_DURATION_PCT);
+  const [showPctEditor, setShowPctEditor] = useState(false);
+  const [pctDraft, setPctDraft] = useState<Record<'weekly' | 'monthly' | 'quarterly', string>>({
+    weekly: String(DEFAULT_DURATION_PCT.weekly), monthly: String(DEFAULT_DURATION_PCT.monthly), quarterly: String(DEFAULT_DURATION_PCT.quarterly),
+  });
+  const [pctSaving, setPctSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isCskh) return;
+    api.fetchSetting(DURATION_PCT_SETTING_KEY)
+      .then((v: any) => { if (v && typeof v === 'object') setDurationPct({ ...DEFAULT_DURATION_PCT, ...v }); })
+      .catch(() => {}); // chưa từng lưu (404) → giữ mặc định gốc
+    return subscribe('SETTING_UPDATED', (payload: { key: string; value: any }) => {
+      if (payload.key === DURATION_PCT_SETTING_KEY && payload.value) {
+        setDurationPct({ ...DEFAULT_DURATION_PCT, ...payload.value });
+      }
+    });
+  }, [isCskh, subscribe]);
 
   // Combo Configurations
   const [planId, setPlanId] = useState<'fat-loss' | 'muscle-build' | 'elite-mass'>('fat-loss');
@@ -249,7 +285,18 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
 
   // Pricing math
   const plan = PLAN_DATA[planId];
-  const planPriceInfo = plan[duration];
+  const baseDurationMultiplier = duration === 'weekly' ? 1 : duration === 'monthly' ? 4.28 : 12.85;
+  // CSKH: giá tính lại theo % đang chỉnh (durationPct) — KHÔNG dùng số tiền cố định trong PLAN_DATA.
+  // POS/khách tự đặt: giữ nguyên số tiền cố định như cũ, không đọc durationPct (luôn = mặc định gốc).
+  const planPriceInfo = isCskh
+    ? (() => {
+        const base = plan[duration];
+        const pct = durationPct[duration];
+        const discount = Math.round((base.original * (1 - pct / 100)) / 1000) * 1000;
+        const perCup = Math.round(discount / (7 * baseDurationMultiplier) / 1000) * 1000;
+        return { original: base.original, discount, save: base.original - discount, perCup };
+      })()
+    : plan[duration];
 
   const singleToppingsCostPerWeek = selectedSingleToppings.reduce((sum, name) => {
     const topping = SINGLE_TOPPINGS.find(t => t.name === name);
@@ -262,13 +309,38 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   }, 0);
 
   const toppingsCostPerWeek = singleToppingsCostPerWeek + comboToppingsCostPerWeek;
-  const durationMultiplier = duration === 'weekly' ? 1 : duration === 'monthly' ? 4.28 : 12.85;
+  const durationMultiplier = baseDurationMultiplier;
   const totalToppingsCost = toppingsCostPerWeek * durationMultiplier * quantity;
 
   const originalPrice = planPriceInfo.original * quantity + totalToppingsCost;
   const finalPrice = planPriceInfo.discount * quantity + totalToppingsCost;
   const savings = planPriceInfo.save * quantity;
   const perCup = planPriceInfo.perCup + (toppingsCostPerWeek / 7);
+
+  const openPctEditor = () => {
+    setPctDraft({ weekly: String(durationPct.weekly), monthly: String(durationPct.monthly), quarterly: String(durationPct.quarterly) });
+    setShowPctEditor(true);
+  };
+
+  // Lưu % mới → áp dụng ngay cho đơn đang thiết lập + lưu thành MẶC ĐỊNH cho các đơn CSKH sau này.
+  // Không đụng gì tới POS (POS không đọc setting này).
+  const handleSavePct = async () => {
+    const parsed = {
+      weekly: Math.min(90, Math.max(0, Number(pctDraft.weekly) || 0)),
+      monthly: Math.min(90, Math.max(0, Number(pctDraft.monthly) || 0)),
+      quarterly: Math.min(90, Math.max(0, Number(pctDraft.quarterly) || 0)),
+    };
+    setPctSaving(true);
+    try {
+      await api.saveSetting(DURATION_PCT_SETTING_KEY, parsed);
+      setDurationPct(parsed);
+      setShowPctEditor(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Lưu % giảm giá thất bại');
+    } finally {
+      setPctSaving(false);
+    }
+  };
 
   const handleSelectComboTopping = (id: string) => {
     setSelectedCombos(prev => prev.includes(id) ? [] : [id]);
@@ -518,15 +590,27 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     {/* Duration Selection */}
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block ml-1">Thời hạn gói</label>
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[11px] font-black text-emerald-800 uppercase tracking-widest block">Thời hạn gói</label>
+                        {isCskh && (
+                          <button
+                            type="button"
+                            onClick={openPctEditor}
+                            className="flex items-center gap-1 text-[10px] font-bold text-indigo-700 hover:text-indigo-900"
+                            title="Sửa % giảm giá theo thời hạn (áp dụng cho các đơn CSKH sau này)"
+                          >
+                            <Pencil className="w-3 h-3" /> Sửa %
+                          </button>
+                        )}
+                      </div>
                       <div className="grid grid-cols-3 gap-2 bg-emerald-50/40 p-1.5 rounded-2xl border border-emerald-100">
                         {(['weekly', 'monthly', 'quarterly'] as const).map(tab => (
                           <button
                             key={tab}
                             onClick={() => setDuration(tab)}
                             className={`py-3.5 rounded-xl text-center transition-all ${
-                              duration === tab 
-                                ? 'bg-emerald-600 text-white font-black shadow-md' 
+                              duration === tab
+                                ? 'bg-emerald-600 text-white font-black shadow-md'
                                 : 'text-emerald-850 hover:text-emerald-950 hover:bg-white font-bold text-xs'
                             }`}
                           >
@@ -534,7 +618,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                               {tab === 'weekly' ? 'Tuần' : tab === 'monthly' ? 'Tháng' : 'Quý'}
                             </span>
                             <span className={`text-[10px] block font-black mt-0.5 ${duration === tab ? 'text-white/90' : 'text-emerald-700'}`}>
-                              -{tab === 'weekly' ? '10%' : tab === 'monthly' ? '15%' : '20%'}
+                              -{durationPct[tab]}%
                             </span>
                           </button>
                         ))}
@@ -950,6 +1034,57 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
             </div>
           </div>
         </>
+      )}
+
+      {showPctEditor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-black text-gray-900 mb-1">Sửa % giảm giá theo thời hạn</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Áp dụng ngay cho đơn đang thiết lập, và trở thành <b>mặc định mới cho các đơn CSKH sau này</b>
+              (không ảnh hưởng giá bên máy POS).
+            </p>
+            <div className="space-y-3 mb-5">
+              {([
+                { key: 'weekly' as const, label: 'Tuần' },
+                { key: 'monthly' as const, label: 'Tháng' },
+                { key: 'quarterly' as const, label: 'Quý' },
+              ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-bold text-gray-700 w-16">{label}</span>
+                  <div className="flex items-center gap-1 flex-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={90}
+                      value={pctDraft[key]}
+                      onChange={(e) => setPctDraft(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm font-bold text-right"
+                    />
+                    <span className="text-sm font-bold text-gray-500">%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPctEditor(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePct}
+                disabled={pctSaving}
+                className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {pctSaving ? 'Đang lưu...' : 'Lưu & áp dụng'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,14 @@
 // Dữ liệu macro (calo/protein/carb/fat) dùng chung giữa "Bảng Macro Tham Khảo" (MacroTable.tsx,
 // nơi quản lý/chỉnh sửa) và tem dán ly (posPrint.ts, nơi tra cứu để in ra) — tách riêng module
 // này để 2 nơi luôn đọc cùng 1 nguồn dữ liệu, không lệch nhau khi ai đó chỉnh sửa trong Macro.
+//
+// Đồng bộ qua server (setting 'macroData') thay vì localStorage cũ — trước đây mỗi máy tự lưu
+// riêng, sửa trên máy này không thấy trên máy khác. lookupMacro/lookupMacroFull được gọi ĐỒNG BỘ
+// từ nhiều nơi (kể cả ngoài React component như posPrint.ts) nên giữ nguyên cache trong bộ nhớ,
+// nạp từ server 1 lần khi tải trang — MacroTable.tsx tự làm mới cache ngay sau khi lưu.
+import * as api from './api';
+
+export const MACRO_DATA_SETTING_KEY = 'macroData';
 
 export interface MacroSizeEntry {
   flavor: string;
@@ -101,22 +109,39 @@ export const DEFAULT_MACRO_TOPPINGS: MacroTopping[] = [
   { name: 'Chia seed',     cal: '+60', protein: '+2g', carb: '+5g', fat: '+4g' },
 ];
 
-export function loadMacroSizes(): MacroSize[] {
+// Cache trong bộ nhớ — nạp 1 lần từ server khi tải trang (xem initMacroDataCache bên dưới), và
+// được MacroTable.tsx làm mới ngay sau khi lưu. Mặc định = dữ liệu gốc khi server chưa có/lỗi.
+let cachedMacroSizes: MacroSize[] = DEFAULT_MACRO_SIZES;
+let cachedMacroToppings: MacroTopping[] = DEFAULT_MACRO_TOPPINGS;
+let macroCacheLoaded = false;
+
+/** Ghi thẳng vào cache (dùng khi vừa lưu xong ở MacroTable, hoặc vừa nhận SETTING_UPDATED qua SSE). */
+export function applyMacroDataToCache(payload: unknown): void {
+  if (!payload || typeof payload !== 'object') return;
+  const p = payload as { sizes?: MacroSize[]; toppings?: MacroTopping[] };
+  if (Array.isArray(p.sizes)) cachedMacroSizes = p.sizes;
+  if (Array.isArray(p.toppings)) cachedMacroToppings = p.toppings;
+}
+
+/** Nạp macroData từ server vào cache — gọi 1 lần lúc app khởi động (App.tsx). 404 (chưa từng lưu)
+ * → giữ nguyên dữ liệu mặc định, không phải lỗi. */
+export async function initMacroDataCache(): Promise<void> {
+  if (macroCacheLoaded) return;
+  macroCacheLoaded = true;
   try {
-    const raw = localStorage.getItem('fitblend_macro_sizes');
-    return raw ? JSON.parse(raw) : DEFAULT_MACRO_SIZES;
+    const data = await api.fetchSetting(MACRO_DATA_SETTING_KEY);
+    applyMacroDataToCache(data);
   } catch {
-    return DEFAULT_MACRO_SIZES;
+    // Chưa từng lưu trên server — dùng mặc định.
   }
 }
 
+export function loadMacroSizes(): MacroSize[] {
+  return cachedMacroSizes;
+}
+
 export function loadMacroToppings(): MacroTopping[] {
-  try {
-    const raw = localStorage.getItem('fitblend_macro_toppings');
-    return raw ? JSON.parse(raw) : DEFAULT_MACRO_TOPPINGS;
-  } catch {
-    return DEFAULT_MACRO_TOPPINGS;
-  }
+  return cachedMacroToppings;
 }
 
 /** Bỏ dấu tiếng Việt — backend luôn trả tên sản phẩm KHÔNG dấu (quy ước chung toàn hệ thống,

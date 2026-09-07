@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Menu, X } from "lucide-react";
+import { initMacroDataCache } from "./utils/macroData";
 import { Sidebar } from "./components/admin/Sidebar";
 import { AdminLogin } from "./components/admin/AdminLogin";
 import { OnlineSalesProvider } from "./contexts/OnlineSalesContext";
@@ -228,6 +229,12 @@ function AppContent() {
     window.addEventListener("popstate", syncModeFromUrl);
     return () => window.removeEventListener("popstate", syncModeFromUrl);
   }, [syncModeFromUrl]);
+
+  // Nạp Bảng Macro từ server 1 lần khi app khởi động — dùng chung cho tem in (posPrint.ts) và
+  // các màn tra macro (không phải component React nên không dùng hook được, phải nạp sớm ở đây).
+  useEffect(() => {
+    initMacroDataCache();
+  }, []);
 
   // Cho phép "Thêm vào Màn hình chính" cài thành app riêng theo từng cổng (POS, Nhân viên...) —
   // mỗi cổng có icon/tên riêng trên màn hình chính thay vì chỉ có 1 app POS chung cho cả site.

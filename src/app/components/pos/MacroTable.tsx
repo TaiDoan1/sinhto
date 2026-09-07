@@ -1,58 +1,99 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Info, Leaf, Edit2, Save, X, RotateCcw, Plus, Trash2 } from 'lucide-react';
-import { DEFAULT_MACRO_SIZES, DEFAULT_MACRO_TOPPINGS } from '../../utils/macroData';
+import { BookOpen, Info, Leaf, Edit2, Save, X, RotateCcw, Plus, Trash2, Lock, Loader2 } from 'lucide-react';
+import {
+  DEFAULT_MACRO_SIZES,
+  DEFAULT_MACRO_TOPPINGS,
+  MACRO_DATA_SETTING_KEY,
+  applyMacroDataToCache,
+} from '../../utils/macroData';
+import * as api from '../../utils/api';
+import { useSSE } from '../../contexts/SSEContext';
+import { usePos } from '../../contexts/PosContext';
 
 // ============================================================
 // DỮ LIỆU MACRO MẶC ĐỊNH TRÍCH TỪ FILE PDF BẢNG THAM KHẢO FITBLEND — chuyển sang
 // utils/macroData.ts để dùng chung với tem dán ly (posPrint.ts), tránh 2 nơi lệch dữ liệu.
+// Đồng bộ qua server (setting 'macroData') — sửa ở máy nào cũng thấy trên mọi máy khác.
 // ============================================================
 
 const DEFAULT_SIZES = DEFAULT_MACRO_SIZES;
 const DEFAULT_TOPPINGS = DEFAULT_MACRO_TOPPINGS;
 
+// Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa Bảng Macro trên
+// POS — các chức danh khác chỉ xem (giống quyền Nhập/Sửa kho).
+const MACRO_EDITOR_POSITIONS = new Set(['store_manager', 'manager']);
+
 export function MacroTable() {
+  const { session } = usePos();
+  const canEdit = !!session && MACRO_EDITOR_POSITIONS.has(session.position);
+  const { subscribe } = useSSE();
   const [activeSize, setActiveSize] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [sizes, setSizes] = useState(DEFAULT_SIZES);
   const [toppings, setToppings] = useState(DEFAULT_TOPPINGS);
+  // Bản đã lưu trên server gần nhất — dùng để "Hủy" quay lại đúng trạng thái, không mất khi người
+  // khác vừa lưu song song.
+  const [savedSizes, setSavedSizes] = useState(DEFAULT_SIZES);
+  const [savedToppings, setSavedToppings] = useState(DEFAULT_TOPPINGS);
 
-  // Load from localStorage on mount
   useEffect(() => {
-    const savedSizes = localStorage.getItem('fitblend_macro_sizes');
-    const savedToppings = localStorage.getItem('fitblend_macro_toppings');
-    if (savedSizes) {
-      try {
-        setSizes(JSON.parse(savedSizes));
-      } catch (e) {
-        console.error('Lỗi load macro sizes:', e);
-      }
-    }
-    if (savedToppings) {
-      try {
-        setToppings(JSON.parse(savedToppings));
-      } catch (e) {
-        console.error('Lỗi load toppings:', e);
-      }
-    }
+    api.fetchSetting(MACRO_DATA_SETTING_KEY)
+      .then((data: any) => {
+        const s = Array.isArray(data?.sizes) ? data.sizes : DEFAULT_SIZES;
+        const t = Array.isArray(data?.toppings) ? data.toppings : DEFAULT_TOPPINGS;
+        setSizes(s);
+        setToppings(t);
+        setSavedSizes(s);
+        setSavedToppings(t);
+      })
+      .catch(() => {
+        // Chưa từng lưu trên server (404) — dùng mặc định.
+        setSavedSizes(DEFAULT_SIZES);
+        setSavedToppings(DEFAULT_TOPPINGS);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleSave = () => {
+  // Máy khác vừa lưu → làm mới nếu mình KHÔNG đang chỉnh sửa dở (tránh mất thao tác đang gõ).
+  useEffect(() => {
+    return subscribe('SETTING_UPDATED', (payload: { key: string; value: any }) => {
+      if (payload?.key !== MACRO_DATA_SETTING_KEY || isEditing) return;
+      const s = Array.isArray(payload.value?.sizes) ? payload.value.sizes : DEFAULT_SIZES;
+      const t = Array.isArray(payload.value?.toppings) ? payload.value.toppings : DEFAULT_TOPPINGS;
+      setSizes(s);
+      setToppings(t);
+      setSavedSizes(s);
+      setSavedToppings(t);
+    });
+  }, [subscribe, isEditing]);
+
+  const handleSave = async () => {
+    if (!canEdit) return;
     // Bỏ các dòng lỡ thêm mà chưa gõ tên vị (tránh lưu rác).
     const cleaned = sizes.map((s) => ({ ...s, data: s.data.filter((d) => d.flavor.trim() !== '') }));
-    setSizes(cleaned);
-    localStorage.setItem('fitblend_macro_sizes', JSON.stringify(cleaned));
-    localStorage.setItem('fitblend_macro_toppings', JSON.stringify(toppings));
-    setIsEditing(false);
+    setSaving(true);
+    try {
+      const payload = { sizes: cleaned, toppings };
+      await api.saveSetting(MACRO_DATA_SETTING_KEY, payload);
+      applyMacroDataToCache(payload); // làm mới ngay cache dùng cho tem in ở máy này
+      setSizes(cleaned);
+      setSavedSizes(cleaned);
+      setSavedToppings(toppings);
+      setIsEditing(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Lưu Bảng Macro thất bại. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
-    // Re-load to revert unsaved UI state
-    const savedSizes = localStorage.getItem('fitblend_macro_sizes');
-    const savedToppings = localStorage.getItem('fitblend_macro_toppings');
-    setSizes(savedSizes ? JSON.parse(savedSizes) : DEFAULT_SIZES);
-    setToppings(savedToppings ? JSON.parse(savedToppings) : DEFAULT_TOPPINGS);
+    setSizes(savedSizes);
+    setToppings(savedToppings);
     setIsEditing(false);
   };
 
@@ -60,8 +101,6 @@ export function MacroTable() {
     if (confirm('Bạn có chắc chắn muốn khôi phục dữ liệu macro gốc từ file PDF tham khảo không? Tất cả các chỉnh sửa hiện tại sẽ bị xóa.')) {
       setSizes(DEFAULT_SIZES);
       setToppings(DEFAULT_TOPPINGS);
-      localStorage.removeItem('fitblend_macro_sizes');
-      localStorage.removeItem('fitblend_macro_toppings');
       setIsEditing(false);
     }
   };
@@ -125,11 +164,17 @@ export function MacroTable() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            {isEditing ? (
+            {loading ? (
+              <div className="flex items-center gap-1.5 text-gray-400 text-xs font-semibold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Đang tải…
+              </div>
+            ) : isEditing ? (
               <>
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold transition-all"
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold transition-all disabled:opacity-50"
                   title="Khôi phục dữ liệu gốc từ PDF"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -137,20 +182,22 @@ export function MacroTable() {
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all"
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   <X className="w-3.5 h-3.5" />
                   Hủy
                 </button>
                 <button
                   onClick={handleSave}
-                  className="flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all"
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-60"
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  Lưu thay đổi
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
                 </button>
               </>
-            ) : (
+            ) : canEdit ? (
               <>
                 <button
                   onClick={() => setIsEditing(true)}
@@ -164,6 +211,11 @@ export function MacroTable() {
                   <span className="text-[11px] text-amber-700 font-semibold">Giá trị tham khảo</span>
                 </div>
               </>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-3 py-1.5">
+                <Lock className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                <span className="text-[11px] text-gray-600 font-semibold">🔒 Chỉ xem — chỉ Cửa hàng trưởng/Quản lý chi nhánh được chỉnh sửa</span>
+              </div>
             )}
           </div>
         </div>

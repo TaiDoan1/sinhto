@@ -685,10 +685,16 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                     <input
                       type="date"
                       value={startDate}
-                      min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                      // CSKH được chọn NGÀY CŨ (nhập lại đơn combo khách đã đặt trước đó) — không giới
+                      // hạn cận dưới. Khách tự đặt & POS bán tại quầy vẫn chỉ chọn được từ ngày mai
+                      // trở đi (không có lý do hợp lệ để tự đặt/khởi tạo giao ở ngày đã qua).
+                      min={isCskh ? undefined : new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                       onChange={e => setStartDate(e.target.value)}
                       className="max-w-xs w-full bg-white text-gray-800 px-5 py-3.5 rounded-2xl border border-gray-250 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-extrabold text-sm"
                     />
+                    {isCskh && (
+                      <p className="text-[11px] text-gray-400">Có thể chọn ngày cũ khi nhập lại combo khách đã đặt trước đó.</p>
+                    )}
                   </div>
 
                   {/* Delivery Time */}

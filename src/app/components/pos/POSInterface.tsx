@@ -79,7 +79,7 @@ const POS_TABS: {
 ];
 
 function POSInterfaceInner() {
-  const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone } = usePos();
+  const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone, previousShiftEndCash } = usePos();
   const { branchLabel } = useBranches();
   const branchId = session?.branchId || '';
   const { orders, history, offlineQueueLength, offlineQueueItems, retryOfflineQueue, addOrder } = useBranchOrders(branchId);
@@ -141,6 +141,16 @@ function POSInterfaceInner() {
   const [showPrinterSetup, setShowPrinterSetup] = useState(false);
   const [startCashInput, setStartCashInput] = useState('0');
   const [startCashSubmitting, setStartCashSubmitting] = useState(false);
+
+  // Điền sẵn ô "tiền đầu ca" bằng đúng số tiền ca TRƯỚC để lại lúc kết ca (nếu có) — nhân viên chỉ
+  // cần đếm lại ngăn kéo đối chiếu, không phải tự nhớ/hỏi lại người ca trước; vẫn sửa được nếu đếm
+  // ra số khác. Chỉ tự điền lúc modal MỚI xuất hiện, không đè lên khi đang gõ dở.
+  useEffect(() => {
+    if (pendingStartCashShiftId) {
+      setStartCashInput(previousShiftEndCash != null ? String(previousShiftEndCash) : '0');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingStartCashShiftId]);
   const [showCashMovement, setShowCashMovement] = useState(false);
   const [cashMoveType, setCashMoveType] = useState<'in' | 'out'>('in');
   const [cashMoveAmount, setCashMoveAmount] = useState('');
@@ -1314,7 +1324,16 @@ function POSInterfaceInner() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center">
             <Banknote className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-gray-900 mb-1">Tiền mặt đầu ca</h3>
-            <p className="text-sm text-gray-500 mb-4">Nhập số tiền mặt có trong ngăn kéo lúc bắt đầu ca</p>
+            <p className="text-sm text-gray-500 mb-2">Nhập số tiền mặt có trong ngăn kéo lúc bắt đầu ca</p>
+            {previousShiftEndCash != null ? (
+              <p className="text-xs bg-emerald-50 border border-emerald-100 text-emerald-700 font-semibold rounded-lg px-2.5 py-1.5 mb-3">
+                Ca trước để lại: {previousShiftEndCash.toLocaleString('vi-VN')}đ — đếm lại ngăn kéo rồi sửa số nếu khác
+              </p>
+            ) : (
+              <p className="text-xs bg-gray-50 border border-gray-200 text-gray-500 font-medium rounded-lg px-2.5 py-1.5 mb-3">
+                Chưa có dữ liệu ca trước để đối chiếu
+              </p>
+            )}
             <input
               type="number"
               inputMode="decimal"

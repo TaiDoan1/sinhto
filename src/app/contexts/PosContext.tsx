@@ -31,6 +31,10 @@ interface PosContextType {
   pendingStartCashShiftId: string | null;
   clearPendingStartCash: () => void;
   markStartCashDone: (shiftId: string) => void;
+  /** Số tiền mặt ca TRƯỚC (cùng chi nhánh) để lại lúc kết ca — hiển thị lúc nhập tiền đầu ca để
+   * nhân viên đối chiếu ngăn kéo, không phải tự nhớ/hỏi lại người ca trước. Null nếu chưa có ca
+   * nào kết trước đó (vd ca đầu tiên mở chi nhánh). */
+  previousShiftEndCash: number | null;
 }
 
 const PosContext = createContext<PosContextType | undefined>(undefined);
@@ -50,6 +54,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [deviceBranchId, setDeviceBranchIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingStartCashShiftId, setPendingStartCashShiftId] = useState<string | null>(null);
+  const [previousShiftEndCash, setPreviousShiftEndCash] = useState<number | null>(null);
 
   const clearPendingStartCash = () => setPendingStartCashShiftId(null);
 
@@ -154,6 +159,26 @@ export function PosProvider({ children }: { children: ReactNode }) {
       // Chỉ hỏi tiền mặt đầu ca nếu ca này CHƯA từng được xác nhận/bỏ qua trên chính máy này —
       // tránh hỏi lặp mỗi lần tải lại trang.
       if (!localStorage.getItem(startCashDoneKey(shiftToCheckIn.id))) {
+        // Tra số tiền mặt CA TRƯỚC (cùng chi nhánh, bất kể nhân viên nào) để lại lúc kết ca —
+        // hiển thị/điền sẵn cho nhân viên đối chiếu ngăn kéo, khỏi phải nhớ/hỏi lại người ca
+        // trước. Lấy 1 khoảng ngày gần đây (không giới hạn theo employeeId vì ngăn kéo dùng
+        // chung theo chi nhánh) rồi tự sắp theo giờ kết ca (checkOut) mới nhất phía client vì
+        // backend chỉ ORDER BY date, không phân biệt giờ trong cùng ngày.
+        try {
+          const weekAgo = new Date(nowT.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const recentBranchShifts = (await api.fetchShifts({
+            branch: branchId,
+            status: 'completed',
+            from: weekAgo,
+            to: today,
+          })) as any[];
+          const lastClosed = (recentBranchShifts || [])
+            .filter((s) => s.id !== shiftToCheckIn.id && s.checkOut && s.endCashActual != null)
+            .sort((a, b) => new Date(b.checkOut).getTime() - new Date(a.checkOut).getTime())[0];
+          setPreviousShiftEndCash(lastClosed ? Number(lastClosed.endCashActual) || 0 : null);
+        } catch {
+          setPreviousShiftEndCash(null);
+        }
         setPendingStartCashShiftId((prev) => prev || shiftToCheckIn.id);
       }
     } catch (err) {
@@ -207,7 +232,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone }}>
+    <PosContext.Provider value={{ session, isLoggedIn: !!session, isLoading, deviceBranchId, setDeviceBranchId, clearDeviceBranch, login, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone, previousShiftEndCash }}>
       {children}
     </PosContext.Provider>
   );

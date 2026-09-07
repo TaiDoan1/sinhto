@@ -10,7 +10,6 @@ import {
 } from '../../utils/macroData';
 import * as api from '../../utils/api';
 import { useSSE } from '../../contexts/SSEContext';
-import { usePos } from '../../contexts/PosContext';
 
 // ============================================================
 // DỮ LIỆU MACRO MẶC ĐỊNH TRÍCH TỪ FILE PDF BẢNG THAM KHẢO FITBLEND — chuyển sang
@@ -21,13 +20,16 @@ import { usePos } from '../../contexts/PosContext';
 const DEFAULT_SIZES = DEFAULT_MACRO_SIZES;
 const DEFAULT_TOPPINGS = DEFAULT_MACRO_TOPPINGS;
 
-// Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa Bảng Macro trên
-// POS — các chức danh khác chỉ xem (giống quyền Nhập/Sửa kho).
-const MACRO_EDITOR_POSITIONS = new Set(['store_manager', 'manager']);
+interface MacroTableProps {
+  /** Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa — các chức danh
+   * khác chỉ xem (giống quyền Nhập/Sửa kho). Nhận qua prop thay vì tự gọi usePos() bên trong vì
+   * component này dùng chung ở 2 nơi có context khác nhau: POS (PosContext, xem POSInterface.tsx)
+   * và cổng riêng Cửa hàng trưởng /store-manager (AdminContext, không có PosProvider bọc quanh —
+   * xem StoreManagerApp.tsx), gọi usePos() trực tiếp ở đó sẽ crash vì thiếu PosProvider. */
+  canEdit: boolean;
+}
 
-export function MacroTable() {
-  const { session } = usePos();
-  const canEdit = !!session && MACRO_EDITOR_POSITIONS.has(session.position);
+export function MacroTable({ canEdit }: MacroTableProps) {
   const { subscribe } = useSSE();
   const [activeSize, setActiveSize] = useState(0);
   const [isEditing, setIsEditing] = useState(false);

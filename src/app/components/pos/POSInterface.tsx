@@ -78,6 +78,10 @@ const POS_TABS: {
   { id: 'macro', label: 'Macro', icon: BookOpen },
 ];
 
+// Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa Bảng Macro — các
+// chức danh khác chỉ xem (giống quyền Nhập/Sửa kho ở InventoryManagement.tsx).
+const MACRO_EDITOR_POSITIONS = new Set(['store_manager', 'manager']);
+
 function POSInterfaceInner() {
   const { session, isLoggedIn, isLoading, logout, checkActiveShift, pendingStartCashShiftId, clearPendingStartCash, markStartCashDone, previousShiftEndCash } = usePos();
   const { branchLabel } = useBranches();
@@ -992,7 +996,7 @@ function POSInterfaceInner() {
             ) : activeTab === 'admin' ? (
               <MenuManagement />
             ) : activeTab === 'macro' ? (
-              <MacroTable />
+              <MacroTable canEdit={!!session && MACRO_EDITOR_POSITIONS.has(session.position)} />
             ) : (
               <OrderHistory branchId={branchId} />
             )}

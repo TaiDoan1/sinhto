@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Store, Calendar, List, Warehouse, Package, CalendarCheck, History } from 'lucide-react';
+import { LogOut, Store, Calendar, List, Warehouse, Package, CalendarCheck, History, BookOpen } from 'lucide-react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { AdminLogin } from './AdminLogin';
@@ -9,8 +9,9 @@ import { StoreManagerAttendance } from './StoreManagerAttendance';
 import { StoreManagerCheckinHistory } from './StoreManagerCheckinHistory';
 import { CrossBranchInventory } from './CrossBranchInventory';
 import { InventoryDashboard } from './InventoryDashboard';
+import { MacroTable } from '../pos/MacroTable';
 
-type StoreManagerTab = 'schedule' | 'list' | 'attendance' | 'history' | 'stock' | 'materials';
+type StoreManagerTab = 'schedule' | 'list' | 'attendance' | 'history' | 'stock' | 'materials' | 'macro';
 
 const tabs: { id: StoreManagerTab; label: string; icon: typeof Calendar }[] = [
   { id: 'schedule', label: 'Sắp Lịch', icon: Calendar },
@@ -19,12 +20,14 @@ const tabs: { id: StoreManagerTab; label: string; icon: typeof Calendar }[] = [
   { id: 'history', label: 'Lịch Sử', icon: History },
   { id: 'stock', label: 'Quản Lý Kho', icon: Warehouse },
   { id: 'materials', label: 'Nguyên Liệu', icon: Package },
+  { id: 'macro', label: 'Macro', icon: BookOpen },
 ];
 
 /** Màn hình "Cửa hàng trưởng" độc lập — cùng đăng nhập với Admin/Nhân Sự (chức vụ Cửa hàng
- * trưởng) nhưng chỉ đưa vào 5 mục vận hành cửa hàng: sắp lịch, quản lý nhân viên (đăng ký +
+ * trưởng) nhưng chỉ đưa vào các mục vận hành cửa hàng: sắp lịch, quản lý nhân viên (đăng ký +
  * danh sách — bao gồm gán chi nhánh hỗ trợ thêm cho nhân viên), quản lý kho (kho chi nhánh +
- * kho tổng gộp trong CrossBranchInventory), quản lý nguyên liệu. Tái dùng nguyên các component
+ * kho tổng gộp trong CrossBranchInventory), quản lý nguyên liệu, Bảng Macro (chỉnh công thức
+ * dinh dưỡng — dùng chung component với POS, xem MacroTable.tsx). Tái dùng nguyên các component
  * thật đã có ở Admin/Nhân Sự, không dựng UI giả như bản cũ. */
 export function StoreManagerApp() {
   const { adminUser, isLoggedIn, isLoading, logout } = useAdmin();
@@ -104,6 +107,13 @@ export function StoreManagerApp() {
           {activeTab === 'history' && <StoreManagerCheckinHistory />}
           {activeTab === 'stock' && <CrossBranchInventory />}
           {activeTab === 'materials' && <InventoryDashboard />}
+          {/* Đăng nhập được vào cổng này đã chắc chắn là store_manager/manager (AdminContext lọc
+              sẵn — xem ALLOWED_POSITIONS), nên luôn cho sửa, không cần kiểm tra thêm. */}
+          {activeTab === 'macro' && (
+            <div className="bg-white rounded-lg shadow overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 480 }}>
+              <MacroTable canEdit />
+            </div>
+          )}
         </div>
       </main>
 

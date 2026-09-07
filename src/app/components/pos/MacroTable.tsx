@@ -164,8 +164,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          {/* Action Buttons — bọc flex-wrap để tự xuống dòng trên máy POS màn hẹp, không bị tràn
+              ngang/cắt chữ (trước đây cố định 1 hàng nên máy nhỏ hiện vỡ layout). */}
+          <div className="flex flex-wrap items-center gap-2">
             {loading ? (
               <div className="flex items-center gap-1.5 text-gray-400 text-xs font-semibold">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -260,128 +261,136 @@ export function MacroTable({ canEdit }: MacroTableProps) {
             </span>
           </div>
 
-          <div className={`${size.bgLight}`}>
-            {/* Column headers */}
-            <div className="grid grid-cols-5 px-4 py-2 border-b border-gray-200 bg-white/60">
-              <div className="col-span-2 text-[11px] font-black text-gray-500 uppercase tracking-wider">Vị</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">🔥 Cal</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">💪 Protein</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">Carb / Fat</div>
-            </div>
+          {/* Máy POS màn hẹp: 5 cột (nhất là lúc sửa có ô nhập) sẽ bị bóp méo/khó bấm nếu ép vừa
+              màn hình — thay vào đó cho cuộn/kéo NGANG tự nhiên (min-width cố định bên trong),
+              vẫn đọc/bấm thoải mái, chỉ cần vuốt sang để xem hết cột. */}
+          <div className={`${size.bgLight} overflow-x-auto`}>
+            <div className="min-w-[560px]">
+              {/* Column headers */}
+              <div className="grid grid-cols-5 px-4 py-2 border-b border-gray-200 bg-white/60">
+                <div className="col-span-2 text-[11px] font-black text-gray-500 uppercase tracking-wider">Vị</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">🔥 Cal</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">💪 Protein</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">Carb / Fat</div>
+              </div>
 
-            {/* Rows */}
-            {size.data.map((row, idx) => (
-              <div
-                key={idx}
-                className={`grid grid-cols-5 px-4 py-3 items-center transition-colors hover:bg-white/80 ${
-                  idx < size.data.length - 1 ? 'border-b border-gray-100' : ''
-                }`}
-              >
-                <div className="col-span-2">
-                  {isEditing ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={row.flavor}
-                        placeholder="Tên vị..."
-                        onChange={(e) => updateFlavorName(activeSize, idx, e.target.value)}
-                        className="w-full text-sm font-black text-gray-800 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeFlavorRow(activeSize, idx)}
-                        title="Xóa vị này"
-                        className="shrink-0 p-1.5 rounded-lg text-rose-500 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm font-black text-gray-800">{row.flavor}</span>
-                  )}
-                </div>
+              {/* Rows */}
+              {size.data.map((row, idx) => (
+                <div
+                  key={idx}
+                  className={`grid grid-cols-5 px-4 py-3 items-center transition-colors hover:bg-white/80 ${
+                    idx < size.data.length - 1 ? 'border-b border-gray-100' : ''
+                  }`}
+                >
+                  <div className="col-span-2">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={row.flavor}
+                          placeholder="Tên vị..."
+                          onChange={(e) => updateFlavorName(activeSize, idx, e.target.value)}
+                          className="w-full text-sm font-black text-gray-800 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFlavorRow(activeSize, idx)}
+                          title="Xóa vị này"
+                          className="shrink-0 p-1.5 rounded-lg text-rose-500 hover:bg-rose-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-black text-gray-800">{row.flavor}</span>
+                    )}
+                  </div>
 
-                {/* Calorie */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={row.cal}
-                      onChange={(e) => updateSizeValue(activeSize, idx, 'cal', parseInt(e.target.value) || 0)}
-                      className="w-full text-center text-sm font-black text-orange-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    />
-                  ) : (
-                    <>
-                      <span className="text-sm font-black text-orange-600">~{row.cal}</span>
-                      <span className="text-[10px] text-gray-400 block">kcal</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Protein */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
+                  {/* Calorie */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
                       <input
                         type="number"
-                        value={row.protein}
-                        onChange={(e) => updateSizeValue(activeSize, idx, 'protein', parseInt(e.target.value) || 0)}
-                        className="w-full text-center text-sm font-black text-emerald-700 focus:outline-none"
+                        value={row.cal}
+                        onChange={(e) => updateSizeValue(activeSize, idx, 'cal', parseInt(e.target.value) || 0)}
+                        className="w-full text-center text-sm font-black text-orange-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
-                      <span className="text-xs text-gray-400 font-bold">g</span>
-                    </div>
-                  ) : (
-                    <span className={`text-sm font-black ${size.textColor}`}>{row.protein}g</span>
-                  )}
-                </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-black text-orange-600">~{row.cal}</span>
+                        <span className="text-[10px] text-gray-400 block">kcal</span>
+                      </>
+                    )}
+                  </div>
 
-                {/* Carb / Fat */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <div className="flex flex-col gap-1">
+                  {/* Protein */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
                       <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
-                        <span className="text-[9px] text-gray-400 font-bold">C:</span>
                         <input
                           type="number"
-                          value={row.carb}
-                          onChange={(e) => updateSizeValue(activeSize, idx, 'carb', parseInt(e.target.value) || 0)}
-                          className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
+                          value={row.protein}
+                          onChange={(e) => updateSizeValue(activeSize, idx, 'protein', parseInt(e.target.value) || 0)}
+                          className="w-full text-center text-sm font-black text-emerald-700 focus:outline-none"
                         />
-                        <span className="text-[9px] text-gray-400">g</span>
+                        <span className="text-xs text-gray-400 font-bold">g</span>
                       </div>
-                      <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
-                        <span className="text-[9px] text-gray-400 font-bold">F:</span>
-                        <input
-                          type="number"
-                          value={row.fat}
-                          onChange={(e) => updateSizeValue(activeSize, idx, 'fat', parseInt(e.target.value) || 0)}
-                          className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
-                        />
-                        <span className="text-[9px] text-gray-400">g</span>
+                    ) : (
+                      <span className={`text-sm font-black ${size.textColor}`}>{row.protein}g</span>
+                    )}
+                  </div>
+
+                  {/* Carb / Fat */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
+                          <span className="text-[9px] text-gray-400 font-bold">C:</span>
+                          <input
+                            type="number"
+                            value={row.carb}
+                            onChange={(e) => updateSizeValue(activeSize, idx, 'carb', parseInt(e.target.value) || 0)}
+                            className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
+                          />
+                          <span className="text-[9px] text-gray-400">g</span>
+                        </div>
+                        <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
+                          <span className="text-[9px] text-gray-400 font-bold">F:</span>
+                          <input
+                            type="number"
+                            value={row.fat}
+                            onChange={(e) => updateSizeValue(activeSize, idx, 'fat', parseInt(e.target.value) || 0)}
+                            className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
+                          />
+                          <span className="text-[9px] text-gray-400">g</span>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-xs font-bold text-gray-700">{row.carb}g</span>
-                      <span className="text-[10px] text-gray-400"> / </span>
-                      <span className="text-xs font-bold text-gray-500">{row.fat}g</span>
-                      <div className="text-[9px] text-gray-400">carb / fat</div>
-                    </>
-                  )}
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold text-gray-700">{row.carb}g</span>
+                        <span className="text-[10px] text-gray-400"> / </span>
+                        <span className="text-xs font-bold text-gray-500">{row.fat}g</span>
+                        <div className="text-[9px] text-gray-400">carb / fat</div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {isEditing && (
-              <button
-                type="button"
-                onClick={() => addFlavorRow(activeSize)}
-                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 border-t border-gray-100 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" /> Thêm vị mới vào {size.label}
-              </button>
-            )}
+              ))}
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => addFlavorRow(activeSize)}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 border-t border-gray-100 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Thêm vị mới vào {size.label}
+                </button>
+              )}
+            </div>
           </div>
         </div>
+        <p className="sm:hidden text-center text-[10px] text-gray-400 font-semibold">
+          ↔ Vuốt/kéo ngang bảng để xem đủ cột trên màn hình nhỏ
+        </p>
 
         {/* Topping Extras */}
         <div className="rounded-2xl border-2 border-amber-200 overflow-hidden bg-white">
@@ -389,89 +398,91 @@ export function MacroTable({ canEdit }: MacroTableProps) {
             <Leaf className="w-4 h-4 text-white" />
             <span className="text-white font-black text-sm">Topping Cộng Thêm</span>
           </div>
-          <div className="bg-amber-50">
-            <div className="grid grid-cols-5 px-4 py-2 border-b border-amber-100 bg-white/60">
-              <div className="col-span-2 text-[11px] font-black text-gray-500 uppercase tracking-wider">Topping</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">🔥 Cal</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">💪 Protein</div>
-              <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">Carb / Fat</div>
-            </div>
-            
-            {toppings.map((t, idx) => (
-              <div
-                key={t.name}
-                className={`grid grid-cols-5 px-4 py-3 items-center hover:bg-white/80 transition-colors ${
-                  idx < toppings.length - 1 ? 'border-b border-amber-100' : ''
-                }`}
-              >
-                <div className="col-span-2">
-                  <span className="text-sm font-black text-gray-800">{t.name}</span>
-                </div>
-
-                {/* Topping Calorie */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={t.cal}
-                      onChange={(e) => updateToppingValue(idx, 'cal', e.target.value)}
-                      className="w-full text-center text-sm font-black text-orange-500 bg-white border border-amber-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  ) : (
-                    <>
-                      <span className="text-sm font-black text-orange-500">{t.cal}</span>
-                      <span className="text-[10px] text-gray-400 block">kcal</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Topping Protein */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={t.protein}
-                      onChange={(e) => updateToppingValue(idx, 'protein', e.target.value)}
-                      className="w-full text-center text-sm font-black text-amber-600 bg-white border border-amber-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  ) : (
-                    <span className="text-sm font-black text-amber-600">{t.protein}</span>
-                  )}
-                </div>
-
-                {/* Topping Carb / Fat */}
-                <div className="text-center px-1">
-                  {isEditing ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1 py-0.5">
-                        <span className="text-[9px] text-gray-400 font-bold">C:</span>
-                        <input
-                          type="text"
-                          value={t.carb}
-                          onChange={(e) => updateToppingValue(idx, 'carb', e.target.value)}
-                          className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
-                        />
-                      </div>
-                      <div className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1 py-0.5">
-                        <span className="text-[9px] text-gray-400 font-bold">F:</span>
-                        <input
-                          type="text"
-                          value={t.fat}
-                          onChange={(e) => updateToppingValue(idx, 'fat', e.target.value)}
-                          className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-xs font-bold text-gray-700">{t.carb}</span>
-                      <span className="text-[10px] text-gray-400 flex justify-center"> / </span>
-                      <span className="text-xs font-bold text-gray-500">{t.fat}</span>
-                    </>
-                  )}
-                </div>
+          <div className="bg-amber-50 overflow-x-auto">
+            <div className="min-w-[560px]">
+              <div className="grid grid-cols-5 px-4 py-2 border-b border-amber-100 bg-white/60">
+                <div className="col-span-2 text-[11px] font-black text-gray-500 uppercase tracking-wider">Topping</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">🔥 Cal</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">💪 Protein</div>
+                <div className="text-[11px] font-black text-gray-500 uppercase tracking-wider text-center">Carb / Fat</div>
               </div>
-            ))}
+
+              {toppings.map((t, idx) => (
+                <div
+                  key={t.name}
+                  className={`grid grid-cols-5 px-4 py-3 items-center hover:bg-white/80 transition-colors ${
+                    idx < toppings.length - 1 ? 'border-b border-amber-100' : ''
+                  }`}
+                >
+                  <div className="col-span-2">
+                    <span className="text-sm font-black text-gray-800">{t.name}</span>
+                  </div>
+
+                  {/* Topping Calorie */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={t.cal}
+                        onChange={(e) => updateToppingValue(idx, 'cal', e.target.value)}
+                        className="w-full text-center text-sm font-black text-orange-500 bg-white border border-amber-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    ) : (
+                      <>
+                        <span className="text-sm font-black text-orange-500">{t.cal}</span>
+                        <span className="text-[10px] text-gray-400 block">kcal</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Topping Protein */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={t.protein}
+                        onChange={(e) => updateToppingValue(idx, 'protein', e.target.value)}
+                        className="w-full text-center text-sm font-black text-amber-600 bg-white border border-amber-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    ) : (
+                      <span className="text-sm font-black text-amber-600">{t.protein}</span>
+                    )}
+                  </div>
+
+                  {/* Topping Carb / Fat */}
+                  <div className="text-center px-1">
+                    {isEditing ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1 py-0.5">
+                          <span className="text-[9px] text-gray-400 font-bold">C:</span>
+                          <input
+                            type="text"
+                            value={t.carb}
+                            onChange={(e) => updateToppingValue(idx, 'carb', e.target.value)}
+                            className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1 py-0.5">
+                          <span className="text-[9px] text-gray-400 font-bold">F:</span>
+                          <input
+                            type="text"
+                            value={t.fat}
+                            onChange={(e) => updateToppingValue(idx, 'fat', e.target.value)}
+                            className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold text-gray-700">{t.carb}</span>
+                        <span className="text-[10px] text-gray-400 flex justify-center"> / </span>
+                        <span className="text-xs font-bold text-gray-500">{t.fat}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -8,7 +8,7 @@ import { RetailOrderDetailDrawer } from '../online-sales/RetailOrderDetailDrawer
 
 interface Customer { id: string; name: string; phone: string; points: number; address?: string; createdAt?: string }
 interface Assignment { customerPhone: string; customerName?: string; careStaffId: string; careStaffName?: string; notes?: string }
-interface Combo { id: string; customerPhone?: string; customerName?: string; careStaffId?: string; status: string; planName?: string; deliveredCups?: number; totalCups?: number }
+interface Combo { id: string; customerPhone?: string; customerName?: string; careStaffId?: string; status: string; planName?: string; deliveredCups?: number; totalCups?: number; totalPrice?: number; refundAmount?: number }
 interface StaffLite { id: string; fullName: string; position: string }
 
 interface Props {
@@ -391,6 +391,19 @@ function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffNa
   const [schedule, setSchedule] = useState<any[] | null>(null);
   // Mở chi tiết + sửa 1 đơn lẻ (giờ giao, địa chỉ, ghi chú, shipper...) — bấm vào dòng đơn bên dưới.
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+
+  // Tổng số tiền khách đã mua = đơn lẻ ĐÃ HOÀN THÀNH (gồm phí ship đã trả) + combo ĐÃ CHỐT (mọi
+  // trạng thái trừ 'pending' — chưa chốt thì chưa tính là đã mua), trừ đi phần đã hoàn tiền.
+  const totalSpent = useMemo(() => {
+    const fromOrders = (orders || [])
+      .filter((o: any) => o.status === 'completed')
+      .reduce((s: number, o: any) => s + (o.total || 0) + (o.shipFee || 0), 0);
+    const fromCombos = combos
+      .filter((c) => c.status !== 'pending')
+      .reduce((s, c) => s + (c.totalPrice || 0) - (c.refundAmount || 0), 0);
+    return fromOrders + fromCombos;
+  }, [orders, combos]);
+
   useEffect(() => {
     api.fetchOrdersByPhone(customer.phone).then((d: any[]) => setOrders(d || [])).catch(() => setOrders([]));
     // Lịch giao: gộp delivery-logs của các combo của khách (combo còn chạy/chờ)
@@ -418,6 +431,12 @@ function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffNa
 
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-emerald-50 px-3 py-2 col-span-2">
+              <div className="text-[10px] uppercase font-bold text-emerald-600/80">Tổng tiền đã mua</div>
+              <div className="text-lg font-black text-emerald-700">
+                {orders === null ? <Loader2 className="w-4 h-4 animate-spin" /> : `${totalSpent.toLocaleString('vi-VN')}đ`}
+              </div>
+            </div>
             <div className="rounded-xl bg-amber-50 px-3 py-2">
               <div className="text-[10px] uppercase font-bold text-amber-600/80">Điểm tích lũy</div>
               <div className="text-lg font-black text-amber-700">{customer.points}đ</div>

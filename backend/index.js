@@ -450,18 +450,26 @@ app.get('/api/orders/by-phone/:phone', (req, res) => {
   const phone = decodeURIComponent(req.params.phone);
   db.all('SELECT * FROM orders ORDER BY time DESC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    const matched = (rows || [])
-      .filter((r) => phonesMatch(phone, r.customerPhone))
-      .map((r) => ({
-        ...r,
-        items: JSON.parse(r.items),
-        stockDeducted: !!r.stockDeducted,
-        time: new Date(r.time),
-        paidAt: r.paidAt ? new Date(r.paidAt) : undefined,
-        readyAt: r.readyAt ? new Date(r.readyAt) : undefined,
-        completedAt: r.completedAt ? new Date(r.completedAt) : undefined,
-      }));
-    res.json(matched);
+    // Đơn cũ đã bị "Kết ca"/dọn dữ liệu chuyển sang orders_archive KHÔNG nằm trong bảng orders nữa
+    // — nếu chỉ query orders, lịch sử đơn của khách lâu năm sẽ thiếu (và "tổng tiền đã mua" tính
+    // sai thấp hơn thực tế). Gộp thêm orders_archive, loại trùng theo id cho chắc.
+    db.all('SELECT * FROM orders_archive ORDER BY time DESC', [], (aErr, archRows) => {
+      const seen = new Set();
+      const matched = [...(rows || []), ...(aErr ? [] : (archRows || []))]
+        .filter((r) => phonesMatch(phone, r.customerPhone))
+        .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+        .map((r) => ({
+          ...r,
+          items: JSON.parse(r.items),
+          stockDeducted: !!r.stockDeducted,
+          time: new Date(r.time),
+          paidAt: r.paidAt ? new Date(r.paidAt) : undefined,
+          readyAt: r.readyAt ? new Date(r.readyAt) : undefined,
+          completedAt: r.completedAt ? new Date(r.completedAt) : undefined,
+        }))
+        .sort((a, b) => b.time.getTime() - a.time.getTime());
+      res.json(matched);
+    });
   });
 });
 

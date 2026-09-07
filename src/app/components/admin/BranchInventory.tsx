@@ -5,6 +5,8 @@ import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useAdmin } from '../../contexts/AdminContext';
 import * as api from '../../utils/api';
+import { PRODUCT_SIZES, PRODUCT_SIZE_KEYS } from '../../utils/inventorySizes';
+import { INGREDIENT_CATALOG } from '../../config/ingredients';
 
 interface BranchInventoryProps {
   branchId: string;
@@ -47,9 +49,6 @@ type ReceiptStage = 'idle' | 'naming' | 'editing' | 'result';
 function formatSigned(n: number) {
   return n > 0 ? `+${n}` : `${n}`;
 }
-
-const PRODUCT_VOLUMES = ['250ml', '360ml', '500ml', '700ml'];
-const PRODUCT_SIZES = ['S', 'M', 'L'];
 
 const EMPTY_PRODUCT_INVENTORY: ProductInventoryState = {
   smoothies: {},
@@ -112,15 +111,19 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
     return unsubscribe;
   }, [branchId, subscribe]);
 
+  // "Kho Vị" giờ theo NGUYÊN LIỆU ĐƠN (vd Cacao, Chuối, Xoài...) — bán 1 vị ghép tên tự trừ đúng
+  // 1 túi mỗi nguyên liệu cấu thành (xem config/ingredients.ts). Dùng chung bucket lưu trữ cũ
+  // (smoothies trong branchProductInventory), chỉ đổi khóa từ mã vị bán sang mã nguyên liệu.
   const smoothies = useMemo(
     () =>
-      products.filter(
-        (p) =>
-          p.category === 'smoothies' &&
-          (p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-            p.id.toLowerCase().includes(productSearch.toLowerCase()))
-      ),
-    [products, productSearch]
+      INGREDIENT_CATALOG
+        .map((ing) => ({ id: ing.id, name: ing.name, category: 'smoothies' as const, basePrice: 0, image: '' }))
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+            p.id.toLowerCase().includes(productSearch.toLowerCase())
+        ),
+    [productSearch]
   );
   const toppings = useMemo(
     () =>
@@ -135,7 +138,8 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
 
   const totalSmoothieStock = (productId: string, source: ProductInventoryState) => {
     const variants = source.smoothies[productId] || {};
-    return Object.values(variants).reduce((sum, v) => sum + (Number(v) || 0), 0);
+    // Chỉ cộng 3 size hiện hành (S/M/L). Bỏ qua key format cũ (vd '360ml-S') còn sót trong dữ liệu.
+    return PRODUCT_SIZE_KEYS.reduce((sum, k) => sum + (Number(variants[k]) || 0), 0);
   };
 
   const openNaming = () => {
@@ -180,16 +184,13 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
 
   const diffLines = useMemo<DiffLine[]>(() => {
     const lines: DiffLine[] = [];
-    for (const p of products.filter((pr) => pr.category === 'smoothies')) {
-      for (const volume of PRODUCT_VOLUMES) {
-        for (const size of PRODUCT_SIZES) {
-          const variantKey = `${volume}-${size}`;
-          const before = baselineInventory.smoothies[p.id]?.[variantKey] ?? 0;
-          const after = draftInventory.smoothies[p.id]?.[variantKey] ?? 0;
-          const diff = after - before;
-          if (diff !== 0) {
-            lines.push({ productId: p.id, productName: p.name, type: 'smoothie', variantKey, quantity: diff });
-          }
+    for (const ing of INGREDIENT_CATALOG) {
+      for (const size of PRODUCT_SIZE_KEYS) {
+        const before = baselineInventory.smoothies[ing.id]?.[size] ?? 0;
+        const after = draftInventory.smoothies[ing.id]?.[size] ?? 0;
+        const diff = after - before;
+        if (diff !== 0) {
+          lines.push({ productId: ing.id, productName: ing.name, type: 'smoothie', variantKey: size, quantity: diff });
         }
       }
     }
@@ -270,7 +271,7 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
               type="text"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Tìm vị hoặc topping..."
+              placeholder="Tìm nguyên liệu hoặc topping..."
               className="w-full pl-10 pr-4 py-2 border rounded-lg"
             />
           </div>
@@ -279,13 +280,16 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
         <div className={`bg-white rounded-lg shadow-md p-5 ${isEditing ? 'ring-2 ring-emerald-400' : ''}`}>
           <div className="flex items-center gap-2 mb-4">
             <Coffee className="w-5 h-5 text-emerald-700" />
-            <h3 className="text-lg font-bold text-gray-800">Kho Vị</h3>
+            <h3 className="text-lg font-bold text-gray-800">Kho Nguyên Liệu (Vị lẻ)</h3>
             {isEditing && (
               <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                 <Pencil className="w-3 h-3" /> Đang sửa
               </span>
             )}
           </div>
+          <p className="text-xs text-gray-400 -mt-2 mb-3">
+            Bán 1 ly vị ghép tên (vd "Cacao chuối") sẽ tự trừ đúng 1 túi mỗi nguyên liệu trong tên.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {smoothies.map((product) => {
               const total = totalSmoothieStock(product.id, isEditing ? draftInventory : productInventory);
@@ -295,9 +299,8 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                   className={`text-left border rounded-xl p-4 ${isEditing ? 'bg-emerald-50/40 border-emerald-200' : 'bg-gray-50'}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <div className="text-xs text-gray-400 font-semibold">{product.id}</div>
                     <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-semibold">
-                      Vị
+                      Nguyên liệu
                     </span>
                   </div>
                   <div className="font-bold text-gray-900 mb-3 flex items-center justify-between">
@@ -307,70 +310,55 @@ export function BranchInventory({ branchId }: BranchInventoryProps) {
                     </span>
                   </div>
                   {isEditing ? (
-                    <div className="border-t border-gray-200 pt-2.5">
-                      <div className="grid grid-cols-[32px_repeat(3,1fr)] gap-x-2 gap-y-2">
-                        <div />
-                        {PRODUCT_SIZES.map((size) => (
-                          <div key={size} className="text-center text-[11px] font-bold text-gray-400">
-                            {size}
+                    <div className="border-t border-gray-200 pt-2.5 grid grid-cols-3 gap-2">
+                      {PRODUCT_SIZES.map((size) => {
+                        const value = draftInventory.smoothies[product.id]?.[size.key] ?? 0;
+                        const before = baselineInventory.smoothies[product.id]?.[size.key] ?? 0;
+                        const diff = value - before;
+                        return (
+                          <div key={size.key} className="flex flex-col items-center gap-1">
+                            <span className="text-[10px] font-bold text-gray-400">Size {size.key}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={value}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setDraftSmoothieVariant(product.id, size.key, Number(e.target.value || 0))}
+                              className="w-full text-center border-2 border-gray-200 rounded-lg py-1.5 text-sm font-bold text-gray-800 bg-white focus:border-emerald-500 outline-none"
+                            />
+                            <span
+                              className={`text-[10px] font-bold leading-none ${
+                                diff === 0 ? 'invisible' : diff > 0 ? 'text-emerald-600' : 'text-red-600'
+                              }`}
+                            >
+                              {formatSigned(diff)}
+                            </span>
                           </div>
-                        ))}
-                        {PRODUCT_VOLUMES.map((volume) => (
-                          <div key={volume} className="contents">
-                            <div className="text-[11px] font-bold text-gray-500 self-center">{volume}</div>
-                            {PRODUCT_SIZES.map((size) => {
-                              const variantKey = `${volume}-${size}`;
-                              const value = draftInventory.smoothies[product.id]?.[variantKey] ?? 0;
-                              const before = baselineInventory.smoothies[product.id]?.[variantKey] ?? 0;
-                              const diff = value - before;
-                              return (
-                                <div key={size} className="flex flex-col items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={value}
-                                    onFocus={(e) => e.target.select()}
-                                    onChange={(e) => setDraftSmoothieVariant(product.id, variantKey, Number(e.target.value || 0))}
-                                    className="w-full text-center border-2 border-gray-200 rounded-lg py-1.5 text-sm font-bold text-gray-800 bg-white focus:border-emerald-500 outline-none"
-                                  />
-                                  <span
-                                    className={`text-[10px] font-bold leading-none ${
-                                      diff === 0 ? 'invisible' : diff > 0 ? 'text-emerald-600' : 'text-red-600'
-                                    }`}
-                                  >
-                                    {formatSigned(diff)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="space-y-1.5 border-t border-gray-200 pt-2">
-                      {PRODUCT_VOLUMES.map((volume) => (
-                        <div key={volume} className="flex items-center justify-between text-xs gap-1">
-                          <span className="font-bold text-gray-500 w-12 shrink-0">{volume}</span>
-                          <span className="flex gap-2.5">
-                            {PRODUCT_SIZES.map((size) => {
-                              const value = productInventory.smoothies[product.id]?.[`${volume}-${size}`] ?? 0;
-                              return (
-                                <span key={size} className={`font-black ${value <= 0 ? 'text-gray-300' : 'text-emerald-700'}`}>
-                                  {size}:{value}
-                                </span>
-                              );
-                            })}
-                          </span>
-                        </div>
-                      ))}
+                      {PRODUCT_SIZES.map((size) => {
+                        const value = productInventory.smoothies[product.id]?.[size.key] ?? 0;
+                        return (
+                          <div key={size.key} className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-gray-500 shrink-0">
+                              Size {size.key} <span className="text-gray-400 font-semibold">({size.volume})</span>
+                            </span>
+                            <span className={`font-black ${value <= 0 ? 'text-gray-300' : 'text-emerald-700'}`}>
+                              {value} túi
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               );
             })}
             {smoothies.length === 0 && (
-              <div className="col-span-full text-sm text-gray-500">Không có vị nào khớp tìm kiếm.</div>
+              <div className="col-span-full text-sm text-gray-500">Không có nguyên liệu nào khớp tìm kiếm.</div>
             )}
           </div>
         </div>

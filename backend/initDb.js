@@ -740,6 +740,35 @@ async function initSchemaAndSeeds(pool) {
   await syncCanonicalMenuV4(pool);
   await syncCanonicalMenuV5(pool);
   await syncCanonicalMenuV6(pool);
+  await syncCanonicalMenuV7(pool);
+}
+
+// Vị in gọn trên poster bằng dấu ngoặc (vd "Đu đủ (xoài-thơm-chuối)") thực chất TÁCH thành nhiều
+// vị riêng khi bán trên POS (Đu đủ xoài / Đu đủ thơm / Đu đủ chuối) — mỗi vị đúng 2 nguyên liệu,
+// khớp công thức trừ kho theo túi (xem config/ingredients.ts). Tổng vị bán tăng 26 → 35.
+async function syncCanonicalMenuV7(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v7';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Refreshing canonical menu (v7): tách vị ngoặc kép thành 35 vị riêng...');
+
+  for (const row of getSmoothieProductRows()) {
+    const [id, name, category, basePrice, image, description] = row;
+    await pool.query(
+      `INSERT INTO products (id, name, category, "basePrice", image, description)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         "basePrice" = EXCLUDED."basePrice",
+         image = EXCLUDED.image,
+         description = EXCLUDED.description`,
+      [id, name, category, basePrice, image, description]
+    );
+  }
+
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString(), flavors: 35 });
 }
 
 // Cập nhật TOÀN BỘ menu theo poster in mới "SINH TỐ PROTEIN TƯƠI": 26 vị (thay 24 vị cũ), bảng

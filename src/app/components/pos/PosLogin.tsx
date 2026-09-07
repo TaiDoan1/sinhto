@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Store, User, Lock, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { usePos } from '../../contexts/PosContext';
 import { fetchBranches } from '../../utils/api';
@@ -16,6 +16,21 @@ function DeviceBranchSetup() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const selectedBranch = branches.find((b) => b.id === selected);
+  // Tự bắt "nhấn đúp" bằng tay (đếm thời gian giữa 2 lần chạm cùng 1 chi nhánh) thay vì dùng sự
+  // kiện dblclick của trình duyệt — máy POS Android cũ không nhận dblclick khi chạm (touch) đáng
+  // tin cậy, nên nhấn đúp thật vẫn bị coi là 2 lần chạm đơn lẻ, không thấy xác nhận luôn được.
+  const lastTapRef = useRef<{ id: string; time: number } | null>(null);
+  const handleTapBranch = (id: string) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (last && last.id === id && now - last.time < 500) {
+      lastTapRef.current = null;
+      setDeviceBranchId(id); // nhấn đúp → xác nhận luôn, vào thẳng đăng nhập
+      return;
+    }
+    lastTapRef.current = { id, time: now };
+    setSelected(id);
+  };
 
   useEffect(() => {
     fetchBranches(true)
@@ -52,10 +67,7 @@ function DeviceBranchSetup() {
               <button
                 key={b.id}
                 type="button"
-                onClick={() => setSelected(b.id)}
-                // Nhấn đúp = xác nhận luôn, khỏi cần bấm thêm nút "Xác nhận" bên dưới — vào thẳng
-                // màn đăng nhập.
-                onDoubleClick={() => setDeviceBranchId(b.id)}
+                onClick={() => handleTapBranch(b.id)}
                 className={`w-full text-left px-4 py-3 rounded-xl border-2 font-semibold transition ${
                   selected === b.id
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900'

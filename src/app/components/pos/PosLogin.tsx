@@ -53,6 +53,9 @@ function DeviceBranchSetup() {
                 key={b.id}
                 type="button"
                 onClick={() => setSelected(b.id)}
+                // Nhấn đúp = xác nhận luôn, khỏi cần bấm thêm nút "Xác nhận" bên dưới — vào thẳng
+                // màn đăng nhập.
+                onDoubleClick={() => setDeviceBranchId(b.id)}
                 className={`w-full text-left px-4 py-3 rounded-xl border-2 font-semibold transition ${
                   selected === b.id
                     ? 'border-emerald-600 bg-emerald-50 text-emerald-900'

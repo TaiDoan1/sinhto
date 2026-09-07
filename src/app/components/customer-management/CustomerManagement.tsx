@@ -4,6 +4,7 @@ import * as api from '../../utils/api';
 import { isOnlineSalesPosition } from '../../types/employee';
 import { usePagination, Pager } from '../common/Pagination';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
+import { RetailOrderDetailDrawer } from '../online-sales/RetailOrderDetailDrawer';
 
 interface Customer { id: string; name: string; phone: string; points: number; address?: string; createdAt?: string }
 interface Assignment { customerPhone: string; customerName?: string; careStaffId: string; careStaffName?: string; notes?: string }
@@ -388,6 +389,8 @@ function dayLabel(dateStr: string) {
 function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffName, onClose }: { customer: Customer; combos: Combo[]; owner?: Assignment; scope: 'admin' | 'cskh'; staffId?: string; staffName?: string; onClose: () => void }) {
   const [orders, setOrders] = useState<any[] | null>(null);
   const [schedule, setSchedule] = useState<any[] | null>(null);
+  // Mở chi tiết + sửa 1 đơn lẻ (giờ giao, địa chỉ, ghi chú, shipper...) — bấm vào dòng đơn bên dưới.
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   useEffect(() => {
     api.fetchOrdersByPhone(customer.phone).then((d: any[]) => setOrders(d || [])).catch(() => setOrders([]));
     // Lịch giao: gộp delivery-logs của các combo của khách (combo còn chạy/chờ)
@@ -484,16 +487,32 @@ function CustomerDetailDrawer({ customer, combos, owner, scope, staffId, staffNa
             ) : (
               <div className="space-y-1.5">
                 {orders.slice(0, 15).map((o: any) => (
-                  <div key={o.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-1.5">
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSelectedOrder(o)}
+                    className="w-full flex items-center justify-between text-sm border-b border-gray-50 pb-1.5 hover:bg-gray-50 rounded-lg px-1.5 -mx-1.5 transition-colors"
+                  >
                     <span className="text-gray-600">{o.time ? new Date(o.time).toLocaleDateString('vi-VN') : ''} · #{o.orderNumber}</span>
-                    <span className="font-semibold text-gray-800">{(o.total || 0).toLocaleString('vi-VN')}đ</span>
-                  </div>
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold text-gray-800">{(o.total || 0).toLocaleString('vi-VN')}đ</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                    </span>
+                  </button>
                 ))}
                 {orders.length > 15 && <p className="text-xs text-gray-400 text-center pt-1">…và {orders.length - 15} đơn cũ hơn</p>}
               </div>
             )}
           </div>
         </div>
+
+        {selectedOrder && (
+          <RetailOrderDetailDrawer
+            order={selectedOrder}
+            onClose={() => setSelectedOrder(null)}
+            onSaved={() => api.fetchOrdersByPhone(customer.phone).then((d: any[]) => setOrders(d || [])).catch(() => {})}
+          />
+        )}
       </div>
     </div>
   );

@@ -387,7 +387,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   };
 
   const updateOrder = async (orderId: string, updates: Partial<Order>) => {
-    updateOrderStatus(orderId, updates.status || 'pending', updates);
+    // Sửa thông tin đơn (giờ giao, địa chỉ, ghi chú, món...) KHÔNG được tự ý đổi trạng thái đơn.
+    // Trước đây khi không truyền status sẽ mặc định về 'pending' — nếu sửa 1 đơn ĐÃ HOÀN THÀNH
+    // (vd đổi giờ giao lúc CSKH mở chi tiết đơn, hoặc POS đổi món combo sau khi đơn đã xong) sẽ vô
+    // tình kéo đơn quay lại hàng đợi, sai lịch sử/doanh thu. Giữ nguyên status hiện tại nếu không
+    // ai chủ động đổi.
+    const current = orders.find((o) => o.id === orderId) || history.find((o) => o.id === orderId);
+    const status = updates.status || current?.status || 'pending';
+    updateOrderStatus(orderId, status, updates);
   };
 
   return (

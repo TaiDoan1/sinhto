@@ -209,7 +209,9 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                       })
                     };
                     const newTotal = newItems.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
-                    updateOrder(order.id, { items: newItems, total: newTotal });
+                    // Giữ nguyên trạng thái gốc — sửa món trên đơn ĐÃ HOÀN THÀNH không được kéo nó
+                    // quay lại hàng đợi (updateOrder mặc định 'pending' nếu không truyền status).
+                    updateOrder(order.id, { items: newItems, total: newTotal, status: order.status });
                   }
                 }
                 setShowComboBuilder(false);

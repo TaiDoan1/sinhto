@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Info, Leaf, Edit2, Save, X, RotateCcw } from 'lucide-react';
+import { BookOpen, Info, Leaf, Edit2, Save, X, RotateCcw, Plus, Trash2 } from 'lucide-react';
 import { DEFAULT_MACRO_SIZES, DEFAULT_MACRO_TOPPINGS } from '../../utils/macroData';
 
 // ============================================================
@@ -39,7 +39,10 @@ export function MacroTable() {
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem('fitblend_macro_sizes', JSON.stringify(sizes));
+    // Bỏ các dòng lỡ thêm mà chưa gõ tên vị (tránh lưu rác).
+    const cleaned = sizes.map((s) => ({ ...s, data: s.data.filter((d) => d.flavor.trim() !== '') }));
+    setSizes(cleaned);
+    localStorage.setItem('fitblend_macro_sizes', JSON.stringify(cleaned));
     localStorage.setItem('fitblend_macro_toppings', JSON.stringify(toppings));
     setIsEditing(false);
   };
@@ -71,6 +74,25 @@ export function MacroTable() {
   ) => {
     const newSizes = JSON.parse(JSON.stringify(sizes)); // Deep copy
     newSizes[sizeIdx].data[flavorIdx][field] = value;
+    setSizes(newSizes);
+  };
+
+  const updateFlavorName = (sizeIdx: number, flavorIdx: number, name: string) => {
+    const newSizes = JSON.parse(JSON.stringify(sizes));
+    newSizes[sizeIdx].data[flavorIdx].flavor = name;
+    setSizes(newSizes);
+  };
+
+  // Thêm 1 vị mới (dòng trống) vào size đang xem — gõ tên + số liệu rồi bấm "Lưu thay đổi".
+  const addFlavorRow = (sizeIdx: number) => {
+    const newSizes = JSON.parse(JSON.stringify(sizes));
+    newSizes[sizeIdx].data.push({ flavor: '', cal: 0, protein: 0, carb: 0, fat: 0 });
+    setSizes(newSizes);
+  };
+
+  const removeFlavorRow = (sizeIdx: number, flavorIdx: number) => {
+    const newSizes = JSON.parse(JSON.stringify(sizes));
+    newSizes[sizeIdx].data.splice(flavorIdx, 1);
     setSizes(newSizes);
   };
 
@@ -196,15 +218,35 @@ export function MacroTable() {
             {/* Rows */}
             {size.data.map((row, idx) => (
               <div
-                key={row.flavor}
+                key={idx}
                 className={`grid grid-cols-5 px-4 py-3 items-center transition-colors hover:bg-white/80 ${
                   idx < size.data.length - 1 ? 'border-b border-gray-100' : ''
                 }`}
               >
                 <div className="col-span-2">
-                  <span className="text-sm font-black text-gray-800">{row.flavor}</span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={row.flavor}
+                        placeholder="Tên vị..."
+                        onChange={(e) => updateFlavorName(activeSize, idx, e.target.value)}
+                        className="w-full text-sm font-black text-gray-800 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFlavorRow(activeSize, idx)}
+                        title="Xóa vị này"
+                        className="shrink-0 p-1.5 rounded-lg text-rose-500 hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-black text-gray-800">{row.flavor}</span>
+                  )}
                 </div>
-                
+
                 {/* Calorie */}
                 <div className="text-center px-1">
                   {isEditing ? (
@@ -275,6 +317,15 @@ export function MacroTable() {
                 </div>
               </div>
             ))}
+            {isEditing && (
+              <button
+                type="button"
+                onClick={() => addFlavorRow(activeSize)}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 border-t border-gray-100 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm vị mới vào {size.label}
+              </button>
+            )}
           </div>
         </div>
 

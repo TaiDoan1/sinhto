@@ -11,12 +11,18 @@ import {
   X,
   Search,
   CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { useInventory } from '../../contexts/InventoryContext';
 import { useSSE } from '../../contexts/SSEContext';
+import { usePos } from '../../contexts/PosContext';
 import * as api from '../../utils/api';
 import { PRODUCT_SIZES, PRODUCT_SIZE_KEYS } from '../../utils/inventorySizes';
 import { INGREDIENT_CATALOG } from '../../config/ingredients';
+
+// Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được nhập/sửa kho trên POS.
+// Thu ngân/Pha chế/Phục vụ chỉ xem được tồn kho, không nhập/sửa được.
+const STOCK_MANAGER_POSITIONS = new Set(['store_manager', 'manager']);
 
 interface InventoryManagementProps {
   branchId: string;
@@ -59,6 +65,8 @@ function parseProductInventory(data: unknown): ProductInventoryState {
 export function InventoryManagement({ branchId }: InventoryManagementProps) {
   const { inventory, movements, purchaseStock, isWarehouseReady } = useInventory();
   const { subscribe } = useSSE();
+  const { session } = usePos();
+  const canManageStock = !!session && STOCK_MANAGER_POSITIONS.has(session.position);
   const [activeSubTab, setActiveSubTab] = useState<'check' | 'history'>('check');
 
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -132,6 +140,7 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
   };
 
   const openPurchase = (itemId?: string) => {
+    if (!canManageStock) return; // chỉ Cửa hàng trưởng / Quản lý chi nhánh được nhập kho
     setPurchaseItemId(itemId || '');
     setPurchaseQty('');
     setPurchaseSupplier('');
@@ -141,6 +150,7 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageStock) return;
     const qty = Number(purchaseQty);
     if (!purchaseItemId || !qty || qty <= 0) return alert('Chọn nguyên liệu và số lượng nhập');
     setPurchaseSaving(true);
@@ -187,7 +197,7 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
   };
 
   const handleSaveEditingProduct = async () => {
-    if (!editingProduct || !branchId) return;
+    if (!editingProduct || !branchId || !canManageStock) return;
     setProductSaving(true);
     try {
       const key = productInventoryKeyFor(branchId);
@@ -263,21 +273,32 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                 className="w-full pl-10 pr-4 py-2 bg-gray-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => openPurchase()}
-              className="flex items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Nhập Kho
-            </button>
+            {canManageStock && (
+              <button
+                type="button"
+                onClick={() => openPurchase()}
+                className="flex items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Nhập Kho
+              </button>
+            )}
           </div>
         )}
       </div>
 
+      {activeSubTab === 'check' && !canManageStock && (
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 text-gray-500 text-xs font-bold flex items-center gap-1.5">
+          <Lock className="w-3.5 h-3.5" /> Chỉ xem — chỉ Cửa hàng trưởng / Quản lý chi nhánh mới nhập/sửa được kho.
+        </div>
+      )}
+
       {!isWarehouseReady && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm font-bold">
-          ⚠️ Chưa có phiếu nhập kho tại chi nhánh này — bấm "Nhập Kho" để mở khóa bán hàng.
+          ⚠️ Chưa có phiếu nhập kho tại chi nhánh này —{' '}
+          {canManageStock
+            ? 'bấm "Nhập Kho" để mở khóa bán hàng.'
+            : 'nhờ Cửa hàng trưởng / Quản lý chi nhánh nhập kho để mở khóa bán hàng.'}
         </div>
       )}
 
@@ -300,8 +321,11 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                     <button
                       type="button"
                       key={product.id}
-                      onClick={() => setEditingProduct({ product, type: 'smoothie' })}
-                      className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+                      disabled={!canManageStock}
+                      onClick={() => canManageStock && setEditingProduct({ product, type: 'smoothie' })}
+                      className={`text-left border rounded-xl p-4 transition-colors ${
+                        canManageStock ? 'bg-gray-50 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer' : 'bg-gray-50 cursor-default'
+                      }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-black">
@@ -350,8 +374,11 @@ export function InventoryManagement({ branchId }: InventoryManagementProps) {
                     <button
                       type="button"
                       key={product.id}
-                      onClick={() => setEditingProduct({ product, type: 'topping' })}
-                      className="text-left border rounded-xl p-4 bg-gray-50 hover:bg-violet-50 hover:border-violet-300 transition-colors"
+                      disabled={!canManageStock}
+                      onClick={() => canManageStock && setEditingProduct({ product, type: 'topping' })}
+                      className={`text-left border rounded-xl p-4 transition-colors ${
+                        canManageStock ? 'bg-gray-50 hover:bg-violet-50 hover:border-violet-300 cursor-pointer' : 'bg-gray-50 cursor-default'
+                      }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-xs text-gray-400 font-semibold">{product.id}</div>

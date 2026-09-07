@@ -20,12 +20,8 @@ const milk = (q = 0.2): RecipeIngredient => ({
 const whey = (q = 1): RecipeIngredient => ({
   itemId: 'INV-010', itemName: 'Whey Protein', quantity: q, unit: 'goi',
 });
-const fruit = (id: string, name: string, q: number): RecipeIngredient => ({
-  itemId: id, itemName: name, quantity: q, unit: 'kg',
-});
 
 export const SIZE_MULTIPLIERS: Record<string, number> = {
-  '250ml': 0.75,
   '360ml': 1,
   '500ml': 1.25,
   '700ml': 1.5,
@@ -39,31 +35,37 @@ export const PROTEIN_WHEY: Record<number, number> = {
   90: 2,
 };
 
+// 26 vị mới (khớp menu in "SINH TỐ PROTEIN TƯƠI") — phần TRÁI CÂY của công thức đã chuyển hẳn
+// sang hệ TÚI theo nguyên liệu đơn (xem config/ingredients.ts, InventoryContext.deductStockForOrder
+// tự trừ 1 túi/nguyên liệu ghép trong tên vị). Ở đây chỉ còn giữ phần sữa + whey protein — 2 thứ
+// KHÔNG đổi theo vị, chỉ đổi theo SIZE ly + MỨC PROTEIN khách chọn — nên vẫn cần tính riêng.
 export const FITBLEND_RECIPES: ProductRecipe[] = [
-  { productId: 'SM-01', productName: 'Dau hat chia', baseIngredients: [fruit('INV-001', 'Dau tay', 0.12), milk(), whey()] },
-  { productId: 'SM-02', productName: 'Dau chuoi', baseIngredients: [fruit('INV-001', 'Dau tay', 0.08), fruit('INV-003', 'Chuoi', 0.1), milk()] },
-  { productId: 'SM-03', productName: 'Mang cau dau', baseIngredients: [fruit('INV-001', 'Dau tay', 0.1), fruit('INV-005', 'Dua', 0.08), milk()] },
-  { productId: 'SM-04', productName: 'Dau cam', baseIngredients: [fruit('INV-001', 'Dau tay', 0.1), milk(0.18)] },
-  { productId: 'SM-05', productName: 'Dau tam chuoi', baseIngredients: [fruit('INV-024', 'Dau tam', 0.1), fruit('INV-003', 'Chuoi', 0.08), milk()] },
-  { productId: 'SM-06', productName: 'Phuc bon tu chuoi', baseIngredients: [fruit('INV-025', 'Phuc bon tu', 0.1), fruit('INV-003', 'Chuoi', 0.08), milk()] },
-  { productId: 'SM-07', productName: 'Chuoi hat chia', baseIngredients: [fruit('INV-003', 'Chuoi', 0.15), milk()] },
-  { productId: 'SM-08', productName: 'Chanh day chuoi', baseIngredients: [fruit('INV-003', 'Chuoi', 0.12), fruit('INV-005', 'Dua', 0.06), milk()] },
-  { productId: 'SM-09', productName: 'Xoai thom', baseIngredients: [fruit('INV-002', 'Xoai', 0.15), fruit('INV-005', 'Dua', 0.05), milk()] },
-  { productId: 'SM-10', productName: 'Xoai cam', baseIngredients: [fruit('INV-002', 'Xoai', 0.12), milk(0.18)] },
-  { productId: 'SM-11', productName: 'Cacao yen mach', baseIngredients: [fruit('INV-003', 'Chuoi', 0.08), milk(0.15), { itemId: 'INV-016', itemName: 'Yen mach', quantity: 0.03, unit: 'kg' }] },
-  { productId: 'SM-12', productName: 'Ca phe chuoi', baseIngredients: [fruit('INV-003', 'Chuoi', 0.12), milk(0.2), whey(0.5)] },
-  { productId: 'SM-13', productName: 'Bo', baseIngredients: [fruit('INV-004', 'Bo', 0.18), milk(0.22)] },
-  { productId: 'SM-14', productName: 'Bo chuoi', baseIngredients: [fruit('INV-004', 'Bo', 0.15), fruit('INV-003', 'Chuoi', 0.08), milk()] },
-  { productId: 'SM-15', productName: 'Matcha', baseIngredients: [milk(0.25), whey(0.5), { itemId: 'INV-007', itemName: 'Rau bina', quantity: 0.02, unit: 'kg' }] },
-  { productId: 'SM-16', productName: 'Dau tam yen mach', baseIngredients: [fruit('INV-024', 'Dau tam', 0.1), milk(0.18), { itemId: 'INV-016', itemName: 'Yen mach', quantity: 0.02, unit: 'kg' }] },
-  { productId: 'SM-17', productName: 'Phuc bon tu yen mach', baseIngredients: [fruit('INV-025', 'Phuc bon tu', 0.1), milk(0.18), { itemId: 'INV-016', itemName: 'Yen mach', quantity: 0.02, unit: 'kg' }] },
-  { productId: 'SM-18', productName: 'Thanh long chuoi', baseIngredients: [fruit('INV-026', 'Thanh long', 0.12), fruit('INV-003', 'Chuoi', 0.08), milk()] },
-  { productId: 'SM-19', productName: 'Thanh long yen mach', baseIngredients: [fruit('INV-026', 'Thanh long', 0.12), milk(0.18), { itemId: 'INV-016', itemName: 'Yen mach', quantity: 0.02, unit: 'kg' }] },
-  { productId: 'SM-20', productName: 'Xoai dau', baseIngredients: [fruit('INV-002', 'Xoai', 0.1), fruit('INV-001', 'Dau tay', 0.06), milk()] },
-  { productId: 'SM-21', productName: 'Xoai chuoi', baseIngredients: [fruit('INV-002', 'Xoai', 0.1), fruit('INV-003', 'Chuoi', 0.08), milk()] },
-  { productId: 'SM-22', productName: 'Cacao chuoi', baseIngredients: [fruit('INV-003', 'Chuoi', 0.12), milk(0.18)] },
-  { productId: 'SM-23', productName: 'Matcha chuoi', baseIngredients: [fruit('INV-003', 'Chuoi', 0.1), milk(0.2), whey(0.5)] },
-  { productId: 'SM-24', productName: 'Matcha yen mach', baseIngredients: [milk(0.2), whey(0.5), { itemId: 'INV-016', itemName: 'Yen mach', quantity: 0.02, unit: 'kg' }] },
+  { productId: 'SM-01', productName: 'Thanh long (thơm-xoài-chuối)', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-02', productName: 'Cacao chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-03', productName: 'Cacao yến mạch', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-04', productName: 'Lê chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-05', productName: 'Xoài thơm', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-06', productName: 'Xoài chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-07', productName: 'Xoài cam', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-08', productName: 'Chanh dây xoài', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-09', productName: 'Cacao xoài', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-10', productName: 'Bơ chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-11', productName: 'Dâu chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-12', productName: 'Xoài dâu', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-13', productName: 'Đu đủ (xoài-thơm-chuối)', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-14', productName: 'Matcha (xoài-chuối)', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-15', productName: 'Việt quất (chuối-xoài-đu đủ)', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-16', productName: 'Chuối cam', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-17', productName: 'Chuối bơ đậu phộng', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-18', productName: 'Cải Kale (táo-xoài-chuối)', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-19', productName: 'Mãng cầu xoài', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-20', productName: 'Cà phê chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-21', productName: 'Cacao xoài', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-22', productName: 'Bơ chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-23', productName: 'Nho chuối', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-24', productName: 'Dâu tằm xoài', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-25', productName: 'Xoài cam', baseIngredients: [milk(), whey()] },
+  { productId: 'SM-26', productName: 'Phúc bồn tử chuối', baseIngredients: [milk(), whey()] },
 ];
 
 /** Topping menu → nguyên liệu kho (mỗi lần thêm) */

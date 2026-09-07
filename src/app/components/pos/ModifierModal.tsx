@@ -99,16 +99,16 @@ export function ModifierModal({ product, onClose, onAddToCart, theme = 'emerald'
     : COMBO_TOPPINGS;
   const toppingsList = dynamicToppings.length > 0 ? dynamicToppings : defaultToppings;
   const priceLookup = Object.keys(dynamicPriceTable).length > 0 ? dynamicPriceTable : priceTable;
-  const { checkCartStock, formatShortageMessage, productInventory } = useInventory();
+  const { checkCartStock, formatShortageMessage } = useInventory();
 
-  // Kho quyết định size túi (S/M/L) theo vị + ml — nhân viên không cần chọn khi bán.
-  // Ưu tiên túi còn hàng theo thứ tự S → M → L, mặc định S nếu chưa nhập kho sản phẩm.
-  const resolvedBagSize = useMemo<'S' | 'M' | 'L'>(() => {
-    const variants = productInventory.smoothies?.[product.id] || {};
-    const bagOrder: Array<'S' | 'M' | 'L'> = ['S', 'M', 'L'];
-    const withStock = bagOrder.find((bag) => (variants[`${selectedSize}-${bag}`] ?? 0) > 0);
-    return withStock || 'S';
-  }, [productInventory, product.id, selectedSize]);
+  // Size túi khớp THẲNG theo size ly (360ml=S, 500ml=M, 700ml=L) — mỗi vị giờ trừ kho theo nguyên
+  // liệu đơn cấu thành (xem InventoryContext.deductStockForOrder), không còn tồn kho riêng theo
+  // từng vị nên không cần "tìm túi còn hàng" nữa.
+  const SIZE_TO_BAG: Record<string, 'S' | 'M' | 'L'> = { '360ml': 'S', '500ml': 'M', '700ml': 'L' };
+  const resolvedBagSize = useMemo<'S' | 'M' | 'L'>(
+    () => SIZE_TO_BAG[selectedSize] || 'S',
+    [selectedSize]
+  );
 
   const toggleTopping = (topping: string) => {
     setSelectedToppings(prev =>

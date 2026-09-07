@@ -8,6 +8,16 @@ import {
   type CartStockLine,
   type StockShortage,
 } from '../utils/inventoryRecipes';
+import { FLAVOR_INGREDIENTS, FLAVOR_BUILTIN_TOPPINGS, INGREDIENT_CATALOG } from '../config/ingredients';
+import { PRODUCT_SIZE_KEYS } from '../utils/inventorySizes';
+
+// Ly 360ml/500ml/700ml -> đúng 1 size túi S/M/L (khớp Kho Nguyên Liệu). Không rõ (vd request cũ
+// chưa cập nhật) -> mặc định S để không chặn bán.
+const SIZE_TO_BAG: Record<string, string> = { '360ml': 'S', '500ml': 'M', '700ml': 'L' };
+const bagKeyForSize = (mlSize?: string) => SIZE_TO_BAG[mlSize || ''] || PRODUCT_SIZE_KEYS[0];
+const INGREDIENT_NAME_BY_ID: Record<string, string> = Object.fromEntries(
+  INGREDIENT_CATALOG.map((ing) => [ing.id, ing.name])
+);
 
 export interface InventoryItem {
   id: string;
@@ -258,17 +268,34 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     for (const rawLine of lines as any[]) {
       const quantity = rawLine.quantity ?? 1;
       if (!rawLine.isCustomCombo && rawLine.productCategory === 'smoothies') {
-        const bagSize = rawLine.bagSize || 'S';
-        const variantKey = `${rawLine.size}-${bagSize}`;
-        const available = productInventory.smoothies?.[rawLine.productId]?.[variantKey] ?? 0;
-        if (available < quantity) {
-          shortages.push({
-            itemId: `${rawLine.productId}-${variantKey}`,
-            itemName: `${rawLine.productName} (${rawLine.size} · Túi ${bagSize})`,
-            need: quantity,
-            have: available,
-            unit: 'tui',
-          });
+        // Vị ghép tên (vd "Cacao chuối") = trừ 1 túi (đúng size ly) của MỖI nguyên liệu cấu thành —
+        // không còn trừ theo tồn của chính vị đó nữa (xem config/ingredients.ts).
+        const bagSize = bagKeyForSize(rawLine.size);
+        const ingredientIds = FLAVOR_INGREDIENTS[rawLine.productId] || [];
+        for (const ingId of ingredientIds) {
+          const available = productInventory.smoothies?.[ingId]?.[bagSize] ?? 0;
+          if (available < quantity) {
+            const ingName = INGREDIENT_NAME_BY_ID[ingId] || ingId;
+            shortages.push({
+              itemId: `${ingId}-${bagSize}`,
+              itemName: `${ingName} (Túi ${bagSize} · cho ${rawLine.productName})`,
+              need: quantity,
+              have: available,
+              unit: 'tui',
+            });
+          }
+        }
+        for (const toppingId of FLAVOR_BUILTIN_TOPPINGS[rawLine.productId] || []) {
+          const availableTopping = productInventory.toppings?.[toppingId] ?? 0;
+          if (availableTopping < quantity) {
+            shortages.push({
+              itemId: toppingId,
+              itemName: `Topping đi kèm ${rawLine.productName}`,
+              need: quantity,
+              have: availableTopping,
+              unit: 'phan',
+            });
+          }
         }
 
         for (const toppingName of rawLine.toppings || []) {
@@ -428,11 +455,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     for (const rawLine of lines as any[]) {
       const quantity = rawLine.quantity ?? 1;
       if (!rawLine.isCustomCombo && rawLine.productCategory === 'smoothies') {
-        const bagSize = rawLine.bagSize || 'S';
-        const variantKey = `${rawLine.size}-${bagSize}`;
-        nextProductInventory.smoothies[rawLine.productId] = nextProductInventory.smoothies[rawLine.productId] || {};
-        nextProductInventory.smoothies[rawLine.productId][variantKey] =
-          (nextProductInventory.smoothies[rawLine.productId][variantKey] || 0) - quantity;
+        // Trừ 1 túi (đúng size ly) của MỖI nguyên liệu cấu thành vị đang bán (vd "Cacao chuối" →
+        // trừ 1 túi Cacao + 1 túi Chuối) — thay cho trừ tồn của chính vị đó như trước.
+        const bagSize = bagKeyForSize(rawLine.size);
+        for (const ingId of FLAVOR_INGREDIENTS[rawLine.productId] || []) {
+          nextProductInventory.smoothies[ingId] = nextProductInventory.smoothies[ingId] || {};
+          nextProductInventory.smoothies[ingId][bagSize] =
+            (nextProductInventory.smoothies[ingId][bagSize] || 0) - quantity;
+        }
+        for (const toppingId of FLAVOR_BUILTIN_TOPPINGS[rawLine.productId] || []) {
+          nextProductInventory.toppings[toppingId] =
+            (nextProductInventory.toppings[toppingId] || 0) - quantity;
+        }
         for (const toppingName of rawLine.toppings || []) {
           if (String(toppingName).startsWith('Combo Topping:')) continue;
           const toppingId = toppingMap.get(toppingName);
@@ -461,26 +495,53 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const returnStock = (orderId: string, orderItems: CartStockLine[] | string[], reason: string, staff: string) => {
     const lines = toCartLines(orderItems);
     const needed = aggregateIngredients(lines);
-    if (!needed.length) return;
+    if (needed.length > 0) {
+      const newInventory = applyInventoryPatch(inventory, needed, 1);
+      const newMovements: StockMovement[] = needed.map((ing) => {
+        const inv = inventory.find((i) => i.id === ing.itemId);
+        return {
+          id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: new Date(),
+          type: 'void_return',
+          orderId,
+          itemId: ing.itemId,
+          itemName: inv?.name || ing.itemName,
+          quantity: ing.quantity,
+          reason: `Hoan kho - ${reason}`,
+          performedBy: staff,
+          cost: -(ing.quantity * (inv?.cost || 0)),
+          branchId: branchRef.current || undefined,
+        };
+      });
+      syncInventory(newInventory, newMovements);
+    }
 
-    const newInventory = applyInventoryPatch(inventory, needed, 1);
-    const newMovements: StockMovement[] = needed.map((ing) => {
-      const inv = inventory.find((i) => i.id === ing.itemId);
-      return {
-        id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        timestamp: new Date(),
-        type: 'void_return',
-        orderId,
-        itemId: ing.itemId,
-        itemName: inv?.name || ing.itemName,
-        quantity: ing.quantity,
-        reason: `Hoan kho - ${reason}`,
-        performedBy: staff,
-        cost: -(ing.quantity * (inv?.cost || 0)),
-        branchId: branchRef.current || undefined,
-      };
-    });
-    syncInventory(newInventory, newMovements);
+    // Hoàn lại túi nguyên liệu (vị lẻ) đã trừ lúc bán — huỷ đơn thì trả lại đúng số túi đã trừ.
+    const nextProductInventory: ProductInventoryState = JSON.parse(JSON.stringify(productInventory));
+    let touched = false;
+    for (const rawLine of lines as any[]) {
+      const quantity = rawLine.quantity ?? 1;
+      if (rawLine.isCustomCombo || rawLine.productCategory !== 'smoothies') continue;
+      const bagSize = bagKeyForSize(rawLine.size);
+      for (const ingId of FLAVOR_INGREDIENTS[rawLine.productId] || []) {
+        nextProductInventory.smoothies[ingId] = nextProductInventory.smoothies[ingId] || {};
+        nextProductInventory.smoothies[ingId][bagSize] =
+          (nextProductInventory.smoothies[ingId][bagSize] || 0) + quantity;
+        touched = true;
+      }
+      for (const toppingId of FLAVOR_BUILTIN_TOPPINGS[rawLine.productId] || []) {
+        nextProductInventory.toppings[toppingId] = (nextProductInventory.toppings[toppingId] || 0) + quantity;
+        touched = true;
+      }
+    }
+    if (touched) {
+      setProductInventory(nextProductInventory);
+      if (branchRef.current) {
+        api.saveSetting(`branchProductInventory_${branchRef.current}`, nextProductInventory).catch((err) =>
+          console.error('Failed to sync product inventory:', err)
+        );
+      }
+    }
   };
 
   const recordWaste = (orderId: string, orderItems: CartStockLine[] | string[], reason: string, staff: string) => {

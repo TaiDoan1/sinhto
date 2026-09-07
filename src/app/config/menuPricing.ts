@@ -1,14 +1,12 @@
-/** Bảng giá ly lẻ — khớp menu in (menu2.jpg) */
+/** Bảng giá ly lẻ — khớp menu in mới (poster "SINH TỐ PROTEIN TƯƠI"). Bỏ size 250ml. */
 export const DEFAULT_MENU_PRICE_TABLE: Record<string, Record<number, number>> = {
-  '250ml': { 20: 39000 },
-  '360ml': { 20: 55000, 40: 79000 },
+  '360ml': { 20: 69000, 40: 79000 },
   '500ml': { 40: 99000, 60: 115000 },
-  '700ml': { 60: 139000, 90: 155000 },
+  '700ml': { 60: 159000, 90: 179000 },
 };
 
 /** Mức protein khả dụng theo size — khớp menu in */
 export const PROTEIN_LEVELS_BY_SIZE: Record<string, number[]> = {
-  '250ml': [20],
   '360ml': [20, 40],
   '500ml': [40, 60],
   '700ml': [60, 90],

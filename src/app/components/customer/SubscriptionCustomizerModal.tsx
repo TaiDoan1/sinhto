@@ -45,22 +45,23 @@ const SINGLE_TOPPINGS = DEFAULT_TOPPING_PRODUCTS.map((p) => ({
 
 const COMBO_TOPPINGS = DEFAULT_COMBO_TOPPINGS;
 
+// Giá gói combo — khớp bảng "COMBO TIẾT KIỆM" trên menu in mới (poster "SINH TỐ PROTEIN TƯƠI").
 const PLAN_DATA = {
   'fat-loss': {
-    name: 'Fat Loss Plan',
+    name: 'Fat Burn Pro',
     subtitle: 'GIẢM MỠ • TONE DÁNG',
-    specs: '360ml × 40g Protein · 7 ly/tuần',
+    specs: '500ml × 40g Protein · 7 ly/tuần',
     icon: '🔥',
     badge: 'STANDARD',
     colorClass: 'text-orange-500 border-orange-500/20',
     btnClass: 'bg-orange-500 hover:bg-orange-600 text-white',
     accentColor: '#f97316',
-    weekly: { original: 553000, discount: 498000, save: 55000, perCup: 71000 },
-    monthly: { original: 2370000, discount: 2015000, save: 355000, perCup: 67000 },
-    quarterly: { original: 7150000, discount: 5720000, save: 1430000, perCup: 63000 }
+    weekly: { original: 693000, discount: 638000, save: 55000, perCup: 91000 },
+    monthly: { original: 2970000, discount: 2525000, save: 445000, perCup: 84000 },
+    quarterly: { original: 8910000, discount: 6950000, save: 1960000, perCup: 77000 }
   },
   'muscle-build': {
-    name: 'Muscle Build Plan',
+    name: 'Muscle Build',
     subtitle: 'TĂNG CƠ • BEST VALUE',
     specs: '500ml × 60g Protein · 7 ly/tuần',
     icon: '💪',
@@ -68,12 +69,12 @@ const PLAN_DATA = {
     colorClass: 'text-emerald-500 border-emerald-500/20',
     btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     accentColor: '#059669',
-    weekly: { original: 805000, discount: 725000, save: 80000, perCup: 103500 },
-    monthly: { original: 3450000, discount: 2933000, save: 517000, perCup: 98000 },
-    quarterly: { original: 10400000, discount: 8330000, save: 2070000, perCup: 93000 }
+    weekly: { original: 805000, discount: 741000, save: 64000, perCup: 105000 },
+    monthly: { original: 3450000, discount: 2933000, save: 517000, perCup: 97000 },
+    quarterly: { original: 10350000, discount: 8073000, save: 2277000, perCup: 89000 }
   },
   'elite-mass': {
-    name: 'Elite Mass Plan',
+    name: 'Elite Mass',
     subtitle: 'TĂNG CÂN • DÂN GYM PRO',
     specs: '700ml × 90g Protein · 7 ly/tuần',
     icon: '🏆',
@@ -81,9 +82,9 @@ const PLAN_DATA = {
     colorClass: 'text-yellow-600 border-yellow-600/20',
     btnClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',
     accentColor: '#6366f1',
-    weekly: { original: 1085000, discount: 977000, save: 108000, perCup: 139500 },
-    monthly: { original: 4650000, discount: 3953000, save: 697000, perCup: 132000 },
-    quarterly: { original: 14000000, discount: 11230000, save: 2770000, perCup: 125000 }
+    weekly: { original: 1253000, discount: 1152000, save: 101000, perCup: 164000 },
+    monthly: { original: 5370000, discount: 4564000, save: 806000, perCup: 152000 },
+    quarterly: { original: 16110000, discount: 12565000, save: 3545000, perCup: 139000 }
   }
 };
 

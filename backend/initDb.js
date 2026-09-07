@@ -2,7 +2,7 @@ const { removeDiacritics } = require('./vietnamese');
 const { getInventoryCatalog, getSampleEmployees } = require('./storeSeeds');
 const { PRODUCT } = require('./imagePaths');
 const { DEFAULT_MENU_PRICE_TABLE } = require('./menuPricing');
-const { DEFAULT_COMBO_TOPPINGS, getToppingProductRows } = require('./menuToppings');
+const { DEFAULT_COMBO_TOPPINGS, DEFAULT_TOPPINGS, getToppingProductRows } = require('./menuToppings');
 const { getSmoothieProductRows } = require('./menuFlavors');
 const { DEFAULT_BRANCHES } = require('./branches');
 
@@ -739,6 +739,55 @@ async function initSchemaAndSeeds(pool) {
   await syncCanonicalMenuV3(pool);
   await syncCanonicalMenuV4(pool);
   await syncCanonicalMenuV5(pool);
+  await syncCanonicalMenuV6(pool);
+}
+
+// Cập nhật TOÀN BỘ menu theo poster in mới "SINH TỐ PROTEIN TƯƠI": 26 vị (thay 24 vị cũ), bảng
+// giá ly lẻ (bỏ size 250ml), 26 topping lẻ (bỏ Hạt đác), combo topping (bỏ Nutty Crunch).
+async function syncCanonicalMenuV6(pool) {
+  const MIGRATION_KEY = 'menu_canonical_v6';
+  const existing = await pool.query('SELECT key FROM settings WHERE key = $1', [MIGRATION_KEY]);
+  if (existing.rowCount > 0) return;
+
+  console.log('Refreshing canonical menu (v6): 26 vị + giá ly lẻ + topping...');
+
+  await upsertSetting(pool, 'menuPriceTable', DEFAULT_MENU_PRICE_TABLE);
+  await upsertSetting(pool, 'menuComboToppings', DEFAULT_COMBO_TOPPINGS);
+
+  for (const row of getSmoothieProductRows()) {
+    const [id, name, category, basePrice, image, description] = row;
+    await pool.query(
+      `INSERT INTO products (id, name, category, "basePrice", image, description)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         "basePrice" = EXCLUDED."basePrice",
+         image = EXCLUDED.image,
+         description = EXCLUDED.description`,
+      [id, name, category, basePrice, image, description]
+    );
+  }
+
+  for (const row of getToppingProductRows()) {
+    const [id, name, category, basePrice, image, description] = row;
+    await pool.query(
+      `INSERT INTO products (id, name, category, "basePrice", image, description)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         "basePrice" = EXCLUDED."basePrice",
+         image = EXCLUDED.image,
+         description = EXCLUDED.description`,
+      [id, name, category, basePrice, image, description]
+    );
+  }
+
+  // Topping "Hạt đác" (TP-16) không còn bán — xóa khỏi danh mục sản phẩm.
+  await pool.query(`DELETE FROM products WHERE id = 'TP-16'`).catch(() => {});
+
+  await upsertSetting(pool, MIGRATION_KEY, { syncedAt: new Date().toISOString(), flavors: 26, toppings: DEFAULT_TOPPINGS.length });
 }
 
 async function syncCanonicalMenuV5(pool) {

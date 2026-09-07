@@ -76,7 +76,6 @@ export function CustomerProductGrid({ onProductClick, onComboClick }: Props) {
   const [selectedProtein, setSelectedProtein] = useState<number | null>(null);
 
   const sizes = [
-    { id: '250ml', label: 'Nhỏ (250ml)', desc: 'Cho buổi sáng nhẹ nhàng' },
     { id: '360ml', label: 'Vừa (360ml)', desc: 'Kích cỡ ly phổ biến nhất' },
     { id: '500ml', label: 'Lớn (500ml)', desc: 'Dinh dưỡng dồi dào cả ngày' },
     { id: '700ml', label: 'Siêu (700ml)', desc: 'Cực đại cho tập luyện nặng' },

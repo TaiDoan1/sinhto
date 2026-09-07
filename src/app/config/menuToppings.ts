@@ -1,4 +1,4 @@
-/** Topping đơn lẻ + combo topping — khớp menu in (menu1.jpg) */
+/** Topping đơn lẻ + combo topping — khớp menu in mới (poster "SINH TỐ PROTEIN TƯƠI") */
 
 export interface MenuTopping {
   name: string;
@@ -31,8 +31,8 @@ export const DEFAULT_TOPPINGS: MenuTopping[] = [
   { name: 'Dừa sấy giòn', price: 10000 },
   { name: 'Bơ đậu phộng', price: 10000 },
   { name: 'Sữa hạt 100%', price: 15000 },
-  { name: 'Collagen', price: 49000 },
-  { name: 'Cỏ ngọt', price: 10000 },
+  { name: 'Collagen Vital Protein', price: 49000 },
+  { name: 'Lá cỏ ngọt', price: 10000 },
   { name: 'Bơ hạnh nhân', price: 20000 },
   { name: 'Sữa A2', price: 20000 },
   { name: 'Yến mạch', price: 10000 },
@@ -41,7 +41,17 @@ export const DEFAULT_TOPPINGS: MenuTopping[] = [
   { name: 'Bột đậu hà lan', price: 20000 },
   { name: 'Hạt chia', price: 10000 },
   { name: 'Chà là', price: 5000 },
-  { name: 'Hạt đác', price: 10000 },
+  { name: 'Chuối', price: 10000 },
+  { name: 'Cải Kale', price: 15000 },
+  { name: 'Bơ mè đen', price: 15000 },
+  { name: 'Cần tây', price: 10000 },
+  { name: 'Dưa leo', price: 7000 },
+  { name: 'Bơ hạt macca', price: 25000 },
+  { name: 'Bơ mè', price: 10000 },
+  { name: 'Bơ hạt bí xanh', price: 20000 },
+  { name: 'Bơ hạt hướng dương', price: 15000 },
+  { name: 'Bơ hạt dẻ cười', price: 25000 },
+  { name: 'Bạc hà', price: 15000 },
 ];
 
 export const DEFAULT_COMBO_TOPPINGS: MenuComboTopping[] = [
@@ -72,15 +82,6 @@ export const DEFAULT_COMBO_TOPPINGS: MenuComboTopping[] = [
     save: 14000,
     image: '✨',
   },
-  {
-    id: 'nutty-crunch',
-    name: 'Nutty Crunch',
-    items: 'Bơ đậu phộng + Dừa sấy + Hạt đác',
-    price: 29000,
-    originalPrice: 35000,
-    save: 6000,
-    image: '🥜',
-  },
 ];
 
 const TOPPING_ID_BY_NAME: Record<string, string> = {
@@ -88,18 +89,28 @@ const TOPPING_ID_BY_NAME: Record<string, string> = {
   'Sữa A2': 'TP-02',
   'Bột đậu hà lan': 'TP-03',
   'Whey Gold Standard': 'TP-04',
-  Collagen: 'TP-05',
+  'Collagen Vital Protein': 'TP-05',
   'Yến mạch': 'TP-06',
   'Hạt chia': 'TP-07',
   'Dừa sấy giòn': 'TP-08',
-  'Cỏ ngọt': 'TP-09',
+  'Lá cỏ ngọt': 'TP-09',
   'Mật ong': 'TP-10',
   'Mật mía': 'TP-11',
   'Chà là': 'TP-12',
   'Bơ hạnh nhân': 'TP-13',
   'Bơ đậu phộng': 'TP-14',
   'Bơ hạt điều': 'TP-15',
-  'Hạt đác': 'TP-16',
+  'Chuối': 'TP-17',
+  'Cải Kale': 'TP-18',
+  'Bơ mè đen': 'TP-19',
+  'Cần tây': 'TP-20',
+  'Dưa leo': 'TP-21',
+  'Bơ hạt macca': 'TP-22',
+  'Bơ mè': 'TP-23',
+  'Bơ hạt bí xanh': 'TP-24',
+  'Bơ hạt hướng dương': 'TP-25',
+  'Bơ hạt dẻ cười': 'TP-26',
+  'Bạc hà': 'TP-27',
 };
 
 const TOPPING_IMAGES: Record<string, string> = {
@@ -108,8 +119,8 @@ const TOPPING_IMAGES: Record<string, string> = {
   'Dừa sấy giòn': '🥥',
   'Bơ đậu phộng': '🥜',
   'Sữa hạt 100%': '🥛',
-  Collagen: '✨',
-  'Cỏ ngọt': '🌿',
+  'Collagen Vital Protein': '✨',
+  'Lá cỏ ngọt': '🌿',
   'Bơ hạnh nhân': '🥜',
   'Sữa A2': '🥛',
   'Yến mạch': '🌾',
@@ -118,7 +129,17 @@ const TOPPING_IMAGES: Record<string, string> = {
   'Bột đậu hà lan': '🫛',
   'Hạt chia': '🌾',
   'Chà là': '🌴',
-  'Hạt đác': '🌰',
+  'Chuối': '🍌',
+  'Cải Kale': '🥬',
+  'Bơ mè đen': '🟤',
+  'Cần tây': '🌱',
+  'Dưa leo': '🥒',
+  'Bơ hạt macca': '🌰',
+  'Bơ mè': '⚪',
+  'Bơ hạt bí xanh': '🟢',
+  'Bơ hạt hướng dương': '🌻',
+  'Bơ hạt dẻ cười': '🥜',
+  'Bạc hà': '🍃',
 };
 
 export const DEFAULT_TOPPING_PRODUCTS: MenuToppingProduct[] = DEFAULT_TOPPINGS.map((t) => ({

@@ -69,7 +69,6 @@ export function ProductGrid({ onProductClick, theme = 'emerald', hideCategories 
   const [selectedProtein, setSelectedProtein] = useState<number | null>(null);
 
   const sizes = [
-    { id: '250ml', label: '250ml', desc: 'Ly nhỏ — buổi sáng nhẹ' },
     { id: '360ml', label: '360ml', desc: 'Ly vừa — phổ biến nhất' },
     { id: '500ml', label: '500ml', desc: 'Ly lớn — đầy đủ dinh dưỡng' },
     { id: '700ml', label: '700ml', desc: 'Ly siêu — tập luyện cường độ cao' },

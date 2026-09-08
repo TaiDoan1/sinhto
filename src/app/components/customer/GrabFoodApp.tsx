@@ -10,7 +10,7 @@ import { buildComboPayloadFromRaw } from '../../utils/comboUtils';
 import { CustomerCartPanel, type CartItem } from './CustomerCartPanel';
 import { CustomerCheckout } from './CustomerCheckout';
 import { CustomerOrderHistory } from './CustomerOrderHistory';
-import { CustomerModifierModal } from './CustomerModifierModal';
+import { GrabItemSheet } from './GrabItemSheet';
 import { SubscriptionCustomizerModal } from './SubscriptionCustomizerModal';
 import { WholesalePackagesModal } from './WholesalePackagesModal';
 import { GrabMenu } from './GrabMenu';
@@ -205,18 +205,15 @@ export function GrabFoodApp() {
       <CustomerOrderHistory isOpen={isOrdersOpen} onClose={() => setIsOrdersOpen(false)} />
 
       {selectedItem && (
-        <CustomerModifierModal
-          product={{ id: selectedItem.id, name: selectedItem.name, basePrice: 0, image: selectedItem.imageUrl, description: selectedItem.description }}
-          initialSize={selectedItem.defaultSize}
-          initialProtein={selectedItem.defaultProtein}
-          discountPercent={selectedItem.discountPercent}
+        <GrabItemSheet
+          item={selectedItem}
           onClose={() => setSelectedItem(null)}
-          onAdd={(item) => {
+          onAdd={(ci) => {
             handleAddToCart({
-              productId: item.id, productName: item.name, name: item.name,
-              size: item.size, protein: item.protein, toppings: item.toppings,
-              price: item.price, quantity: 1, isCustomCombo: false,
-            });
+              productId: selectedItem.id, productName: ci.name, name: ci.name,
+              image: selectedItem.imageUrl, toppings: ci.options, note: ci.note,
+              price: ci.price, quantity: ci.quantity, isCustomCombo: false,
+            } as any);
             setSelectedItem(null);
           }}
         />

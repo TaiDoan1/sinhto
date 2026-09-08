@@ -3,8 +3,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus, Search } from 'lucide-react';
 import * as api from '../../utils/api';
 import type { GrabMenuItem } from '../../utils/api';
-import { useMenuPricing } from '../../hooks/useMenuPricing';
-import { resolveCupPrice } from '../../config/menuPricing';
 import { useSSE } from '../../contexts/SSEContext';
 import { PLANS, type PlanId } from './CustomerApp';
 
@@ -86,7 +84,6 @@ function GridCard({ name, priceLabel, oldPriceLabel, badge, discountPercent, ima
 }
 
 export function GrabMenu({ onProductClick, onSelectCombo, search, onSearchChange }: Props) {
-  const { priceTable } = useMenuPricing();
   const { subscribe } = useSSE();
   const [items, setItems] = useState<GrabMenuItem[]>([]);
 
@@ -100,7 +97,7 @@ export function GrabMenu({ onProductClick, onSelectCombo, search, onSearchChange
   }, [subscribe]);
 
   const priceOf = (it: GrabMenuItem) => {
-    const base = resolveCupPrice(it.defaultSize, it.defaultProtein, priceTable) || 0;
+    const base = it.basePrice || 0;
     return { final: Math.round(base * (1 - (it.discountPercent || 0) / 100)), base };
   };
 

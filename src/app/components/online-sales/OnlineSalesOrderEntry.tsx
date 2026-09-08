@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
-  Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock, CalendarDays,
+  Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock,
   ClipboardList, Truck, Wallet, Sparkles, PencilLine,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
@@ -51,8 +51,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     address: prefill?.address || '',
   });
   const [deliveryBranch, setDeliveryBranch] = useState(employee.branch || 'CN1');
-  const [deliveryTime, setDeliveryTime] = useState(''); // giờ hẹn giao (datetime-local) — đơn lẻ
-  const [orderDate, setOrderDate] = useState(''); // ngày khách đặt (nhập đơn cũ / back-date) — trống = hôm nay
+  // Gộp chung "ngày khách đặt" (nhập đơn cũ/back-date) và "giờ hẹn giao" thành 1 ô duy nhất — CSKH
+  // chọn 1 lần: chọn giờ QUÁ KHỨ = nhập lại đơn cũ (ghi nhận đơn vào đúng lúc đó), chọn giờ TƯƠNG
+  // LAI = hẹn giao, để trống = đặt & giao ngay bây giờ. Trước đây tách 2 ô riêng (ngày đặt kiểu
+  // date, giờ giao kiểu datetime) khiến CSKH phải nhập 2 lần cho cùng 1 mốc thời gian.
+  const [orderTime, setOrderTime] = useState(''); // datetime-local — đơn lẻ
   const [comboDeliveryTime, setComboDeliveryTime] = useState('08:00'); // giờ giao/lấy mặc định — combo
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('delivery'); // tại quầy / giao
   const [shipMethod, setShipMethod] = useState<'own' | 'external'>('own'); // shipper mình / bookship ngoài
@@ -219,11 +222,12 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       }));
 
       const now = new Date();
-      // Nhập đơn cũ: nếu chọn ngày đặt trong quá khứ, ghi nhận đơn vào đúng ngày đó
-      // (đặt 12:00 trưa để tránh lệch ngày do múi giờ). Trống = hôm nay.
-      const backDate = orderDate ? new Date(`${orderDate}T12:00:00`) : null;
-      const orderTimeIso = backDate ? backDate.toISOString() : undefined;
-      const paidTime = backDate || now;
+      // 1 ô giờ dùng chung cho cả 2 việc: chọn giờ QUÁ KHỨ → nhập lại đơn cũ (ghi nhận đơn vào
+      // đúng lúc đó); chọn giờ TƯƠNG LAI → chỉ là giờ hẹn giao, đơn vẫn ghi nhận lúc "bây giờ".
+      const chosenTime = orderTime ? new Date(orderTime) : null;
+      const isBackDate = !!chosenTime && chosenTime.getTime() < now.getTime();
+      const orderTimeIso = isBackDate ? chosenTime!.toISOString() : undefined;
+      const paidTime = isBackDate ? chosenTime! : now;
       const shipFeeValue = Number(shipFee) || 0;
       const ok = addOrder(
         {
@@ -240,7 +244,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           deliveryAddress: customer.address.trim(),
           paymentMethod: paymentMethod === 'cash' ? 'cash' : 'transfer',
           paidAt: markPaid ? paidTime : undefined,
-          deliveryTime: deliveryTime ? new Date(deliveryTime).toISOString() : undefined,
+          deliveryTime: chosenTime ? chosenTime.toISOString() : undefined,
           deliveryType,
           shipMethod: deliveryType === 'delivery' ? shipMethod : '',
           shipProvider: deliveryType === 'delivery' && shipMethod === 'external' ? shipProvider.trim() : '',
@@ -272,8 +276,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
       setCart([]);
       setShipFee('');
-      setDeliveryTime('');
-      setOrderDate('');
+      setOrderTime('');
       setShipProvider('');
       setShipTrackingCode('');
       setAllergyNote('');
@@ -396,6 +399,16 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const canSubmit = mode === 'retail' ? cart.length > 0 : !!pendingCombo;
   const handleSubmit = mode === 'retail' ? handleSubmitRetail : handleSubmitCombo;
 
+  // Chú thích cho ô giờ gộp (đặt/giao) — tự đổi theo giờ đang chọn là quá khứ hay tương lai.
+  const orderTimeHint = (() => {
+    if (!orderTime) return 'Để trống = đặt & giao ngay bây giờ.';
+    const t = new Date(orderTime);
+    if (Number.isNaN(t.getTime())) return '';
+    return t.getTime() < Date.now()
+      ? `⏱ Giờ quá khứ → ghi nhận đơn vào đúng lúc ${t.toLocaleString('vi-VN')} (nhập lại đơn cũ).`
+      : `📦 Hẹn giao lúc ${t.toLocaleString('vi-VN')}.`;
+  })();
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto space-y-4 pb-4">
@@ -503,52 +516,53 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         {/* ─── Bước 2: Sản phẩm (mua lẻ) ──────────────────────────────────── */}
         {activeStep === 2 && mode === 'retail' && (
           <div className="grid lg:grid-cols-12 gap-4">
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-5">
-              {showProductGrid || selectedProduct ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProductGrid(false);
-                        setSelectedProduct(null);
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="h-[65vh] min-h-[480px] rounded-xl overflow-hidden border border-gray-100">
-                    {selectedProduct ? (
-                      <ModifierModal
-                        product={selectedProduct}
-                        onClose={() => setSelectedProduct(null)}
-                        onAddToCart={handleAddToCart}
-                        theme="purple"
-                        skipStockCheck
-                      />
-                    ) : (
-                      <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center gap-3 py-10">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
-                    <ShoppingCart className="w-6 h-6 text-emerald-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-900">Chưa có sản phẩm nào</h3>
+            {/* Khung cố định 1 chiều cao DUY NHẤT cho cả 3 trạng thái (trống/chọn size-vị/chỉnh
+                topping) — trước đây trạng thái trống chỉ cao ~py-10 còn lúc mở lưới sản phẩm cao
+                hẳn 65vh, khiến cả trang "tụt lên tụt xuống" mỗi lần bấm Thêm sản phẩm. */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-5 flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
+                {(showProductGrid || selectedProduct) && (
                   <button
                     type="button"
-                    onClick={() => setShowProductGrid(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold"
+                    onClick={() => {
+                      setShowProductGrid(false);
+                      setSelectedProduct(null);
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
                   >
-                    <Plus className="w-4 h-4" />
-                    Thêm sản phẩm
+                    <X className="w-5 h-5" />
                   </button>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="h-[65vh] min-h-[480px] rounded-xl overflow-hidden border border-gray-100">
+                {selectedProduct ? (
+                  <ModifierModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                    onAddToCart={handleAddToCart}
+                    theme="purple"
+                    skipStockCheck
+                  />
+                ) : showProductGrid ? (
+                  <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                      <ShoppingCart className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <h4 className="font-bold text-gray-900">Chưa có sản phẩm nào</h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowProductGrid(true)}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Thêm sản phẩm
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="lg:col-span-5 space-y-4">
@@ -761,36 +775,18 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             )}
 
             {mode === 'retail' ? (
-              <>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                    <CalendarDays className="w-3.5 h-3.5" /> Ngày khách đặt (nhập đơn cũ)
-                  </label>
-                  <input
-                    type="date"
-                    value={orderDate}
-                    max={new Date().toLocaleDateString('sv-SE')}
-                    onChange={(e) => setOrderDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    {orderDate
-                      ? `⏱ Đơn sẽ ghi nhận vào ngày ${new Date(`${orderDate}T12:00:00`).toLocaleDateString('vi-VN')} (không phải hôm nay).`
-                      : 'Để trống = hôm nay. Chọn ngày cũ khi nhập lại đơn khách đã đặt trước đó.'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={deliveryTime}
-                    onChange={(e) => setDeliveryTime(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
-                  />
-                </div>
-              </>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Giờ khách đặt / giao hàng
+                </label>
+                <input
+                  type="datetime-local"
+                  value={orderTime}
+                  onChange={(e) => setOrderTime(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{orderTimeHint}</p>
+              </div>
             ) : (
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">

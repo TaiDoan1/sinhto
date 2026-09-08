@@ -100,7 +100,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           const normalized = data.map(normalizeOrder);
           const active = normalized.filter(o => o.status !== 'completed');
           const completed = normalized.filter(o => o.status === 'completed');
-          setOrders(active);
+          setOrders(prev => {
+            // Đơn tạo lúc mất mạng còn đang chờ trong hàng đợi offline (chưa lên tới server) không
+            // được để lần tải lại này (định kỳ/khi máy thức dậy) xoá mất khỏi màn hình — nếu không
+            // merge lại, đơn do chính máy này tạo sẽ chớp tắt biến mất tới khi đồng bộ xong.
+            const pendingIds = new Set(queueRef.current.filter(q => q.action === 'CREATE').map(q => q.orderId));
+            const stillPending = pendingIds.size
+              ? prev.filter(o => pendingIds.has(o.id) && !active.some(a => a.id === o.id))
+              : [];
+            const merged = [...stillPending, ...active];
+            localStorage.setItem('cached_active_orders', JSON.stringify(merged));
+            return merged;
+          });
           setHistory(completed);
         })
         .catch(err => {
@@ -118,6 +129,16 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // Kết nối SSE bị đứt rồi tự nối lại (proxy timeout, mất mạng...) — tải lại đơn hàng để
     // không bỏ lỡ đơn nào phát sinh trong lúc gián đoạn (broadcast không có cơ chế phát lại).
     const unsubReconnect = subscribe('SSE_RECONNECTED', loadOrders);
+
+    // Lưới an toàn cho máy POS: EventSource "chết lặng" (mạng chập chờn, máy khoá màn hình lâu,
+    // WebView Android cũ không tự reconnect tin cậy...) không phải lúc nào cũng bắn onerror/
+    // onopen để loadOrders() ở trên tự chạy — trước đây gặp cảnh này phải tải lại cả trang mới
+    // thấy đơn CSKH đẩy xuống. Giờ tự làm mới mỗi khi máy "thức dậy" (mở lại tab/màn hình) +
+    // định kỳ nền, để không phụ thuộc hoàn toàn vào SSE còn sống hay không.
+    const onWakeRefresh = () => { if (!document.hidden) loadOrders(); };
+    window.addEventListener('focus', onWakeRefresh);
+    document.addEventListener('visibilitychange', onWakeRefresh);
+    const pollInterval = setInterval(loadOrders, 45000);
 
     // 2. Load offline queue from localStorage
     const savedQueue = localStorage.getItem('offline_orders_queue');
@@ -186,6 +207,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       unsubCreate();
       unsubUpdate();
       unsubReconnect();
+      window.removeEventListener('focus', onWakeRefresh);
+      document.removeEventListener('visibilitychange', onWakeRefresh);
+      clearInterval(pollInterval);
     };
   }, [subscribe]);
 

@@ -209,11 +209,26 @@ app.post('/api/inventory', (req, res) => {
   );
 });
 
-// Helper to broadcast events to all connected clients
+// Helper to broadcast events to all connected clients. Máy POS/CSKH mất mạng đột ngột (rớt
+// wifi, khoá màn hình...) không phải lúc nào cũng bắn 'close' kịp thời — client.res.write() vào
+// 1 socket đã chết ném lỗi ĐỒNG BỘ (dừng luôn forEach, các client SAU nó trong mảng mất trắng
+// broadcast này) hoặc bắn lỗi bất đồng bộ không ai bắt (crash cả server, kéo theo MỌI máy POS
+// mất kết nối SSE cùng lúc) — cả 2 đều đúng khớp triệu chứng "phải khởi động lại mới thấy đơn".
+// Bọc try/catch quanh từng client + dọn client chết ngay, không để 1 máy lỗi làm hỏng broadcast
+// cho các máy còn lại.
 function broadcast(type, data) {
+  const payload = `data: ${JSON.stringify({ type, data })}\n\n`;
+  const dead = [];
   clients.forEach(client => {
-    client.res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+    try {
+      client.res.write(payload);
+    } catch (err) {
+      dead.push(client.id);
+    }
   });
+  if (dead.length) {
+    clients = clients.filter(c => !dead.includes(c.id));
+  }
 }
 
 // SSE Connection Endpoint
@@ -232,13 +247,24 @@ app.get('/api/events', (req, res) => {
   // sau ~30-60s, khiến POS "điếc" tới khi tải lại trang. Gửi comment ping định kỳ để giữ kết
   // nối sống — client không xử lý dòng bắt đầu bằng ":" nên không ảnh hưởng logic hiện có.
   const heartbeat = setInterval(() => {
-    res.write(': ping\n\n');
+    try {
+      res.write(': ping\n\n');
+    } catch {
+      // Socket đã chết — dọn ngay, đừng chờ tới 'close'/'error' (có thể không bao giờ bắn).
+      clearInterval(heartbeat);
+      clients = clients.filter(c => c.id !== clientId);
+    }
   }, 20000);
 
-  req.on('close', () => {
+  const cleanup = () => {
     clearInterval(heartbeat);
     clients = clients.filter(c => c.id !== clientId);
-  });
+  };
+  req.on('close', cleanup);
+  // QUAN TRỌNG: 'error' trên response/socket không có listener sẽ ném lỗi bất đồng bộ không ai
+  // bắt → crash toàn bộ tiến trình Node, kéo theo MỌI máy POS đang kết nối rớt SSE cùng lúc.
+  // Bắt buộc phải có listener ở đây dù không làm gì thêm ngoài dọn dẹp.
+  res.on('error', cleanup);
 });
 
 // Đồng bộ giỏ hàng sang màn hình khách (Subscreen) — đi qua server thay vì BroadcastChannel

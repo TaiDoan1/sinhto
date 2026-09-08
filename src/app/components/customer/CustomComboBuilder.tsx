@@ -64,20 +64,13 @@ const PLAN_DATA = {
   }
 };
 
-const FLAVORS = [
-  { name: 'Matcha', desc: 'Matcha Green Tea', image: '🍵' },
-  { name: 'Phúc bồn tử hạt chia', desc: 'Raspberry Chia', image: '🫐' },
-  { name: 'Bơ • Bơ chuối', desc: 'Avocado • Banana', image: '🥑' },
-  { name: 'Xoài cam • Xoài thơm', desc: 'Mango Orange • Pineapple', image: '🥭' },
-  { name: 'Cacao yến mạch', desc: 'Cacao Oat', image: '🍫' },
-  { name: 'Cà phê chuối', desc: 'Coffee Banana', image: '☕' },
-  { name: 'Chuối hạt chia', desc: 'Banana Chia', image: '🍌' },
-  { name: 'Chanh dây chuối', desc: 'Passionfruit Banana', image: '🍋' },
-  { name: 'Dâu cam • Dâu chia', desc: 'Strawberry Orange • Chia', image: '🍓' },
-  { name: 'Dâu chuối • Dâu tằm', desc: 'Straw Banana • Mulberry', image: '🍓' },
-  { name: 'Mãng cầu dâu', desc: 'Soursop Strawberry', image: '🌱' },
-  { name: 'Dứa thơm • Xoài thơm', desc: 'Pineapple • Mango Pineapple', image: '🍍' },
-];
+// Danh sách vị lấy TRỰC TIẾP từ menu sản phẩm hiện hành (category 'smoothies', xem
+// backend/menuFlavors.js) qua state `flavorOptions` bên dưới — trước đây dùng 1 mảng cứng ở đây
+// (tên gộp kiểu "Xoài cam • Xoài thơm", "Bơ • Bơ chuối"...) đã lỗi thời từ hồi tách menu 26→35
+// vị, khiến CSKH/khách chọn vị cho combo thấy 1 danh sách khác hẳn menu bán lẻ thật, dễ chọn
+// nhầm và không khớp nguyên liệu tồn kho. Giữ lại tên hằng số FALLBACK_FLAVOR_NAME chỉ để có giá
+// trị khởi tạo an toàn trước khi fetch xong (state ban đầu rỗng).
+const FALLBACK_FLAVOR_NAME = 'Đang tải vị...';
 
 const SINGLE_TOPPINGS = DEFAULT_TOPPINGS;
 
@@ -145,9 +138,26 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   });
   const [deliveryTime, setDeliveryTime] = useState<string>('08:00');
 
-  const [selectedFlavors, setSelectedFlavors] = useState<string[]>(
-    Array(7).fill(FLAVORS[0].name)
-  );
+  // Vị thật lấy từ menu sản phẩm (category 'smoothies') — xem giải thích ở FALLBACK_FLAVOR_NAME.
+  const [flavorOptions, setFlavorOptions] = useState<{ id: string; name: string; desc: string; image: string }[]>([]);
+  useEffect(() => {
+    api.fetchProducts()
+      .then((list: any[]) => {
+        const flavors = (list || [])
+          .filter((p) => p.category === 'smoothies')
+          .map((p) => ({ id: p.id, name: p.name, desc: p.description || '', image: p.image || '' }));
+        if (flavors.length) setFlavorOptions(flavors);
+      })
+      .catch(() => {});
+  }, []);
+
+  const [selectedFlavors, setSelectedFlavors] = useState<string[]>(Array(7).fill(''));
+  // Điền sẵn vị đầu tiên trong menu thật ngay khi tải xong — chỉ áp dụng lúc CHƯA ai chọn gì
+  // (7 ô còn rỗng), không đè lên lựa chọn CSKH/khách đã tự bấm hoặc dữ liệu đang sửa lại.
+  useEffect(() => {
+    if (!flavorOptions.length) return;
+    setSelectedFlavors((prev) => (prev.every((f) => !f) ? Array(7).fill(flavorOptions[0].name) : prev));
+  }, [flavorOptions]);
   const [selectedDeliveryDays, setSelectedDeliveryDays] = useState<number[]>([...DAY_MAP]);
   const [customerNote, setCustomerNote] = useState('');
 
@@ -165,7 +175,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
       setQuantity(d.quantity || 1);
       setStartDate(d.startDate || '');
       setDeliveryTime(d.deliveryTime || '08:00');
-      setSelectedFlavors(d.selectedFlavors || Array(7).fill(FLAVORS[0].name));
+      setSelectedFlavors(d.selectedFlavors || Array(7).fill(''));
       setSelectedDeliveryDays(d.deliveryDays || [...DAY_MAP]);
       setCustomerNote(d.customerNote || '');
       setSelectedCombos(d.selectedCombos || []);
@@ -746,6 +756,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {DAYS_OF_WEEK.map((day, idx) => {
                       const dayActive = selectedDeliveryDays.includes(DAY_MAP[idx]);
+                      const flavorImg = flavorOptions.find(f => f.name === selectedFlavors[idx])?.image;
                       return (
                         <button
                           key={day}
@@ -759,12 +770,12 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                           style={{ minHeight: '68px' }}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-2xl bg-emerald-50 w-10 h-10 rounded-xl flex items-center justify-center border border-emerald-100">
-                              {FLAVORS.find(f => f.name === selectedFlavors[idx])?.image || '🥤'}
+                            <span className="text-2xl bg-emerald-50 w-10 h-10 rounded-xl flex items-center justify-center border border-emerald-100 overflow-hidden shrink-0">
+                              {flavorImg ? <img src={flavorImg} alt="" className="w-full h-full object-cover" /> : '🥤'}
                             </span>
                             <div>
                               <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block mb-0.5">{day}</span>
-                              <span className="font-extrabold text-gray-950 text-sm">{dayActive ? selectedFlavors[idx] : 'Không giao'}</span>
+                              <span className="font-extrabold text-gray-950 text-sm">{dayActive ? (selectedFlavors[idx] || FALLBACK_FLAVOR_NAME) : 'Không giao'}</span>
                             </div>
                           </div>
                           {dayActive && (
@@ -785,9 +796,12 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                         <button onClick={() => setActiveDayIndex(null)} className="text-xs font-black text-gray-500 hover:text-gray-800 bg-white border px-3 py-1 rounded-lg">Đóng</button>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                        {FLAVORS.map(flavor => (
+                        {flavorOptions.length === 0 && (
+                          <p className="col-span-full text-xs text-gray-400 font-semibold py-2">Đang tải danh sách vị...</p>
+                        )}
+                        {flavorOptions.map(flavor => (
                           <button
-                            key={flavor.name}
+                            key={flavor.id}
                             onClick={() => {
                               setSelectedFlavors(prev => {
                                 const next = [...prev];
@@ -802,7 +816,9 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
                                 : 'border-gray-200 hover:border-emerald-300'
                             }`}
                           >
-                            <span className="text-2xl block">{flavor.image}</span>
+                            <span className="w-11 h-11 mx-auto rounded-lg overflow-hidden bg-emerald-50 flex items-center justify-center block">
+                              {flavor.image ? <img src={flavor.image} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl">🥤</span>}
+                            </span>
                             <span className="text-xs font-black block truncate leading-tight mt-1.5">{flavor.name}</span>
                           </button>
                         ))}

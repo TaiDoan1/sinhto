@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   User, Phone, MapPin, ShoppingCart, Package, Plus, Minus, Trash2,
   Loader2, CheckCircle2, CreditCard, Banknote, X, Store, Clock, CalendarDays,
+  ClipboardList, Truck, Wallet, Sparkles, PencilLine,
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -17,6 +18,7 @@ import { normalizePhoneVN } from '../../utils/phone';
 
 type OrderMode = 'retail' | 'combo';
 type PaymentMethod = 'transfer' | 'cash' | 'momo';
+type EntryStep = 1 | 2 | 3 | 4;
 
 const STATUS_LABEL_VI: Record<string, string> = {
   pending: 'Chờ chốt',
@@ -24,6 +26,8 @@ const STATUS_LABEL_VI: Record<string, string> = {
   paused: 'Tạm dừng',
   completed: 'Hoàn thành',
 };
+
+const STEP_ORDER: EntryStep[] = [1, 2, 3, 4];
 
 interface Props {
   employee: Employee;
@@ -37,6 +41,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const { combos } = useCombos();
 
   const [mode, setMode] = useState<OrderMode>('retail');
+  // Luồng nhập đơn theo 4 bước (Khách → Sản phẩm/Combo → Giao nhận → Thanh toán) — CSKH bấm tab
+  // để nhảy tự do giữa các bước, không ép tuần tự, chỉ để GOM đúng nhóm field theo việc đang làm
+  // thay vì nhồi hết ~15 trường vào 1 thẻ như trước (đây là điểm gây rối chính đã được phản hồi).
+  const [activeStep, setActiveStep] = useState<EntryStep>(1);
   const [customer, setCustomer] = useState({
     name: prefill?.name || '',
     phone: prefill?.phone || '',
@@ -270,6 +278,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setShipTrackingCode('');
       setAllergyNote('');
       setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
+      setActiveStep(1);
       onComplete?.();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Không thể tạo đơn');
@@ -346,6 +355,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
       setRenewFromComboId('');
       setAllergyNote('');
       setSuccessMsg(`Đã tạo combo ${pendingCombo.name} cho ${customer.name}`);
+      setActiveStep(1);
       onComplete?.();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Không thể tạo combo');
@@ -362,41 +372,87 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
     );
   };
 
+  // Chấm hoàn tất cho từng tab — chỉ để CSKH liếc biết bước nào đã xong, KHÔNG chặn chuyển bước
+  // (CSKH là nhân viên đã quen việc, ép tuần tự chỉ làm chậm khi họ muốn sửa lại bước trước).
+  const stepDone: Record<EntryStep, boolean> = {
+    1: !!(customer.name.trim() && customer.phone.trim()),
+    2: mode === 'retail' ? cart.length > 0 : !!pendingCombo,
+    3: deliveryType === 'pickup' || !!customer.address.trim(),
+    4: true,
+  };
+  const stepLabel: Record<EntryStep, string> = {
+    1: 'Khách hàng',
+    2: mode === 'retail' ? 'Sản phẩm' : 'Combo',
+    3: 'Giao nhận',
+    4: 'Thanh toán',
+  };
+  const stepIcon: Record<EntryStep, typeof User> = {
+    1: User,
+    2: mode === 'retail' ? ShoppingCart : Package,
+    3: Truck,
+    4: Wallet,
+  };
+
+  const canSubmit = mode === 'retail' ? cart.length > 0 : !!pendingCombo;
+  const handleSubmit = mode === 'retail' ? handleSubmitRetail : handleSubmitCombo;
+
   return (
-    <div className="space-y-5">
-      {successMsg && (
-        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          {successMsg}
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+        {successMsg && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            {successMsg}
+          </div>
+        )}
+
+        {/* Loại đơn */}
+        <div className="flex gap-2 p-1 bg-white rounded-xl border border-gray-200 w-fit">
+          <button
+            type="button"
+            onClick={() => setMode('retail')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+              mode === 'retail' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" /> Mua lẻ
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('combo')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+              mode === 'combo' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Package className="w-4 h-4" /> Đăng ký combo
+          </button>
         </div>
-      )}
 
-      {/* Loại đơn */}
-      <div className="flex gap-2 p-1 bg-white rounded-xl border border-gray-200 w-fit">
-        <button
-          type="button"
-          onClick={() => setMode('retail')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-            mode === 'retail' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <ShoppingCart className="w-4 h-4" /> Mua lẻ
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('combo')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-            mode === 'combo' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <Package className="w-4 h-4" /> Đăng ký combo
-        </button>
-      </div>
+        {/* Thanh bước — bấm để nhảy tự do, chấm xanh = đã có dữ liệu, không ép tuần tự */}
+        <div className="flex gap-1.5 p-1 bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          {STEP_ORDER.map((s) => {
+            const Icon = stepIcon[s];
+            const active = activeStep === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setActiveStep(s)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-colors shrink-0 ${
+                  active ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {s}. {stepLabel[s]}
+                {stepDone[s] && !active && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="grid lg:grid-cols-12 gap-5">
-        {/* Khách hàng */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3">
+        {/* ─── Bước 1: Khách hàng ─────────────────────────────────────────── */}
+        {activeStep === 1 && (
+          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3 max-w-xl">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
               <User className="w-4 h-4 text-indigo-600" /> Thông tin khách
             </h3>
@@ -434,17 +490,223 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 🆕 Khách mới — chưa có trong hệ thống
               </div>
             ) : null}
-            {deliveryType !== 'pickup' && (
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+            <button
+              type="button"
+              onClick={() => setActiveStep(2)}
+              className="w-full mt-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
+            >
+              Tiếp: {stepLabel[2]} →
+            </button>
+          </div>
+        )}
+
+        {/* ─── Bước 2: Sản phẩm (mua lẻ) ──────────────────────────────────── */}
+        {activeStep === 2 && mode === 'retail' && (
+          <div className="grid lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-5">
+              {showProductGrid || selectedProduct ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProductGrid(false);
+                        setSelectedProduct(null);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="h-[65vh] min-h-[480px] rounded-xl overflow-hidden border border-gray-100">
+                    {selectedProduct ? (
+                      <ModifierModal
+                        product={selectedProduct}
+                        onClose={() => setSelectedProduct(null)}
+                        onAddToCart={handleAddToCart}
+                        theme="purple"
+                        skipStockCheck
+                      />
+                    ) : (
+                      <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center gap-3 py-10">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                    <ShoppingCart className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <h3 className="font-bold text-gray-900">Chưa có sản phẩm nào</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductGrid(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Thêm sản phẩm
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-gray-900">Giỏ hàng ({cart.length})</h3>
+                  {!showProductGrid && !selectedProduct && cart.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowProductGrid(true)}
+                      className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-900"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Thêm món
+                    </button>
+                  )}
+                </div>
+                {cart.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">Giỏ hàng trống — thêm sản phẩm bên trái.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm truncate">{item.productName}</p>
+                          <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
+                          <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                          <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
+                          <span className="text-sm font-bold text-indigo-700 w-20 text-right">
+                            {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                          </span>
+                          <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
                 <textarea
-                  placeholder="Địa chỉ giao hàng"
-                  value={customer.address}
-                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm h-20 resize-none"
+                  placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
+                  value={allergyNote}
+                  onChange={(e) => setAllergyNote(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50/40 text-sm h-14 resize-none"
                 />
               </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveStep(3)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
+              >
+                Tiếp: Giao nhận →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Bước 2: Combo ──────────────────────────────────────────────── */}
+        {activeStep === 2 && mode === 'combo' && (
+          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4 max-w-2xl">
+            <h3 className="font-bold text-gray-900">Đăng ký combo cho khách</h3>
+
+            {pendingCombo ? (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-bold text-indigo-900">{pendingCombo.name}</p>
+                  <p className="text-indigo-700 font-semibold mt-1">{pendingCombo.price.toLocaleString('vi-VN')}đ</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button type="button" onClick={() => setShowComboBuilder(true)} className="text-xs text-indigo-700 font-bold hover:text-indigo-900">Sửa</button>
+                  <button type="button" onClick={() => setPendingCombo(null)} className="text-xs text-red-600 font-bold">Xóa</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500">Chưa chọn gói combo — chọn 1 trong 2 cách bên dưới.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {/* Ưu tiên "Chọn gói có sẵn" — nhanh 1 chạm, hợp phần lớn ca bán; "Tự thiết lập"
+                      chỉ dùng khi khách cần tùy biến riêng nên lùi xuống làm lựa chọn phụ. */}
+                  <button
+                    type="button"
+                    disabled={packageTemplates.length === 0}
+                    onClick={() => setShowPackagePicker(true)}
+                    className="p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 hover:bg-emerald-100 text-left disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center mb-2">
+                      <Sparkles className="w-4.5 h-4.5 text-white" />
+                    </div>
+                    <p className="font-black text-emerald-900">Chọn gói có sẵn</p>
+                    <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                      {packageTemplates.length > 0 ? `${packageTemplates.length} gói mẫu — nhanh, 1 chạm` : 'Chưa có gói mẫu nào'}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowComboBuilder(true)}
+                    className="p-4 rounded-2xl border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-left transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center mb-2">
+                      <PencilLine className="w-4.5 h-4.5 text-gray-600" />
+                    </div>
+                    <p className="font-black text-gray-800">Tự thiết lập combo</p>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">Chọn từng vị theo ngày — khi khách cần tùy biến riêng</p>
+                  </button>
+                </div>
+              </>
             )}
+
+            {previousCombos.length > 0 && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Loại đăng ký</label>
+                <select
+                  value={renewFromComboId}
+                  onChange={(e) => setRenewFromComboId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                >
+                  <option value="">Khách mới</option>
+                  {previousCombos.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      Gia hạn từ: {c.planName || 'Combo'} ({STATUS_LABEL_VI[c.status]})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setActiveStep(3)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
+            >
+              Tiếp: Giao nhận →
+            </button>
+          </div>
+        )}
+
+        {/* ─── Bước 3: Giao nhận ──────────────────────────────────────────── */}
+        {activeStep === 3 && (
+          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3 max-w-xl">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <Truck className="w-4 h-4 text-indigo-600" /> Giao nhận
+            </h3>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">
+                Hình thức nhận{mode === 'combo' ? ' (áp dụng cho các buổi giao)' : ''}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setDeliveryType('pickup')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'pickup' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🏪 Khách tự lấy</button>
+                <button type="button" onClick={() => setDeliveryType('delivery')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'delivery' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🚚 Giao hàng</button>
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
                 <Store className="w-3.5 h-3.5" /> {deliveryType === 'pickup' ? 'Chi nhánh khách đến lấy' : 'Chi nhánh gần khách nhất (nhận đơn)'}
@@ -459,52 +721,19 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 ))}
               </select>
             </div>
-            {mode === 'retail' && (
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5" /> Ngày khách đặt (nhập đơn cũ)
-                </label>
-                <input
-                  type="date"
-                  value={orderDate}
-                  max={new Date().toLocaleDateString('sv-SE')}
-                  onChange={(e) => setOrderDate(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  {orderDate
-                    ? `⏱ Đơn sẽ ghi nhận vào ngày ${new Date(`${orderDate}T12:00:00`).toLocaleDateString('vi-VN')} (không phải hôm nay).`
-                    : 'Để trống = hôm nay. Chọn ngày cũ khi nhập lại đơn khách đã đặt trước đó.'}
-                </p>
-              </div>
-            )}
 
-            {mode === 'retail' && (
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={deliveryTime}
-                  onChange={(e) => setDeliveryTime(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+            {deliveryType !== 'pickup' && (
+              <div className="relative">
+                <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <textarea
+                  placeholder="Địa chỉ giao hàng"
+                  value={customer.address}
+                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2.5 rounded-xl border text-sm h-20 resize-none"
                 />
               </div>
             )}
 
-            {/* Hình thức nhận — dùng cho cả đơn lẻ & combo */}
-            <div>
-              <label className="text-xs font-bold text-gray-500 mb-1 block">
-                Hình thức nhận{mode === 'combo' ? ' (áp dụng cho các buổi giao)' : ''}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setDeliveryType('pickup')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'pickup' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🏪 Khách tự lấy</button>
-                <button type="button" onClick={() => setDeliveryType('delivery')} className={`py-2 rounded-xl border-2 text-sm font-semibold ${deliveryType === 'delivery' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>🚚 Giao hàng</button>
-              </div>
-            </div>
-
-            {/* Cách giao (chỉ khi giao hàng) */}
             {deliveryType === 'delivery' && (
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-500 block">Cách giao</label>
@@ -530,7 +759,39 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 </div>
               </div>
             )}
-            {mode === 'combo' && (
+
+            {mode === 'retail' ? (
+              <>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                    <CalendarDays className="w-3.5 h-3.5" /> Ngày khách đặt (nhập đơn cũ)
+                  </label>
+                  <input
+                    type="date"
+                    value={orderDate}
+                    max={new Date().toLocaleDateString('sv-SE')}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {orderDate
+                      ? `⏱ Đơn sẽ ghi nhận vào ngày ${new Date(`${orderDate}T12:00:00`).toLocaleDateString('vi-VN')} (không phải hôm nay).`
+                      : 'Để trống = hôm nay. Chọn ngày cũ khi nhập lại đơn khách đã đặt trước đó.'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Giờ hẹn giao (khách online)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
+                  />
+                </div>
+              </>
+            ) : (
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" /> {deliveryType === 'pickup' ? 'Giờ khách lấy mặc định' : 'Giờ giao mặc định'}
@@ -544,80 +805,23 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 <p className="text-[11px] text-gray-400 mt-1">Áp dụng cho tất cả buổi; có thể sửa riêng từng buổi sau ở chi tiết combo.</p>
               </div>
             )}
-            <div>
-              <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
-              <textarea
-                placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
-                value={allergyNote}
-                onChange={(e) => setAllergyNote(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50/40 text-sm h-14 resize-none"
-              />
-            </div>
-            <textarea
-              placeholder={
-                mode === 'combo'
-                  ? 'Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)'
-                  : 'Ghi chú đơn hàng (tuỳ chọn)'
-              }
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm h-16 resize-none"
-            />
+
+            <button
+              type="button"
+              onClick={() => setActiveStep(4)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
+            >
+              Tiếp: Thanh toán →
+            </button>
           </div>
+        )}
 
-          {mode === 'retail' && cart.length > 0 && (
-            <div className="bg-white rounded-2xl border border-indigo-100 p-5">
-              <h3 className="font-bold text-gray-900 mb-3">Giỏ hàng ({cart.length})</h3>
-              <div className="space-y-2 mb-4">
-                {cart.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
-                      <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                      <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
-                      <span className="text-sm font-bold text-indigo-700 w-20 text-right">
-                        {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                      </span>
-                      <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t pt-3 space-y-1.5">
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Tiền hàng</span>
-                  <span>{cartTotal.toLocaleString('vi-VN')}đ</span>
-                </div>
-                {Number(shipFee) > 0 && (
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>Phí ship</span>
-                    <span>{Number(shipFee).toLocaleString('vi-VN')}đ</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-1">
-                  <span className="font-bold text-lg">Tổng thu: {(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-end pt-3">
-                <button
-                  type="button"
-                  onClick={handleSubmitRetail}
-                  disabled={submitting}
-                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm disabled:opacity-60 flex items-center gap-2"
-                >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Xác nhận đơn lẻ
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3">
-            <h3 className="font-bold text-gray-900 text-sm">Thanh toán</h3>
+        {/* ─── Bước 4: Thanh toán & Ghi chú ───────────────────────────────── */}
+        {activeStep === 4 && (
+          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4 max-w-xl">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-indigo-600" /> Thanh toán
+            </h3>
             <div className="grid grid-cols-3 gap-2">
               {([
                 { id: 'transfer' as const, label: 'Chuyển khoản', icon: CreditCard },
@@ -637,168 +841,107 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 </button>
               ))}
             </div>
-            {mode === 'retail' && (
+            {mode === 'retail' ? (
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={markPaid} onChange={(e) => setMarkPaid(e.target.checked)} className="rounded" />
                 Khách đã thanh toán trước (chi nhánh không cần thu tiền)
               </label>
-            )}
-            {mode === 'combo' && (
+            ) : (
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={claimComboNow} onChange={(e) => setClaimComboNow(e.target.checked)} className="rounded" />
                 Chốt combo ngay (gán khách cho tôi)
               </label>
             )}
-          </div>
-        </div>
 
-        {/* Sản phẩm / Combo */}
-        <div className="lg:col-span-8 space-y-4">
-          {mode === 'retail' ? (
-            <>
-              <div className="bg-white rounded-2xl border border-indigo-100 p-5">
-                {showProductGrid || selectedProduct ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowProductGrid(false);
-                          setSelectedProduct(null);
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="h-[560px] rounded-xl overflow-hidden border border-gray-100">
-                      {selectedProduct ? (
-                        <ModifierModal
-                          product={selectedProduct}
-                          onClose={() => setSelectedProduct(null)}
-                          onAddToCart={handleAddToCart}
-                          theme="purple"
-                          skipStockCheck
-                        />
-                      ) : (
-                        <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowProductGrid(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Thêm sản phẩm
-                    </button>
-                  </div>
-                )}
+            {mode === 'combo' && (
+              <div>
+                <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
+                <textarea
+                  placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
+                  value={allergyNote}
+                  onChange={(e) => setAllergyNote(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50/40 text-sm h-14 resize-none"
+                />
               </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 flex items-center gap-1.5">
+                <ClipboardList className="w-3.5 h-3.5" /> Ghi chú
+              </label>
+              <textarea
+                placeholder={
+                  mode === 'combo'
+                    ? 'Ghi chú vị & giao hàng đặc biệt (trừ vị, giữ lạnh, giờ đặc biệt...)'
+                    : 'Ghi chú đơn hàng (tuỳ chọn)'
+                }
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm h-16 resize-none"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Thanh tổng tiền + nút Xác nhận — DÁN CỐ ĐỊNH đáy màn hình, luôn thấy dù đang ở bước nào,
+          không phải kéo lên tìm nút như trước. */}
+      <div className="shrink-0 sticky bottom-0 bg-white border-t border-gray-200 px-5 py-3.5 rounded-b-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          {mode === 'retail' ? (
+            cart.length > 0 ? (
+              <>
+                <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Tổng thu · {cart.length} món</p>
+                <p className="text-lg font-black text-gray-900 truncate">
+                  {(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400 font-semibold">Chưa có sản phẩm trong giỏ</p>
+            )
+          ) : pendingCombo ? (
+            <>
+              <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide truncate">{pendingCombo.name}</p>
+              <p className="text-lg font-black text-gray-900">{pendingCombo.price.toLocaleString('vi-VN')}đ</p>
             </>
           ) : (
-            <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4">
-              {showComboBuilder ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900">Thiết lập combo</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowComboBuilder(false)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="h-[600px] rounded-xl overflow-hidden border border-gray-100">
-                    <CustomComboBuilder
-                      isPOS
-                      presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
-                      isCskh
-                      onClose={() => setShowComboBuilder(false)}
-                      onAddToCart={(combo) => {
-                        const raw = combo.rawComboData || combo;
-                        setPendingCombo({
-                          name: combo.name || `Combo ${raw.duration || 'tuần'}`,
-                          price: raw.finalPrice || combo.price || combo.totalPrice || 0,
-                          raw,
-                        });
-                        setShowComboBuilder(false);
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-              <>
-              <h3 className="font-bold text-gray-900">Đăng ký combo cho khách</h3>
-              {pendingCombo ? (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-indigo-900">{pendingCombo.name}</p>
-                    <p className="text-indigo-700 font-semibold mt-1">{pendingCombo.price.toLocaleString('vi-VN')}đ</p>
-                  </div>
-                  <button type="button" onClick={() => setPendingCombo(null)} className="text-xs text-red-600 font-bold">Xóa</button>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">Chưa chọn gói combo — bấm nút bên dưới để thiết lập.</p>
-              )}
-              {previousCombos.length > 0 && (
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1 block">Loại đăng ký</label>
-                  <select
-                    value={renewFromComboId}
-                    onChange={(e) => setRenewFromComboId(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-white"
-                  >
-                    <option value="">Khách mới</option>
-                    {previousCombos.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        Gia hạn từ: {c.planName || 'Combo'} ({STATUS_LABEL_VI[c.status]})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {packageTemplates.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowPackagePicker(true)}
-                    className="px-5 py-3 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-sm hover:bg-emerald-200"
-                  >
-                    Chọn gói có sẵn
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowComboBuilder(true)}
-                  className="px-5 py-3 bg-indigo-100 text-indigo-800 rounded-xl font-bold text-sm hover:bg-indigo-200"
-                >
-                  + Thiết lập combo
-                </button>
-                {pendingCombo && (
-                  <button
-                    type="button"
-                    onClick={handleSubmitCombo}
-                    disabled={submitting}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm disabled:opacity-60 flex items-center gap-2"
-                  >
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                    Xác nhận đơn combo
-                  </button>
-                )}
-              </div>
-              </>
-              )}
-            </div>
+            <p className="text-sm text-gray-400 font-semibold">Chưa thiết lập combo</p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || !canSubmit}
+          className="shrink-0 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm flex items-center gap-2"
+        >
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+          {mode === 'retail' ? 'Xác nhận đơn lẻ' : 'Xác nhận đơn combo'}
+        </button>
       </div>
+
+      {/* Bộ dựng combo — mở FULL MÀN HÌNH (giống quy ước OrderQueue.tsx/ComboManagement.tsx ở POS)
+          thay vì nhét trong khung 600px bên trong trang, đỡ cảm giác "app trong app". */}
+      {showComboBuilder && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden h-[90vh] flex flex-col">
+            <CustomComboBuilder
+              isPOS
+              presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
+              isCskh
+              onClose={() => setShowComboBuilder(false)}
+              onAddToCart={(combo) => {
+                const raw = combo.rawComboData || combo;
+                setPendingCombo({
+                  name: combo.name || `Combo ${raw.duration || 'tuần'}`,
+                  price: raw.finalPrice || combo.price || combo.totalPrice || 0,
+                  raw,
+                });
+                setShowComboBuilder(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {showPackagePicker && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60">
@@ -826,7 +969,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           </div>
         </div>
       )}
-
     </div>
   );
 }

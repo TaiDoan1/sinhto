@@ -17,6 +17,7 @@ const { registerFacebookRoutes } = require('./facebookApi');
 const { registerBulkMessageRoutes } = require('./bulkMessageApi');
 const { registerGrabMenuRoutes } = require('./grabMenuApi');
 const { registerExternalOrderRoutes } = require('./externalOrderApi');
+const { registerDeliveryAlertRoutes } = require('./deliveryAlertApi');
 const { registerGiftCampaignRoutes } = require('./giftCampaignsApi');
 const { registerSavedRepliesRoutes } = require('./savedRepliesApi');
 const {
@@ -3313,6 +3314,7 @@ async function start() {
     registerBulkMessageRoutes(app, db, { broadcast });
     registerGrabMenuRoutes(app, db, { broadcast });
     registerExternalOrderRoutes(app, db, { broadcast });
+    registerDeliveryAlertRoutes(app, db, { broadcast });
     registerGiftCampaignRoutes(app, db, { broadcast });
     registerSavedRepliesRoutes(app, db, { broadcast });
     registerBackupRoutes(app, db);

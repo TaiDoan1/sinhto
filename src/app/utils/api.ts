@@ -1051,6 +1051,23 @@ export async function markDeliveryLogAlerted(id: string) {
   return res.json();
 }
 
+// Cảnh báo giao ĐƠN LẺ (bổ sung cho combo)
+export async function fetchOrderDeliveryAlerts(params?: { minutes?: number; branchId?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.minutes) qs.set('minutes', String(params.minutes));
+  if (params?.branchId) qs.set('branchId', params.branchId);
+  const query = qs.toString();
+  const res = await fetch(`${BASE_URL}/order-delivery-alerts${query ? `?${query}` : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch order delivery alerts');
+  return res.json();
+}
+
+export async function ackOrderDeliveryAlert(id: string) {
+  const res = await fetch(`${BASE_URL}/order-delivery-alerts/${id}/ack`, { method: 'PATCH' });
+  if (!res.ok) throw new Error('Failed to ack order delivery alert');
+  return res.json();
+}
+
 export async function changeComboBranch(id: string, branchId: string) {
   const res = await fetch(`${BASE_URL}/combo-subscriptions/${id}/branch`, {
     method: 'PATCH',

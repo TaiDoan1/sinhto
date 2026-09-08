@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Phone, User, Package, LogOut, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
@@ -19,7 +19,7 @@ import { OnlineSalesOrderEntry } from './OnlineSalesOrderEntry';
 import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { CustomerManagement } from '../customer-management/CustomerManagement';
-import { DeliveryAlerts } from './DeliveryAlerts';
+import { DeliveryAlerts, LEAD_SETTING_KEY, DEFAULT_LEAD } from './DeliveryAlerts';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
 import { BulkMessageTab } from './BulkMessageTab';
@@ -162,6 +162,41 @@ export function OnlineSalesPortal() {
   }, [subscribe, fbConversations, showNotify]);
 
   const fbUnreadTotal = useMemo(() => fbConversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0), [fbConversations]);
+
+  // Cảnh báo giao hàng chủ động: poll đơn combo + đơn lẻ sắp tới giờ giao theo mốc "báo trước N
+  // phút" (setting chung). Có đơn MỚI vào khoảng cảnh báo → kêu âm thanh + toast, và luôn hiện số
+  // đơn đang cần nhắc lên tab "Cảnh báo" (chấm đỏ) dù CSKH đang ở tab khác.
+  const [deliveryAlertCount, setDeliveryAlertCount] = useState(0);
+  const seenAlertIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let stopped = false;
+    const poll = async () => {
+      try {
+        let lead = DEFAULT_LEAD;
+        try { const v = await api.fetchSetting(LEAD_SETTING_KEY); const n = Number(v); if (!Number.isNaN(n) && n > 0) lead = n; } catch { /* mặc định */ }
+        const [combo, retail] = await Promise.all([
+          api.fetchUpcomingDeliveryAlerts({ minutes: lead }).catch(() => []),
+          api.fetchOrderDeliveryAlerts({ minutes: lead }).catch(() => []),
+        ]);
+        if (stopped) return;
+        const ids: { key: string; name: string }[] = [
+          ...(combo as any[]).map((a) => ({ key: `combo-${a.id}`, name: a.customerName || 'khách' })),
+          ...(retail as any[]).map((a) => ({ key: `retail-${a.id}`, name: a.customerName || 'khách' })),
+        ];
+        setDeliveryAlertCount(ids.length);
+        const fresh = ids.filter((x) => !seenAlertIdsRef.current.has(x.key));
+        if (fresh.length > 0 && seenAlertIdsRef.current.size > 0) {
+          // chỉ báo khi có đơn MỚI vào khoảng cảnh báo (lần đầu load không kêu ầm ĩ)
+          playNotificationBeep();
+          showNotify(`⏰ Sắp tới giờ giao: ${fresh.map((f) => f.name).slice(0, 3).join(', ')}${fresh.length > 3 ? '…' : ''}`);
+        }
+        seenAlertIdsRef.current = new Set(ids.map((x) => x.key));
+      } catch { /* bỏ qua, thử lại nhịp sau */ }
+    };
+    poll();
+    const t = setInterval(poll, 60000);
+    return () => { stopped = true; clearInterval(t); };
+  }, [showNotify]);
 
   useEffect(() => {
     const baseTitle = 'FitBlend CSKH';
@@ -313,7 +348,7 @@ export function OnlineSalesPortal() {
     { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'bulkSend', label: 'Gửi hàng loạt', icon: Megaphone },
-    { id: 'alerts', label: 'Cảnh báo', icon: Bell },
+    { id: 'alerts', label: 'Cảnh báo', icon: Bell, badge: deliveryAlertCount || undefined },
   ];
 
   return (

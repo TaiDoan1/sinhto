@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { AlertCircle, Clock, Phone, MapPin, Bell, CheckCircle2, Loader2, Save } from 'lucide-react';
+import { AlertCircle, Clock, Phone, MapPin, Bell, CheckCircle2, Loader2 } from 'lucide-react';
 import * as api from '../../utils/api';
 
 export const LEAD_SETTING_KEY = 'deliveryAlertLeadMinutes';
@@ -38,21 +38,16 @@ function urgency(scheduledAt: string) {
   return { key: 'normal', label: `⚪ Còn ${Math.round(minLeft)} phút`, cls: 'border-gray-200 bg-white' };
 }
 
-const QUICK = [10, 15, 30, 60, 90];
-
 export function DeliveryAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [ackingId, setAckingId] = useState<string | null>(null);
   const [lead, setLead] = useState<number>(DEFAULT_LEAD);
-  const [leadInput, setLeadInput] = useState<string>(String(DEFAULT_LEAD));
-  const [savingLead, setSavingLead] = useState(false);
-  const [savedLead, setSavedLead] = useState(false);
 
-  // Tải mốc "báo trước N phút" (chung cả quán).
+  // Tải mốc "báo trước N phút" (chung cả quán — chỉnh ở tab Cài đặt).
   useEffect(() => {
     api.fetchSetting(LEAD_SETTING_KEY)
-      .then((v) => { const n = Number(v); if (!Number.isNaN(n) && n > 0) { setLead(n); setLeadInput(String(n)); } })
+      .then((v) => { const n = Number(v); if (!Number.isNaN(n) && n > 0) setLead(n); })
       .catch(() => {});
   }, []);
 
@@ -80,23 +75,6 @@ export function DeliveryAlerts() {
     return () => clearInterval(interval);
   }, [refresh, lead]);
 
-  const applyLead = async (n: number) => {
-    if (!n || n <= 0) return;
-    setLead(n);
-    setLeadInput(String(n));
-    setSavingLead(true);
-    setSavedLead(false);
-    try {
-      await api.saveSetting(LEAD_SETTING_KEY, n);
-      setSavedLead(true);
-      setTimeout(() => setSavedLead(false), 2000);
-    } catch {
-      alert('Lưu thời gian báo trước thất bại');
-    } finally {
-      setSavingLead(false);
-    }
-  };
-
   const handleAck = async (a: Alert) => {
     setAckingId(a.id);
     try {
@@ -112,35 +90,10 @@ export function DeliveryAlerts() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-3">
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
         <Bell className="w-5 h-5 text-indigo-600" />
         <h2 className="text-lg font-bold text-gray-900">Cảnh báo sắp tới giờ giao</h2>
-      </div>
-
-      {/* Cấu hình báo trước N phút (chung cả quán) */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Clock className="w-4 h-4 text-indigo-600" />
-          <span className="text-sm font-bold text-gray-800">Báo trước bao nhiêu phút?</span>
-          {savedLead && <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Đã lưu</span>}
-        </div>
-        <p className="text-xs text-gray-500 mb-3">Hệ thống sẽ nhắc đơn khi <b>còn ≤ {lead} phút</b> là tới giờ giao. Áp dụng chung cho cả quán.</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {QUICK.map((m) => (
-            <button key={m} type="button" onClick={() => applyLead(m)} disabled={savingLead}
-              className={`px-3 py-1.5 rounded-full text-sm font-semibold border ${lead === m ? 'bg-indigo-600 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>
-              {m} phút
-            </button>
-          ))}
-          <div className="flex items-center gap-1.5 ml-1">
-            <input type="number" min={1} value={leadInput} onChange={(e) => setLeadInput(e.target.value)}
-              className="w-20 px-2 py-1.5 border rounded-lg text-sm" placeholder="phút" />
-            <button type="button" onClick={() => applyLead(Number(leadInput))} disabled={savingLead}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-bold disabled:opacity-60">
-              {savingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Lưu
-            </button>
-          </div>
-        </div>
+        <span className="text-xs text-gray-500">· nhắc khi còn ≤ <b>{lead} phút</b> (đổi ở tab Cài đặt)</span>
       </div>
 
       {loading ? (

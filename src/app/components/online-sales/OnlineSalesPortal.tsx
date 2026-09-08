@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Phone, User, Package, LogOut, Clock, Pause, Play,
   MapPin, Loader2, Users, Search, ShoppingBag, Globe, LayoutDashboard,
-  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, MessageCircle, CalendarDays, Megaphone,
+  ListTodo, UserPlus, Store, TrendingUp, AlertCircle, Copy, Check, Bell, BellOff, MessageCircle, CalendarDays, Megaphone, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useOnlineSales } from '../../contexts/OnlineSalesContext';
 import { useCombos } from '../../contexts/ComboContext';
@@ -20,6 +20,7 @@ import { CustomerComboHub } from '../combo/CustomerComboHub';
 import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { CustomerManagement } from '../customer-management/CustomerManagement';
 import { DeliveryAlerts, LEAD_SETTING_KEY, DEFAULT_LEAD } from './DeliveryAlerts';
+import { CskhSettings } from './CskhSettings';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
 import { BulkMessageTab } from './BulkMessageTab';
@@ -28,7 +29,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages' | 'bulkSend';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages' | 'bulkSend' | 'settings';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -349,6 +350,7 @@ export function OnlineSalesPortal() {
     { id: 'fbMessages', label: 'Tin nhắn FB', icon: MessageCircle, badge: fbUnreadTotal || undefined },
     { id: 'bulkSend', label: 'Gửi hàng loạt', icon: Megaphone },
     { id: 'alerts', label: 'Cảnh báo', icon: Bell, badge: deliveryAlertCount || undefined },
+    { id: 'settings', label: 'Cài đặt', icon: SettingsIcon },
   ];
 
   return (
@@ -592,6 +594,8 @@ export function OnlineSalesPortal() {
             )}
 
             {view === 'alerts' && <DeliveryAlerts />}
+
+            {view === 'settings' && <CskhSettings />}
       </main>
 
       {selectedAssignment && activeEmployee && (

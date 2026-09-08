@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, Package, StickyNote } from 'lucide-react';
+import { Clock, Package, StickyNote, AlertTriangle } from 'lucide-react';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { useBranchOrders } from '../../hooks/useBranchOrders';
 import { VoidOrderModal } from './VoidOrderModal';
@@ -127,6 +127,13 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-gray-800 truncate text-sm">{summary || 'Đơn hàng'}</div>
                 </div>
+                {/* Kỵ vị/dị ứng — nổi bật đỏ, hiện NGAY trên hàng đợi (trước đây phải mở "Lịch
+                    giao" của combo mới thấy được, đơn lẻ ở hàng đợi thì hoàn toàn không thấy). */}
+                {order.allergyNote && (
+                  <span className="shrink-0 flex items-center gap-1 px-1.5 py-1 bg-red-100 text-red-700 rounded font-bold text-[10px]" title={`🚫 Kỵ vị & Dị ứng: ${order.allergyNote}`}>
+                    <AlertTriangle className="w-3.5 h-3.5" /> Dị ứng
+                  </span>
+                )}
                 {order.note && (
                   <span className="shrink-0 p-1 bg-amber-100 text-amber-700 rounded" title={order.note}>
                     <StickyNote className="w-3.5 h-3.5" />

@@ -250,6 +250,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           shipProvider: deliveryType === 'delivery' && shipMethod === 'external' ? shipProvider.trim() : '',
           shipTrackingCode: deliveryType === 'delivery' && shipMethod === 'external' ? shipTrackingCode.trim() : '',
           allergyNote: allergyNote.trim(),
+          // Trước đây "Ghi chú" ở bước Thanh toán chỉ được lưu vào nhật ký hoạt động nội bộ của
+          // CSKH (logActivity bên dưới), KHÔNG bao giờ gắn vào đơn thật — chi nhánh/POS nhận đơn
+          // không bao giờ thấy được ghi chú này. Giờ lưu thẳng vào đơn (field `note`, đúng tên cột
+          // POS đang đọc — xem OrderQueue.tsx/OrderDetailModal.tsx).
+          note: notes.trim(),
           ...staffPayload(),
         },
         { skipStockCheck: true, orderTime: orderTimeIso }

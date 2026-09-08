@@ -65,6 +65,15 @@ export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStat
             </div>
           )}
 
+          {order.allergyNote && (
+            <div className="bg-red-50 rounded-xl p-3 border-2 border-red-300 text-sm">
+              <div className="flex items-center gap-1.5 font-bold text-red-800 mb-1">
+                🚫 Kỵ vị & Dị ứng
+              </div>
+              <p className="text-red-900 font-semibold whitespace-pre-wrap">{order.allergyNote}</p>
+            </div>
+          )}
+
           {order.note && (
             <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-sm">
               <div className="flex items-center gap-1.5 font-bold text-amber-800 mb-1">

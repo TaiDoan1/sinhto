@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSSE } from '../contexts/SSEContext';
 import * as api from '../utils/api';
+import { LEAD_SETTING_KEY, DEFAULT_LEAD } from '../components/online-sales/DeliveryAlerts';
 
 const SETTING_KEY = 'posOrderNotificationText';
 const AUDIO_SETTING_KEY = 'posOrderNotificationAudioUrl';
@@ -88,4 +89,30 @@ export function usePosOrderNotificationMode(): OrderNotificationMode {
 
 export async function saveOrderNotificationMode(mode: OrderNotificationMode): Promise<void> {
   await api.saveSetting(MODE_SETTING_KEY, mode);
+}
+
+/** "Thời gian báo trước giờ giao" (phút) — cùng setting CSKH chỉnh ở tab Cài đặt (dùng để nhắc
+ * đơn sắp tới giờ giao trên dashboard CSKH). POS dùng LẠI đúng số này để quyết định lúc nào mới
+ * kêu chuông cho đơn CSKH đặt hẹn giờ xa (VD đặt lúc 8h nhưng hẹn giao 11h55) — trước đây POS kêu
+ * NGAY khi CSKH tạo đơn bất kể giờ hẹn giao, khiến bar tender bị réo sớm cả mấy tiếng trước khi
+ * cần làm. Xem isOrderDueForNotification() ở POSInterface.tsx. */
+export function useDeliveryAlertLeadMinutes(): number {
+  const { subscribe } = useSSE();
+  const [lead, setLead] = useState<number>(DEFAULT_LEAD);
+
+  useEffect(() => {
+    api.fetchSetting(LEAD_SETTING_KEY)
+      .then((v) => { const n = Number(v); if (!Number.isNaN(n) && n > 0) setLead(n); })
+      .catch(() => {});
+
+    const unsub = subscribe('SETTING_UPDATED', (data: { key: string; value: unknown }) => {
+      if (data?.key === LEAD_SETTING_KEY) {
+        const n = Number(data.value);
+        if (!Number.isNaN(n) && n > 0) setLead(n);
+      }
+    });
+    return unsub;
+  }, [subscribe]);
+
+  return lead;
 }

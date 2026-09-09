@@ -57,7 +57,7 @@ import {
 import { useSSE } from '../../contexts/SSEContext';
 import { speakOrderNotification } from '../../utils/notificationSound';
 import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
-import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode } from '../../hooks/usePosOrderNotificationText';
+import { usePosOrderNotificationText, usePosOrderNotificationAudioUrl, usePosOrderNotificationMode, useDeliveryAlertLeadMinutes } from '../../hooks/usePosOrderNotificationText';
 
 type PosTab = 'products' | 'combosale' | 'orders' | 'combos' | 'schedule' | 'warehouse' | 'history' | 'admin' | 'macro';
 
@@ -95,6 +95,7 @@ function POSInterfaceInner() {
   const orderNotificationText = usePosOrderNotificationText();
   const orderNotificationAudioUrl = usePosOrderNotificationAudioUrl();
   const orderNotificationMode = usePosOrderNotificationMode();
+  const deliveryAlertLeadMinutes = useDeliveryAlertLeadMinutes();
   const [activeTab, setActiveTab] = useState<PosTab>('products');
   // Bán combo ở POS: chọn NV bán (người chốt, 80%) + CSKH quản lý (20%) trước khi tạo gói
   const [comboPendingStaff, setComboPendingStaff] = useState<any | null>(null);
@@ -181,20 +182,38 @@ function POSInterfaceInner() {
     }
   }, [branchId, loadForBranch]);
 
-  // Báo âm thanh khi CSKH đưa đơn xuống đúng chi nhánh này — không kêu với đơn máy POS tự tạo.
+  // Đơn CSKH đặt HẸN GIỜ GIAO xa (VD tạo đơn lúc 8h nhưng hẹn giao 11h55) chỉ nên báo khi gần tới
+  // giờ, không phải ngay lúc CSKH tạo đơn — dùng chung mốc "báo trước N phút" với dashboard CSKH
+  // (tab Cài đặt/Cảnh báo, xem DeliveryAlerts.tsx) để cả quán thống nhất 1 con số duy nhất. Đơn
+  // không hẹn giờ (đặt & giao ngay) hoặc đã tới/qua giờ hẹn thì luôn coi là "đến giờ".
+  const isOrderDueForNotification = (order: { deliveryTime?: string | Date }, leadMinutes: number) => {
+    if (!order.deliveryTime) return true;
+    const t = new Date(order.deliveryTime).getTime();
+    if (Number.isNaN(t)) return true;
+    const minutesLeft = (t - Date.now()) / 60000;
+    return minutesLeft <= leadMinutes;
+  };
+
+  // Báo âm thanh khi CSKH đưa đơn xuống đúng chi nhánh này — không kêu với đơn máy POS tự tạo,
+  // và không kêu sớm nếu đơn hẹn giao còn xa (xem isOrderDueForNotification ở trên).
+  const deliveryAlertLeadRef = useRef(deliveryAlertLeadMinutes);
+  deliveryAlertLeadRef.current = deliveryAlertLeadMinutes;
   useEffect(() => {
     if (!branchId) return;
     const unsub = subscribe('ORDER_CREATED', (data: any) => {
-      if (data?.branchId === branchId && data?.source !== 'counter') {
+      if (data?.branchId === branchId && data?.source !== 'counter' && isOrderDueForNotification(data, deliveryAlertLeadRef.current)) {
         speakOrderNotification(orderNotificationText, orderNotificationMode, orderNotificationAudioUrl);
       }
     });
     return unsub;
   }, [branchId, subscribe, orderNotificationText, orderNotificationMode, orderNotificationAudioUrl]);
 
-  // Nhắc lại mỗi 1 phút nếu vẫn còn đơn CSKH "Chờ xác nhận" (chưa bấm Nhận Đơn & Làm Món) —
-  // dùng ref để đọc dữ liệu mới nhất mỗi lần tick, tránh việc reset lại chu kỳ 60s mỗi khi có
-  // đơn/order khác cập nhật (chỉ cần 1 đồng hồ đếm ổn định, không phụ thuộc dependency đổi liên tục).
+  // Nhắc lại mỗi 1 phút nếu vẫn còn đơn CSKH "Chờ xác nhận" (chưa bấm Nhận Đơn & Làm Món) VÀ đã
+  // đến/gần giờ giao — dùng ref để đọc dữ liệu mới nhất mỗi lần tick, tránh việc reset lại chu kỳ
+  // 60s mỗi khi có đơn/order khác cập nhật (chỉ cần 1 đồng hồ đếm ổn định, không phụ thuộc
+  // dependency đổi liên tục). Đơn hẹn giao còn xa nằm im trong hàng đợi, KHÔNG bị nhắc dồn dập —
+  // tự động được nhắc ngay khi bước vào mốc "còn ≤ N phút" ở lần tick kế tiếp, không cần lên lịch
+  // setTimeout riêng.
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
   const orderNotificationTextRef = useRef(orderNotificationText);
@@ -206,7 +225,9 @@ function POSInterfaceInner() {
   useEffect(() => {
     if (!branchId) return;
     const interval = setInterval(() => {
-      const hasUnhandled = ordersRef.current.some((o) => o.source !== 'counter' && o.status === 'pending');
+      const hasUnhandled = ordersRef.current.some(
+        (o) => o.source !== 'counter' && o.status === 'pending' && isOrderDueForNotification(o, deliveryAlertLeadRef.current)
+      );
       if (hasUnhandled) {
         speakOrderNotification(orderNotificationTextRef.current, orderNotificationModeRef.current, orderNotificationAudioUrlRef.current);
       }

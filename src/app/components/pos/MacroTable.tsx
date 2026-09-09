@@ -311,7 +311,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                     {isEditing ? (
                       <input
                         type="number"
-                        value={row.cal}
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={row.cal === 0 ? '' : row.cal}
                         onChange={(e) => updateSizeValue(activeSize, idx, 'cal', parseInt(e.target.value) || 0)}
                         className="w-full text-center text-sm font-black text-orange-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
@@ -329,7 +331,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                       <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
                         <input
                           type="number"
-                          value={row.protein}
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={row.protein === 0 ? '' : row.protein}
                           onChange={(e) => updateSizeValue(activeSize, idx, 'protein', parseInt(e.target.value) || 0)}
                           className="w-full text-center text-sm font-black text-emerald-700 focus:outline-none"
                         />
@@ -348,7 +352,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                           <span className="text-[9px] text-gray-400 font-bold">C:</span>
                           <input
                             type="number"
-                            value={row.carb}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={row.carb === 0 ? '' : row.carb}
                             onChange={(e) => updateSizeValue(activeSize, idx, 'carb', parseInt(e.target.value) || 0)}
                             className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
                           />
@@ -358,7 +364,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                           <span className="text-[9px] text-gray-400 font-bold">F:</span>
                           <input
                             type="number"
-                            value={row.fat}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={row.fat === 0 ? '' : row.fat}
                             onChange={(e) => updateSizeValue(activeSize, idx, 'fat', parseInt(e.target.value) || 0)}
                             className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
                           />

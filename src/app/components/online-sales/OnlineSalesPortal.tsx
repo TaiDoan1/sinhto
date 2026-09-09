@@ -21,6 +21,7 @@ import { WeeklyComboSchedule } from '../combo/WeeklyComboSchedule';
 import { CustomerManagement } from '../customer-management/CustomerManagement';
 import { DeliveryAlerts, LEAD_SETTING_KEY, DEFAULT_LEAD } from './DeliveryAlerts';
 import { CskhSettings } from './CskhSettings';
+import { CskhOrderTracker } from './CskhOrderTracker';
 import { SalesAnalyticsDashboard } from './SalesAnalyticsDashboard';
 import { FbMessagesTab } from './FbMessagesTab';
 import { BulkMessageTab } from './BulkMessageTab';
@@ -29,7 +30,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { playNotificationBeep, unlockAudio, isAudioRunning } from '../../utils/notificationSound';
 import type { FbConversation, FbMessage } from '../../utils/api';
 
-type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages' | 'bulkSend' | 'settings';
+type View = 'dashboard' | 'leads' | 'sales' | 'pending' | 'orders' | 'retail' | 'combo' | 'customers' | 'schedule' | 'alerts' | 'fbMessages' | 'bulkSend' | 'settings';
 
 const PRIORITY_COLOR = {
   high: 'border-l-red-500',
@@ -163,6 +164,39 @@ export function OnlineSalesPortal() {
   }, [subscribe, fbConversations, showNotify]);
 
   const fbUnreadTotal = useMemo(() => fbConversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0), [fbConversations]);
+
+  // Theo dõi trạng thái đơn CSKH đã chốt theo thời gian thực: khi máy POS đổi trạng thái (nhận đơn,
+  // làm xong, ship lấy) → cập nhật ngay trên tab "Theo dõi đơn". Riêng lúc POS bấm "Nhận đơn"
+  // (pending → preparing) thì kêu tiếng + toast để CSKH biết cửa hàng đã tiếp nhận đơn của mình.
+  useEffect(() => {
+    const isMine = (o: any) => o && o.salesStaffId === employeeId;
+    const unsubUpd = subscribe('ORDER_UPDATED', (data: any) => {
+      if (!isMine(data)) return;
+      setRetailOrders((prev) => {
+        const idx = prev.findIndex((o) => o.id === data.id);
+        if (idx < 0) return prev;
+        const before = prev[idx];
+        if (before.status === 'pending' && data.status === 'preparing') {
+          playNotificationBeep();
+          showNotify(`🏪 Cửa hàng đã nhận đơn của ${data.customerName || 'khách'}`);
+        }
+        const next = [...prev];
+        next[idx] = { ...before, ...data, time: before.time };
+        return next;
+      });
+    });
+    const unsubNew = subscribe('ORDER_CREATED', (data: any) => {
+      if (!isMine(data)) return;
+      setRetailOrders((prev) => (prev.some((o) => o.id === data.id) ? prev : [{ ...data, time: new Date(data.time) }, ...prev]));
+    });
+    return () => { unsubUpd(); unsubNew(); };
+  }, [subscribe, employeeId, showNotify]);
+
+  // Số đơn đang xử lý (chưa tới bước ship lấy / hoàn tất) — hiện chấm đỏ trên tab "Theo dõi đơn".
+  const activeOrderCount = useMemo(
+    () => retailOrders.filter((o) => o.status !== 'completed' && o.status !== 'delivering').length,
+    [retailOrders]
+  );
 
   // Cảnh báo giao hàng chủ động: poll đơn combo + đơn lẻ sắp tới giờ giao theo mốc "báo trước N
   // phút" (setting chung). Có đơn MỚI vào khoảng cảnh báo → kêu âm thanh + toast, và luôn hiện số
@@ -344,6 +378,7 @@ export function OnlineSalesPortal() {
     { id: 'sales', label: 'Nhập đơn', icon: ShoppingBag },
     { id: 'leads', label: 'Lead FB', icon: UserPlus, badge: leads.length },
     { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
+    { id: 'orders', label: 'Theo dõi đơn', icon: Package, badge: activeOrderCount || undefined },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'customers', label: 'Quản lý khách', icon: Users, badge: myCombos.filter((c) => c.status === 'active').length || undefined },
     { id: 'schedule', label: 'Lịch tuần', icon: CalendarDays },
@@ -534,6 +569,15 @@ export function OnlineSalesPortal() {
 
             {view === 'pending' && (
               <CustomerComboHub {...comboHubProps} defaultStatusFilter="pending" title="Combo chờ chốt" />
+            )}
+
+            {view === 'orders' && (
+              <CskhOrderTracker
+                orders={retailOrders}
+                loading={dataLoading}
+                onRefresh={refreshData}
+                onOpen={setSelectedOrder}
+              />
             )}
 
             {view === 'retail' && (

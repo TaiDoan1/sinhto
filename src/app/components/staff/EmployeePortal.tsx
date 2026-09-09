@@ -12,11 +12,10 @@ import * as api from '../../utils/api';
 import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
 import {
-  isShiftRegistrationOpen,
   nextWeekRange,
-  nextOpenLabel,
   formatDMY,
-  REGISTRATION_WINDOW_LABEL,
+  REG_OPEN_SETTING_KEY,
+  parseRegOpen,
 } from '../../utils/shiftRegistration';
 import type { WorkShift } from '../../types/employee';
 import {
@@ -77,6 +76,8 @@ export function EmployeePortal() {
   const [scheduleBranchFilter, setScheduleBranchFilter] = useState<string>('all');
   // Cửa sổ đăng ký + lịch tuần tới của cả chi nhánh (để biết ca nào đã có người giữ chỗ).
   const [regWeekShifts, setRegWeekShifts] = useState<WorkShift[]>([]);
+  // Quản lý chủ động mở/đóng đăng ký (setting shiftRegistrationOpen) — cập nhật realtime.
+  const [regOpen, setRegOpen] = useState(false);
 
   // Kết ca + xem bill online (đỡ tốn giấy) — chốt doanh thu/tiền mặt của ca đang mở, xem bill
   // ngay trên màn hình thay vì bắt buộc in giấy như ở máy POS.
@@ -122,6 +123,22 @@ export function EmployeePortal() {
       .finally(() => setBranchShiftsLoading(false));
   }, [scheduleView]);
 
+  // Trạng thái mở/đóng đăng ký do quản lý bật — tải lần đầu + nghe realtime (SSE SETTING_UPDATED).
+  useEffect(() => {
+    let alive = true;
+    api.fetchSetting(REG_OPEN_SETTING_KEY)
+      .then((v) => { if (alive) setRegOpen(parseRegOpen(v)); })
+      .catch(() => { if (alive) setRegOpen(false); });
+    const es = new EventSource('/api/events');
+    es.onmessage = (event) => {
+      try {
+        const { type, data } = JSON.parse(event.data);
+        if (type === 'SETTING_UPDATED' && data?.key === REG_OPEN_SETTING_KEY) setRegOpen(parseRegOpen(data.value));
+      } catch { /* bỏ qua event lỗi */ }
+    };
+    return () => { alive = false; es.close(); };
+  }, []);
+
   // Khi mở form đăng ký: tải lịch tuần tới của CHI NHÁNH mình (để biết ca nào đã có người giữ chỗ)
   // và đặt mặc định ngày về đầu tuần tới nếu ngày đang chọn nằm ngoài khoảng cho phép.
   const empBranch = activeEmployee?.branch;
@@ -157,8 +174,7 @@ export function EmployeePortal() {
 
   if (!activeEmployee) return null;
 
-  // Cửa sổ đăng ký (mở 23:59 T4 → hết T6) + khoảng ngày tuần tới được phép đăng ký.
-  const regOpen = isShiftRegistrationOpen(now);
+  // Khoảng ngày tuần tới được phép đăng ký (regOpen do quản lý bật/tắt, lấy từ setting ở trên).
   const regWeek = nextWeekRange(now);
 
   // Ca đã có người (khác mình) giữ chỗ trong ngày đang chọn — để chặn đăng ký trùng khung giờ ngay
@@ -839,7 +855,7 @@ export function EmployeePortal() {
                     type="button"
                     disabled={!regOpen}
                     onClick={() => setShowRequestForm(true)}
-                    title={regOpen ? '' : `Đăng ký chỉ mở ${REGISTRATION_WINDOW_LABEL}`}
+                    title={regOpen ? '' : 'Quản lý chưa mở đăng ký lịch'}
                     className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Đăng ký lịch làm
@@ -847,16 +863,16 @@ export function EmployeePortal() {
                 </div>
               </div>
 
-              {/* Trạng thái cửa sổ đăng ký lịch (mở 23:59 T4 → hết T6, đăng ký cho tuần tới) */}
+              {/* Trạng thái mở/đóng đăng ký (do quản lý bật). Khi mở → đăng ký cho tuần tới. */}
               <div className={`mb-4 rounded-xl px-3 py-2.5 text-xs font-semibold flex items-start gap-2 ${regOpen ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
                 <Clock className="w-4 h-4 shrink-0 mt-0.5" />
                 {regOpen ? (
                   <span>
-                    Đang mở đăng ký lịch cho <b>tuần tới ({formatDMY(regWeek.startDate)}–{formatDMY(regWeek.endDate)})</b>. Đăng ký đóng sau hết Thứ 6. Mỗi khung giờ chỉ 1 người — ai đăng ký trước giữ chỗ.
+                    Quản lý đang <b>MỞ đăng ký</b> cho <b>tuần tới ({formatDMY(regWeek.startDate)}–{formatDMY(regWeek.endDate)})</b>. Mỗi khung giờ chỉ 1 người — ai đăng ký trước giữ chỗ.
                   </span>
                 ) : (
                   <span>
-                    Đăng ký lịch đang <b>đóng</b>. Mở lại vào <b>{nextOpenLabel(now)}</b> (áp dụng {REGISTRATION_WINDOW_LABEL}).
+                    Đăng ký lịch đang <b>đóng</b>. Vui lòng chờ quản lý mở đăng ký.
                   </span>
                 )}
               </div>

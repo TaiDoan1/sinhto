@@ -1462,15 +1462,9 @@ function timeRangesOverlap(startA, endA, startB, endB) {
   return a1 < b2 && b1 < a2;
 }
 
-// ── Cửa sổ đăng ký lịch cho NHÂN VIÊN tự đăng ký ──────────────────────────────
-// Mở 23:59 Thứ 4 → hết Thứ 6; trong cửa sổ chỉ đăng ký cho TUẦN KẾ TIẾP (T2→CN tuần tới).
-// Nhân bản y hệt src/app/utils/shiftRegistration.ts — sửa quy tắc nhớ sửa cả 2 nơi.
-// Admin (requestedBy='admin') và ca walk-in / xin nghỉ KHÔNG bị áp cửa sổ này.
-function isEmployeeRegOpen(now) {
-  const dow = now.getDay(); // 0=CN..6=T7
-  if (dow === 3) return now.getHours() * 60 + now.getMinutes() >= 23 * 60 + 59; // Thứ 4 từ 23:59
-  return dow === 4 || dow === 5; // Thứ 5, Thứ 6
-}
+// ── Đăng ký lịch cho NHÂN VIÊN tự đăng ký ─────────────────────────────────────
+// Quản lý CHỦ ĐỘNG mở/đóng qua setting 'shiftRegistrationOpen'. Khi mở, chỉ đăng ký cho TUẦN KẾ
+// TIẾP (T2→CN tuần tới). Admin (requestedBy='admin') và ca walk-in / xin nghỉ KHÔNG bị áp.
 function toISODateLocal(d) {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
@@ -1518,25 +1512,33 @@ app.post('/api/shifts', (req, res) => {
   const runEmployeeGuards = (proceed) => {
     if (!isEmployeeRegistration) return proceed();
     const now = new Date();
-    if (!isEmployeeRegOpen(now)) {
-      return res.status(403).json({ error: 'Hiện chưa tới giờ mở đăng ký lịch. Đăng ký chỉ mở từ 23:59 Thứ 4 đến hết Thứ 6 hằng tuần.' });
-    }
-    const { start, end } = nextWeekBounds(now);
-    if (s.date < start || s.date > end) {
-      return res.status(403).json({ error: `Chỉ được đăng ký lịch cho tuần kế tiếp (${start} → ${end}).` });
-    }
-    // Chống trùng khung giờ: cùng chi nhánh + ngày + ca, ai đăng ký trước (kể cả đang chờ duyệt) giữ chỗ.
-    db.get(
-      "SELECT employeeName FROM shifts WHERE COALESCE(branch,'') = ? AND date = ? AND shiftType = ? AND employeeId != ? AND status NOT IN ('rejected','cancelled') LIMIT 1",
-      [s.branch || '', s.date, s.shiftType, s.employeeId],
-      (dErr, taken) => {
-        if (dErr) return res.status(500).json({ error: dErr.message });
-        if (taken) {
-          return res.status(409).json({ error: `Khung giờ này đã có ${taken.employeeName || 'nhân viên khác'} đăng ký trước rồi. Vui lòng chọn ca khác.` });
-        }
-        proceed();
+    // Quản lý CHỦ ĐỘNG mở/đóng đăng ký qua setting 'shiftRegistrationOpen' (không còn theo giờ cố định).
+    db.get("SELECT value FROM settings WHERE key = ?", ['shiftRegistrationOpen'], (setErr, setRow) => {
+      if (setErr) return res.status(500).json({ error: setErr.message });
+      let open = false;
+      if (setRow && setRow.value != null) {
+        try { open = JSON.parse(setRow.value) === true; } catch { open = String(setRow.value) === 'true'; }
       }
-    );
+      if (!open) {
+        return res.status(403).json({ error: 'Đăng ký lịch hiện đang đóng. Vui lòng chờ quản lý mở đăng ký.' });
+      }
+      const { start, end } = nextWeekBounds(now);
+      if (s.date < start || s.date > end) {
+        return res.status(403).json({ error: `Chỉ được đăng ký lịch cho tuần kế tiếp (${start} → ${end}).` });
+      }
+      // Chống trùng khung giờ: cùng chi nhánh + ngày + ca, ai đăng ký trước (kể cả đang chờ duyệt) giữ chỗ.
+      db.get(
+        "SELECT employeeName FROM shifts WHERE COALESCE(branch,'') = ? AND date = ? AND shiftType = ? AND employeeId != ? AND status NOT IN ('rejected','cancelled') LIMIT 1",
+        [s.branch || '', s.date, s.shiftType, s.employeeId],
+        (dErr, taken) => {
+          if (dErr) return res.status(500).json({ error: dErr.message });
+          if (taken) {
+            return res.status(409).json({ error: `Khung giờ này đã có ${taken.employeeName || 'nhân viên khác'} đăng ký trước rồi. Vui lòng chọn ca khác.` });
+          }
+          proceed();
+        }
+      );
+    });
   };
 
   runEmployeeGuards(() => {

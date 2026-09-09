@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Pin, RefreshCw, Trash2, Repeat, CalendarOff, Plus, Clock, Pencil, Lock, Unlock } from 'lucide-react';
 import { Employee } from './EmployeeRegistration';
 import * as api from '../../utils/api';
 import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
+import { REG_OPEN_SETTING_KEY, parseRegOpen, nextWeekRange, formatDMY } from '../../utils/shiftRegistration';
 import { useSSE } from '../../contexts/SSEContext';
 import { useBranches } from '../../contexts/BranchContext';
 import { useOrders } from '../../contexts/OrderContext';
@@ -121,6 +122,9 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
   const [editTimeSaving, setEditTimeSaving] = useState(false);
   // Ngày đang chọn ở bản chỉnh sửa trên điện thoại (0=Thứ 2 … 6=CN). Mặc định hôm nay.
   const [mobileDay, setMobileDay] = useState<number>(() => (new Date().getDay() + 6) % 7);
+  // Công tắc MỞ/ĐÓNG đăng ký lịch cho nhân viên (chủ động, không theo giờ cố định).
+  const [regOpen, setRegOpen] = useState(false);
+  const [regToggling, setRegToggling] = useState(false);
 
   const { subscribe } = useSSE();
 
@@ -156,6 +160,12 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
     const unsubEmpUpdate = subscribe('EMPLOYEE_UPDATED', () => loadEmployees());
     const unsubEmpDelete = subscribe('EMPLOYEE_DELETED', () => loadEmployees());
 
+    // Trạng thái mở/đóng đăng ký lịch — tải lần đầu + đồng bộ khi máy khác bật/tắt.
+    api.fetchSetting(REG_OPEN_SETTING_KEY).then((v) => setRegOpen(parseRegOpen(v))).catch(() => setRegOpen(false));
+    const unsubSetting = subscribe('SETTING_UPDATED', (data: any) => {
+      if (data?.key === REG_OPEN_SETTING_KEY) setRegOpen(parseRegOpen(data.value));
+    });
+
     return () => {
       unsubCreate();
       unsubUpdate();
@@ -163,8 +173,23 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
       unsubEmpCreate();
       unsubEmpUpdate();
       unsubEmpDelete();
+      unsubSetting();
     };
   }, [subscribe]);
+
+  // MỞ/ĐÓNG đăng ký lịch cho nhân viên — lưu setting, broadcast tự đẩy sang app nhân viên.
+  const toggleRegistration = async () => {
+    const next = !regOpen;
+    setRegToggling(true);
+    try {
+      await api.saveSetting(REG_OPEN_SETTING_KEY, next);
+      setRegOpen(next);
+    } catch {
+      alert('Không đổi được trạng thái đăng ký. Thử lại nhé.');
+    } finally {
+      setRegToggling(false);
+    }
+  };
 
   function getMonday(date: Date): Date {
     const d = new Date(date);
@@ -549,6 +574,39 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
           )}
         </div>
       </div>
+
+      {/* Công tắc MỞ/ĐÓNG đăng ký lịch cho nhân viên — quản lý chủ động, không theo giờ cố định */}
+      {!readOnly && (
+        <div className={`mb-4 rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${regOpen ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${regOpen ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-600'}`}>
+              {regOpen ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+            </div>
+            <div>
+              <div className="font-bold text-gray-800 flex items-center gap-2">
+                Đăng ký lịch của nhân viên
+                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${regOpen ? 'bg-emerald-600 text-white' : 'bg-gray-400 text-white'}`}>
+                  {regOpen ? 'ĐANG MỞ' : 'ĐANG ĐÓNG'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {regOpen
+                  ? <>Nhân viên đang đăng ký cho <b>tuần tới ({formatDMY(nextWeekRange().startDate)}–{formatDMY(nextWeekRange().endDate)})</b>. Mỗi khung giờ chỉ 1 người.</>
+                  : <>Nhân viên KHÔNG đăng ký được cho tới khi bạn mở. Bấm mở khi cần lấy lịch tuần tới.</>}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleRegistration}
+            disabled={regToggling}
+            className={`shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60 ${regOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+          >
+            {regOpen ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            {regToggling ? 'Đang lưu...' : regOpen ? 'Đóng đăng ký' : 'Mở đăng ký'}
+          </button>
+        </div>
+      )}
 
       {/* Pending shift requests — chỉ Admin/Cửa hàng trưởng mới thấy và duyệt được, Nhân Sự chỉ xem lịch nên ẩn hẳn mục này */}
       {!readOnly && pendingShifts.length > 0 && (

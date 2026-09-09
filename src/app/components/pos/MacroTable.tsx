@@ -112,14 +112,17 @@ export function MacroTable({ canEdit }: MacroTableProps) {
         .filter((d) => d.flavor.trim() !== '')
         .map((d) => ({ ...d, cal: toMacroNum(d.cal), protein: toMacroNum(d.protein), carb: toMacroNum(d.carb), fat: toMacroNum(d.fat) })),
     }));
+    // Bỏ topping lỡ thêm mà chưa gõ tên (tránh lưu dòng rác).
+    const cleanedToppings = toppings.filter((t) => (t.name || '').trim() !== '');
     setSaving(true);
     try {
-      const payload = { sizes: cleaned, toppings };
+      const payload = { sizes: cleaned, toppings: cleanedToppings };
       await api.saveSetting(MACRO_DATA_SETTING_KEY, payload);
       applyMacroDataToCache(payload); // làm mới ngay cache dùng cho tem in ở máy này
       setSizes(cleaned);
+      setToppings(cleanedToppings);
       setSavedSizes(cleaned);
-      setSavedToppings(toppings);
+      setSavedToppings(cleanedToppings);
       setIsEditing(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Lưu Bảng Macro thất bại. Vui lòng thử lại.');
@@ -181,6 +184,21 @@ export function MacroTable({ canEdit }: MacroTableProps) {
     const newToppings = JSON.parse(JSON.stringify(toppings)); // Deep copy
     newToppings[toppingIdx][field] = value;
     setToppings(newToppings);
+  };
+
+  const updateToppingName = (toppingIdx: number, name: string) => {
+    const newToppings = JSON.parse(JSON.stringify(toppings));
+    newToppings[toppingIdx].name = name;
+    setToppings(newToppings);
+  };
+
+  // Thêm 1 dòng topping trống (gõ tên + số liệu rồi Lưu). Số có thể để dạng "+1.5g" tuỳ ý.
+  const addTopping = () => {
+    setToppings([...toppings, { name: '', cal: '', protein: '', carb: '', fat: '' }]);
+  };
+
+  const removeTopping = (toppingIdx: number) => {
+    setToppings(toppings.filter((_, i) => i !== toppingIdx));
   };
 
   // Sửa thông tin của 1 mức (tên/ml/mức protein) — hiện ô nhập ở đầu bảng khi đang chỉnh sửa.
@@ -528,13 +546,33 @@ export function MacroTable({ canEdit }: MacroTableProps) {
 
               {toppings.map((t, idx) => (
                 <div
-                  key={t.name}
+                  key={idx}
                   className={`grid grid-cols-5 px-4 py-3 items-center hover:bg-white/80 transition-colors ${
                     idx < toppings.length - 1 ? 'border-b border-amber-100' : ''
                   }`}
                 >
                   <div className="col-span-2">
-                    <span className="text-sm font-black text-gray-800">{t.name}</span>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={t.name}
+                          onChange={(e) => updateToppingName(idx, e.target.value)}
+                          placeholder="Tên topping"
+                          className="flex-1 min-w-0 text-sm font-black text-gray-800 bg-white border border-amber-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeTopping(idx)}
+                          className="p-1 rounded text-rose-500 hover:bg-rose-50 flex-shrink-0"
+                          title="Xóa topping"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-black text-gray-800">{t.name}</span>
+                    )}
                   </div>
 
                   {/* Topping Calorie */}
@@ -601,6 +639,15 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                   </div>
                 </div>
               ))}
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={addTopping}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-100 border-t border-amber-100 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Thêm topping mới
+                </button>
+              )}
             </div>
           </div>
         </div>

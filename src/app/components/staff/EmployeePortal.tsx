@@ -11,6 +11,13 @@ import { EmployeeBottomNav, type EmployeeTab } from './EmployeeBottomNav';
 import * as api from '../../utils/api';
 import { dedupeShiftsBySlot } from '../../utils/shiftDedup';
 import { localDateStr, parseLocalDateStr } from '../../utils/dateUtils';
+import {
+  isShiftRegistrationOpen,
+  nextWeekRange,
+  nextOpenLabel,
+  formatDMY,
+  REGISTRATION_WINDOW_LABEL,
+} from '../../utils/shiftRegistration';
 import type { WorkShift } from '../../types/employee';
 import {
   buildShiftClosingReceiptData,
@@ -68,6 +75,8 @@ export function EmployeePortal() {
   const [branchShifts, setBranchShifts] = useState<WorkShift[]>([]);
   const [branchShiftsLoading, setBranchShiftsLoading] = useState(false);
   const [scheduleBranchFilter, setScheduleBranchFilter] = useState<string>('all');
+  // Cửa sổ đăng ký + lịch tuần tới của cả chi nhánh (để biết ca nào đã có người giữ chỗ).
+  const [regWeekShifts, setRegWeekShifts] = useState<WorkShift[]>([]);
 
   // Kết ca + xem bill online (đỡ tốn giấy) — chốt doanh thu/tiền mặt của ca đang mở, xem bill
   // ngay trên màn hình thay vì bắt buộc in giấy như ở máy POS.
@@ -113,6 +122,19 @@ export function EmployeePortal() {
       .finally(() => setBranchShiftsLoading(false));
   }, [scheduleView]);
 
+  // Khi mở form đăng ký: tải lịch tuần tới của CHI NHÁNH mình (để biết ca nào đã có người giữ chỗ)
+  // và đặt mặc định ngày về đầu tuần tới nếu ngày đang chọn nằm ngoài khoảng cho phép.
+  const empBranch = activeEmployee?.branch;
+  useEffect(() => {
+    if (!showRequestForm || !empBranch) return;
+    const { start, end } = nextWeekRange(new Date());
+    api
+      .fetchShifts({ branch: empBranch, from: start, to: end })
+      .then((data: WorkShift[]) => setRegWeekShifts(data || []))
+      .catch(() => setRegWeekShifts([]));
+    setRequestDate((prev) => (prev >= start && prev <= end ? prev : start));
+  }, [showRequestForm, empBranch]);
+
   useEffect(() => {
     if (!closingShift) {
       setClosingCashMovements([]);
@@ -134,6 +156,26 @@ export function EmployeePortal() {
   }, [closingShift]);
 
   if (!activeEmployee) return null;
+
+  // Cửa sổ đăng ký (mở 23:59 T4 → hết T6) + khoảng ngày tuần tới được phép đăng ký.
+  const regOpen = isShiftRegistrationOpen(now);
+  const regWeek = nextWeekRange(now);
+
+  // Ca đã có người (khác mình) giữ chỗ trong ngày đang chọn — để chặn đăng ký trùng khung giờ ngay
+  // trên giao diện (cùng chi nhánh + ngày + loại ca). Backend cũng chặn lần cuối.
+  const takenSlots = new Map<string, WorkShift>();
+  for (const sh of regWeekShifts) {
+    if (
+      sh.date === requestDate &&
+      sh.shiftType &&
+      sh.employeeId !== activeEmployee.id &&
+      sh.status !== 'rejected' &&
+      sh.status !== 'cancelled' &&
+      !takenSlots.has(sh.shiftType)
+    ) {
+      takenSlots.set(sh.shiftType, sh);
+    }
+  }
 
   const visibleFields = [...profileFields].filter(f => f.visible).sort((a, b) => a.order - b.order);
   // Bao gồm cả ca đã "completed" — nếu POS đã tự kết ca trước khi nhân viên kịp mở app chụp ảnh
@@ -194,6 +236,13 @@ export function EmployeePortal() {
       setShowRequestForm(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Đăng ký ca thất bại.');
+      // Có thể vừa bị người khác giữ chỗ — tải lại lịch tuần tới để cập nhật ca đã có người.
+      if (activeEmployee?.branch) {
+        const { start, end } = nextWeekRange(new Date());
+        api.fetchShifts({ branch: activeEmployee.branch, from: start, to: end })
+          .then((data: WorkShift[]) => setRegWeekShifts(data || []))
+          .catch(() => {});
+      }
     } finally {
       setRequesting(false);
     }
@@ -788,12 +837,28 @@ export function EmployeePortal() {
                   </button>
                   <button
                     type="button"
+                    disabled={!regOpen}
                     onClick={() => setShowRequestForm(true)}
-                    className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                    title={regOpen ? '' : `Đăng ký chỉ mở ${REGISTRATION_WINDOW_LABEL}`}
+                    className="text-sm font-bold text-emerald-700 bg-emerald-50 active:bg-emerald-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Đăng ký lịch làm
                   </button>
                 </div>
+              </div>
+
+              {/* Trạng thái cửa sổ đăng ký lịch (mở 23:59 T4 → hết T6, đăng ký cho tuần tới) */}
+              <div className={`mb-4 rounded-xl px-3 py-2.5 text-xs font-semibold flex items-start gap-2 ${regOpen ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
+                <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                {regOpen ? (
+                  <span>
+                    Đang mở đăng ký lịch cho <b>tuần tới ({formatDMY(regWeek.startDate)}–{formatDMY(regWeek.endDate)})</b>. Đăng ký đóng sau hết Thứ 6. Mỗi khung giờ chỉ 1 người — ai đăng ký trước giữ chỗ.
+                  </span>
+                ) : (
+                  <span>
+                    Đăng ký lịch đang <b>đóng</b>. Mở lại vào <b>{nextOpenLabel(now)}</b> (áp dụng {REGISTRATION_WINDOW_LABEL}).
+                  </span>
+                )}
               </div>
               {upcomingShifts.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Chưa có lịch làm</p>
@@ -1002,35 +1067,48 @@ export function EmployeePortal() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <div className="mb-2 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">
+              Đăng ký cho tuần tới: {formatDMY(regWeek.startDate)} – {formatDMY(regWeek.endDate)}
+            </div>
             <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Chọn ngày (trong tuần tới)</label>
               <input
                 type="date"
                 value={requestDate}
-                min={todayStr()}
+                min={regWeek.start}
+                max={regWeek.end}
                 onChange={e => setRequestDate(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               />
             </div>
             <div className="grid grid-cols-1 gap-2">
-              {SHIFT_TEMPLATES.map(tpl => (
-                <button
-                  key={tpl.id}
-                  onClick={() => handleRequestShift(tpl.id)}
-                  disabled={requesting}
-                  className="flex items-center gap-3 p-3.5 border-2 border-gray-100 active:border-emerald-300 active:bg-emerald-50 rounded-2xl text-left disabled:opacity-60 min-h-[60px]"
-                >
-                  <span className="text-2xl">{tpl.icon}</span>
-                  <div>
-                    <div className="font-bold text-gray-800">{tpl.name}</div>
-                    <div className="text-sm text-gray-500">{tpl.start} – {tpl.end}</div>
-                  </div>
-                </button>
-              ))}
+              {SHIFT_TEMPLATES.map(tpl => {
+                const taken = takenSlots.get(tpl.id);
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => handleRequestShift(tpl.id)}
+                    disabled={requesting || !!taken}
+                    title={taken ? `Đã có ${taken.employeeName || 'người khác'} đăng ký` : ''}
+                    className={`flex items-center gap-3 p-3.5 border-2 rounded-2xl text-left min-h-[60px] ${taken ? 'border-gray-100 bg-gray-50 opacity-70 cursor-not-allowed' : 'border-gray-100 active:border-emerald-300 active:bg-emerald-50 disabled:opacity-60'}`}
+                  >
+                    <span className="text-2xl">{tpl.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-gray-800">{tpl.name}</div>
+                      <div className="text-sm text-gray-500">{tpl.start} – {tpl.end}</div>
+                    </div>
+                    {taken && (
+                      <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-1 rounded-lg shrink-0">
+                        Đã có {taken.employeeName || 'người'} đăng ký
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
               <MapPin className="w-3 h-3" />
-              Yêu cầu sẽ được gửi tới quản lý để duyệt. Nhấn ✕ ở danh sách để hủy nếu đăng ký nhầm.
+              Mỗi khung giờ chỉ 1 người đăng ký. Yêu cầu gửi tới quản lý duyệt. Nhấn ✕ ở danh sách để hủy nếu đăng ký nhầm.
             </p>
           </div>
         </div>

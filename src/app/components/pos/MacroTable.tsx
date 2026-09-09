@@ -31,6 +31,24 @@ const SIZE_THEMES = [
   { color: 'from-cyan-500 to-sky-500', bgLight: 'bg-cyan-50', borderColor: 'border-cyan-200', textColor: 'text-cyan-700', headerBg: 'bg-cyan-600' },
 ];
 
+// Cho phép gõ số THẬP PHÂN: giữ chữ số + đúng 1 dấu thập phân (chấp nhận cả '.' lẫn ',').
+// Giữ nguyên chuỗi đang gõ (kể cả "31." hay "31,") để không bị nhảy/mất dấu khi đang nhập.
+function sanitizeDecimalInput(s: string): string {
+  let v = String(s).replace(/[^\d.,]/g, '');
+  const firstSep = v.search(/[.,]/);
+  if (firstSep !== -1) {
+    v = v.slice(0, firstSep + 1) + v.slice(firstSep + 1).replace(/[.,]/g, '');
+  }
+  return v;
+}
+
+// Chuyển giá trị ô macro (số hoặc chuỗi "31,1"/"31.") về SỐ khi lưu. Rỗng/không hợp lệ → 0.
+function toMacroNum(x: unknown): number {
+  if (typeof x === 'number') return Number.isFinite(x) ? x : 0;
+  const n = parseFloat(String(x).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
 interface MacroTableProps {
   /** Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa — các chức danh
    * khác chỉ xem (giống quyền Nhập/Sửa kho). Nhận qua prop thay vì tự gọi usePos() bên trong vì
@@ -86,8 +104,14 @@ export function MacroTable({ canEdit }: MacroTableProps) {
 
   const handleSave = async () => {
     if (!canEdit) return;
-    // Bỏ các dòng lỡ thêm mà chưa gõ tên vị (tránh lưu rác).
-    const cleaned = sizes.map((s) => ({ ...s, data: s.data.filter((d) => d.flavor.trim() !== '') }));
+    // Bỏ các dòng lỡ thêm mà chưa gõ tên vị (tránh lưu rác) + ÉP số liệu về dạng SỐ (khi đang gõ
+    // các ô lưu chuỗi "31,1"/"31." để không mất dấu — tới đây mới chuẩn hoá về number).
+    const cleaned = sizes.map((s) => ({
+      ...s,
+      data: s.data
+        .filter((d) => d.flavor.trim() !== '')
+        .map((d) => ({ ...d, cal: toMacroNum(d.cal), protein: toMacroNum(d.protein), carb: toMacroNum(d.carb), fat: toMacroNum(d.fat) })),
+    }));
     setSaving(true);
     try {
       const payload = { sizes: cleaned, toppings };
@@ -122,8 +146,9 @@ export function MacroTable({ canEdit }: MacroTableProps) {
     sizeIdx: number,
     flavorIdx: number,
     field: 'cal' | 'protein' | 'carb' | 'fat',
-    value: number
+    value: string
   ) => {
+    // Lưu NGUYÊN chuỗi đang gõ (cho phép "31,1", "31.") — chỉ đổi về số khi bấm Lưu (toMacroNum).
     const newSizes = JSON.parse(JSON.stringify(sizes)); // Deep copy
     newSizes[sizeIdx].data[flavorIdx][field] = value;
     setSizes(newSizes);
@@ -396,11 +421,11 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                   <div className="text-center px-1">
                     {isEditing ? (
                       <input
-                        type="number"
-                        inputMode="numeric"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         value={row.cal === 0 ? '' : row.cal}
-                        onChange={(e) => updateSizeValue(activeSize, idx, 'cal', parseInt(e.target.value) || 0)}
+                        onChange={(e) => updateSizeValue(activeSize, idx, 'cal', sanitizeDecimalInput(e.target.value))}
                         className="w-full text-center text-sm font-black text-orange-600 bg-white border border-orange-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
                     ) : (
@@ -416,11 +441,11 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                     {isEditing ? (
                       <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
                         <input
-                          type="number"
-                          inputMode="numeric"
+                          type="text"
+                          inputMode="decimal"
                           placeholder="0"
                           value={row.protein === 0 ? '' : row.protein}
-                          onChange={(e) => updateSizeValue(activeSize, idx, 'protein', parseInt(e.target.value) || 0)}
+                          onChange={(e) => updateSizeValue(activeSize, idx, 'protein', sanitizeDecimalInput(e.target.value))}
                           className="w-full text-center text-sm font-black text-emerald-700 focus:outline-none"
                         />
                         <span className="text-xs text-gray-400 font-bold">g</span>
@@ -437,11 +462,11 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                         <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
                           <span className="text-[9px] text-gray-400 font-bold">C:</span>
                           <input
-                            type="number"
-                            inputMode="numeric"
+                            type="text"
+                            inputMode="decimal"
                             placeholder="0"
                             value={row.carb === 0 ? '' : row.carb}
-                            onChange={(e) => updateSizeValue(activeSize, idx, 'carb', parseInt(e.target.value) || 0)}
+                            onChange={(e) => updateSizeValue(activeSize, idx, 'carb', sanitizeDecimalInput(e.target.value))}
                             className="w-full text-center text-xs font-bold text-gray-700 focus:outline-none"
                           />
                           <span className="text-[9px] text-gray-400">g</span>
@@ -449,11 +474,11 @@ export function MacroTable({ canEdit }: MacroTableProps) {
                         <div className="flex items-center gap-0.5 bg-white border border-gray-300 rounded px-1 py-0.5">
                           <span className="text-[9px] text-gray-400 font-bold">F:</span>
                           <input
-                            type="number"
-                            inputMode="numeric"
+                            type="text"
+                            inputMode="decimal"
                             placeholder="0"
                             value={row.fat === 0 ? '' : row.fat}
-                            onChange={(e) => updateSizeValue(activeSize, idx, 'fat', parseInt(e.target.value) || 0)}
+                            onChange={(e) => updateSizeValue(activeSize, idx, 'fat', sanitizeDecimalInput(e.target.value))}
                             className="w-full text-center text-xs font-bold text-gray-500 focus:outline-none"
                           />
                           <span className="text-[9px] text-gray-400">g</span>

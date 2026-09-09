@@ -20,6 +20,17 @@ import { useSSE } from '../../contexts/SSEContext';
 const DEFAULT_SIZES = DEFAULT_MACRO_SIZES;
 const DEFAULT_TOPPINGS = DEFAULT_MACRO_TOPPINGS;
 
+// Bộ màu cho các "mức" (size) — khi Cửa hàng trưởng thêm mức mới sẽ xoay vòng lấy 1 bộ màu,
+// để mỗi tab mức có màu riêng dễ phân biệt.
+const SIZE_THEMES = [
+  { color: 'from-emerald-500 to-teal-500', bgLight: 'bg-emerald-50', borderColor: 'border-emerald-200', textColor: 'text-emerald-700', headerBg: 'bg-emerald-600' },
+  { color: 'from-blue-500 to-indigo-500', bgLight: 'bg-blue-50', borderColor: 'border-blue-200', textColor: 'text-blue-700', headerBg: 'bg-blue-600' },
+  { color: 'from-purple-500 to-rose-500', bgLight: 'bg-purple-50', borderColor: 'border-purple-200', textColor: 'text-purple-700', headerBg: 'bg-purple-600' },
+  { color: 'from-amber-500 to-orange-500', bgLight: 'bg-amber-50', borderColor: 'border-amber-200', textColor: 'text-amber-700', headerBg: 'bg-amber-600' },
+  { color: 'from-rose-500 to-pink-500', bgLight: 'bg-rose-50', borderColor: 'border-rose-200', textColor: 'text-rose-700', headerBg: 'bg-rose-600' },
+  { color: 'from-cyan-500 to-sky-500', bgLight: 'bg-cyan-50', borderColor: 'border-cyan-200', textColor: 'text-cyan-700', headerBg: 'bg-cyan-600' },
+];
+
 interface MacroTableProps {
   /** Chỉ Cửa hàng trưởng (store_manager) và Quản lý chi nhánh (manager) được sửa — các chức danh
    * khác chỉ xem (giống quyền Nhập/Sửa kho). Nhận qua prop thay vì tự gọi usePos() bên trong vì
@@ -147,6 +158,32 @@ export function MacroTable({ canEdit }: MacroTableProps) {
     setToppings(newToppings);
   };
 
+  // Sửa thông tin của 1 mức (tên/ml/mức protein) — hiện ô nhập ở đầu bảng khi đang chỉnh sửa.
+  const updateSizeMeta = (sizeIdx: number, field: 'label' | 'ml' | 'protein', value: string) => {
+    const newSizes = JSON.parse(JSON.stringify(sizes));
+    newSizes[sizeIdx][field] = value;
+    setSizes(newSizes);
+  };
+
+  // Thêm 1 MỨC (size) mới — tự lấy 1 bộ màu, tạo sẵn 1 dòng vị trống để gõ ngay, rồi chuyển tab
+  // sang mức mới. Cửa hàng trưởng đặt tên + ml + mức protein ở ô đầu bảng.
+  const addSize = () => {
+    const theme = SIZE_THEMES[sizes.length % SIZE_THEMES.length];
+    const newSize = { label: 'Mức mới', ml: '', protein: '', ...theme, data: [{ flavor: '', cal: 0, protein: 0, carb: 0, fat: 0 }] };
+    const next = [...sizes, newSize];
+    setSizes(next);
+    setActiveSize(next.length - 1);
+  };
+
+  // Xóa 1 mức (phải còn ít nhất 1 mức). Clamp tab đang xem về mức hợp lệ.
+  const removeSize = (sizeIdx: number) => {
+    if (sizes.length <= 1) { alert('Phải còn ít nhất 1 mức.'); return; }
+    if (!confirm(`Xóa mức "${sizes[sizeIdx]?.label || ''}"? Toàn bộ vị trong mức này sẽ mất.`)) return;
+    const next = sizes.filter((_, i) => i !== sizeIdx);
+    setSizes(next);
+    setActiveSize((cur) => Math.max(0, Math.min(cur, next.length - 1)));
+  };
+
   const size = sizes[activeSize] || DEFAULT_SIZES[activeSize];
 
   return (
@@ -224,24 +261,34 @@ export function MacroTable({ canEdit }: MacroTableProps) {
         </div>
 
         {/* Size Tabs */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {sizes.map((s, idx) => (
             <button
-              key={s.label}
+              key={idx}
               disabled={isEditing && activeSize !== idx}
               onClick={() => setActiveSize(idx)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${
+              className={`flex-1 min-w-[110px] py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${
                 activeSize === idx
                   ? `bg-gradient-to-r ${s.color} text-white shadow-md`
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
-              <div>{s.label}</div>
+              <div>{s.label || '(chưa đặt tên)'}</div>
               <div className={`text-[10px] font-bold mt-0.5 ${activeSize === idx ? 'text-white/80' : 'text-gray-400'}`}>
-                {s.ml} · {s.protein} protein
+                {s.ml || '—'} · {s.protein || '—'} protein
               </div>
             </button>
           ))}
+          {isEditing && canEdit && (
+            <button
+              onClick={addSize}
+              className="flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide bg-emerald-50 text-emerald-700 border-2 border-dashed border-emerald-300 hover:bg-emerald-100 transition-all"
+              title="Thêm một mức size mới (VD 360ml 20g protein)"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm mức
+            </button>
+          )}
         </div>
         {isEditing && (
           <p className="text-[11px] text-emerald-600 font-bold mt-2 bg-emerald-50 border border-emerald-100 rounded px-2.5 py-1">
@@ -254,11 +301,50 @@ export function MacroTable({ canEdit }: MacroTableProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Smoothie Table */}
         <div className={`rounded-2xl border-2 ${size.borderColor} overflow-hidden bg-white`}>
-          <div className={`${size.headerBg} px-4 py-2.5 flex items-center justify-between`}>
-            <span className="text-white font-black text-sm">{size.label} — {size.ml}</span>
-            <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
-              Protein: {size.protein}
-            </span>
+          <div className={`${size.headerBg} px-4 py-2.5 flex items-center justify-between gap-2`}>
+            {isEditing ? (
+              <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                <input
+                  type="text"
+                  value={size.label}
+                  onChange={(e) => updateSizeMeta(activeSize, 'label', e.target.value)}
+                  placeholder="Tên mức"
+                  className="w-28 text-sm font-black text-gray-800 bg-white/95 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-white"
+                />
+                <input
+                  type="text"
+                  value={size.ml}
+                  onChange={(e) => updateSizeMeta(activeSize, 'ml', e.target.value)}
+                  placeholder="360ml"
+                  className="w-20 text-sm font-bold text-gray-800 bg-white/95 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-white"
+                />
+                <div className="flex items-center gap-1 bg-white/95 rounded px-2 py-1">
+                  <span className="text-[11px] font-bold text-gray-500">Protein</span>
+                  <input
+                    type="text"
+                    value={size.protein}
+                    onChange={(e) => updateSizeMeta(activeSize, 'protein', e.target.value)}
+                    placeholder="20g"
+                    className="w-14 text-sm font-bold text-gray-800 text-center focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => removeSize(activeSize)}
+                  className="flex items-center gap-1 bg-rose-500/90 hover:bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded"
+                  title="Xóa mức này"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Xóa mức
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="text-white font-black text-sm">{size.label} — {size.ml}</span>
+                <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
+                  Protein: {size.protein}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Máy POS màn hẹp: 5 cột (nhất là lúc sửa có ô nhập) sẽ bị bóp méo/khó bấm nếu ép vừa

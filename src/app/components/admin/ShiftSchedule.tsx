@@ -596,12 +596,8 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
               </p>
             </div>
           </div>
-          {/* Chỉ ADMIN mới có nút mở/đóng. Cửa hàng trưởng chỉ XEM trạng thái, không thao tác được. */}
-          {isStoreManager ? (
-            <span className="shrink-0 text-xs font-semibold text-gray-500 italic">
-              Chỉ admin mới mở/đóng đăng ký
-            </span>
-          ) : (
+          {/* Chỉ ADMIN mới có nút mở/đóng. Cửa hàng trưởng chỉ XEM trạng thái (không nút, không chữ). */}
+          {!isStoreManager && (
             <button
               type="button"
               onClick={toggleRegistration}

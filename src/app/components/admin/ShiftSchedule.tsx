@@ -596,15 +596,22 @@ export function ShiftSchedule({ readOnly = false }: ShiftScheduleProps = {}) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={toggleRegistration}
-            disabled={regToggling}
-            className={`shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60 ${regOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-          >
-            {regOpen ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-            {regToggling ? 'Đang lưu...' : regOpen ? 'Đóng đăng ký' : 'Mở đăng ký'}
-          </button>
+          {/* Chỉ ADMIN mới có nút mở/đóng. Cửa hàng trưởng chỉ XEM trạng thái, không thao tác được. */}
+          {isStoreManager ? (
+            <span className="shrink-0 text-xs font-semibold text-gray-500 italic">
+              Chỉ admin mới mở/đóng đăng ký
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleRegistration}
+              disabled={regToggling}
+              className={`shrink-0 px-4 py-2.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60 ${regOpen ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+            >
+              {regOpen ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              {regToggling ? 'Đang lưu...' : regOpen ? 'Đóng đăng ký' : 'Mở đăng ký'}
+            </button>
+          )}
         </div>
       )}
 

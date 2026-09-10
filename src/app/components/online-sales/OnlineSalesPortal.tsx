@@ -394,16 +394,18 @@ export function OnlineSalesPortal() {
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-slate-100">
       <header className="bg-gradient-to-r from-indigo-800 via-violet-800 to-indigo-700 text-white shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="text-indigo-200 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5" /> Chăm sóc khách hàng · FitBlend
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 lg:py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-indigo-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <Globe className="w-3 h-3" /> Chăm sóc khách hàng · FitBlend
               </p>
-              <h1 className="text-xl lg:text-2xl font-black mt-0.5">{activeEmployee.fullName}</h1>
-              <p className="text-indigo-200 text-sm">{branchLabel(activeEmployee.branch) || activeEmployee.branch}</p>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h1 className="text-base lg:text-lg font-black leading-tight truncate">{activeEmployee.fullName}</h1>
+                <span className="text-indigo-200 text-xs">· {branchLabel(activeEmployee.branch) || activeEmployee.branch}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {!soundOn && (
                 <button
                   type="button"

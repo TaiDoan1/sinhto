@@ -442,27 +442,30 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
           </div>
         )}
 
-        {/* Loại đơn */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-gray-200 sm:w-fit">
-          <button
-            type="button"
-            onClick={() => setMode('retail')}
-            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'retail' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" /> Mua lẻ
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('combo')}
-            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'combo' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Package className="w-4 h-4" /> Đăng ký combo
-          </button>
-        </div>
+        {/* Loại đơn — ẩn ở bước Sản phẩm để đẩy khung sản phẩm + giỏ hàng lên, khỏi mất phần dưới.
+            (Đổi loại đơn ở bước Khách hàng.) */}
+        {activeStep !== 2 && (
+          <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-gray-200 sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setMode('retail')}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+                mode === 'retail' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" /> Mua lẻ
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('combo')}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+                mode === 'combo' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Package className="w-4 h-4" /> Đăng ký combo
+            </button>
+          </div>
+        )}
 
         {/* Thanh bước — 4 bước chia đều 1 hàng, bấm để nhảy tự do; nhãn ẩn trên màn siêu hẹp để
             không tràn/cuộn ngang. Chấm xanh = đã có dữ liệu, không ép tuần tự. */}

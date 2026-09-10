@@ -29,6 +29,14 @@ const STATUS_LABEL_VI: Record<string, string> = {
 
 const STEP_ORDER: EntryStep[] = [1, 2, 3, 4];
 
+// Combo gợi ý (theo menu FitBlend) — mở bộ dựng với gói chọn sẵn; CSKH chọn thời hạn (7/30/90 ngày)
+// + vị. Giá tự tính theo % giảm giá thời hạn (khớp giá lẻ trong menu).
+const SUGGESTED_COMBOS: { planId: 'fat-loss' | 'muscle-build' | 'elite-mass'; name: string; specs: string; icon: string; tag: string; tagColor: string }[] = [
+  { planId: 'fat-loss', name: 'Fat Burn Pro', specs: '500ml · 40g protein', icon: '🔥', tag: 'Đốt mỡ · Giữ cơ', tagColor: 'text-orange-600' },
+  { planId: 'muscle-build', name: 'Muscle Build', specs: '500ml · 60g protein', icon: '💪', tag: 'Tăng cơ · Phục hồi', tagColor: 'text-emerald-600' },
+  { planId: 'elite-mass', name: 'Elite Mass', specs: '700ml · 90g protein', icon: '🏆', tag: 'Tăng cân · Năng lượng', tagColor: 'text-violet-600' },
+];
+
 interface Props {
   employee: Employee;
   onComplete?: () => void;
@@ -76,6 +84,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
   const [completed, setCompleted] = useState<{ mode: OrderMode; customerName: string; total: number; subtitle: string } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
+  // Gói combo gợi ý chọn sẵn khi mở bộ dựng (Fat Burn Pro / Muscle Build / Elite Mass).
+  const [comboPresetPlan, setComboPresetPlan] = useState<'fat-loss' | 'muscle-build' | 'elite-mass' | undefined>(undefined);
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -643,7 +653,27 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
               </div>
             ) : (
               <>
-                <p className="text-sm text-gray-500">Chưa chọn gói combo — chọn 1 trong 2 cách bên dưới.</p>
+                {/* Combo gợi ý — chọn 1 gói là mở bộ dựng với size/protein sẵn, CSKH chọn thời hạn + vị */}
+                <div>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-2">⭐ Combo gợi ý</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {SUGGESTED_COMBOS.map((c) => (
+                      <button
+                        key={c.planId}
+                        type="button"
+                        onClick={() => { setComboPresetPlan(c.planId); setShowComboBuilder(true); }}
+                        className="p-3 rounded-2xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/40 text-left transition-colors"
+                      >
+                        <div className="text-2xl">{c.icon}</div>
+                        <p className="font-black text-gray-900 mt-1 leading-tight">{c.name}</p>
+                        <p className="text-[11px] text-gray-500 font-semibold">{c.specs}</p>
+                        <p className={`text-[11px] font-bold mt-0.5 ${c.tagColor}`}>{c.tag}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-500">Hoặc chọn cách khác bên dưới.</p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {/* Ưu tiên "Chọn gói có sẵn" — nhanh 1 chạm, hợp phần lớn ca bán; "Tự thiết lập"
                       chỉ dùng khi khách cần tùy biến riêng nên lùi xuống làm lựa chọn phụ. */}
@@ -932,7 +962,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
               isPOS
               presetCustomer={{ name: customer.name.trim(), phone: customer.phone.trim() }}
               isCskh
-              onClose={() => setShowComboBuilder(false)}
+              initialPlanId={comboPresetPlan}
+              onClose={() => { setShowComboBuilder(false); setComboPresetPlan(undefined); }}
               onAddToCart={(combo) => {
                 const raw = combo.rawComboData || combo;
                 setPendingCombo({
@@ -941,6 +972,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
                   raw,
                 });
                 setShowComboBuilder(false);
+                setComboPresetPlan(undefined);
               }}
             />
           </div>

@@ -19,6 +19,8 @@ interface CustomComboBuilderProps {
   // lưu thành mặc định MỚI cho các đơn CSKH sau này. TUYỆT ĐỐI không ảnh hưởng giá bên máy POS —
   // POS luôn dùng % gốc cố định trong PLAN_DATA, không đọc setting này.
   isCskh?: boolean;
+  // Chọn sẵn 1 gói (Fat Burn Pro / Muscle Build / Elite Mass) khi mở từ nút "combo gợi ý".
+  initialPlanId?: 'fat-loss' | 'muscle-build' | 'elite-mass';
 }
 
 // % giảm giá mặc định gốc theo từng thời hạn — khớp menu in mới (7 ngày -8%, 30 ngày -15%,
@@ -86,7 +88,7 @@ const DAYS_OF_WEEK = [
   'Chủ Nhật'
 ];
 
-export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, presetCustomer, isCskh }: CustomComboBuilderProps) {
+export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, presetCustomer, isCskh, initialPlanId }: CustomComboBuilderProps) {
   // Step 0: Customer Info
   // Step 1: Chọn Gói & Ngày Start
   // Step 2: Chọn Vị 7 Ngày
@@ -128,7 +130,7 @@ export function CustomComboBuilder({ onAddToCart, onClose, initialData, isPOS, p
   }, [isCskh, subscribe]);
 
   // Combo Configurations
-  const [planId, setPlanId] = useState<'fat-loss' | 'muscle-build' | 'elite-mass'>('fat-loss');
+  const [planId, setPlanId] = useState<'fat-loss' | 'muscle-build' | 'elite-mass'>(initialPlanId || 'fat-loss');
   const [duration, setDuration] = useState<'weekly' | 'monthly' | 'quarterly'>('weekly');
   const [quantity, setQuantity] = useState<number>(1);
   const [startDate, setStartDate] = useState<string>(() => {

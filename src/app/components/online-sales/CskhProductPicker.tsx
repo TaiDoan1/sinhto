@@ -121,23 +121,23 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
               <p className="text-sm font-semibold">Không tìm thấy món nào</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
               {filtered.map((p: any) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => openProduct(p)}
-                  className="group text-left bg-white rounded-2xl border border-gray-100 hover:border-purple-300 hover:shadow-md transition-all overflow-hidden"
+                  className="group text-left bg-white rounded-xl border border-gray-100 hover:border-purple-300 hover:shadow-md transition-all overflow-hidden"
                 >
-                  <div className="aspect-[4/3] bg-purple-50/60 overflow-hidden relative">
+                  <div className="aspect-square bg-purple-50/60 overflow-hidden relative">
                     <ProductThumb image={p.image} name={p.name} className="w-full h-full object-cover" />
-                    <div className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md opacity-90 group-hover:scale-110 transition-transform">
-                      <Plus className="w-4 h-4" />
+                    <div className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md opacity-90 group-hover:scale-110 transition-transform">
+                      <Plus className="w-3.5 h-3.5" />
                     </div>
                   </div>
-                  <div className="p-2">
-                    <p className="font-bold text-gray-800 text-sm leading-tight line-clamp-2">{p.name}</p>
-                    <p className="text-[11px] text-purple-600 font-bold mt-0.5">từ {fromPrice.toLocaleString('vi-VN')}đ</p>
+                  <div className="p-1.5">
+                    <p className="font-bold text-gray-800 text-xs leading-tight line-clamp-2">{p.name}</p>
+                    <p className="text-[10px] text-purple-600 font-bold mt-0.5">từ {fromPrice.toLocaleString('vi-VN')}đ</p>
                   </div>
                 </button>
               ))}

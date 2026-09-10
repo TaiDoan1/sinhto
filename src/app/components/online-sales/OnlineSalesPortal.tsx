@@ -205,6 +205,40 @@ export function OnlineSalesPortal() {
     return () => { unsubUpd(); unsubNew(); };
   }, [subscribe, employeeId, showNotify]);
 
+  // Tự động làm mới đơn CSKH mỗi 6 giây (không phụ thuộc SSE) — POS đổi trạng thái là bên này thấy
+  // ngay, khỏi phải bấm "Làm mới". Chỉ tải orders (nhẹ), gộp giữ nguyên các trường local.
+  useEffect(() => {
+    if (!employeeId) return;
+    let stopped = false;
+    const tick = () => {
+      api.fetchOrders({ salesStaffId: employeeId })
+        .then((fresh: Order[]) => {
+          if (stopped || !Array.isArray(fresh)) return;
+          setRetailOrders((prev) => {
+            // Báo tiếng + toast khi trạng thái đơn đổi so với lần trước (kể cả khi SSE lỡ sự kiện).
+            const prevMap = new Map(prev.map((o) => [o.id, o.status]));
+            for (const o of fresh) {
+              const before = prevMap.get(o.id);
+              if (before && before !== o.status) {
+                const who = o.customerName || 'khách';
+                const msg: Record<string, string> = {
+                  preparing: `🏪 Cửa hàng đã NHẬN đơn của ${who}`,
+                  ready: `📦 Đơn của ${who} đã LÀM XONG`,
+                  delivering: `🛵 Đơn của ${who} — SHIP ĐÃ LẤY. Bấm "Hoàn thành" khi khách nhận.`,
+                  completed: `✓ Đơn của ${who} đã HOÀN TẤT (khách đã nhận)`,
+                };
+                if (msg[o.status]) { playNotificationBeep(); showNotify(msg[o.status]); }
+              }
+            }
+            return fresh;
+          });
+        })
+        .catch(() => {});
+    };
+    const t = setInterval(tick, 6000);
+    return () => { stopped = true; clearInterval(t); };
+  }, [employeeId, showNotify]);
+
   // Số đơn đang xử lý (chưa tới bước ship lấy / hoàn tất) — hiện chấm đỏ trên tab "Theo dõi đơn".
   const activeOrderCount = useMemo(
     () => retailOrders.filter((o) => o.status !== 'completed').length,

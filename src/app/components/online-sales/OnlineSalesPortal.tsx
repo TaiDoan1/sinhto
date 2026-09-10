@@ -264,6 +264,11 @@ export function OnlineSalesPortal() {
     () => combos.filter((c) => c.careStaffId === employeeId && c.status !== 'pending'),
     [combos, employeeId]
   );
+  // Combo để theo dõi ở tab "Theo dõi đơn" — mọi combo CSKH này phụ trách (mọi trạng thái).
+  const trackedCombos = useMemo(
+    () => combos.filter((c) => c.careStaffId === employeeId),
+    [combos, employeeId]
+  );
   const retailCustomers = useMemo(
     () => assignments.filter((a) => a.customerType === 'retail'),
     [assignments]
@@ -574,6 +579,7 @@ export function OnlineSalesPortal() {
             {view === 'orders' && (
               <CskhOrderTracker
                 orders={retailOrders}
+                combos={trackedCombos}
                 loading={dataLoading}
                 onRefresh={refreshData}
                 onOpen={setSelectedOrder}

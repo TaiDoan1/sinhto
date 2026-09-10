@@ -604,11 +604,12 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
                 )}
 
                 <div className="shrink-0 mt-2">
+                  <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
                   <textarea
-                    placeholder="⚠️ Kỵ vị & dị ứng (VD: dị ứng đậu phộng, không topping hạt...)"
+                    placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
                     value={allergyNote}
                     onChange={(e) => setAllergyNote(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50/40 text-sm h-11 resize-none"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-red-200 bg-red-50/50 text-sm h-20 resize-none focus:outline-none focus:border-red-400"
                   />
                 </div>
 

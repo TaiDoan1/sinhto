@@ -129,7 +129,7 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
                   onClick={() => openProduct(p)}
                   className="group text-left bg-white rounded-2xl border border-gray-100 hover:border-purple-300 hover:shadow-md transition-all overflow-hidden"
                 >
-                  <div className="aspect-square bg-purple-50/60 overflow-hidden relative">
+                  <div className="aspect-[4/3] bg-purple-50/60 overflow-hidden relative">
                     <ProductThumb image={p.image} name={p.name} className="w-full h-full object-cover" />
                     <div className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md opacity-90 group-hover:scale-110 transition-transform">
                       <Plus className="w-4 h-4" />

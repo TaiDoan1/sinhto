@@ -434,7 +434,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto pb-4">
-       <div className="max-w-4xl mx-auto w-full space-y-4">
+       <div className="max-w-5xl mx-auto w-full space-y-4">
         {successMsg && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold">
             <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -546,7 +546,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
                 nhỏ (chật/xấu). Chiều cao cố định theo breakpoint nên trang không "tụt lên xuống". */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-2.5 sm:p-3 flex flex-col">
               <h3 className="font-bold text-gray-900 px-1.5 pt-1 pb-2">Chọn sản phẩm</h3>
-              <div className="h-[440px] sm:h-[500px] lg:h-[540px] rounded-xl overflow-hidden border border-gray-100">
+              <div className="h-[440px] sm:h-[520px] lg:h-[calc(100vh-300px)] lg:min-h-[520px] lg:max-h-[820px] rounded-xl overflow-hidden border border-gray-100">
                 <CskhProductPicker onAdd={handleAddToCart} />
               </div>
             </div>
@@ -881,7 +881,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
       {/* Thanh tổng tiền + nút Xác nhận — DÁN CỐ ĐỊNH đáy màn hình, luôn thấy dù đang ở bước nào,
           không phải kéo lên tìm nút như trước. Nội dung căn giữa cùng bề ngang với form. */}
       <div className="shrink-0 sticky bottom-0 bg-white border-t border-gray-200 px-4 sm:px-5 py-3.5 rounded-b-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-       <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-3 sm:gap-4">
+       <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
           {mode === 'retail' ? (
             cart.length > 0 ? (

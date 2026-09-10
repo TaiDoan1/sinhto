@@ -381,8 +381,6 @@ export function OnlineSalesPortal() {
   const navItems: { id: View; label: string; icon: typeof LayoutDashboard; badge?: number }[] = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, badge: tasks.length || undefined },
     { id: 'sales', label: 'Nhập đơn', icon: ShoppingBag },
-    { id: 'leads', label: 'Lead FB', icon: UserPlus, badge: leads.length },
-    { id: 'pending', label: 'Chờ chốt', icon: Clock, badge: pendingCombos.length },
     { id: 'orders', label: 'Theo dõi đơn', icon: Package, badge: activeOrderCount || undefined },
     { id: 'retail', label: 'Khách lẻ', icon: Store, badge: retailCustomers.length },
     { id: 'customers', label: 'Quản lý khách', icon: Users, badge: myCombos.filter((c) => c.status === 'active').length || undefined },

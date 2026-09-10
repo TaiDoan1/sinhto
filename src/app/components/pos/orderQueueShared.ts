@@ -57,11 +57,14 @@ export function getPrimaryAction(order: Order): { label: string; icon: typeof Pl
     return { label: 'Nhận Đơn & Làm Món', icon: Play, next: 'preparing' };
   }
   if (order.status === 'preparing') {
-    return {
-      label: order.source === 'mobile' ? 'Xong - Chờ Shipper' : 'Xong - Giao Khách',
-      icon: CheckCircle,
-      next: 'ready',
-    };
+    // Đơn CSKH giao tận nơi: làm xong thì CHỜ SHIP LẤY (rồi mới "Ship đã lấy" → "Khách đã nhận").
+    const isCskhDelivery = order.source === 'online_sales' && order.deliveryType !== 'pickup';
+    const label = order.source === 'mobile'
+      ? 'Xong - Chờ Shipper'
+      : isCskhDelivery
+        ? 'Xong, Chờ Ship Lấy'
+        : 'Xong - Giao Khách';
+    return { label, icon: CheckCircle, next: 'ready' };
   }
   if (order.status === 'ready') {
     if (order.source === 'mobile') return null; // mobile: chờ shipper của khách

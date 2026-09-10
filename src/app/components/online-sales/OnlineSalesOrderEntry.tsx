@@ -610,6 +610,26 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                     ))}
                   </div>
                 )}
+
+                {/* Tổng tiền hiện ngay tại khung sản phẩm (không phải kéo xuống thanh đáy) */}
+                {cart.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <span>Tạm tính · {cart.reduce((n, it) => n + it.quantity, 0)} ly</span>
+                      <span className="font-semibold text-gray-700">{cartTotal.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    {Number(shipFee) > 0 && (
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <span>Phí ship</span>
+                        <span className="font-semibold text-gray-700">{Number(shipFee).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-sm font-bold text-gray-900">Tổng cộng</span>
+                      <span className="text-lg font-black text-indigo-700">{(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

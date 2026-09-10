@@ -391,6 +391,9 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipMethod" TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipProvider" TEXT DEFAULT ''`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shipTrackingCode" TEXT DEFAULT ''`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "customerReceived" INTEGER DEFAULT 0`).catch(() => {});
+  // Đơn ĐÃ completed trước khi có bước "khách đã nhận" → coi như đã nhận (khỏi kẹt ở "đang xử lý").
+  await pool.query(`UPDATE orders SET "customerReceived" = 1 WHERE status = 'completed' AND ("customerReceived" IS NULL OR "customerReceived" = 0)`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingOrderCount" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS "closingRevenue" INTEGER`).catch(() => {});
   await pool.query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''`).catch(() => {});

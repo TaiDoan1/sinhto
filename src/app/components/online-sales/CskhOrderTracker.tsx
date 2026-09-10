@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Package, Clock, CheckCircle2, ChefHat, Bike, Phone, MapPin, Store, RefreshCw, Search, Repeat, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Package, Clock, CheckCircle2, ChefHat, Bike, Phone, MapPin, Store, RefreshCw, Search, Repeat, ChevronDown, ChevronRight, Loader2, PackageCheck } from 'lucide-react';
 import type { Order } from '../../contexts/OrderContext';
 import type { ComboSubscription } from '../../contexts/ComboContext';
 import type { DeliveryLogRecord } from '../../types/combo';
@@ -14,10 +14,20 @@ export const CSKH_STEPS = [
   { key: 'accepted', label: 'Đã nhận đơn', icon: ChefHat },
   { key: 'done', label: 'Đã xong đơn', icon: CheckCircle2 },
   { key: 'picked', label: 'Ship đã lấy', icon: Bike },
+  { key: 'received', label: 'Khách đã nhận', icon: PackageCheck },
 ] as const;
 
-export function cskhStepIndex(status: Order['status']): number {
-  switch (status) {
+function isReceived(o: Order): boolean {
+  return !!(o as any).customerReceived;
+}
+// "Cửa hàng đã xong khâu giao" = shipper đã lấy / đã hoàn tất giao nhận ở POS.
+function isHandedOff(status: Order['status']): boolean {
+  return status === 'delivering' || status === 'completed';
+}
+
+export function cskhStepIndex(o: Order): number {
+  if (isReceived(o)) return 4;
+  switch (o.status) {
     case 'pending': return 0;
     case 'preparing': return 1;
     case 'ready': return 2;
@@ -27,32 +37,33 @@ export function cskhStepIndex(status: Order['status']): number {
   }
 }
 
-function statusBadge(status: Order['status'], pickup: boolean) {
-  switch (status) {
+function statusBadge(o: Order, pickup: boolean) {
+  if (isReceived(o)) return { label: pickup ? '✓ Khách đã lấy' : '✓ Khách đã nhận đơn', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+  switch (o.status) {
     case 'preparing':
       return { label: '👨‍🍳 Cửa hàng đã nhận đơn', cls: 'bg-blue-100 text-blue-700 border-blue-200' };
     case 'ready':
       return { label: '📦 Đã xong đơn', cls: 'bg-violet-100 text-violet-700 border-violet-200' };
     case 'delivering':
-      return pickup
-        ? { label: '✅ Khách đã lấy', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
-        : { label: '🛵 Ship đã lấy', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+      return { label: pickup ? '🏪 Chờ khách lấy' : '🛵 Ship đã lấy', cls: 'bg-teal-100 text-teal-700 border-teal-200' };
     case 'completed':
-      return { label: '✓ Hoàn tất', cls: 'bg-gray-100 text-gray-600 border-gray-200' };
+      return { label: pickup ? '🏪 Chờ khách lấy' : '🛵 Ship đã lấy', cls: 'bg-teal-100 text-teal-700 border-teal-200' };
     default:
       return { label: '🔔 Chờ cửa hàng nhận', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
   }
 }
 
-// Thanh 4 bước — khách tự lấy thì bước cuối đổi nhãn "Khách lấy".
-function StepBar({ status, pickup }: { status: Order['status']; pickup: boolean }) {
-  const cur = cskhStepIndex(status);
+// Thanh 5 bước — khách tự lấy thì đổi nhãn bước ship/nhận.
+function StepBar({ order, pickup }: { order: Order; pickup: boolean }) {
+  const cur = cskhStepIndex(order);
   return (
     <div className="flex items-center gap-1 px-1 py-2">
       {CSKH_STEPS.map((s, i) => {
         const done = i <= cur;
         const Icon = s.icon;
-        const label = pickup && s.key === 'picked' ? 'Khách lấy' : s.label;
+        const label = pickup
+          ? (s.key === 'picked' ? 'Chờ khách' : s.key === 'received' ? 'Khách đã lấy' : s.label)
+          : s.label;
         return (
           <div key={s.key} className="flex-1 flex flex-col items-center gap-1">
             <div className="w-full flex items-center">
@@ -115,13 +126,17 @@ export function CskhOrderTracker({
   loading,
   onRefresh,
   onOpen,
+  onCompleteOrder,
 }: {
   orders: Order[];
   combos?: ComboSubscription[];
   loading?: boolean;
   onRefresh: () => void;
   onOpen?: (order: Order) => void;
+  /** CSKH bấm "Hoàn thành đơn" (khách đã nhận) → đẩy sang Đã lấy/xong. */
+  onCompleteOrder?: (order: Order) => void;
 }) {
+  const [completing, setCompleting] = useState<string | null>(null);
   const [viewType, setViewType] = useState<ViewType>('retail');
   const [filter, setFilter] = useState<Filter>('active');
   const [search, setSearch] = useState('');
@@ -156,7 +171,7 @@ export function CskhOrderTracker({
   const retailCounts = useMemo(() => {
     let active = 0, done = 0;
     for (const o of orders) {
-      if (o.status === 'completed' || o.status === 'delivering') done++;
+      if (isReceived(o)) done++;
       else active++;
     }
     return { active, done, all: orders.length };
@@ -182,8 +197,8 @@ export function CskhOrderTracker({
   };
 
   const filteredRetail = useMemo(() => retailSorted.filter((o) => {
-    if (filter === 'active' && (o.status === 'completed' || o.status === 'delivering')) return false;
-    if (filter === 'done' && !(o.status === 'completed' || o.status === 'delivering')) return false;
+    if (filter === 'active' && isReceived(o)) return false;
+    if (filter === 'done' && !isReceived(o)) return false;
     return matchSearch(`${o.customerName || ''} ${o.customerPhone || ''} ${o.deliveryAddress || ''}`);
   }), [retailSorted, filter, search]);
 
@@ -280,44 +295,66 @@ export function CskhOrderTracker({
         ) : (
           filteredRetail.map((o) => {
             const pickup = o.deliveryType === 'pickup';
-            const badge = statusBadge(o.status, pickup);
+            const badge = statusBadge(o, pickup);
+            const canComplete = isHandedOff(o.status) && !isReceived(o);
+            const received = isReceived(o);
             return (
-              <button
+              <div
                 key={o.id}
-                type="button"
-                onClick={() => onOpen?.(o)}
-                className="w-full text-left bg-white rounded-2xl border border-gray-200 hover:border-indigo-300 transition-colors overflow-hidden"
+                className="w-full bg-white rounded-2xl border border-gray-200 overflow-hidden"
               >
-                <div className="px-4 pt-3 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-bold text-gray-900 truncate">{o.customerName || 'Khách hàng'}</p>
-                    {o.customerPhone && (
-                      <p className="text-sm text-indigo-700 flex items-center gap-1 mt-0.5"><Phone className="w-3.5 h-3.5" /> {o.customerPhone}</p>
-                    )}
+                <div role="button" tabIndex={0} onClick={() => onOpen?.(o)} className="text-left cursor-pointer hover:bg-gray-50/60">
+                  <div className="px-4 pt-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 truncate">{o.customerName || 'Khách hàng'}</p>
+                      {o.customerPhone && (
+                        <p className="text-sm text-indigo-700 flex items-center gap-1 mt-0.5"><Phone className="w-3.5 h-3.5" /> {o.customerPhone}</p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${badge.cls}`}>{badge.label}</span>
                   </div>
-                  <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${badge.cls}`}>{badge.label}</span>
-                </div>
 
-                <div className="px-3"><StepBar status={o.status} pickup={pickup} /></div>
+                  <div className="px-3"><StepBar order={o} pickup={pickup} /></div>
 
-                <div className="px-4 pb-3 space-y-1">
-                  <p className="text-sm text-gray-700 flex items-start gap-1.5">
-                    {pickup
-                      ? <><Store className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" /> Tự lấy tại quán</>
-                      : <><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" /> {o.deliveryAddress || '—'}</>}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">{itemsSummary(o)}</p>
-                  {(o as any).shipTrackingCode && (
-                    <p className="text-xs text-sky-700 font-semibold flex items-center gap-1">
-                      <Bike className="w-3.5 h-3.5" /> Mã ship: {(o as any).shipTrackingCode}{(o as any).shipProvider ? ` · ${(o as any).shipProvider}` : ''}
+                  <div className="px-4 pb-3 space-y-1">
+                    <p className="text-sm text-gray-700 flex items-start gap-1.5">
+                      {pickup
+                        ? <><Store className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" /> Tự lấy tại quán</>
+                        : <><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" /> {o.deliveryAddress || '—'}</>}
                     </p>
-                  )}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-gray-400">{new Date(o.time).toLocaleString('vi-VN')}</span>
-                    <span className="font-black text-gray-900">{((o.total || 0) + (o.shipFee || 0)).toLocaleString('vi-VN')}đ</span>
+                    <p className="text-xs text-gray-500 truncate">{itemsSummary(o)}</p>
+                    {(o as any).shipTrackingCode && (
+                      <p className="text-xs text-sky-700 font-semibold flex items-center gap-1">
+                        <Bike className="w-3.5 h-3.5" /> Mã ship: {(o as any).shipTrackingCode}{(o as any).shipProvider ? ` · ${(o as any).shipProvider}` : ''}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-gray-400">{new Date(o.time).toLocaleString('vi-VN')}</span>
+                      <span className="font-black text-gray-900">{((o.total || 0) + (o.shipFee || 0)).toLocaleString('vi-VN')}đ</span>
+                    </div>
                   </div>
                 </div>
-              </button>
+
+                {/* Nút Hoàn thành đơn — tắt cho tới khi cửa hàng đã giao (Ship đã lấy), bấm = khách đã nhận */}
+                {!received && (
+                  <div className="px-4 pb-3">
+                    <button
+                      type="button"
+                      disabled={!canComplete || completing === o.id}
+                      onClick={() => { if (canComplete && onCompleteOrder) { setCompleting(o.id); onCompleteOrder(o); } }}
+                      title={canComplete ? 'Xác nhận khách đã nhận đơn' : 'Chờ cửa hàng giao xong (Ship đã lấy) mới hoàn thành được'}
+                      className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-colors ${
+                        canComplete
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <PackageCheck className="w-4 h-4" />
+                      {completing === o.id ? 'Đang lưu...' : 'Hoàn thành đơn (khách đã nhận)'}
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })
         )

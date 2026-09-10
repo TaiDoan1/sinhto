@@ -279,6 +279,7 @@ async function init() {
     "ALTER TABLE orders ADD COLUMN shipMethod TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN shipProvider TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN shipTrackingCode TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN customerReceived INTEGER DEFAULT 0",
     "ALTER TABLE shifts ADD COLUMN closingOrderCount INTEGER",
     "ALTER TABLE shifts ADD COLUMN closingRevenue INTEGER",
     "ALTER TABLE shifts ADD COLUMN reason TEXT DEFAULT ''",

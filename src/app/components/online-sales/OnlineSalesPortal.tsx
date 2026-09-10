@@ -182,8 +182,8 @@ export function OnlineSalesPortal() {
           const msg: Record<string, string> = {
             preparing: `🏪 Cửa hàng đã NHẬN đơn của ${who}`,
             ready: `📦 Đơn của ${who} đã LÀM XONG`,
-            delivering: `🛵 Đơn của ${who} — shipper ĐÃ LẤY`,
-            completed: `✓ Đơn của ${who} đã HOÀN TẤT`,
+            delivering: `🛵 Đơn của ${who} — shipper ĐÃ LẤY. Bấm "Hoàn thành" khi khách nhận.`,
+            completed: `🛵 Đơn của ${who} đã giao (ship lấy). Bấm "Hoàn thành" khi khách nhận.`,
           };
           if (msg[data.status]) { playNotificationBeep(); showNotify(msg[data.status]); }
         }
@@ -207,7 +207,7 @@ export function OnlineSalesPortal() {
 
   // Số đơn đang xử lý (chưa tới bước ship lấy / hoàn tất) — hiện chấm đỏ trên tab "Theo dõi đơn".
   const activeOrderCount = useMemo(
-    () => retailOrders.filter((o) => o.status !== 'completed' && o.status !== 'delivering').length,
+    () => retailOrders.filter((o) => !(o as any).customerReceived).length,
     [retailOrders]
   );
 
@@ -601,6 +601,14 @@ export function OnlineSalesPortal() {
                 loading={dataLoading}
                 onRefresh={refreshData}
                 onOpen={setSelectedOrder}
+                onCompleteOrder={async (o) => {
+                  try {
+                    await api.updateOrderStatus(o.id, o.status, { customerReceived: true });
+                    setRetailOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, customerReceived: true } : x)));
+                  } catch {
+                    showNotify('Không hoàn thành được đơn. Vui lòng thử lại.');
+                  }
+                }}
               />
             )}
 

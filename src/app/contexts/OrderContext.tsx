@@ -42,6 +42,8 @@ export interface Order {
   shipTrackingCode?: string;
   /** Kỵ vị & dị ứng của khách (cảnh báo pha chế). */
   allergyNote?: string;
+  /** CSKH đã bấm "Hoàn thành đơn" xác nhận KHÁCH ĐÃ NHẬN đơn (0/1 hoặc boolean). */
+  customerReceived?: boolean | number;
 }
 
 interface OrderContextType {

@@ -697,6 +697,10 @@ app.patch('/api/orders/:id', (req, res) => {
     const newShipProvider = pick(updates.shipProvider, row.shipProvider);
     const newShipTrackingCode = pick(updates.shipTrackingCode, row.shipTrackingCode);
     const newAllergyNote = pick(updates.allergyNote, row.allergyNote);
+    // Khách đã nhận đơn (CSKH bấm "Hoàn thành đơn") — lưu 0/1.
+    const newCustomerReceived = updates.customerReceived !== undefined
+      ? (updates.customerReceived ? 1 : 0)
+      : (row.customerReceived ? 1 : 0);
 
     // Bảng orders_archive được tạo bằng "LIKE orders" tại thời điểm cũ nên có thể THIẾU các cột
     // mới (deliveryTime, deliveryType, shipMethod, shipProvider, shipTrackingCode, allergyNote).
@@ -705,11 +709,11 @@ app.patch('/api/orders/:id', (req, res) => {
     const isArchive = tableName === 'orders_archive';
     const sql = isArchive
       ? `UPDATE ${tableName} SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ? WHERE id = ?`
-      : `UPDATE ${tableName} SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ?, allergyNote = ? WHERE id = ?`;
+      : `UPDATE ${tableName} SET status = ?, stockDeducted = ?, readyAt = ?, completedAt = ?, staff = ?, shipperName = ?, shipperId = ?, salesStaffId = ?, salesStaffName = ?, items = ?, deliveryTime = ?, note = ?, customerName = ?, customerPhone = ?, deliveryAddress = ?, branchId = ?, paymentMethod = ?, shipFee = ?, total = ?, deliveryType = ?, shipMethod = ?, shipProvider = ?, shipTrackingCode = ?, allergyNote = ?, customerReceived = ? WHERE id = ?`;
     const commonParams = [newStatus, newStockDeducted, readyAt, completedAt, updates.staff || row.staff, updates.shipperName || row.shipperName, updates.shipperId || row.shipperId, salesStaffId || '', salesStaffName || '', newItems];
     const params = isArchive
       ? [...commonParams, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, id]
-      : [...commonParams, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, newAllergyNote, id];
+      : [...commonParams, newDeliveryTime, newNote, newCustomerName, newCustomerPhone, newDeliveryAddress, newBranchId, newPaymentMethod, newShipFee, newTotal, newDeliveryType, newShipMethod, newShipProvider, newShipTrackingCode, newAllergyNote, newCustomerReceived, id];
     db.run(
       sql,
       params,

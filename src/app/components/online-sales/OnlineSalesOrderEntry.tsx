@@ -442,9 +442,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
           </div>
         )}
 
-        {/* Loại đơn — ẩn ở bước Sản phẩm để đẩy khung sản phẩm + giỏ hàng lên, khỏi mất phần dưới.
-            (Đổi loại đơn ở bước Khách hàng.) */}
-        {activeStep !== 2 && (
+        {/* Loại đơn — CHỈ hiện ở bước Khách hàng; các bước sau ẩn đi để đẩy nội dung lên, khỏi mất
+            phần dưới. (Muốn đổi loại đơn thì quay lại bước Khách hàng.) */}
+        {activeStep === 1 && (
           <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-gray-200 sm:w-fit">
             <button
               type="button"

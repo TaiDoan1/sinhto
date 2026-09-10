@@ -432,8 +432,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
   })();
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto pb-4">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-4">
        <div className="max-w-5xl mx-auto w-full space-y-4">
         {successMsg && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold">
@@ -546,7 +546,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
                 nhỏ (chật/xấu). Chiều cao cố định theo breakpoint nên trang không "tụt lên xuống". */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-2.5 sm:p-3 flex flex-col">
               <h3 className="font-bold text-gray-900 px-1.5 pt-1 pb-2">Chọn sản phẩm</h3>
-              <div className="h-[440px] sm:h-[520px] lg:h-[calc(100vh-300px)] lg:min-h-[520px] lg:max-h-[820px] rounded-xl overflow-hidden border border-gray-100">
+              <div className="h-[420px] sm:h-[480px] lg:h-[540px] rounded-xl overflow-hidden border border-gray-100">
                 <CskhProductPicker onAdd={handleAddToCart} />
               </div>
             </div>

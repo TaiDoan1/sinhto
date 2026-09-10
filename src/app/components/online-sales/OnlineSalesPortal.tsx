@@ -392,7 +392,7 @@ export function OnlineSalesPortal() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100">
+    <div className="h-screen overflow-hidden flex flex-col bg-slate-100">
       <header className="bg-gradient-to-r from-indigo-800 via-violet-800 to-indigo-700 text-white shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -473,8 +473,12 @@ export function OnlineSalesPortal() {
       <main
         className={
           view === 'fbMessages'
-            ? 'flex-1 w-full mx-auto px-2 sm:px-3 py-2 lg:py-3'
-            : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6'
+            ? 'flex-1 min-h-0 w-full mx-auto px-2 sm:px-3 py-2 lg:py-3 overflow-hidden'
+            : view === 'sales'
+              // Nhập đơn tự quản lý cuộn bên trong (không cho cả trang cuộn) → layout CỐ ĐỊNH,
+              // không "tụt lên tụt xuống" khi thêm món / đổi bước.
+              ? 'flex-1 min-h-0 max-w-6xl w-full mx-auto px-3 sm:px-6 py-3 lg:py-4 overflow-hidden'
+              : 'flex-1 min-h-0 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6 overflow-y-auto'
         }
       >
         {view === 'dashboard' && (

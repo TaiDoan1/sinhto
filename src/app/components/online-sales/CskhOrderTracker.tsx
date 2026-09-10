@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Package, Clock, CheckCircle2, ChefHat, Bike, Phone, MapPin, Store, RefreshCw, Search, Repeat } from 'lucide-react';
+import { Package, Clock, CheckCircle2, ChefHat, Bike, Phone, MapPin, Store, RefreshCw, Search, Repeat, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import type { Order } from '../../contexts/OrderContext';
 import type { ComboSubscription } from '../../contexts/ComboContext';
+import type { DeliveryLogRecord } from '../../types/combo';
+import * as api from '../../utils/api';
 
 // 4 trạng thái CSKH theo dõi ĐƠN LẺ (khớp yêu cầu chủ quán):
 //   chờ nhận đơn → đã nhận đơn → đã xong đơn → ship đã lấy
@@ -94,6 +96,16 @@ function comboBadge(status: ComboSubscription['status']) {
   }
 }
 
+// Trạng thái từng BUỔI giao của combo (delivery_logs).
+function buoiBadge(status: string) {
+  switch (status) {
+    case 'delivered': return { label: '✓ Đã giao', cls: 'bg-emerald-100 text-emerald-700', dot: '#10b981' };
+    case 'shipping': return { label: '🛵 Đang giao', cls: 'bg-blue-100 text-blue-700', dot: '#3b82f6' };
+    case 'postponed': return { label: '⏸️ Hoãn', cls: 'bg-amber-100 text-amber-700', dot: '#f59e0b' };
+    default: return { label: '🕒 Chờ giao', cls: 'bg-gray-100 text-gray-500', dot: '#9ca3af' };
+  }
+}
+
 type ViewType = 'retail' | 'combo';
 type Filter = 'active' | 'all' | 'done';
 
@@ -113,6 +125,28 @@ export function CskhOrderTracker({
   const [viewType, setViewType] = useState<ViewType>('retail');
   const [filter, setFilter] = useState<Filter>('active');
   const [search, setSearch] = useState('');
+
+  // Chi tiết từng buổi của combo — tải lười (chỉ khi mở), cache theo comboId.
+  const [expandedCombo, setExpandedCombo] = useState<string | null>(null);
+  const [comboLogs, setComboLogs] = useState<Record<string, DeliveryLogRecord[]>>({});
+  const [logsLoading, setLogsLoading] = useState<string | null>(null);
+
+  const toggleComboDetail = async (comboId: string) => {
+    if (expandedCombo === comboId) { setExpandedCombo(null); return; }
+    setExpandedCombo(comboId);
+    if (!comboLogs[comboId]) {
+      setLogsLoading(comboId);
+      try {
+        const logs = await api.fetchDeliveryLogs({ comboOrderId: comboId });
+        const sorted = (logs as DeliveryLogRecord[]).slice().sort((a, b) => (a.deliveryDate || '').localeCompare(b.deliveryDate || ''));
+        setComboLogs((prev) => ({ ...prev, [comboId]: sorted }));
+      } catch {
+        setComboLogs((prev) => ({ ...prev, [comboId]: [] }));
+      } finally {
+        setLogsLoading(null);
+      }
+    }
+  };
 
   // ── ĐƠN LẺ ──
   const retailSorted = useMemo(
@@ -336,6 +370,46 @@ export function CskhOrderTracker({
                     <span className="font-black text-gray-900">{(c.totalPrice || 0).toLocaleString('vi-VN')}đ</span>
                   </div>
                 </div>
+
+                {/* Chi tiết từng buổi giao (tải lười khi mở) */}
+                <button
+                  type="button"
+                  onClick={() => toggleComboDetail(c.id)}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 border-t border-gray-100 transition-colors"
+                >
+                  {expandedCombo === c.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  {expandedCombo === c.id ? 'Ẩn chi tiết từng buổi' : 'Xem chi tiết từng buổi'}
+                </button>
+
+                {expandedCombo === c.id && (
+                  <div className="px-4 pb-3 bg-gray-50/60 border-t border-gray-100">
+                    {logsLoading === c.id ? (
+                      <div className="py-4 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-indigo-500" /></div>
+                    ) : (comboLogs[c.id] || []).length === 0 ? (
+                      <p className="py-4 text-center text-xs text-gray-400">Chưa có lịch buổi giao nào.</p>
+                    ) : (
+                      <div className="pt-2 space-y-1.5">
+                        {(comboLogs[c.id] || []).map((log, i) => {
+                          const b = buoiBadge(log.status);
+                          return (
+                            <div key={log.id || i} className="flex items-center gap-2.5 bg-white rounded-lg border border-gray-100 px-3 py-2">
+                              <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-gray-800">
+                                  {log.deliveryDate ? new Date(log.deliveryDate).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—'}
+                                </p>
+                                <p className="text-[11px] text-gray-500 truncate">
+                                  {log.productName || 'Món'}{log.size ? ` · ${log.size}` : ''}{log.protein ? ` · ${log.protein}g` : ''}
+                                </p>
+                              </div>
+                              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${b.cls}`}>{b.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

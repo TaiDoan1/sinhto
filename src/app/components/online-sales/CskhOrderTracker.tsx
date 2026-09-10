@@ -307,6 +307,11 @@ export function CskhOrderTracker({
                       : <><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" /> {o.deliveryAddress || '—'}</>}
                   </p>
                   <p className="text-xs text-gray-500 truncate">{itemsSummary(o)}</p>
+                  {(o as any).shipTrackingCode && (
+                    <p className="text-xs text-sky-700 font-semibold flex items-center gap-1">
+                      <Bike className="w-3.5 h-3.5" /> Mã ship: {(o as any).shipTrackingCode}{(o as any).shipProvider ? ` · ${(o as any).shipProvider}` : ''}
+                    </p>
+                  )}
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] text-gray-400">{new Date(o.time).toLocaleString('vi-VN')}</span>
                     <span className="font-black text-gray-900">{((o.total || 0) + (o.shipFee || 0)).toLocaleString('vi-VN')}đ</span>

@@ -1,6 +1,7 @@
-import { X, User, MapPin, Phone, XCircle, Edit, CheckCircle2, Clock, StickyNote } from 'lucide-react';
+import { useState } from 'react';
+import { X, User, MapPin, Phone, XCircle, Edit, CheckCircle2, Clock, StickyNote, Bike, Save, CalendarClock } from 'lucide-react';
 import type { Order } from '../../contexts/OrderContext';
-import { sourceColors, sourceLabels, statusBadgeColors, statusLabels, getPrimaryAction } from './orderQueueShared';
+import { sourceColors, sourceLabels, statusBadgeColors, statusLabels, getPrimaryAction, isOnlineSource } from './orderQueueShared';
 
 interface Props {
   order: Order;
@@ -9,11 +10,32 @@ interface Props {
   onAdvanceStatus: (nextStatus: Order['status']) => void;
   onVoid: () => void;
   onEditComboItem: (itemIdx: number) => void;
+  /** POS book ship / ghi mã vận đơn vào đơn (không đổi trạng thái). */
+  onSaveShip?: (ship: { shipMethod: 'own' | 'external'; shipProvider: string; shipTrackingCode: string }) => void;
 }
 
-export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStatus, onVoid, onEditComboItem }: Props) {
+function fmtDeliveryTime(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStatus, onVoid, onEditComboItem, onSaveShip }: Props) {
   const isOverdue = elapsedMinutes > 15;
   const primaryAction = getPrimaryAction(order);
+  const deliveryTimeText = fmtDeliveryTime(order.deliveryTime);
+
+  // Book ship ngay tại POS — điền đơn vị + mã vận đơn rồi lưu vào đơn.
+  const [shipMethod, setShipMethod] = useState<'own' | 'external'>((order.shipMethod as 'own' | 'external') || 'own');
+  const [shipProvider, setShipProvider] = useState(order.shipProvider || '');
+  const [shipTrackingCode, setShipTrackingCode] = useState(order.shipTrackingCode || '');
+  const [shipSaved, setShipSaved] = useState(false);
+  const saveShip = () => {
+    onSaveShip?.({ shipMethod, shipProvider: shipProvider.trim(), shipTrackingCode: shipTrackingCode.trim() });
+    setShipSaved(true);
+    setTimeout(() => setShipSaved(false), 2000);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -54,6 +76,12 @@ export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStat
                   <span>{order.deliveryAddress}</span>
                 </div>
               )}
+              {deliveryTimeText && (
+                <div className="flex items-center gap-1.5 text-emerald-900 font-bold bg-white/70 border border-emerald-200 rounded-lg px-2 py-1.5">
+                  <CalendarClock className="w-4 h-4 shrink-0 text-emerald-700" />
+                  <span>Giờ giao: {deliveryTimeText}</span>
+                </div>
+              )}
               {order.paymentMethod && (
                 <div className="pt-1.5 border-t border-emerald-200 text-emerald-800 font-semibold flex items-center justify-between">
                   <span>Thanh toán:</span>
@@ -81,6 +109,40 @@ export function OrderDetailModal({ order, elapsedMinutes, onClose, onAdvanceStat
                 Ghi chú ý khách
               </div>
               <p className="text-amber-900 whitespace-pre-wrap">{order.note}</p>
+            </div>
+          )}
+
+          {/* POS book ship + ghi mã vận đơn — chỉ cho đơn online giao tận nơi */}
+          {onSaveShip && isOnlineSource(order.source) && order.deliveryType !== 'pickup' && (
+            <div className="bg-sky-50 rounded-xl p-3 border border-sky-200 text-sm space-y-2.5">
+              <div className="font-bold text-sky-900 flex items-center gap-1.5">
+                <Bike className="w-4 h-4" /> Book ship / Mã vận đơn
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setShipMethod('own')}
+                  className={`py-2 rounded-lg border-2 text-xs font-bold ${shipMethod === 'own' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 bg-white'}`}>
+                  Shipper quán
+                </button>
+                <button type="button" onClick={() => setShipMethod('external')}
+                  className={`py-2 rounded-lg border-2 text-xs font-bold ${shipMethod === 'external' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-600 bg-white'}`}>
+                  Bookship ngoài
+                </button>
+              </div>
+              <input value={shipProvider} onChange={(e) => setShipProvider(e.target.value)}
+                placeholder="Đơn vị ship (Grab / Ahamove / Be...)"
+                className="w-full px-3 py-2 rounded-lg border border-sky-200 bg-white text-sm" />
+              <input value={shipTrackingCode} onChange={(e) => setShipTrackingCode(e.target.value)}
+                placeholder="Mã vận đơn"
+                className="w-full px-3 py-2 rounded-lg border border-sky-200 bg-white text-sm font-mono" />
+              <button type="button" onClick={saveShip}
+                className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white py-2.5 rounded-lg font-bold text-sm">
+                {shipSaved ? <><CheckCircle2 className="w-4 h-4" /> Đã lưu vận đơn</> : <><Save className="w-4 h-4" /> Lưu vận đơn</>}
+              </button>
+              {(order.shipProvider || order.shipTrackingCode) && (
+                <p className="text-xs text-sky-800 font-semibold">
+                  Đang lưu: {order.shipProvider || '—'}{order.shipTrackingCode ? ` · Mã ${order.shipTrackingCode}` : ''}
+                </p>
+              )}
             </div>
           )}
 

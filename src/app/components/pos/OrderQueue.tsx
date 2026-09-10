@@ -139,6 +139,15 @@ export function OrderQueue({ branchId }: { branchId: string }) {
                     <StickyNote className="w-3.5 h-3.5" />
                   </span>
                 )}
+                {order.deliveryTime && isOnlineSource(order.source) && (() => {
+                  const dt = new Date(order.deliveryTime);
+                  if (Number.isNaN(dt.getTime())) return null;
+                  return (
+                    <span className="shrink-0 flex items-center gap-1 px-1.5 py-1 bg-indigo-100 text-indigo-700 rounded font-bold text-[10px]" title={`Giờ giao: ${dt.toLocaleString('vi-VN')}`}>
+                      <Clock className="w-3.5 h-3.5" /> {dt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  );
+                })()}
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadgeColors[order.status]}`}>
                   {statusShortLabels[order.status]}
                 </span>
@@ -174,6 +183,7 @@ export function OrderQueue({ branchId }: { branchId: string }) {
           onAdvanceStatus={(next) => updateOrderStatus(detailOrderLive.id, next)}
           onVoid={() => setVoidingOrder(detailOrderLive)}
           onEditComboItem={(itemIdx) => openComboEditor(detailOrderLive, itemIdx)}
+          onSaveShip={(ship) => updateOrder(detailOrderLive.id, { ...ship, status: detailOrderLive.status })}
         />
       )}
 

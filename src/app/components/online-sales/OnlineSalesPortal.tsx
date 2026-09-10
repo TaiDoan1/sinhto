@@ -176,9 +176,22 @@ export function OnlineSalesPortal() {
         const idx = prev.findIndex((o) => o.id === data.id);
         if (idx < 0) return prev;
         const before = prev[idx];
-        if (before.status === 'pending' && data.status === 'preparing') {
+        const who = data.customerName || 'khách';
+        // Báo khi CỬA HÀNG đổi trạng thái đơn (POS thao tác) — CSKH thấy ngay + kêu tiếng.
+        if (before.status !== data.status) {
+          const msg: Record<string, string> = {
+            preparing: `🏪 Cửa hàng đã NHẬN đơn của ${who}`,
+            ready: `📦 Đơn của ${who} đã LÀM XONG`,
+            delivering: `🛵 Đơn của ${who} — shipper ĐÃ LẤY`,
+            completed: `✓ Đơn của ${who} đã HOÀN TẤT`,
+          };
+          if (msg[data.status]) { playNotificationBeep(); showNotify(msg[data.status]); }
+        }
+        // Báo khi POS gắn MÃ VẬN ĐƠN mới cho đơn.
+        const newCode = (data.shipTrackingCode || '').trim();
+        if (newCode && newCode !== (before.shipTrackingCode || '').trim()) {
           playNotificationBeep();
-          showNotify(`🏪 Cửa hàng đã nhận đơn của ${data.customerName || 'khách'}`);
+          showNotify(`🚚 Đơn của ${who} đã có mã ship: ${newCode}${data.shipProvider ? ` (${data.shipProvider})` : ''}`);
         }
         const next = [...prev];
         next[idx] = { ...before, ...data, time: before.time };

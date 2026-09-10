@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import "./styles/index.css";
 import { CustomerApp } from "./app/components/customer/CustomerApp";
 import { GrabFoodApp } from "./app/components/customer/GrabFoodApp";
+import { CustomerProducts } from "./app/components/customer/CustomerProducts";
 import { SplashScreen } from "./app/components/SplashScreen";
 import { captureSalesRefFromUrl } from "./app/utils/salesRef";
 import { ToastProvider } from "./app/contexts/ToastContext";
@@ -22,9 +23,12 @@ import { BranchProvider } from "./app/contexts/BranchContext";
 function LandingRoot() {
   const [showSplash, setShowSplash] = useState(true);
   // Bundle landing không dùng router của App.tsx, nên tự nhận path ở đây:
-  // /dat-mon (và /order) → app đặt món kiểu Grab; còn lại → landing/CustomerApp.
-  // GrabFoodApp là app KHÁCH (không kéo theo code quản lý) nên an toàn để trong bundle landing.
-  const isOrderPath = /^\/(dat-mon|order)(\/|$)/.test(window.location.pathname);
+  // /dat-mon (và /order) → app đặt món kiểu Grab; /products (san-pham, huong-vi) → trang giới thiệu
+  // sản phẩm; còn lại → landing/CustomerApp. Thêm ?view= để test khi dev không rewrite path.
+  const _p = window.location.pathname;
+  const _view = new URLSearchParams(window.location.search).get("view") || "";
+  const isOrderPath = /^\/(dat-mon|order)(\/|$)/.test(_p) || _view === "order";
+  const isProductsPath = /^\/(products|san-pham|huong-vi)(\/|$)/.test(_p) || _view === "products";
 
   useEffect(() => {
     // Bắt mã giới thiệu (?ref= / ?pt=) — lưu nguyên mã, server sẽ giải mã khi tạo đơn.
@@ -46,7 +50,13 @@ function LandingRoot() {
                     <LoyaltyProvider>
                       <EmployeeProvider>
                         <BranchProvider>
-                          {isOrderPath ? <GrabFoodApp /> : <CustomerApp />}
+                          {isProductsPath ? (
+                            <CustomerProducts />
+                          ) : isOrderPath ? (
+                            <GrabFoodApp />
+                          ) : (
+                            <CustomerApp />
+                          )}
                         </BranchProvider>
                       </EmployeeProvider>
                     </LoyaltyProvider>

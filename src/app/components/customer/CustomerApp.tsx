@@ -7,7 +7,7 @@ import { useCombos } from '../../contexts/ComboContext';
 import { CustomerCartPanel, type CartItem } from './CustomerCartPanel';
 import { CustomerCheckout } from './CustomerCheckout';
 import { CustomerOrderHistory } from './CustomerOrderHistory';
-import { CustomerLanding } from './CustomerLanding';
+import { CustomerLanding } from './CustomerLandingStory';
 import { SubscriptionCustomizerModal } from './SubscriptionCustomizerModal';
 import { WholesalePackagesModal } from './WholesalePackagesModal';
 import { useAffiliate } from '../../contexts/AffiliateContext';

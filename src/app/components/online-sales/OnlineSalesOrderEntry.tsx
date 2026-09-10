@@ -416,7 +416,8 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto pb-4">
+       <div className="max-w-4xl mx-auto w-full space-y-4">
         {successMsg && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold">
             <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -425,11 +426,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         )}
 
         {/* Loại đơn */}
-        <div className="flex gap-2 p-1 bg-white rounded-xl border border-gray-200 w-fit">
+        <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-gray-200 sm:w-fit">
           <button
             type="button"
             onClick={() => setMode('retail')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
               mode === 'retail' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
@@ -438,7 +439,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           <button
             type="button"
             onClick={() => setMode('combo')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
               mode === 'combo' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
@@ -446,8 +447,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           </button>
         </div>
 
-        {/* Thanh bước — bấm để nhảy tự do, chấm xanh = đã có dữ liệu, không ép tuần tự */}
-        <div className="flex gap-1.5 p-1 bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        {/* Thanh bước — 4 bước chia đều 1 hàng, bấm để nhảy tự do; nhãn ẩn trên màn siêu hẹp để
+            không tràn/cuộn ngang. Chấm xanh = đã có dữ liệu, không ép tuần tự. */}
+        <div className="grid grid-cols-4 gap-1.5 p-1 bg-white rounded-xl border border-gray-200">
           {STEP_ORDER.map((s) => {
             const Icon = stepIcon[s];
             const active = activeStep === s;
@@ -456,13 +458,14 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                 key={s}
                 type="button"
                 onClick={() => setActiveStep(s)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-colors shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 px-1.5 py-2 rounded-lg text-xs font-bold transition-colors min-w-0 ${
                   active ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                {s}. {stepLabel[s]}
-                {stepDone[s] && !active && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate hidden sm:inline">{s}. {stepLabel[s]}</span>
+                <span className="sm:hidden font-black">{s}</span>
+                {stepDone[s] && !active && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
               </button>
             );
           })}
@@ -470,7 +473,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
         {/* ─── Bước 1: Khách hàng ─────────────────────────────────────────── */}
         {activeStep === 1 && (
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3 max-w-xl">
+          <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 space-y-3 max-w-xl mx-auto w-full">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
               <User className="w-4 h-4 text-indigo-600" /> Thông tin khách
             </h3>
@@ -520,11 +523,11 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
         {/* ─── Bước 2: Sản phẩm (mua lẻ) ──────────────────────────────────── */}
         {activeStep === 2 && mode === 'retail' && (
-          <div className="grid lg:grid-cols-12 gap-4">
+          <div className="grid lg:grid-cols-12 gap-4 w-full">
             {/* Khung cố định 1 chiều cao DUY NHẤT cho cả 3 trạng thái (trống/chọn size-vị/chỉnh
                 topping) — trước đây trạng thái trống chỉ cao ~py-10 còn lúc mở lưới sản phẩm cao
                 hẳn 65vh, khiến cả trang "tụt lên tụt xuống" mỗi lần bấm Thêm sản phẩm. */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-5 flex flex-col">
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
                 {(showProductGrid || selectedProduct) && (
@@ -540,7 +543,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                   </button>
                 )}
               </div>
-              <div className="h-[65vh] min-h-[480px] rounded-xl overflow-hidden border border-gray-100">
+              <div className="h-[420px] sm:h-[500px] lg:h-[540px] rounded-xl overflow-hidden border border-gray-100">
                 {selectedProduct ? (
                   <ModifierModal
                     product={selectedProduct}
@@ -571,7 +574,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             </div>
 
             <div className="lg:col-span-5 space-y-4">
-              <div className="bg-white rounded-2xl border border-indigo-100 p-5">
+              <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-gray-900">Giỏ hàng ({cart.length})</h3>
                   {!showProductGrid && !selectedProduct && cart.length > 0 && (
@@ -632,7 +635,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
         {/* ─── Bước 2: Combo ──────────────────────────────────────────────── */}
         {activeStep === 2 && mode === 'combo' && (
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 space-y-4 max-w-xl mx-auto w-full">
             <h3 className="font-bold text-gray-900">Đăng ký combo cho khách</h3>
 
             {pendingCombo ? (
@@ -711,7 +714,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
         {/* ─── Bước 3: Giao nhận ──────────────────────────────────────────── */}
         {activeStep === 3 && (
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3 max-w-xl">
+          <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 space-y-3 max-w-xl mx-auto w-full">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
               <Truck className="w-4 h-4 text-indigo-600" /> Giao nhận
             </h3>
@@ -819,7 +822,7 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
 
         {/* ─── Bước 4: Thanh toán & Ghi chú ───────────────────────────────── */}
         {activeStep === 4 && (
-          <div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-4 max-w-xl">
+          <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 space-y-4 max-w-xl mx-auto w-full">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
               <Wallet className="w-4 h-4 text-indigo-600" /> Thanh toán
             </h3>
@@ -883,11 +886,13 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
             </div>
           </div>
         )}
+       </div>
       </div>
 
       {/* Thanh tổng tiền + nút Xác nhận — DÁN CỐ ĐỊNH đáy màn hình, luôn thấy dù đang ở bước nào,
-          không phải kéo lên tìm nút như trước. */}
-      <div className="shrink-0 sticky bottom-0 bg-white border-t border-gray-200 px-5 py-3.5 rounded-b-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between gap-4">
+          không phải kéo lên tìm nút như trước. Nội dung căn giữa cùng bề ngang với form. */}
+      <div className="shrink-0 sticky bottom-0 bg-white border-t border-gray-200 px-4 sm:px-5 py-3.5 rounded-b-2xl shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+       <div className="max-w-4xl mx-auto w-full flex items-center justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
           {mode === 'retail' ? (
             cart.length > 0 ? (
@@ -916,8 +921,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
           className="shrink-0 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm flex items-center gap-2"
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          {mode === 'retail' ? 'Xác nhận đơn lẻ' : 'Xác nhận đơn combo'}
+          <span className="truncate">{mode === 'retail' ? 'Xác nhận đơn lẻ' : 'Xác nhận đơn combo'}</span>
         </button>
+       </div>
       </div>
 
       {/* Bộ dựng combo — mở FULL MÀN HÌNH (giống quy ước OrderQueue.tsx/ComboManagement.tsx ở POS)

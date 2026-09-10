@@ -37,6 +37,7 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
   const comboList = ((comboToppings as any[])?.length ? comboToppings : DEFAULT_COMBO_TOPPINGS) as { id: string; name: string; price: number }[];
 
   const [search, setSearch] = useState('');
+  const [toppingSearch, setToppingSearch] = useState('');
   const [selected, setSelected] = useState<Product | null>(null);
   const [size, setSize] = useState('360ml');
   const [protein, setProtein] = useState(20);
@@ -66,12 +67,18 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
     return q ? smoothies.filter((p: any) => p.name.toLowerCase().includes(q)) : smoothies;
   }, [smoothies, search]);
 
+  // Lọc topping theo ô tìm topping (áp cho cả topping lẻ và combo topping).
+  const tq = toppingSearch.trim().toLowerCase();
+  const shownToppings = tq ? toppingsList.filter((t) => t.name.toLowerCase().includes(tq)) : toppingsList;
+  const shownCombos = tq ? comboList.filter((c) => c.name.toLowerCase().includes(tq)) : comboList;
+
   const openProduct = (p: Product) => {
     setSelected(p);
     setSize('360ml');
     setProtein((PROTEIN_LEVELS_BY_SIZE['360ml'] || [20])[0]);
     setToppings([]);
     setCombos([]);
+    setToppingSearch('');
     setQty(1);
   };
 
@@ -114,31 +121,31 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-3 pb-3">
+        <div className="flex-1 overflow-y-auto px-2.5 pb-2.5">
           {filtered.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-2">
               <ShoppingCart className="w-8 h-8 opacity-40" />
-              <p className="text-sm font-semibold">Không tìm thấy món nào</p>
+              <p className="text-sm font-semibold">Không tìm thấy vị nào</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+            <div className="space-y-1.5">
               {filtered.map((p: any) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => openProduct(p)}
-                  className="group text-left bg-white rounded-xl border border-gray-100 hover:border-purple-300 hover:shadow-md transition-all overflow-hidden"
+                  className="w-full flex items-center gap-3 bg-white rounded-xl border border-gray-100 hover:border-purple-300 hover:shadow-sm transition-all p-2 text-left"
                 >
-                  <div className="aspect-square bg-purple-50/60 overflow-hidden relative">
+                  <div className="w-12 h-12 rounded-lg bg-purple-50/60 overflow-hidden shrink-0">
                     <ProductThumb image={p.image} name={p.name} className="w-full h-full object-cover" />
-                    <div className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md opacity-90 group-hover:scale-110 transition-transform">
-                      <Plus className="w-3.5 h-3.5" />
-                    </div>
                   </div>
-                  <div className="p-1.5">
-                    <p className="font-bold text-gray-800 text-xs leading-tight line-clamp-2">{p.name}</p>
-                    <p className="text-[10px] text-purple-600 font-bold mt-0.5">từ {fromPrice.toLocaleString('vi-VN')}đ</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-gray-800 text-sm leading-tight truncate">{p.name}</p>
+                    <p className="text-[11px] text-purple-600 font-bold mt-0.5">từ {fromPrice.toLocaleString('vi-VN')}đ</p>
                   </div>
+                  <span className="shrink-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-sm">
+                    <Plus className="w-4 h-4" />
+                  </span>
                 </button>
               ))}
             </div>
@@ -210,51 +217,70 @@ export function CskhProductPicker({ onAdd }: { onAdd: (item: CartItem) => void }
           </div>
         </div>
 
-        {/* Topping */}
-        {toppingsList.length > 0 && (
+        {/* Topping — có ô tìm topping cho tiện khi danh sách dài */}
+        {(toppingsList.length > 0 || comboList.length > 0) && (
           <div>
-            <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-1.5">Topping thêm</p>
-            <div className="flex flex-wrap gap-2">
-              {toppingsList.map((tp) => {
-                const on = toppings.includes(tp.name);
-                return (
-                  <button
-                    key={tp.name}
-                    type="button"
-                    onClick={() => toggle(toppings, setToppings, tp.name)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 transition-all ${on ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-200 text-gray-600 hover:border-purple-300'}`}
-                  >
-                    {on && <Check className="w-3 h-3" />}
-                    {tp.name}
-                    {tp.price > 0 && <span className={on ? 'text-white/80' : 'text-purple-600'}>+{tp.price.toLocaleString('vi-VN')}</span>}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between mb-1.5 gap-2">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-wide">Topping thêm</p>
+              <div className="relative w-40">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="search"
+                  value={toppingSearch}
+                  onChange={(e) => setToppingSearch(e.target.value)}
+                  placeholder="Tìm topping..."
+                  className="w-full pl-8 pr-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:border-purple-500"
+                />
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Combo topping */}
-        {comboList.length > 0 && (
-          <div>
-            <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-1.5">Combo topping</p>
-            <div className="flex flex-wrap gap-2">
-              {comboList.map((c) => {
-                const on = combos.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggle(combos, setCombos, c.id)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 transition-all ${on ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-200 text-gray-600 hover:border-emerald-300'}`}
-                  >
-                    {on && <Check className="w-3 h-3" />}
-                    {c.name}
-                    {c.price > 0 && <span className={on ? 'text-white/80' : 'text-emerald-600'}>+{c.price.toLocaleString('vi-VN')}</span>}
-                  </button>
-                );
-              })}
-            </div>
+            {shownToppings.length === 0 && shownCombos.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">Không tìm thấy topping nào.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {shownToppings.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {shownToppings.map((tp) => {
+                      const on = toppings.includes(tp.name);
+                      return (
+                        <button
+                          key={tp.name}
+                          type="button"
+                          onClick={() => toggle(toppings, setToppings, tp.name)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 transition-all ${on ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-200 text-gray-600 hover:border-purple-300'}`}
+                        >
+                          {on && <Check className="w-3 h-3" />}
+                          {tp.name}
+                          {tp.price > 0 && <span className={on ? 'text-white/80' : 'text-purple-600'}>+{tp.price.toLocaleString('vi-VN')}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {shownCombos.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-1">Combo topping</p>
+                    <div className="flex flex-wrap gap-2">
+                      {shownCombos.map((c) => {
+                        const on = combos.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => toggle(combos, setCombos, c.id)}
+                            className={`rounded-full border px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 transition-all ${on ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-200 text-gray-600 hover:border-emerald-300'}`}
+                          >
+                            {on && <Check className="w-3 h-3" />}
+                            {c.name}
+                            {c.price > 0 && <span className={on ? 'text-white/80' : 'text-emerald-600'}>+{c.price.toLocaleString('vi-VN')}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

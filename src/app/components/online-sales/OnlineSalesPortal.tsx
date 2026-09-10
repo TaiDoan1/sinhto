@@ -514,6 +514,7 @@ export function OnlineSalesPortal() {
                   setOrderPrefill(undefined);
                   refreshData();
                 }}
+                onViewOrders={() => setView('orders')}
               />
             )}
 

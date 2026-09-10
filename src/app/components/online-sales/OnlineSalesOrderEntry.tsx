@@ -32,10 +32,12 @@ const STEP_ORDER: EntryStep[] = [1, 2, 3, 4];
 interface Props {
   employee: Employee;
   onComplete?: () => void;
+  /** Chuyển sang tab "Theo dõi đơn" (chờ làm đơn) để kiểm tra đơn vừa tạo. */
+  onViewOrders?: () => void;
   prefill?: { name?: string; phone?: string; address?: string };
 }
 
-export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) {
+export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, prefill }: Props) {
   const { addOrder } = useOrders();
   const { activeBranches } = useBranches();
   const { combos } = useCombos();
@@ -69,6 +71,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
   const [notes, setNotes] = useState('');
   const [allergyNote, setAllergyNote] = useState(''); // kỵ vị & dị ứng
 
+  // Popup xác nhận sau khi tạo đơn thành công (thay cho chỉ 1 dòng banner) — kèm nút qua tab
+  // "Theo dõi đơn" để kiểm tra đơn đang chờ làm.
+  const [completed, setCompleted] = useState<{ mode: OrderMode; customerName: string; total: number; subtitle: string } | null>(null);
   const [showProductGrid, setShowProductGrid] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -279,13 +284,19 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         activityContent: notes || 'NV CSKH nhập đơn bán lẻ',
       }).catch(() => {});
 
+      setCompleted({
+        mode: 'retail',
+        customerName: customer.name.trim() || 'Khách',
+        total: cartTotal + shipFeeValue,
+        subtitle: `${orderItems.length} món`,
+      });
       setCart([]);
       setShipFee('');
       setOrderTime('');
       setShipProvider('');
       setShipTrackingCode('');
       setAllergyNote('');
-      setSuccessMsg(`Đã tạo đơn lẻ ${cartTotal.toLocaleString('vi-VN')}đ cho ${customer.name}`);
+      setSuccessMsg('');
       setActiveStep(1);
       onComplete?.();
     } catch (err) {
@@ -358,11 +369,17 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
         activityContent: notes || 'NV CSKH nhập đơn combo',
       }).catch(() => {});
 
+      setCompleted({
+        mode: 'combo',
+        customerName: customer.name.trim() || 'Khách',
+        total: pendingCombo.price,
+        subtitle: pendingCombo.name,
+      });
       setPendingCombo(null);
       setShipFee('');
       setRenewFromComboId('');
       setAllergyNote('');
-      setSuccessMsg(`Đã tạo combo ${pendingCombo.name} cho ${customer.name}`);
+      setSuccessMsg('');
       setActiveStep(1);
       onComplete?.();
     } catch (err) {
@@ -624,9 +641,9 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                         <span className="font-semibold text-gray-700">{Number(shipFee).toLocaleString('vi-VN')}đ</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-sm font-bold text-gray-900">Tổng cộng</span>
-                      <span className="text-lg font-black text-indigo-700">{(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
+                    <div className="flex items-center justify-between mt-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm">
+                      <span className="text-sm font-black text-white uppercase tracking-wide">Tổng cộng</span>
+                      <span className="text-xl font-black text-white">{(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
                     </div>
                   </div>
                 )}
@@ -992,6 +1009,51 @@ export function OnlineSalesOrderEntry({ employee, onComplete, prefill }: Props) 
                   <p className="text-xs text-gray-500 mt-0.5">{tpl.comboType === 'weekly' ? 'Theo tuần' : 'Theo tháng'} · {tpl.items.length} ngày</p>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup xác nhận đơn đã tạo — kèm nút qua "Theo dõi đơn" để kiểm tra đơn đang chờ làm */}
+      {completed && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-6 py-6 text-center">
+              <div className="w-16 h-16 mx-auto rounded-full bg-white/20 flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-9 h-9 text-white" />
+              </div>
+              <p className="text-white font-black text-lg">Tạo đơn thành công!</p>
+              <p className="text-white/90 text-sm mt-0.5">
+                {completed.mode === 'retail' ? 'Đơn lẻ' : 'Combo'} cho <b>{completed.customerName}</b>
+              </p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-500 truncate">{completed.subtitle}</span>
+                <span className="text-xl font-black text-emerald-600 shrink-0">{completed.total.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700 font-semibold flex items-start gap-2">
+                <Clock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                {completed.mode === 'retail'
+                  ? <span>Đơn đang ở <b>“Chờ nhận đơn”</b> — cửa hàng sẽ nhận &amp; làm món. Kiểm tra ở tab Theo dõi đơn.</span>
+                  : <span>Combo đã tạo — kiểm tra tiến độ ở tab Theo dõi đơn (mục Combo).</span>}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCompleted(null)}
+                  className="py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm"
+                >
+                  Nhập đơn mới
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCompleted(null); onViewOrders?.(); }}
+                  className="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm flex items-center justify-center gap-1"
+                >
+                  Kiểm tra đơn →
+                </button>
+              </div>
             </div>
           </div>
         </div>

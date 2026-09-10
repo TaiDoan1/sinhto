@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
 import { useCombos } from '../../contexts/ComboContext';
-import { ProductGrid, type Product } from '../pos/ProductGrid';
-import { ModifierModal, type CartItem } from '../pos/ModifierModal';
+import { type CartItem } from '../pos/ModifierModal';
+import { CskhProductPicker } from './CskhProductPicker';
 import { CustomComboBuilder } from '../customer/CustomComboBuilder';
 import { calculateTotalCups } from '../../utils/comboUtils';
 import * as api from '../../utils/api';
@@ -74,8 +74,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
   // Popup xác nhận sau khi tạo đơn thành công (thay cho chỉ 1 dòng banner) — kèm nút qua tab
   // "Theo dõi đơn" để kiểm tra đơn đang chờ làm.
   const [completed, setCompleted] = useState<{ mode: OrderMode; customerName: string; total: number; subtitle: string } | null>(null);
-  const [showProductGrid, setShowProductGrid] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showComboBuilder, setShowComboBuilder] = useState(false);
   const [pendingCombo, setPendingCombo] = useState<{ name: string; price: number; raw: Record<string, unknown> } | null>(null);
@@ -182,7 +180,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
 
   const handleAddToCart = (item: CartItem) => {
     setCart((prev) => [...prev, item]);
-    setSelectedProduct(null);
   };
 
   const logActivity = async (activityType: string, content: string) => {
@@ -544,52 +541,13 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
         {/* ─── Bước 2: Sản phẩm (mua lẻ) ──────────────────────────────────── */}
         {activeStep === 2 && mode === 'retail' && (
           <div className="grid lg:grid-cols-12 gap-4 w-full">
-            {/* Khung cố định 1 chiều cao DUY NHẤT cho cả 3 trạng thái (trống/chọn size-vị/chỉnh
-                topping) — trước đây trạng thái trống chỉ cao ~py-10 còn lúc mở lưới sản phẩm cao
-                hẳn 65vh, khiến cả trang "tụt lên tụt xuống" mỗi lần bấm Thêm sản phẩm. */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5 flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-gray-900">Chọn sản phẩm</h3>
-                {(showProductGrid || selectedProduct) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowProductGrid(false);
-                      setSelectedProduct(null);
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-              <div className="h-[420px] sm:h-[500px] lg:h-[540px] rounded-xl overflow-hidden border border-gray-100">
-                {selectedProduct ? (
-                  <ModifierModal
-                    product={selectedProduct}
-                    onClose={() => setSelectedProduct(null)}
-                    onAddToCart={handleAddToCart}
-                    theme="purple"
-                    skipStockCheck
-                  />
-                ) : showProductGrid ? (
-                  <ProductGrid onProductClick={setSelectedProduct} theme="purple" hideCategories={['combo']} />
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
-                      <ShoppingCart className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <h4 className="font-bold text-gray-900">Chưa có sản phẩm nào</h4>
-                    <button
-                      type="button"
-                      onClick={() => setShowProductGrid(true)}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-bold"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Thêm sản phẩm
-                    </button>
-                  </div>
-                )}
+            {/* Bộ chọn sản phẩm CSKH — 1 màn hình cố định, tự có 2 trạng thái (lưới món → cấu hình
+                size/protein/topping), không còn nhét ProductGrid + ModifierModal của POS vào khung
+                nhỏ (chật/xấu). Chiều cao cố định theo breakpoint nên trang không "tụt lên xuống". */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-indigo-100 p-2.5 sm:p-3 flex flex-col">
+              <h3 className="font-bold text-gray-900 px-1.5 pt-1 pb-2">Chọn sản phẩm</h3>
+              <div className="h-[440px] sm:h-[500px] lg:h-[540px] rounded-xl overflow-hidden border border-gray-100">
+                <CskhProductPicker onAdd={handleAddToCart} />
               </div>
             </div>
 
@@ -597,15 +555,6 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
               <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-gray-900">Giỏ hàng ({cart.length})</h3>
-                  {!showProductGrid && !selectedProduct && cart.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowProductGrid(true)}
-                      className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-900"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Thêm món
-                    </button>
-                  )}
                 </div>
                 {cart.length === 0 ? (
                   <p className="text-sm text-gray-400 py-4 text-center">Giỏ hàng trống — thêm sản phẩm bên trái.</p>

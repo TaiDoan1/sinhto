@@ -360,9 +360,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     if (status === 'ready') updates.readyAt = now;
     if (status === 'completed') updates.completedAt = now;
 
-    // Local stock deduction
+    // Local stock deduction — trừ kho khi món đã làm xong & giao đi (delivering) HOẶC hoàn tất
+    // (completed). Đơn CSKH giao tận nơi có thêm bước "Ship đã lấy" (delivering) rồi mới "Khách đã
+    // nhận" (completed, do POS/CSKH bấm) — trừ kho ngay ở delivering để không phụ thuộc ai bấm hoàn tất.
     const activeOrder = orders.find(o => o.id === orderId);
-    if (activeOrder && status === 'completed' && !activeOrder.stockDeducted) {
+    if (activeOrder && (status === 'completed' || status === 'delivering') && !activeOrder.stockDeducted) {
       const lines = activeOrder.items.map((item) =>
         typeof item === 'string'
           ? { productName: item, quantity: 1 }

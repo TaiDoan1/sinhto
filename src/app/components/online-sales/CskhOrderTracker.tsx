@@ -17,28 +17,22 @@ export const CSKH_STEPS = [
   { key: 'received', label: 'Khách đã nhận', icon: PackageCheck },
 ] as const;
 
-function isReceived(o: Order): boolean {
-  return !!(o as any).customerReceived;
-}
-// "Cửa hàng đã xong khâu giao" = shipper đã lấy / đã hoàn tất giao nhận ở POS.
-function isHandedOff(status: Order['status']): boolean {
-  return status === 'delivering' || status === 'completed';
+function isDone(o: Order): boolean {
+  return o.status === 'completed';
 }
 
 export function cskhStepIndex(o: Order): number {
-  if (isReceived(o)) return 4;
   switch (o.status) {
     case 'pending': return 0;
     case 'preparing': return 1;
     case 'ready': return 2;
     case 'delivering': return 3;
-    case 'completed': return 3;
+    case 'completed': return 4;
     default: return 0;
   }
 }
 
 function statusBadge(o: Order, pickup: boolean) {
-  if (isReceived(o)) return { label: pickup ? '✓ Khách đã lấy' : '✓ Khách đã nhận đơn', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   switch (o.status) {
     case 'preparing':
       return { label: '👨‍🍳 Cửa hàng đã nhận đơn', cls: 'bg-blue-100 text-blue-700 border-blue-200' };
@@ -47,7 +41,7 @@ function statusBadge(o: Order, pickup: boolean) {
     case 'delivering':
       return { label: pickup ? '🏪 Chờ khách lấy' : '🛵 Ship đã lấy', cls: 'bg-teal-100 text-teal-700 border-teal-200' };
     case 'completed':
-      return { label: pickup ? '🏪 Chờ khách lấy' : '🛵 Ship đã lấy', cls: 'bg-teal-100 text-teal-700 border-teal-200' };
+      return { label: pickup ? '✓ Khách đã lấy' : '✓ Khách đã nhận đơn', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
     default:
       return { label: '🔔 Chờ cửa hàng nhận', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
   }
@@ -171,7 +165,7 @@ export function CskhOrderTracker({
   const retailCounts = useMemo(() => {
     let active = 0, done = 0;
     for (const o of orders) {
-      if (isReceived(o)) done++;
+      if (isDone(o)) done++;
       else active++;
     }
     return { active, done, all: orders.length };
@@ -197,8 +191,8 @@ export function CskhOrderTracker({
   };
 
   const filteredRetail = useMemo(() => retailSorted.filter((o) => {
-    if (filter === 'active' && isReceived(o)) return false;
-    if (filter === 'done' && !isReceived(o)) return false;
+    if (filter === 'active' && isDone(o)) return false;
+    if (filter === 'done' && !isDone(o)) return false;
     return matchSearch(`${o.customerName || ''} ${o.customerPhone || ''} ${o.deliveryAddress || ''}`);
   }), [retailSorted, filter, search]);
 
@@ -296,8 +290,9 @@ export function CskhOrderTracker({
           filteredRetail.map((o) => {
             const pickup = o.deliveryType === 'pickup';
             const badge = statusBadge(o, pickup);
-            const canComplete = isHandedOff(o.status) && !isReceived(o);
-            const received = isReceived(o);
+            // "Hoàn thành đơn" (khách đã nhận) chỉ bật khi đã tới bước Ship đã lấy (delivering).
+            const canComplete = o.status === 'delivering';
+            const received = isDone(o);
             return (
               <div
                 key={o.id}

@@ -40,7 +40,7 @@ export const statusLabels: Record<Order['status'], string> = {
   pending: '🔔 CHỜ XÁC NHẬN',
   preparing: '🔥 ĐANG LÀM MÓN',
   ready: '📦 CHỜ SHIPPER LẤY',
-  delivering: '🏍️ ĐANG GIAO HÀNG',
+  delivering: '🛵 SHIP ĐÃ LẤY',
   completed: 'HOÀN THÀNH',
 };
 
@@ -48,7 +48,7 @@ export const statusShortLabels: Record<Order['status'], string> = {
   pending: 'Chờ xác nhận',
   preparing: 'Đang làm',
   ready: 'Chờ lấy',
-  delivering: 'Đang giao',
+  delivering: 'Ship đã lấy',
   completed: 'Xong',
 };
 
@@ -63,8 +63,17 @@ export function getPrimaryAction(order: Order): { label: string; icon: typeof Pl
       next: 'ready',
     };
   }
-  if (order.status === 'ready' && order.source !== 'mobile') {
+  if (order.status === 'ready') {
+    if (order.source === 'mobile') return null; // mobile: chờ shipper của khách
+    // Đơn CSKH giao tận nơi: thêm bước "Ship đã lấy" (delivering) trước khi "Khách đã nhận".
+    if (order.source === 'online_sales' && order.deliveryType !== 'pickup') {
+      return { label: 'Ship Đã Lấy', icon: CheckCircle, next: 'delivering' };
+    }
     return { label: 'Hoàn Tất Giao Nhận', icon: CheckCircle, next: 'completed' };
+  }
+  // "Ship đã lấy" → bấm khi KHÁCH ĐÃ NHẬN để hoàn tất (POS/CSKH/shipper đều bấm được).
+  if (order.status === 'delivering') {
+    return { label: 'Khách Đã Nhận - Hoàn Tất', icon: CheckCircle, next: 'completed' };
   }
   return null;
 }

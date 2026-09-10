@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const dns = require('dns').promises;
 const { initSchemaAndSeeds } = require('./initDb');
 const { run: runNoDiacriticsMigration } = require('./migrateNoDiacritics');
+const { run: runAddDiacriticsMigration } = require('./migrateAddDiacritics');
 const { init: initSqlite } = require('./sqliteDb');
 
 // Force IPv4 resolution
@@ -118,6 +119,9 @@ async function initDatabase() {
     await new Promise((resolve, reject) => {
       runNoDiacriticsMigration(db, (err) => (err ? reject(err) : resolve()));
     });
+    await new Promise((resolve, reject) => {
+      runAddDiacriticsMigration(db, (err) => (err ? reject(err) : resolve()));
+    });
     return db;
   }
 
@@ -147,6 +151,9 @@ async function initDatabase() {
   await initSchemaAndSeeds(pool);
   await new Promise((resolve, reject) => {
     runNoDiacriticsMigration(db, (err) => (err ? reject(err) : resolve()));
+  });
+  await new Promise((resolve, reject) => {
+    runAddDiacriticsMigration(db, (err) => (err ? reject(err) : resolve()));
   });
   return db;
 }

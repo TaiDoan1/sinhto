@@ -32,7 +32,10 @@ import {
   ScrollCtx,
   useScrollEngine,
   prefersReducedMotion,
+  ComboLeadModal,
 } from './CustomerLandingStory';
+
+type ComboDuration = 'weekly' | 'monthly' | 'quarterly';
 
 const P = PRODUCT_IMAGES;
 
@@ -182,6 +185,7 @@ export function CustomerProducts() {
   const [pastHero, setPastHero] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [comboLead, setComboLead] = useState<{ plan: string; duration: ComboDuration } | null>(null);
   const lenisRef = useRef<any>(null);
 
   useEffect(() => {
@@ -358,8 +362,12 @@ export function CustomerProducts() {
                         {money(c.price)}
                         <em>/tuần</em>
                       </div>
-                      <button type="button" className="fb-btn fb-btn-solid fb-btn-block" onClick={goLanding}>
-                        Xem chi tiết
+                      <button
+                        type="button"
+                        className="fb-btn fb-btn-solid fb-btn-block"
+                        onClick={() => setComboLead({ plan: c.name, duration: 'monthly' })}
+                      >
+                        Đặt combo
                       </button>
                     </div>
                   ))}
@@ -562,6 +570,14 @@ export function CustomerProducts() {
               ))}
             </div>
           </div>
+        )}
+
+        {comboLead && (
+          <ComboLeadModal
+            plan={comboLead.plan}
+            duration={comboLead.duration}
+            onClose={() => setComboLead(null)}
+          />
         )}
 
         <ProductStyles />

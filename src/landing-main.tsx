@@ -38,6 +38,25 @@ function LandingRoot() {
     captureSalesRefFromUrl();
   }, []);
 
+  // Trang giới thiệu + /products KHÔNG cần context/SSE (tĩnh, tự gọi API khi cần) → render trần,
+  // tránh spam lỗi 401/SSE. Chỉ app đặt món kiểu Grab mới bọc đủ provider.
+  if (isProductsPath) {
+    return (
+      <>
+        <CustomerProducts />
+        {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      </>
+    );
+  }
+  if (!isOrderPath) {
+    return (
+      <>
+        <CustomerApp />
+        {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+      </>
+    );
+  }
+
   return (
     <>
       <ToastProvider>
@@ -50,13 +69,7 @@ function LandingRoot() {
                     <LoyaltyProvider>
                       <EmployeeProvider>
                         <BranchProvider>
-                          {isProductsPath ? (
-                            <CustomerProducts />
-                          ) : isOrderPath ? (
-                            <GrabFoodApp />
-                          ) : (
-                            <CustomerApp />
-                          )}
+                          <GrabFoodApp />
                         </BranchProvider>
                       </EmployeeProvider>
                     </LoyaltyProvider>

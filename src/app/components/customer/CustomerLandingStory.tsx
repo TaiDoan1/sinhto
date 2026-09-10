@@ -22,7 +22,6 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  ArrowRight,
   ArrowUpRight,
   ChevronDown,
   Facebook,
@@ -66,7 +65,6 @@ const NAV_LINKS = [
   { href: '#nguyen-lieu', label: 'Nguyên liệu' },
   { href: '#combo', label: 'Combo' },
   { href: '#khach', label: 'Khách nói gì' },
-  { href: '#si', label: 'Mua sỉ' },
 ];
 
 const INGREDIENTS = [
@@ -434,24 +432,28 @@ function PinnedIngredients({ id }: { id?: string }) {
 
 /* ─────────────────────────────  Trang chính  ───────────────────────────── */
 
-interface LandingProps {
-  onGetStarted: () => void;
-  onSelectCombo: (planId: string) => void;
-  onSelectDuration?: (duration: ComboDuration) => void;
-  onOpenWholesale: () => void;
-  onGoToRetail?: () => void;
-}
+const ORDER_URL = '/dat-mon';
 
-export function CustomerLanding({
-  onGetStarted,
-  onSelectCombo,
-  onSelectDuration,
-  onOpenWholesale,
-  onGoToRetail,
-}: LandingProps) {
+export function CustomerLanding() {
   const reduced = typeof window !== 'undefined' ? prefersReducedMotion() : false;
   const motionOn = !reduced;
   const subscribe = useScrollEngine(motionOn);
+
+  /** Popup để lại SĐT đặt combo (gói + kỳ điền sẵn) */
+  const [comboLead, setComboLead] = useState<{ plan: string; duration: ComboDuration } | null>(null);
+  const openComboLead = useCallback((plan: string, dur: ComboDuration) => {
+    setComboLead({ plan, duration: dur });
+  }, []);
+
+  /* Deep-link: /?combo=<plan> (từ trang /products) → mở popup luôn */
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('combo');
+      if (q) setComboLead({ plan: decodeURIComponent(q), duration: 'monthly' });
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
@@ -538,15 +540,11 @@ export function CustomerLanding({
     [reduced],
   );
 
-  const goCombos = () => {
-    onSelectDuration?.(duration);
-    onGetStarted();
+  const goCombos = () => scrollTo('#combo');
+  const goRetail = () => {
+    window.location.href = ORDER_URL;
   };
-  const goPlan = (id: PlanComboId) => {
-    onSelectDuration?.(duration);
-    onSelectCombo(id);
-  };
-  const goRetail = () => (onGoToRetail ? onGoToRetail() : onGetStarted());
+  const goPlan = (c: PlanCombo) => openComboLead(c.name, duration);
 
   const combos = PLAN_COMBOS[duration];
 
@@ -700,10 +698,7 @@ export function CustomerLanding({
                   key={t.id}
                   type="button"
                   className={duration === t.id ? 'is-active' : ''}
-                  onClick={() => {
-                    setDuration(t.id);
-                    onSelectDuration?.(t.id);
-                  }}
+                  onClick={() => setDuration(t.id)}
                 >
                   {t.label} <em>{t.save}</em>
                 </button>
@@ -725,9 +720,9 @@ export function CustomerLanding({
                   <button
                     type="button"
                     className="fb-btn fb-btn-solid fb-btn-block"
-                    onClick={() => goPlan(c.id)}
+                    onClick={() => goPlan(c)}
                   >
-                    Chọn {c.name}
+                    Đặt {c.name}
                   </button>
                 </div>
               ))}
@@ -735,7 +730,7 @@ export function CustomerLanding({
 
             <Reveal className="fb-combo-foot">
               <button type="button" className="fb-link" onClick={goRetail}>
-                Chưa chắc? Mua lẻ vài ly uống thử trước <ArrowUpRight size={16} />
+                Chưa chắc? Đặt lẻ vài ly uống thử trước <ArrowUpRight size={16} />
               </button>
             </Reveal>
           </div>
@@ -783,34 +778,6 @@ export function CustomerLanding({
               ))}
             </Reveal>
           </div>
-        </section>
-
-        {/* ───────────────  MUA SỈ  ─────────────── */}
-        <section className="fb-section" id="si">
-          <Reveal className="fb-wrap">
-            <div className="fb-wholesale">
-              <div>
-                <p className="fb-tag">Dành cho đối tác</p>
-                <h2 className="fb-display fb-h2">Phòng gym, văn phòng, đại lý.</h2>
-                <p className="fb-wholesale-body">
-                  Đặt số lượng lớn, giá sỉ, giao định kỳ. Bổ sung dinh dưỡng tiện lợi cho cả tập
-                  thể mà không cần bận tâm khâu chuẩn bị.
-                </p>
-                <button
-                  type="button"
-                  className="fb-btn fb-btn-solid fb-btn-lg"
-                  onClick={onOpenWholesale}
-                >
-                  Nhận báo giá sỉ <ArrowRight size={18} />
-                </button>
-              </div>
-              <img
-                src={PRODUCT_IMAGES.combo}
-                alt="Combo FitBlend"
-                onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
-              />
-            </div>
-          </Reveal>
         </section>
 
         {/* ───────────────  FOOTER  ─────────────── */}
@@ -962,12 +929,164 @@ export function CustomerLanding({
             </div>
           </div>
         )}
+
+        {/* ───────────────  POPUP ĐẶT COMBO — để lại SĐT  ─────────────── */}
+        {comboLead && (
+          <ComboLeadModal
+            plan={comboLead.plan}
+            duration={comboLead.duration}
+            onClose={() => setComboLead(null)}
+          />
+        )}
       </div>
     </ScrollCtx.Provider>
   );
 }
 
 /* ─────────────────────────  Thành phần phụ  ───────────────────────── */
+
+const COMBO_DURATION_LABEL: Record<ComboDuration, string> = {
+  weekly: 'Theo tuần',
+  monthly: 'Theo tháng',
+  quarterly: 'Theo quý',
+};
+
+/** Popup đặt combo: khách để lại tên + SĐT (gói & kỳ điền sẵn) → gửi CSKH tư vấn */
+export function ComboLeadModal({
+  plan,
+  duration = 'monthly',
+  onClose,
+}: {
+  plan: string;
+  duration?: ComboDuration;
+  onClose: () => void;
+}) {
+  const [dur, setDur] = useState<ComboDuration>(duration);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+
+  const phoneOk = /^0\d{8,10}$/.test(phone.replace(/\s+/g, ''));
+  const canSend = name.trim().length >= 2 && phoneOk && state !== 'sending';
+
+  const submit = async () => {
+    if (!canSend) return;
+    setState('sending');
+    try {
+      const refCode =
+        (() => {
+          try {
+            return localStorage.getItem('activeReferralCode') || '';
+          } catch {
+            return '';
+          }
+        })() || '';
+      const res = await fetch('/api/combo-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: name.trim(),
+          customerPhone: phone.replace(/\s+/g, ''),
+          planName: `${plan} Plan`,
+          comboType: dur,
+          comboDuration: dur,
+          status: 'pending',
+          notes: `Đăng ký từ web — ${plan} · ${COMBO_DURATION_LABEL[dur]}`,
+          salesRefCode: refCode,
+        }),
+      });
+      if (!res.ok) throw new Error('fail');
+      setState('done');
+    } catch {
+      setState('error');
+    }
+  };
+
+  return (
+    <div className="fb-lead" onClick={onClose}>
+      <div className="fb-lead-card" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="fb-lead-close" aria-label="Đóng" onClick={onClose}>
+          <X size={22} />
+        </button>
+
+        {state === 'done' ? (
+          <div className="fb-lead-done">
+            <div className="fb-lead-check" aria-hidden>
+              ✓
+            </div>
+            <h3 className="fb-display">Đã nhận đăng ký!</h3>
+            <p>
+              CSKH sẽ gọi lại số <b>{phone}</b> trong ít phút để tư vấn gói <b>{plan}</b> phù hợp
+              nhất với bạn.
+            </p>
+            <button type="button" className="fb-btn fb-btn-solid fb-btn-lg fb-btn-block" onClick={onClose}>
+              Xong
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="fb-tag">Đặt combo</p>
+            <h3 className="fb-display fb-lead-title">Để lại SĐT, CSKH gọi tư vấn</h3>
+            <p className="fb-lead-sub">
+              Gói <b>{plan}</b> — chọn kỳ giao, tụi mình lo phần còn lại.
+            </p>
+
+            <div className="fb-lead-durs">
+              {(['weekly', 'monthly', 'quarterly'] as ComboDuration[]).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={dur === d ? 'is-active' : ''}
+                  onClick={() => setDur(d)}
+                >
+                  {COMBO_DURATION_LABEL[d]}
+                </button>
+              ))}
+            </div>
+
+            <label className="fb-lead-field">
+              <span>Tên của bạn</span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nguyễn Văn A"
+                autoComplete="name"
+              />
+            </label>
+            <label className="fb-lead-field">
+              <span>Số điện thoại</span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="09xx xxx xxx"
+                autoComplete="tel"
+              />
+            </label>
+
+            {state === 'error' && (
+              <p className="fb-lead-err">Gửi chưa được, thử lại hoặc nhắn Zalo/Facebook giúp mình nhé.</p>
+            )}
+
+            <button
+              type="button"
+              className="fb-btn fb-btn-solid fb-btn-lg fb-btn-block"
+              disabled={!canSend}
+              onClick={submit}
+            >
+              {state === 'sending' ? 'Đang gửi…' : 'Gửi — CSKH gọi tư vấn'}
+            </button>
+            <p className="fb-lead-note">
+              Chưa trừ tiền. Bạn xác nhận gói &amp; lịch giao khi CSKH gọi lại.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function MenuIcon() {
   return (
@@ -1341,6 +1460,48 @@ export function Styles() {
 }
 .fb-menu-scroll { width: 100%; max-width: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 56px 0 20px; }
 .fb-menu-scroll img { width: 100%; border-radius: 12px; display: block; box-shadow: 0 20px 50px rgba(0,0,0,.4); }
+
+/* Popup đặt combo — để lại SĐT */
+.fb-lead {
+  position: fixed; inset: 0; z-index: 320; display: flex; align-items: center; justify-content: center;
+  padding: 18px; background: rgba(20,14,8,.55); backdrop-filter: blur(4px);
+  animation: fb-menu-in .2s ease both;
+}
+.fb-lead-card {
+  position: relative; width: 100%; max-width: 420px; background: var(--cream);
+  border-radius: 26px; padding: clamp(24px, 5vw, 34px); box-shadow: 0 40px 90px rgba(20,14,8,.4);
+  max-height: 92vh; overflow-y: auto;
+}
+.fb-lead-close {
+  position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border-radius: 999px;
+  border: 0; cursor: pointer; background: rgba(13,83,14,.09); color: var(--green);
+  display: flex; align-items: center; justify-content: center;
+}
+.fb-lead-title { font-size: clamp(21px, 4vw, 27px); line-height: 1.15; color: var(--green); margin: 8px 0 6px; font-weight: 600; }
+.fb-lead-sub { margin: 0 0 18px; font-size: 14px; line-height: 1.55; color: var(--brown); }
+.fb-lead-durs { display: flex; gap: 6px; margin-bottom: 16px; }
+.fb-lead-durs button {
+  flex: 1; padding: 9px 6px; border: 1px solid rgba(13,83,14,.2); background: #fff; cursor: pointer;
+  border-radius: 12px; font-size: 12.5px; font-weight: 700; color: var(--green); opacity: .7;
+}
+.fb-lead-durs button.is-active { background: var(--green); color: #fff; border-color: var(--green); opacity: 1; }
+.fb-lead-field { display: block; margin-bottom: 12px; }
+.fb-lead-field span { display: block; font-size: 12px; font-weight: 700; color: var(--brown); margin-bottom: 5px; }
+.fb-lead-field input {
+  width: 100%; padding: 12px 14px; border: 1.5px solid rgba(13,83,14,.22); border-radius: 12px;
+  font-size: 15px; color: var(--ink); background: #fff; outline: none; font-family: inherit;
+}
+.fb-lead-field input:focus { border-color: var(--green); }
+.fb-lead .fb-btn-solid[disabled] { opacity: .45; cursor: not-allowed; }
+.fb-lead-err { margin: 4px 0 10px; font-size: 12.5px; color: #b3261e; line-height: 1.5; }
+.fb-lead-note { margin: 12px 0 0; font-size: 11.5px; color: rgba(75,53,42,.65); text-align: center; }
+.fb-lead-done { text-align: center; padding: 8px 0 4px; }
+.fb-lead-check {
+  width: 56px; height: 56px; border-radius: 999px; background: var(--green); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 6px auto 14px;
+}
+.fb-lead-done h3 { font-size: 22px; color: var(--green); margin: 0 0 8px; font-weight: 600; }
+.fb-lead-done p { font-size: 14px; line-height: 1.6; color: var(--brown); margin: 0 0 20px; }
 `}</style>
   );
 }

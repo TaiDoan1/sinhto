@@ -418,7 +418,10 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
     4: Wallet,
   };
 
-  const canSubmit = mode === 'retail' ? cart.length > 0 : !!pendingCombo;
+  // Chỉ cho xác nhận khi ĐÃ XONG HẾT các bước (khách + sản phẩm/combo + giao nhận; bước Thanh
+  // toán luôn xong). Còn thiếu bước nào thì nút khoá + báo rõ thiếu gì.
+  const missingSteps = STEP_ORDER.filter((s) => !stepDone[s]).map((s) => stepLabel[s]);
+  const canSubmit = missingSteps.length === 0;
   const handleSubmit = mode === 'retail' ? handleSubmitRetail : handleSubmitCombo;
 
   // Chú thích cho ô giờ gộp (đặt/giao) — tự đổi theo giờ đang chọn là quá khứ hay tương lai.
@@ -955,10 +958,15 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
           type="button"
           onClick={handleSubmit}
           disabled={submitting || !canSubmit}
-          className="shrink-0 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm flex items-center gap-2"
+          title={canSubmit ? '' : `Hoàn tất các bước còn thiếu: ${missingSteps.join(', ')}`}
+          className="shrink-0 px-5 sm:px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm flex items-center gap-2"
         >
-          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          <span className="truncate">{mode === 'retail' ? 'Xác nhận đơn lẻ' : 'Xác nhận đơn combo'}</span>
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          <span className="truncate">
+            {!canSubmit
+              ? `Còn thiếu: ${missingSteps.join(', ')}`
+              : mode === 'retail' ? 'Xác nhận đơn lẻ' : 'Xác nhận đơn combo'}
+          </span>
         </button>
        </div>
       </div>

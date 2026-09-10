@@ -551,73 +551,72 @@ export function OnlineSalesOrderEntry({ employee, onComplete, onViewOrders, pref
               </div>
             </div>
 
-            <div className="lg:col-span-5 space-y-4">
-              <div className="bg-white rounded-2xl border border-indigo-100 p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-gray-900">Giỏ hàng ({cart.length})</h3>
-                </div>
-                {cart.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4 text-center">Giỏ hàng trống — thêm sản phẩm bên trái.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-sm truncate">{item.productName}</p>
-                          <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
-                          <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                          <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
-                          <span className="text-sm font-bold text-indigo-700 w-20 text-right">
-                            {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                          </span>
-                          <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Giỏ hàng cao BẰNG khung chọn sản phẩm cho cân đối — danh sách cuộn bên trong,
+                tổng tiền + kỵ vị + nút Tiếp ghim ở dưới. */}
+            <div className="lg:col-span-5">
+              <div className="h-[420px] sm:h-[480px] lg:h-[540px] bg-white rounded-2xl border border-indigo-100 p-4 flex flex-col">
+                <h3 className="font-bold text-gray-900 mb-2 shrink-0">Giỏ hàng ({cart.length})</h3>
 
-                {/* Tổng tiền hiện ngay tại khung sản phẩm (không phải kéo xuống thanh đáy) */}
+                <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+                  {cart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-2">
+                      <ShoppingCart className="w-8 h-8 opacity-30" />
+                      <p className="text-sm font-semibold">Giỏ hàng trống</p>
+                      <p className="text-xs">Chọn sản phẩm bên trái để thêm.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {cart.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-sm truncate">{item.productName}</p>
+                            <p className="text-xs text-gray-500">{item.size} · {item.protein}g</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button type="button" onClick={() => updateQty(idx, -1)} className="p-1 rounded-lg bg-gray-100"><Minus className="w-3.5 h-3.5" /></button>
+                            <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                            <button type="button" onClick={() => updateQty(idx, 1)} className="p-1 rounded-lg bg-gray-100"><Plus className="w-3.5 h-3.5" /></button>
+                            <span className="text-sm font-bold text-indigo-700 w-20 text-right">
+                              {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                            </span>
+                            <button type="button" onClick={() => setCart((c) => c.filter((_, i) => i !== idx))} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {cart.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                  <div className="shrink-0 mt-2 pt-2 border-t border-gray-100 space-y-1">
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <span>Tạm tính · {cart.reduce((n, it) => n + it.quantity, 0)} ly</span>
                       <span className="font-semibold text-gray-700">{cartTotal.toLocaleString('vi-VN')}đ</span>
                     </div>
-                    {Number(shipFee) > 0 && (
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>Phí ship</span>
-                        <span className="font-semibold text-gray-700">{Number(shipFee).toLocaleString('vi-VN')}đ</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm">
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm">
                       <span className="text-sm font-black text-white uppercase tracking-wide">Tổng cộng</span>
-                      <span className="text-xl font-black text-white">{(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
+                      <span className="text-lg font-black text-white">{(cartTotal + (Number(shipFee) || 0)).toLocaleString('vi-VN')}đ</span>
                     </div>
                   </div>
                 )}
-              </div>
 
-              <div>
-                <label className="text-xs font-bold text-red-600 mb-1 block">⚠️ Kỵ vị & Dị ứng</label>
-                <textarea
-                  placeholder="VD: dị ứng đậu phộng; không thích vị sầu riêng; không cho topping hạt..."
-                  value={allergyNote}
-                  onChange={(e) => setAllergyNote(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50/40 text-sm h-14 resize-none"
-                />
-              </div>
+                <div className="shrink-0 mt-2">
+                  <textarea
+                    placeholder="⚠️ Kỵ vị & dị ứng (VD: dị ứng đậu phộng, không topping hạt...)"
+                    value={allergyNote}
+                    onChange={(e) => setAllergyNote(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50/40 text-sm h-11 resize-none"
+                  />
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveStep(3)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
-              >
-                Tiếp: Giao nhận →
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(3)}
+                  className="shrink-0 mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm"
+                >
+                  Tiếp: Giao nhận →
+                </button>
+              </div>
             </div>
           </div>
         )}

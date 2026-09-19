@@ -62,6 +62,7 @@ interface LoyaltyContextType {
   fetchVouchers: (params?: { phone?: string; programId?: string; status?: string }) => Promise<LoyaltyVoucher[]>;
   issueVoucher: (programId: string, phone: string, deductPoints?: boolean) => Promise<LoyaltyVoucher>;
   issueVouchersBulk: (programId: string, phones: string[], deductPoints?: boolean) => Promise<BulkIssueVoucherResult>;
+  issueGenericVoucher: (programId: string, maxUses?: number | null) => Promise<LoyaltyVoucher>;
   lookupVoucherByCode: (code: string) => Promise<LoyaltyVoucher>;
   markVoucherUsed: (code: string) => Promise<LoyaltyVoucher>;
   cancelVoucher: (id: string, refundPoints?: boolean) => Promise<LoyaltyVoucher>;
@@ -97,7 +98,11 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
     const prog = voucher.program || config.redeemPrograms.find(p => p.id === voucher.programId);
     setActiveVoucher(voucher);
     setSelectedRedeemProgramId(voucher.programId);
-    const pointsAtUse = voucher.pointsDeducted > 0 ? 0 : (prog?.pointsCost ?? 0);
+    // Mã DÙNG CHUNG (customerId rỗng) không gắn 1 khách cụ thể nên không có "điểm đã dùng" thật
+    // sự — dù chương trình gốc có pointsCost > 0 (dùng cho luồng cấp riêng), ghi nhận 0 điểm cho
+    // đúng bản chất, tránh báo cáo hiểu nhầm là khách đã đổi điểm.
+    const isGeneric = !voucher.customerId;
+    const pointsAtUse = isGeneric || voucher.pointsDeducted > 0 ? 0 : (prog?.pointsCost ?? 0);
     setRedeemPointsAmount(pointsAtUse);
   };
 
@@ -260,9 +265,18 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
     const prog = config.redeemPrograms.find(p => p.id === programId && p.enabled);
     if (!prog) return 0;
 
-    const points = activeVoucher?.pointsDeducted
-      ? Math.max(activeCustomer?.points ?? 0, prog.pointsCost)
-      : (activeCustomer?.points ?? 0);
+    // Mã DÙNG CHUNG (customerId rỗng) không tính theo điểm khách — bỏ qua điều kiện điểm, khớp
+    // với bypass đã làm ở PosVoucherRedeem.tsx lúc áp mã. Chỉ bỏ qua khi voucher đang active CHÍNH
+    // LÀ mã của program này (không ảnh hưởng các chương trình khác đang liệt kê để đổi trực tiếp
+    // bằng điểm ở LoyaltyCustomerSection.tsx) — thiếu bước này khiến mã dùng chung áp được nhưng
+    // hiện giảm giá 0đ vì customer.points (0 khi chưa chọn khách) < pointsCost của program gốc.
+    const isActiveGenericVoucher = !!activeVoucher && activeVoucher.programId === programId && !activeVoucher.customerId;
+
+    const points = isActiveGenericVoucher
+      ? Number.MAX_SAFE_INTEGER
+      : activeVoucher?.pointsDeducted
+        ? Math.max(activeCustomer?.points ?? 0, prog.pointsCost)
+        : (activeCustomer?.points ?? 0);
     const { eligible } = getProgramEligibility(prog, { customerPoints: points, orderSubtotal: subtotal });
     if (!eligible) return 0;
 
@@ -296,6 +310,9 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
     await refreshCustomers();
     return result as BulkIssueVoucherResult;
   };
+
+  const issueGenericVoucher = (programId: string, maxUses?: number | null) =>
+    api.issueGenericLoyaltyVoucher({ programId, maxUses });
 
   const lookupVoucherByCode = (code: string) => api.lookupLoyaltyVoucher(code);
 
@@ -340,6 +357,7 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
       fetchVouchers,
       issueVoucher,
       issueVouchersBulk,
+      issueGenericVoucher,
       lookupVoucherByCode,
       markVoucherUsed,
       cancelVoucher,

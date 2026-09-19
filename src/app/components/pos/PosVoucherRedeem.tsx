@@ -53,9 +53,13 @@ export function PosVoucherRedeem({
       const prog = voucher.program;
       if (!prog) throw new Error('Chương trình không hợp lệ');
 
+      // Mã DÙNG CHUNG (tạo qua "Cấp mã dùng chung" ở Admin) không gắn khách cụ thể — customerId
+      // rỗng. Ai nhập đúng mã cũng dùng được, không cần tra/khớp khách, không tính theo điểm.
+      const isGeneric = !voucher.customerId;
+
       let customerPoints = activeCustomer?.points ?? 0;
       let customerForVoucher = activeCustomer;
-      if (!customerForVoucher) {
+      if (!customerForVoucher && voucher.customerPhone) {
         const cust = await lookupByPhone(voucher.customerPhone);
         if (cust) {
           customerForVoucher = cust;
@@ -67,7 +71,7 @@ export function PosVoucherRedeem({
       }
 
       const { eligible, reason } = getProgramEligibility(prog, {
-        customerPoints,
+        customerPoints: isGeneric ? Number.MAX_SAFE_INTEGER : customerPoints,
         orderSubtotal,
       });
       if (!eligible) {
@@ -75,7 +79,7 @@ export function PosVoucherRedeem({
         return;
       }
 
-      if (activeCustomer && voucher.customerId !== activeCustomer.id) {
+      if (!isGeneric && activeCustomer && voucher.customerId !== activeCustomer.id) {
         setError('Mã không thuộc khách hàng hiện tại');
         return;
       }
@@ -207,16 +211,18 @@ export function PosVoucherRedeem({
               }`}
             />
           </div>
+          {/* Đã gõ mã → nút chuyển thành "Áp dụng mã" (submit form, gọi applyCode) thay vì quét QR
+              — quét camera không còn ý nghĩa khi đang gõ tay. Ô trống thì vẫn là nút quét QR. */}
           <button
-            type="button"
-            onClick={startScanner}
+            type={code.length > 0 ? 'submit' : 'button'}
+            onClick={code.length > 0 ? undefined : startScanner}
             disabled={applying}
             className={`flex flex-col items-center justify-center bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl font-bold transition-colors ${
               isFull ? 'px-4 py-2 min-w-[72px]' : 'px-3 py-2 min-w-[60px]'
             }`}
           >
-            <Camera className={isFull ? 'w-6 h-6' : 'w-5 h-5'} />
-            <span className="text-[10px] mt-0.5">Quét QR</span>
+            {code.length > 0 ? <Check className={isFull ? 'w-6 h-6' : 'w-5 h-5'} /> : <Camera className={isFull ? 'w-6 h-6' : 'w-5 h-5'} />}
+            <span className="text-[10px] mt-0.5">{code.length > 0 ? 'Áp dụng mã' : 'Quét QR'}</span>
           </button>
         </form>
 

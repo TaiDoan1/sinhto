@@ -827,6 +827,20 @@ export async function issueLoyaltyVoucher(data: {
   return res.json();
 }
 
+export async function issueGenericLoyaltyVoucher(data: {
+  programId: string;
+  /** null/undefined = không giới hạn số lượt dùng */
+  maxUses?: number | null;
+}) {
+  const res = await fetch(`${BASE_URL}/loyalty-vouchers/issue-generic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) await parseApiError(res, 'Tạo mã dùng chung thất bại');
+  return res.json();
+}
+
 export async function issueLoyaltyVouchersBulk(data: {
   programId: string;
   phones: string[];
@@ -949,6 +963,24 @@ export async function deliverDeliveryLog(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to confirm delivery');
+  }
+  return res.json();
+}
+
+// Chuyển trạng thái buổi giao combo theo luồng đơn lẻ: preparing / ready / shipping.
+export async function updateDeliveryLogStatus(
+  id: string,
+  status: 'preparing' | 'ready' | 'shipping',
+  body?: { performedBy?: string; branchId?: string }
+) {
+  const res = await fetch(`${BASE_URL}/delivery-logs/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, ...(body || {}) }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update delivery status');
   }
   return res.json();
 }

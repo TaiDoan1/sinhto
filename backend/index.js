@@ -2438,6 +2438,39 @@ function generateVoucherCode() {
   return code;
 }
 
+// Mã giảm giá DÙNG CHUNG — không gắn 1 khách cụ thể (customerId để rỗng ''), ai nhập đúng mã đều
+// dùng được (miễn còn hạn/đủ điều kiện đơn tối thiểu). Khác mã cấp riêng theo SĐT ở chỗ có thể
+// dùng NHIỀU LẦN (đếm ở usedCount, giới hạn bởi maxUses — null = không giới hạn số lượt).
+function issueGenericVoucher(program, maxUses, cb) {
+  const tryInsert = (attempt = 0) => {
+    if (attempt > 8) return cb(new Error('Không tạo được mã duy nhất'));
+    const id = `VCH-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const code = generateVoucherCode();
+    const issuedAt = new Date().toISOString();
+    const expiresAt = program.validTo || null;
+
+    db.run(
+      `INSERT INTO loyalty_vouchers (id, code, programId, customerId, customerName, customerPhone, status, pointsDeducted, issuedAt, expiresAt, maxUses, usedCount)
+       VALUES (?, ?, ?, '', 'Dùng chung (mọi khách)', '', 'active', 0, ?, ?, ?, 0)`,
+      [id, code, program.id, issuedAt, expiresAt, maxUses || null],
+      function(insertErr) {
+        if (insertErr) {
+          if (insertErr.message.includes('UNIQUE')) return tryInsert(attempt + 1);
+          return cb(new Error(insertErr.message));
+        }
+        const voucher = {
+          id, code, programId: program.id, customerId: '', customerName: 'Dùng chung (mọi khách)', customerPhone: '',
+          status: 'active', pointsDeducted: 0, issuedAt, usedAt: null, expiresAt,
+          maxUses: maxUses || null, usedCount: 0, program,
+        };
+        broadcast('VOUCHER_ISSUED', voucher);
+        cb(null, voucher);
+      }
+    );
+  };
+  tryInsert();
+}
+
 function issueVoucherForCustomer(customer, program, deductPoints, cb) {
   const pointsCost = program.pointsCost || 0;
   const shouldDeduct = deductPoints && pointsCost > 0;
@@ -2528,6 +2561,8 @@ function rowToVoucher(row) {
     issuedAt: row.issuedAt,
     usedAt: row.usedAt || null,
     expiresAt: row.expiresAt || null,
+    maxUses: row.maxUses ?? null,
+    usedCount: row.usedCount || 0,
   };
 }
 
@@ -2682,6 +2717,25 @@ app.post('/api/loyalty-vouchers/issue-bulk', (req, res) => {
   });
 });
 
+// Cấp 1 mã DÙNG CHUNG (không gắn khách cụ thể) — ai nhập đúng mã, đủ điều kiện chương trình
+// (đơn tối thiểu/còn hạn) đều dùng được. maxUses null/0 = không giới hạn số lượt dùng.
+app.post('/api/loyalty-vouchers/issue-generic', (req, res) => {
+  const { programId, maxUses } = req.body;
+  if (!programId) return res.status(400).json({ error: 'Thiếu programId' });
+  const maxUsesValue = maxUses != null && Number(maxUses) > 0 ? Math.floor(Number(maxUses)) : null;
+
+  getRedeemPrograms((_, programs) => {
+    const program = findProgramById(programs, programId);
+    if (!program) return res.status(404).json({ error: 'Chương trình không tồn tại' });
+    if (!program.enabled) return res.status(400).json({ error: 'Chương trình đang tắt' });
+
+    issueGenericVoucher(program, maxUsesValue, (issueErr, voucher) => {
+      if (issueErr) return res.status(500).json({ error: issueErr.message });
+      res.status(201).json(voucher);
+    });
+  });
+});
+
 app.post('/api/loyalty-vouchers/use', (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'Thiếu mã voucher' });
@@ -2692,25 +2746,55 @@ app.post('/api/loyalty-vouchers/use', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Mã voucher không tồn tại' });
 
     const voucher = rowToVoucher(row);
+    const isGeneric = !voucher.customerId;
     if (voucher.status !== 'active') {
-      return res.status(400).json({ error: voucher.status === 'used' ? 'Mã đã được sử dụng' : 'Mã không còn hiệu lực' });
+      return res.status(400).json({ error: voucher.status === 'used' ? (isGeneric ? 'Mã đã hết lượt sử dụng' : 'Mã đã được sử dụng') : 'Mã không còn hiệu lực' });
     }
     if (isVoucherExpired(voucher)) {
       return res.status(400).json({ error: 'Mã voucher đã hết hạn' });
     }
 
     const usedAt = new Date().toISOString();
-    db.run(
-      "UPDATE loyalty_vouchers SET status = 'used', usedAt = ? WHERE id = ? AND status = 'active'",
-      [usedAt, voucher.id],
-      function(updateErr) {
-        if (updateErr) return res.status(500).json({ error: updateErr.message });
-        if (this.changes === 0) return res.status(400).json({ error: 'Mã đã được sử dụng' });
-        const updated = { ...voucher, status: 'used', usedAt };
-        broadcast('VOUCHER_UPDATED', updated);
-        res.json(updated);
-      }
-    );
+
+    if (isGeneric) {
+      // Mã dùng chung: tăng usedCount mỗi lần dùng, chỉ chuyển 'used' (hết lượt) khi CHẠM
+      // maxUses — maxUses NULL nghĩa là không giới hạn, mãi mãi active tới khi bị huỷ tay/hết hạn
+      // ngày. Điều kiện WHERE chặn race-condition dùng vượt quá lượt cho phép.
+      db.run(
+        `UPDATE loyalty_vouchers
+         SET usedCount = usedCount + 1,
+             usedAt = ?,
+             status = CASE WHEN maxUses IS NOT NULL AND usedCount + 1 >= maxUses THEN 'used' ELSE status END
+         WHERE id = ? AND status = 'active' AND (maxUses IS NULL OR usedCount < maxUses)`,
+        [usedAt, voucher.id],
+        function(updateErr) {
+          if (updateErr) return res.status(500).json({ error: updateErr.message });
+          if (this.changes === 0) return res.status(400).json({ error: 'Mã đã hết lượt sử dụng' });
+          const newUsedCount = voucher.usedCount + 1;
+          const updated = {
+            ...voucher,
+            usedCount: newUsedCount,
+            usedAt,
+            status: voucher.maxUses != null && newUsedCount >= voucher.maxUses ? 'used' : 'active',
+          };
+          broadcast('VOUCHER_UPDATED', updated);
+          res.json(updated);
+        }
+      );
+    } else {
+      // Mã cấp riêng cho 1 khách — giữ nguyên hành vi cũ: dùng 1 lần là hết.
+      db.run(
+        "UPDATE loyalty_vouchers SET status = 'used', usedAt = ? WHERE id = ? AND status = 'active'",
+        [usedAt, voucher.id],
+        function(updateErr) {
+          if (updateErr) return res.status(500).json({ error: updateErr.message });
+          if (this.changes === 0) return res.status(400).json({ error: 'Mã đã được sử dụng' });
+          const updated = { ...voucher, status: 'used', usedAt };
+          broadcast('VOUCHER_UPDATED', updated);
+          res.json(updated);
+        }
+      );
+    }
   });
 });
 

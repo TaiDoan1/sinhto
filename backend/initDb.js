@@ -476,6 +476,11 @@ async function initSchemaAndSeeds(pool) {
   await pool.query(`ALTER TABLE gift_redemptions ADD COLUMN IF NOT EXISTS code TEXT`).catch(() => {});
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_redemptions_campaign_code ON gift_redemptions("campaignId", code)`).catch(() => {});
 
+  // Mã giảm giá DÙNG CHUNG (không gắn 1 khách cụ thể) — maxUses NULL = không giới hạn lượt,
+  // usedCount đếm số lần đã dùng. Mã cấp riêng theo SĐT (cũ) không dùng 2 cột này.
+  await pool.query(`ALTER TABLE loyalty_vouchers ADD COLUMN IF NOT EXISTS "maxUses" INTEGER`).catch(() => {});
+  await pool.query(`ALTER TABLE loyalty_vouchers ADD COLUMN IF NOT EXISTS "usedCount" INTEGER DEFAULT 0`).catch(() => {});
+
   // Index tăng tốc truy vấn (tránh quét toàn bảng khi dữ liệu lớn dần)
   const perfIndexes = [
     `CREATE INDEX IF NOT EXISTS idx_orders_branch_time ON orders("branchId", "time")`,

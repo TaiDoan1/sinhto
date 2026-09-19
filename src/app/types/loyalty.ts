@@ -55,7 +55,17 @@ export interface LoyaltyVoucher {
   issuedAt: string;
   usedAt: string | null;
   expiresAt: string | null;
+  /** Số lượt dùng tối đa — chỉ có ở mã DÙNG CHUNG (customerId rỗng). null = không giới hạn. */
+  maxUses?: number | null;
+  /** Số lượt đã dùng — chỉ có ý nghĩa với mã dùng chung. */
+  usedCount?: number;
   program?: LoyaltyRedeemProgram;
+}
+
+/** Mã DÙNG CHUNG không gắn 1 khách cụ thể — ai nhập đúng mã, đủ điều kiện đều dùng được (khác mã
+ * cấp riêng theo SĐT, chỉ đúng 1 khách đó dùng). Nhận biết qua customerId rỗng. */
+export function isGenericVoucher(v: Pick<LoyaltyVoucher, 'customerId'>): boolean {
+  return !v.customerId;
 }
 
 export interface BulkIssueVoucherResult {
@@ -300,4 +310,10 @@ export function formatVoucherStatus(status: VoucherStatus): string {
   if (status === 'active') return 'Chưa dùng';
   if (status === 'used') return 'Đã dùng';
   return 'Đã hủy';
+}
+
+/** Hiển thị số lượt đã dùng cho mã DÙNG CHUNG (VD "12/50 lượt" hoặc "12 lượt · không giới hạn"). */
+export function formatVoucherUsage(v: Pick<LoyaltyVoucher, 'usedCount' | 'maxUses'>): string {
+  const used = v.usedCount ?? 0;
+  return v.maxUses ? `${used}/${v.maxUses} lượt` : `${used} lượt · không giới hạn`;
 }

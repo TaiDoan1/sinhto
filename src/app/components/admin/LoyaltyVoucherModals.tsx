@@ -9,6 +9,7 @@ import { usePagination, Pager } from '../common/Pagination';
 import {
   formatProgramValue,
   formatVoucherStatus,
+  formatVoucherUsage,
   parsePhoneList,
   exportVouchersCsv,
   type LoyaltyRedeemProgram,
@@ -77,14 +78,16 @@ function VoucherQRDisplay({ voucher }: { voucher: LoyaltyVoucher }) {
         </button>
       </div>
       <p className="text-xs text-gray-500">
-        {voucher.customerName} · {voucher.customerPhone}
+        {voucher.customerName}
+        {voucher.customerPhone && <> · {voucher.customerPhone}</>}
         {voucher.pointsDeducted > 0 && <> · −{voucher.pointsDeducted} điểm</>}
+        {!voucher.customerId && <> · {voucher.maxUses ? `Giới hạn ${voucher.maxUses} lượt` : 'Không giới hạn lượt'}</>}
       </p>
     </div>
   );
 }
 
-type IssueMode = 'single' | 'bulk';
+type IssueMode = 'single' | 'bulk' | 'generic';
 
 export function IssueVoucherModal({
   program,
@@ -93,7 +96,7 @@ export function IssueVoucherModal({
   program: LoyaltyRedeemProgram;
   onClose: () => void;
 }) {
-  const { lookupByPhone, issueVoucher, issueVouchersBulk } = useLoyalty();
+  const { lookupByPhone, issueVoucher, issueVouchersBulk, issueGenericVoucher } = useLoyalty();
   const [mode, setMode] = useState<IssueMode>('single');
   const [phone, setPhone] = useState('');
   const [bulkInput, setBulkInput] = useState('');
@@ -103,6 +106,8 @@ export function IssueVoucherModal({
   const [error, setError] = useState('');
   const [issued, setIssued] = useState<LoyaltyVoucher | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkIssueVoucherResult | null>(null);
+  // Mã DÙNG CHUNG: không cần chọn khách — chỉ hỏi giới hạn số lượt (để trống = không giới hạn).
+  const [genericMaxUses, setGenericMaxUses] = useState('');
 
   const parsedPhones = useMemo(() => parsePhoneList(bulkInput), [bulkInput]);
 
@@ -149,6 +154,20 @@ export function IssueVoucherModal({
       setBulkResult(result);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Cấp mã hàng loạt thất bại');
+    } finally {
+      setIssuing(false);
+    }
+  };
+
+  const handleIssueGeneric = async () => {
+    setIssuing(true);
+    setError('');
+    try {
+      const maxUses = genericMaxUses.trim() ? Number(genericMaxUses) : null;
+      const voucher = await issueGenericVoucher(program.id, maxUses);
+      setIssued(voucher);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Tạo mã dùng chung thất bại');
     } finally {
       setIssuing(false);
     }
@@ -248,9 +267,16 @@ export function IssueVoucherModal({
               >
                 <Users className="w-4 h-4" /> Hàng loạt
               </button>
+              <button
+                type="button"
+                onClick={() => setMode('generic')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${mode === 'generic' ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}
+              >
+                <Ticket className="w-4 h-4" /> Dùng chung
+              </button>
             </div>
 
-            {program.pointsCost > 0 && (
+            {mode !== 'generic' && program.pointsCost > 0 && (
               <label className="flex items-center gap-2 text-sm cursor-pointer bg-amber-50 border border-amber-100 rounded-xl p-3">
                 <input type="checkbox" checked={deductPoints} onChange={e => setDeductPoints(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
                 <span>Trừ <strong>{program.pointsCost}</strong> điểm mỗi khách khi cấp mã</span>
@@ -287,7 +313,7 @@ export function IssueVoucherModal({
                   </div>
                 )}
               </>
-            ) : (
+            ) : mode === 'bulk' ? (
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Danh sách SĐT</label>
@@ -312,6 +338,32 @@ export function IssueVoucherModal({
                 >
                   <Users className="w-5 h-5" />
                   {issuing ? `Đang cấp ${parsedPhones.length} mã...` : `Cấp mã cho ${parsedPhones.length || '...'} khách`}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-sm text-indigo-800">
+                  Tạo <strong>1 mã duy nhất</strong>, không gắn khách cụ thể — ai nhập đúng mã, đủ điều kiện đơn hàng (đơn tối thiểu, còn hạn) đều dùng được.
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Giới hạn số lượt dùng</label>
+                  <p className="text-[11px] text-gray-400 mb-1.5">Để trống = không giới hạn (dùng được mãi tới khi hủy/hết hạn ngày)</p>
+                  <input
+                    type="number"
+                    min={1}
+                    value={genericMaxUses}
+                    onChange={e => setGenericMaxUses(e.target.value)}
+                    placeholder="VD: 100"
+                    className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-400 font-mono text-sm"
+                  />
+                </div>
+                <button
+                  onClick={handleIssueGeneric}
+                  disabled={issuing}
+                  className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Ticket className="w-5 h-5" />
+                  {issuing ? 'Đang tạo...' : 'Tạo mã dùng chung'}
                 </button>
               </div>
             )}
@@ -465,8 +517,16 @@ export function VoucherListModal({
                       className={`cursor-pointer hover:bg-emerald-50/50 ${selected?.id === v.id ? 'bg-emerald-50' : ''}`}
                     >
                       <td className="px-4 py-2.5 font-mono font-bold text-emerald-800 tracking-wider">{v.code}</td>
-                      <td className="px-4 py-2.5 font-medium">{v.customerName}</td>
-                      <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">{v.customerPhone}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        {!v.customerId ? (
+                          <span className="inline-flex items-center gap-1 text-indigo-700">
+                            <Ticket className="w-3.5 h-3.5" /> Dùng chung
+                          </span>
+                        ) : v.customerName}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">
+                        {!v.customerId ? formatVoucherUsage(v) : v.customerPhone}
+                      </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           v.status === 'active' ? 'bg-emerald-100 text-emerald-700'

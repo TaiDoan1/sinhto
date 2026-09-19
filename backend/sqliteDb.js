@@ -324,6 +324,10 @@ async function init() {
     "ALTER TABLE fb_messages ADD COLUMN attachments TEXT DEFAULT '[]'",
     "ALTER TABLE fb_conversations ADD COLUMN tags TEXT DEFAULT '[]'",
     "ALTER TABLE gift_redemptions ADD COLUMN code TEXT",
+    // Mã giảm giá DÙNG CHUNG (không gắn 1 khách cụ thể) — maxUses NULL = không giới hạn lượt,
+    // usedCount đếm số lần đã dùng. Mã cấp riêng theo SĐT (cũ) không dùng 2 cột này.
+    "ALTER TABLE loyalty_vouchers ADD COLUMN maxUses INTEGER",
+    "ALTER TABLE loyalty_vouchers ADD COLUMN usedCount INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_gift_redemptions_campaign_code ON gift_redemptions(campaignId, code)",
     `CREATE TABLE IF NOT EXISTS gift_campaigns (
       id TEXT PRIMARY KEY, name TEXT, branchId TEXT, giftSize TEXT DEFAULT '360ml',
